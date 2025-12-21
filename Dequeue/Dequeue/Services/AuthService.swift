@@ -38,10 +38,18 @@ final class ClerkAuthService: AuthServiceProtocol {
     func configure() async {
         Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
         try? await Clerk.shared.load()
+
+        if let user = Clerk.shared.user {
+            ErrorReportingService.setUser(
+                id: user.id,
+                email: user.primaryEmailAddress?.emailAddress
+            )
+        }
     }
 
     func signOut() async throws {
         try await Clerk.shared.signOut()
+        ErrorReportingService.clearUser()
     }
 
     func getAuthToken() async throws -> String {
@@ -61,6 +69,9 @@ final class ClerkAuthService: AuthServiceProtocol {
         if let sessionId = signIn.createdSessionId {
             try await Clerk.shared.setActive(sessionId: sessionId)
         }
+        if let user = Clerk.shared.user {
+            ErrorReportingService.setUser(id: user.id, email: email)
+        }
     }
 
     func signUp(email: String, password: String) async throws {
@@ -77,6 +88,12 @@ final class ClerkAuthService: AuthServiceProtocol {
         let result = try await signUp.attemptVerification(strategy: .emailCode(code: code))
         if let sessionId = result.createdSessionId {
             try await Clerk.shared.setActive(sessionId: sessionId)
+        }
+        if let user = Clerk.shared.user {
+            ErrorReportingService.setUser(
+                id: user.id,
+                email: user.primaryEmailAddress?.emailAddress
+            )
         }
         currentSignUp = nil
     }

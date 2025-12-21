@@ -13,6 +13,10 @@ import Clerk
 struct DequeueApp: App {
     @State private var authService = ClerkAuthService()
 
+    init() {
+        ErrorReportingService.configure()
+    }
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Stack.self,

@@ -23,6 +23,18 @@ enum Configuration {
         #endif
     }()
 
+    // MARK: - Sentry Error Tracking
+
+    /// Sentry DSN
+    /// Get this from: Sentry Dashboard > Project Settings > Client Keys (DSN)
+    static let sentryDSN: String = {
+        #if DEBUG
+        return "YOUR_SENTRY_DSN_HERE"
+        #else
+        return "YOUR_SENTRY_DSN_HERE"
+        #endif
+    }()
+
     // MARK: - Sync Backend
 
     /// Base URL for the sync API
