@@ -11,7 +11,9 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(
-        filter: #Predicate<Stack> { !$0.isDeleted && !$0.isDraft },
+        filter: #Predicate<Stack> { stack in
+            stack.isDeleted == false && stack.isDraft == false
+        },
         sort: \Stack.sortOrder
     ) private var stacks: [Stack]
 

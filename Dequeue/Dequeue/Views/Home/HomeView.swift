@@ -11,14 +11,13 @@ import SwiftData
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(
-        filter: #Predicate<Stack> {
-            !$0.isDeleted && !$0.isDraft && $0.status == .active
+        filter: #Predicate<Stack> { stack in
+            stack.isDeleted == false && stack.isDraft == false
         },
         sort: \Stack.sortOrder
     ) private var stacks: [Stack]
 
     @State private var selectedStack: Stack?
-    @State private var showNotifications = false
 
     var body: some View {
         NavigationStack {
@@ -33,17 +32,14 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Button {
-                        showNotifications = true
+                        // TODO: Show notifications
                     } label: {
                         Image(systemName: "bell")
                     }
                 }
             }
             .sheet(item: $selectedStack) { stack in
-                StackDetailView(stack: stack)
-            }
-            .sheet(isPresented: $showNotifications) {
-                NotificationsView()
+                Text("Stack: \(stack.title)")
             }
         }
     }
