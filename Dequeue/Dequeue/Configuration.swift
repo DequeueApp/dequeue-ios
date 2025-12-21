@@ -28,11 +28,7 @@ enum Configuration {
     /// Sentry DSN
     /// Get this from: Sentry Dashboard > Project Settings > Client Keys (DSN)
     static let sentryDSN: String = {
-        #if DEBUG
-        return "YOUR_SENTRY_DSN_HERE"
-        #else
-        return "YOUR_SENTRY_DSN_HERE"
-        #endif
+        return "https://9cb21b75f2f1f7ff0f382bdd1f8ccc9f@o4509475658072064.ingest.us.sentry.io/4510574574108672"
     }()
 
     // MARK: - Sync Backend

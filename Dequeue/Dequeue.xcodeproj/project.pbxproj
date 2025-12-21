@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		57916B252EF87D1000A9AF45 /* Clerk in Frameworks */ = {isa = PBXBuildFile; productRef = 57916B242EF87D1000A9AF45 /* Clerk */; };
+		57916B2C2EF8855F00A9AF45 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 57916B2B2EF8855F00A9AF45 /* Sentry */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +58,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				57916B252EF87D1000A9AF45 /* Clerk in Frameworks */,
+				57916B2C2EF8855F00A9AF45 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,6 +128,7 @@
 			name = Dequeue;
 			packageProductDependencies = (
 				57916B242EF87D1000A9AF45 /* Clerk */,
+				57916B2B2EF8855F00A9AF45 /* Sentry */,
 			);
 			productName = Dequeue;
 			productReference = 57916A2D2EF84B3300A9AF45 /* Dequeue.app */;
@@ -211,6 +214,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				57916AE02EF86E3000A9AF45 /* XCRemoteSwiftPackageReference "clerk-ios" */,
+				57916B2A2EF8855F00A9AF45 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 57916A2E2EF84B3300A9AF45 /* Products */;
@@ -644,6 +648,14 @@
 				minimumVersion = 0.71.4;
 			};
 		};
+		57916B2A2EF8855F00A9AF45 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -651,6 +663,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 57916AE02EF86E3000A9AF45 /* XCRemoteSwiftPackageReference "clerk-ios" */;
 			productName = Clerk;
+		};
+		57916B2B2EF8855F00A9AF45 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 57916B2A2EF8855F00A9AF45 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
