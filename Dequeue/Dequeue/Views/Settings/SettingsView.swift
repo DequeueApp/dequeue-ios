@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Sentry
 
 struct SettingsView: View {
     var body: some View {
@@ -21,8 +22,21 @@ struct SettingsView: View {
                 }
 
                 Section("About") {
-                    Text("Version 1.0.0")
+                    Text("Version \(Configuration.appVersion)")
                 }
+
+                #if DEBUG
+                Section("Debug") {
+                    Button("Test Sentry Error") {
+                        ErrorReportingService.capture(message: "Test error from Settings", level: .error)
+                    }
+
+                    Button("Test Sentry Crash") {
+                        fatalError("Test crash from Settings")
+                    }
+                    .foregroundStyle(.red)
+                }
+                #endif
             }
             .navigationTitle("Settings")
         }
