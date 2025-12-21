@@ -17,9 +17,9 @@ enum Configuration {
         // TODO: Replace with your actual Clerk publishable key
         // For production, consider using environment variables or a secrets manager
         #if DEBUG
-        return "pk_test_YOUR_KEY_HERE"
+        return "pk_test_ZXhwZXJ0LWhhbGlidXQtODIuY2xlcmsuYWNjb3VudHMuZGV2JA"
         #else
-        return "pk_live_YOUR_KEY_HERE"
+        return "pk_test_ZXhwZXJ0LWhhbGlidXQtODIuY2xlcmsuYWNjb3VudHMuZGV2JA"
         #endif
     }()
 
