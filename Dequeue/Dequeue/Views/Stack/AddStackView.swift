@@ -90,7 +90,7 @@ struct AddStackView: View {
         }
 
         if !firstTaskTitle.isEmpty {
-            let task = Task(title: firstTaskTitle, stack: stack)
+            let task = QueueTask(title: firstTaskTitle, stack: stack)
             modelContext.insert(task)
             stack.tasks.append(task)
         }
@@ -101,5 +101,5 @@ struct AddStackView: View {
 
 #Preview {
     AddStackView()
-        .modelContainer(for: [Stack.self, Task.self, Reminder.self], inMemory: true)
+        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
 }

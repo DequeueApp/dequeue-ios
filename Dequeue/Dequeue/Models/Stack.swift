@@ -37,8 +37,8 @@ final class Stack {
     var revision: Int
 
     // Relationships
-    @Relationship(deleteRule: .cascade, inverse: \Task.stack)
-    var tasks: [Task] = []
+    @Relationship(deleteRule: .cascade, inverse: \QueueTask.stack)
+    var tasks: [QueueTask] = []
 
     @Relationship(deleteRule: .cascade)
     var reminders: [Reminder] = []
@@ -97,19 +97,19 @@ final class Stack {
 // MARK: - Convenience
 
 extension Stack {
-    var pendingTasks: [Task] {
+    var pendingTasks: [QueueTask] {
         tasks
             .filter { !$0.isDeleted && $0.status == .pending }
             .sorted { $0.sortOrder < $1.sortOrder }
     }
 
-    var completedTasks: [Task] {
+    var completedTasks: [QueueTask] {
         tasks
             .filter { !$0.isDeleted && $0.status == .completed }
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    var activeTask: Task? {
+    var activeTask: QueueTask? {
         pendingTasks.first
     }
 

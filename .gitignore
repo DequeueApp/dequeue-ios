@@ -3,6 +3,7 @@ build/
 DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 
 # Swift Package Manager
