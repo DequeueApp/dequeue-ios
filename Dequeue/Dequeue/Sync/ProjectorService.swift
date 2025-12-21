@@ -9,53 +9,53 @@ import Foundation
 import SwiftData
 
 enum ProjectorService {
-    static func apply(event: Event, context: ModelContext) async throws {
+    static func apply(event: Event, context: ModelContext) throws {
         guard let eventType = event.eventType else { return }
 
         switch eventType {
         // Stack events
         case .stackCreated:
-            try await applyStackCreated(event: event, context: context)
+            try applyStackCreated(event: event, context: context)
         case .stackUpdated:
-            try await applyStackUpdated(event: event, context: context)
+            try applyStackUpdated(event: event, context: context)
         case .stackDeleted:
-            try await applyStackDeleted(event: event, context: context)
+            try applyStackDeleted(event: event, context: context)
         case .stackCompleted:
-            try await applyStackCompleted(event: event, context: context)
+            try applyStackCompleted(event: event, context: context)
         case .stackActivated:
-            try await applyStackActivated(event: event, context: context)
+            try applyStackActivated(event: event, context: context)
         case .stackDeactivated:
-            try await applyStackDeactivated(event: event, context: context)
+            try applyStackDeactivated(event: event, context: context)
         case .stackClosed:
-            try await applyStackClosed(event: event, context: context)
+            try applyStackClosed(event: event, context: context)
         case .stackReordered:
-            try await applyStackReordered(event: event, context: context)
+            try applyStackReordered(event: event, context: context)
 
         // Task events
         case .taskCreated:
-            try await applyTaskCreated(event: event, context: context)
+            try applyTaskCreated(event: event, context: context)
         case .taskUpdated:
-            try await applyTaskUpdated(event: event, context: context)
+            try applyTaskUpdated(event: event, context: context)
         case .taskDeleted:
-            try await applyTaskDeleted(event: event, context: context)
+            try applyTaskDeleted(event: event, context: context)
         case .taskCompleted:
-            try await applyTaskCompleted(event: event, context: context)
+            try applyTaskCompleted(event: event, context: context)
         case .taskActivated:
-            try await applyTaskActivated(event: event, context: context)
+            try applyTaskActivated(event: event, context: context)
         case .taskClosed:
-            try await applyTaskClosed(event: event, context: context)
+            try applyTaskClosed(event: event, context: context)
         case .taskReordered:
-            try await applyTaskReordered(event: event, context: context)
+            try applyTaskReordered(event: event, context: context)
 
         // Reminder events
         case .reminderCreated:
-            try await applyReminderCreated(event: event, context: context)
+            try applyReminderCreated(event: event, context: context)
         case .reminderUpdated:
-            try await applyReminderUpdated(event: event, context: context)
+            try applyReminderUpdated(event: event, context: context)
         case .reminderDeleted:
-            try await applyReminderDeleted(event: event, context: context)
+            try applyReminderDeleted(event: event, context: context)
         case .reminderSnoozed:
-            try await applyReminderSnoozed(event: event, context: context)
+            try applyReminderSnoozed(event: event, context: context)
 
         case .deviceDiscovered:
             break
@@ -64,7 +64,7 @@ enum ProjectorService {
 
     // MARK: - Stack Events
 
-    private static func applyStackCreated(event: Event, context: ModelContext) async throws {
+    private static func applyStackCreated(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(StackEventPayload.self)
 
         if let existing = try findStack(id: payload.id, context: context) {
@@ -85,13 +85,13 @@ enum ProjectorService {
         }
     }
 
-    private static func applyStackUpdated(event: Event, context: ModelContext) async throws {
+    private static func applyStackUpdated(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(StackEventPayload.self)
         guard let stack = try findStack(id: payload.id, context: context) else { return }
         updateStack(stack, from: payload)
     }
 
-    private static func applyStackDeleted(event: Event, context: ModelContext) async throws {
+    private static func applyStackDeleted(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(EntityDeletedPayload.self)
         guard let stack = try findStack(id: payload.id, context: context) else { return }
         stack.isDeleted = true
@@ -100,7 +100,7 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackCompleted(event: Event, context: ModelContext) async throws {
+    private static func applyStackCompleted(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
         guard let stack = try findStack(id: payload.id, context: context) else { return }
         stack.status = .completed
@@ -109,7 +109,7 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackActivated(event: Event, context: ModelContext) async throws {
+    private static func applyStackActivated(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
         guard let stack = try findStack(id: payload.id, context: context) else { return }
         stack.status = .active
@@ -118,7 +118,7 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackDeactivated(event: Event, context: ModelContext) async throws {
+    private static func applyStackDeactivated(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
         guard let stack = try findStack(id: payload.id, context: context) else { return }
         stack.status = .archived
@@ -127,7 +127,7 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackClosed(event: Event, context: ModelContext) async throws {
+    private static func applyStackClosed(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
         guard let stack = try findStack(id: payload.id, context: context) else { return }
         stack.status = .closed
@@ -136,7 +136,7 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackReordered(event: Event, context: ModelContext) async throws {
+    private static func applyStackReordered(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(ReorderPayload.self)
         for (index, id) in payload.ids.enumerated() {
             guard let stack = try findStack(id: id, context: context) else { continue }
@@ -149,7 +149,7 @@ enum ProjectorService {
 
     // MARK: - Task Events
 
-    private static func applyTaskCreated(event: Event, context: ModelContext) async throws {
+    private static func applyTaskCreated(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(TaskEventPayload.self)
 
         if let existing = try findTask(id: payload.id, context: context) {
@@ -176,13 +176,13 @@ enum ProjectorService {
         }
     }
 
-    private static func applyTaskUpdated(event: Event, context: ModelContext) async throws {
+    private static func applyTaskUpdated(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(TaskEventPayload.self)
         guard let task = try findTask(id: payload.id, context: context) else { return }
         updateTask(task, from: payload, context: context)
     }
 
-    private static func applyTaskDeleted(event: Event, context: ModelContext) async throws {
+    private static func applyTaskDeleted(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(EntityDeletedPayload.self)
         guard let task = try findTask(id: payload.id, context: context) else { return }
         task.isDeleted = true
@@ -191,7 +191,7 @@ enum ProjectorService {
         task.lastSyncedAt = Date()
     }
 
-    private static func applyTaskCompleted(event: Event, context: ModelContext) async throws {
+    private static func applyTaskCompleted(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
         guard let task = try findTask(id: payload.id, context: context) else { return }
         task.status = .completed
@@ -200,7 +200,7 @@ enum ProjectorService {
         task.lastSyncedAt = Date()
     }
 
-    private static func applyTaskActivated(event: Event, context: ModelContext) async throws {
+    private static func applyTaskActivated(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
         guard let task = try findTask(id: payload.id, context: context) else { return }
         task.status = .pending
@@ -210,7 +210,7 @@ enum ProjectorService {
         task.lastSyncedAt = Date()
     }
 
-    private static func applyTaskClosed(event: Event, context: ModelContext) async throws {
+    private static func applyTaskClosed(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
         guard let task = try findTask(id: payload.id, context: context) else { return }
         task.status = .closed
@@ -219,7 +219,7 @@ enum ProjectorService {
         task.lastSyncedAt = Date()
     }
 
-    private static func applyTaskReordered(event: Event, context: ModelContext) async throws {
+    private static func applyTaskReordered(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(ReorderPayload.self)
         for (index, id) in payload.ids.enumerated() {
             guard let task = try findTask(id: id, context: context) else { continue }
@@ -232,7 +232,7 @@ enum ProjectorService {
 
     // MARK: - Reminder Events
 
-    private static func applyReminderCreated(event: Event, context: ModelContext) async throws {
+    private static func applyReminderCreated(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(ReminderEventPayload.self)
 
         if let existing = try findReminder(id: payload.id, context: context) {
@@ -242,8 +242,8 @@ enum ProjectorService {
                 id: payload.id,
                 parentId: payload.parentId,
                 parentType: payload.parentType,
-                remindAt: payload.remindAt,
                 status: payload.status,
+                remindAt: payload.remindAt,
                 syncState: .synced,
                 lastSyncedAt: Date()
             )
@@ -262,13 +262,13 @@ enum ProjectorService {
         }
     }
 
-    private static func applyReminderUpdated(event: Event, context: ModelContext) async throws {
+    private static func applyReminderUpdated(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(ReminderEventPayload.self)
         guard let reminder = try findReminder(id: payload.id, context: context) else { return }
         updateReminder(reminder, from: payload, context: context)
     }
 
-    private static func applyReminderDeleted(event: Event, context: ModelContext) async throws {
+    private static func applyReminderDeleted(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(EntityDeletedPayload.self)
         guard let reminder = try findReminder(id: payload.id, context: context) else { return }
         reminder.isDeleted = true
@@ -277,7 +277,7 @@ enum ProjectorService {
         reminder.lastSyncedAt = Date()
     }
 
-    private static func applyReminderSnoozed(event: Event, context: ModelContext) async throws {
+    private static func applyReminderSnoozed(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(ReminderEventPayload.self)
         guard let reminder = try findReminder(id: payload.id, context: context) else { return }
         reminder.status = .snoozed

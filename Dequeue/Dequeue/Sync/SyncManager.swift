@@ -61,10 +61,12 @@ actor SyncManager {
             throw SyncError.notAuthenticated
         }
 
-        let wsUrl = Configuration.syncAPIBaseURL
-            .absoluteString
-            .replacingOccurrences(of: "https://", with: "wss://")
-            .replacingOccurrences(of: "http://", with: "ws://")
+        let wsUrl = await MainActor.run {
+            Configuration.syncAPIBaseURL
+                .absoluteString
+                .replacingOccurrences(of: "https://", with: "wss://")
+                .replacingOccurrences(of: "http://", with: "ws://")
+        }
 
         guard let url = URL(string: "\(wsUrl)/ws?token=\(token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token)") else {
             throw SyncError.invalidURL
@@ -79,10 +81,12 @@ actor SyncManager {
         startListening()
         startHeartbeat()
 
-        ErrorReportingService.addBreadcrumb(
-            category: "sync",
-            message: "WebSocket connected"
-        )
+        await MainActor.run {
+            ErrorReportingService.addBreadcrumb(
+                category: "sync",
+                message: "WebSocket connected"
+            )
+        }
     }
 
     private func refreshToken() async throws -> String? {
@@ -101,9 +105,11 @@ actor SyncManager {
             throw SyncError.notAuthenticated
         }
 
-        let context = ModelContext(modelContainer)
-        let eventService = EventService(modelContext: context)
-        let pendingEvents = try eventService.fetchPendingEvents()
+        let pendingEvents = try await MainActor.run {
+            let context = ModelContext(modelContainer)
+            let eventService = EventService(modelContext: context)
+            return try eventService.fetchPendingEvents()
+        }
 
         guard !pendingEvents.isEmpty else { return }
 
@@ -125,7 +131,8 @@ actor SyncManager {
             ]
         }
 
-        var request = URLRequest(url: Configuration.syncAPIBaseURL.appendingPathComponent("sync/push"))
+        let pushURL = await MainActor.run { Configuration.syncAPIBaseURL.appendingPathComponent("sync/push") }
+        var request = URLRequest(url: pushURL)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -150,29 +157,35 @@ actor SyncManager {
                 throw SyncError.pushFailed
             }
 
-            try await processPushResponse(retryData, events: pendingEvents, context: context)
+            try await processPushResponse(retryData, events: pendingEvents)
         } else if httpResponse.statusCode == 200 {
-            try await processPushResponse(data, events: pendingEvents, context: context)
+            try await processPushResponse(data, events: pendingEvents)
         } else {
             throw SyncError.pushFailed
         }
     }
 
-    private func processPushResponse(_ data: Data, events: [Event], context: ModelContext) async throws {
+    private func processPushResponse(_ data: Data, events: [Event]) async throws {
         guard let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let acknowledged = response["acknowledged"] as? [String] else {
             return
         }
 
-        let eventService = EventService(modelContext: context)
         let syncedEvents = events.filter { acknowledged.contains($0.id.uuidString) }
-        try eventService.markEventsSynced(syncedEvents)
 
-        ErrorReportingService.addBreadcrumb(
-            category: "sync",
-            message: "Pushed \(syncedEvents.count) events",
-            data: ["total": events.count, "synced": syncedEvents.count]
-        )
+        try await MainActor.run {
+            let context = ModelContext(modelContainer)
+            let eventService = EventService(modelContext: context)
+            try eventService.markEventsSynced(syncedEvents)
+        }
+
+        await MainActor.run {
+            ErrorReportingService.addBreadcrumb(
+                category: "sync",
+                message: "Pushed \(syncedEvents.count) events",
+                data: ["total": events.count, "synced": syncedEvents.count]
+            )
+        }
     }
 
     // MARK: - Pull Events
@@ -184,7 +197,8 @@ actor SyncManager {
 
         let since = await getLastSyncTimestamp()
 
-        var request = URLRequest(url: Configuration.syncAPIBaseURL.appendingPathComponent("sync/pull"))
+        let pullURL = await MainActor.run { Configuration.syncAPIBaseURL.appendingPathComponent("sync/pull") }
+        var request = URLRequest(url: pullURL)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -232,11 +246,13 @@ actor SyncManager {
             try await processIncomingEvents(filteredEvents)
         }
 
-        ErrorReportingService.addBreadcrumb(
-            category: "sync",
-            message: "Pulled \(filteredEvents.count) events",
-            data: ["total": events.count, "processed": filteredEvents.count]
-        )
+        await MainActor.run {
+            ErrorReportingService.addBreadcrumb(
+                category: "sync",
+                message: "Pulled \(filteredEvents.count) events",
+                data: ["total": events.count, "processed": filteredEvents.count]
+            )
+        }
     }
 
     private func getLastSyncTimestamp() async -> String {
@@ -249,47 +265,49 @@ actor SyncManager {
     // MARK: - Process Incoming Events
 
     private func processIncomingEvents(_ events: [[String: Any]]) async throws {
-        let context = ModelContext(modelContainer)
+        try await MainActor.run {
+            let context = ModelContext(modelContainer)
 
-        for eventData in events {
-            guard let id = eventData["id"] as? String,
-                  let type = eventData["type"] as? String,
-                  let ts = eventData["ts"] as? String,
-                  let payload = eventData["payload"] as? [String: Any] else {
-                continue
+            for eventData in events {
+                guard let id = eventData["id"] as? String,
+                      let type = eventData["type"] as? String,
+                      let ts = eventData["ts"] as? String,
+                      let payload = eventData["payload"] as? [String: Any] else {
+                    continue
+                }
+
+                // Check if event already exists
+                let eventId = UUID(uuidString: id) ?? UUID()
+                let predicate = #Predicate<Event> { event in
+                    event.id == eventId
+                }
+                let descriptor = FetchDescriptor<Event>(predicate: predicate)
+                let existingEvents = try context.fetch(descriptor)
+
+                if !existingEvents.isEmpty {
+                    continue // Already have this event
+                }
+
+                // Create event in local database
+                let payloadData = try JSONSerialization.data(withJSONObject: payload)
+                let timestamp = ISO8601DateFormatter().date(from: ts) ?? Date()
+
+                let event = Event(
+                    id: eventId,
+                    type: type,
+                    payload: payloadData,
+                    timestamp: timestamp,
+                    isSynced: true,
+                    syncedAt: Date()
+                )
+                context.insert(event)
+
+                // Apply event to local state via ProjectorService
+                try ProjectorService.apply(event: event, context: context)
             }
 
-            // Check if event already exists
-            let eventId = UUID(uuidString: id) ?? UUID()
-            let predicate = #Predicate<Event> { event in
-                event.id == eventId
-            }
-            let descriptor = FetchDescriptor<Event>(predicate: predicate)
-            let existingEvents = try context.fetch(descriptor)
-
-            if !existingEvents.isEmpty {
-                continue // Already have this event
-            }
-
-            // Create event in local database
-            let payloadData = try JSONSerialization.data(withJSONObject: payload)
-            let timestamp = ISO8601DateFormatter().date(from: ts) ?? Date()
-
-            let event = Event(
-                id: eventId,
-                type: type,
-                payload: payloadData,
-                timestamp: timestamp,
-                isSynced: true,
-                syncedAt: Date()
-            )
-            context.insert(event)
-
-            // Apply event to local state via ProjectorService
-            try await ProjectorService.apply(event: event, context: context)
+            try context.save()
         }
-
-        try context.save()
     }
 
     // MARK: - WebSocket Listening
@@ -333,7 +351,9 @@ actor SyncManager {
         do {
             try await processIncomingEvents([eventData])
         } catch {
-            ErrorReportingService.capture(error: error, context: ["source": "websocket_message"])
+            await MainActor.run {
+                ErrorReportingService.capture(error: error, context: ["source": "websocket_message"])
+            }
         }
     }
 
@@ -366,7 +386,15 @@ actor SyncManager {
                       let webSocketTask = await self.webSocketTask else { break }
 
                 do {
-                    try await webSocketTask.sendPing()
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        webSocketTask.sendPing { error in
+                            if let error = error {
+                                continuation.resume(throwing: error)
+                            } else {
+                                continuation.resume()
+                            }
+                        }
+                    }
                 } catch {
                     await self.handleDisconnect()
                     break
@@ -393,7 +421,9 @@ actor SyncManager {
                     try await self.pushEvents()
                     try await self.pullEvents()
                 } catch {
-                    ErrorReportingService.capture(error: error, context: ["source": "periodic_sync"])
+                    await MainActor.run {
+                        ErrorReportingService.capture(error: error, context: ["source": "periodic_sync"])
+                    }
                 }
             }
         }
