@@ -56,6 +56,7 @@ struct MainTabView: View {
 
     // MARK: - macOS Layout
 
+    #if os(macOS)
     private var macOSLayout: some View {
         NavigationSplitView {
             List(selection: $selectedTab) {
@@ -90,6 +91,7 @@ struct MainTabView: View {
             }
         }
     }
+    #endif
 }
 
 #Preview {
