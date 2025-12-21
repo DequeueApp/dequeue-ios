@@ -174,17 +174,19 @@ struct AuthView: View {
         errorMessage = nil
 
         do {
-            if let clerkService = authService as? ClerkAuthService {
-                if authMode == .signIn {
-                    try await clerkService.signIn(email: email, password: password)
-                } else {
-                    try await clerkService.signUp(email: email, password: password)
-                    withAnimation {
-                        showVerification = true
-                    }
-                }
+            guard let clerkService = authService as? ClerkAuthService else {
+                errorMessage = "Authentication service not available"
+                isLoading = false
+                return
+            }
+
+            if authMode == .signIn {
+                try await clerkService.signIn(email: email, password: password)
             } else {
-                errorMessage = "Clerk SDK not configured. Add the ClerkSDK package to enable authentication."
+                try await clerkService.signUp(email: email, password: password)
+                withAnimation {
+                    showVerification = true
+                }
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -198,9 +200,12 @@ struct AuthView: View {
         errorMessage = nil
 
         do {
-            if let clerkService = authService as? ClerkAuthService {
-                try await clerkService.verifyEmail(code: verificationCode)
+            guard let clerkService = authService as? ClerkAuthService else {
+                errorMessage = "Authentication service not available"
+                isLoading = false
+                return
             }
+            try await clerkService.verifyEmail(code: verificationCode)
         } catch {
             errorMessage = error.localizedDescription
         }

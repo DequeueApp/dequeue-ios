@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import ClerkSDK
 
 // MARK: - Auth Service Protocol
 
@@ -22,69 +23,62 @@ protocol AuthServiceProtocol {
 // MARK: - Clerk Auth Service
 
 /// Production auth service using Clerk SDK
-/// Uncomment ClerkSDK import and implementation after adding the package
 @Observable
 final class ClerkAuthService: AuthServiceProtocol {
-    // import ClerkSDK
+    private var currentSignUp: SignUp?
 
     var isAuthenticated: Bool {
-        // return Clerk.shared.session != nil
-        return _isAuthenticated
+        Clerk.shared.session != nil
     }
 
     var currentUserId: String? {
-        // return Clerk.shared.user?.id
-        return _currentUserId
+        Clerk.shared.user?.id
     }
 
-    // Temporary state until Clerk SDK is added
-    private var _isAuthenticated = false
-    private var _currentUserId: String?
-
     func configure() async {
-        // Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
-        // try? await Clerk.shared.load()
+        Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
+        try? await Clerk.shared.load()
     }
 
     func signOut() async throws {
-        // try await Clerk.shared.signOut()
-        _isAuthenticated = false
-        _currentUserId = nil
+        try await Clerk.shared.signOut()
     }
 
     func getAuthToken() async throws -> String {
-        // guard let session = Clerk.shared.session else {
-        //     throw AuthError.notAuthenticated
-        // }
-        // guard let token = try await session.getToken()?.jwt else {
-        //     throw AuthError.noToken
-        // }
-        // return token
-        throw AuthError.notAuthenticated
+        guard let session = Clerk.shared.session else {
+            throw AuthError.notAuthenticated
+        }
+        guard let token = try await session.getToken()?.jwt else {
+            throw AuthError.noToken
+        }
+        return token
     }
 
-    // MARK: - Sign In/Up (to be implemented with Clerk)
+    // MARK: - Sign In/Up
 
     func signIn(email: String, password: String) async throws {
-        // let signIn = try await SignIn.create(strategy: .identifier(email, password: password))
-        // if let session = signIn.createdSession {
-        //     try await Clerk.shared.setSession(session)
-        // }
-        throw AuthError.notImplemented
+        let signIn = try await SignIn.create(strategy: .identifier(email, password: password))
+        if let session = signIn.createdSession {
+            try await Clerk.shared.setActive(session: session)
+        }
     }
 
     func signUp(email: String, password: String) async throws {
-        // let signUp = try await SignUp.create(strategy: .standard(emailAddress: email, password: password))
-        // try await signUp.prepareVerification(strategy: .emailCode)
-        throw AuthError.notImplemented
+        currentSignUp = try await SignUp.create(
+            strategy: .standard(emailAddress: email, password: password)
+        )
+        try await currentSignUp?.prepareVerification(strategy: .emailCode)
     }
 
     func verifyEmail(code: String) async throws {
-        // let session = try await currentSignUp?.attemptVerification(.emailCode(code: code))
-        // if let session {
-        //     try await Clerk.shared.setSession(session)
-        // }
-        throw AuthError.notImplemented
+        guard let signUp = currentSignUp else {
+            throw AuthError.verificationFailed
+        }
+        let result = try await signUp.attemptVerification(.emailCode(code: code))
+        if let session = result.createdSession {
+            try await Clerk.shared.setActive(session: session)
+        }
+        currentSignUp = nil
     }
 }
 
@@ -95,7 +89,6 @@ enum AuthError: LocalizedError {
     case noToken
     case invalidCredentials
     case verificationFailed
-    case notImplemented
 
     var errorDescription: String? {
         switch self {
@@ -107,8 +100,6 @@ enum AuthError: LocalizedError {
             return "Invalid email or password."
         case .verificationFailed:
             return "Email verification failed. Please try again."
-        case .notImplemented:
-            return "This feature requires Clerk SDK to be configured."
         }
     }
 }

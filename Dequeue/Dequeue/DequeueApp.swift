@@ -7,7 +7,7 @@
 
 import SwiftUI
 import SwiftData
-// import ClerkSDK  // Uncomment after adding Clerk package
+import ClerkSDK
 
 @main
 struct DequeueApp: App {
@@ -38,8 +38,7 @@ struct DequeueApp: App {
         WindowGroup {
             RootView()
                 .environment(\.authService, authService)
-                // Uncomment after adding Clerk package:
-                // .environment(\.clerk, Clerk.shared)
+                .environment(\.clerk, Clerk.shared)
                 .task {
                     await authService.configure()
                 }
