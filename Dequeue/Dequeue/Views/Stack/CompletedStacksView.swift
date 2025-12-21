@@ -10,13 +10,18 @@ import SwiftData
 
 struct CompletedStacksView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(
-        filter: #Predicate<Stack> { stack in
-            stack.isDeleted == false && stack.isDraft == false
-        },
-        sort: \Stack.updatedAt,
-        order: .reverse
-    ) private var completedStacks: [Stack]
+    @Query private var completedStacks: [Stack]
+
+    init() {
+        let completed = StackStatus.completed
+        _completedStacks = Query(
+            filter: #Predicate<Stack> { stack in
+                stack.isDeleted == false && stack.status == completed
+            },
+            sort: \Stack.updatedAt,
+            order: .reverse
+        )
+    }
 
     var body: some View {
         NavigationStack {
