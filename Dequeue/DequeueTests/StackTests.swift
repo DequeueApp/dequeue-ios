@@ -71,7 +71,7 @@ struct StackTests {
 
         let pendingTask = Task(title: "Pending", status: .pending, sortOrder: 0, stack: stack)
         let completedTask = Task(title: "Completed", status: .completed, sortOrder: 1, stack: stack)
-        let deletedTask = Task(title: "Deleted", status: .pending, isDeleted: true, sortOrder: 2, stack: stack)
+        let deletedTask = Task(title: "Deleted", status: .pending, sortOrder: 2, isDeleted: true, stack: stack)
 
         context.insert(pendingTask)
         context.insert(completedTask)
