@@ -195,6 +195,9 @@
 			);
 			mainGroup = 57916A242EF84B3300A9AF45;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				57916AE02EF86E3000A9AF45 /* XCRemoteSwiftPackageReference "clerk-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 57916A2E2EF84B3300A9AF45 /* Products */;
 			projectDirPath = "";
@@ -615,6 +618,17 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		57916AE02EF86E3000A9AF45 /* XCRemoteSwiftPackageReference "clerk-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/clerk/clerk-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.71.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = 57916A252EF84B3300A9AF45 /* Project object */;
 }
