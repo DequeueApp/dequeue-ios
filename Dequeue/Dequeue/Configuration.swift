@@ -39,11 +39,7 @@ enum Configuration {
 
     /// Base URL for the sync API
     static let syncAPIBaseURL: URL = {
-        #if DEBUG
-        return URL(string: "https://stacks-sync-staging.fly.dev")!
-        #else
         return URL(string: "https://stacks-sync.fly.dev")!
-        #endif
     }()
 
     // MARK: - Feature Flags
