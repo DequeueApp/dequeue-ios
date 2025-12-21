@@ -15,6 +15,8 @@ struct DequeueApp: App {
             Stack.self,
             Task.self,
             Reminder.self,
+            Event.self,
+            Device.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
