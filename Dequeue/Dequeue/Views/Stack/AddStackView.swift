@@ -40,7 +40,9 @@ struct AddStackView: View {
                 }
             }
             .navigationTitle(draft != nil ? "Edit Draft" : "New Stack")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
