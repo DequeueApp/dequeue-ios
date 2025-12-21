@@ -7,6 +7,7 @@
 
 import Testing
 import SwiftData
+import Foundation
 @testable import Dequeue
 
 @Suite("Dequeue Core Tests")
