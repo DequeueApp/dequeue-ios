@@ -1,5 +1,5 @@
 //
-//  Task.swift
+//  QueueTask.swift
 //  Dequeue
 //
 //  Individual task within a Stack
@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 @Model
-final class Task {
+final class QueueTask {
     @Attribute(.unique) var id: UUID
     var title: String
     var taskDescription: String?
@@ -91,7 +91,7 @@ final class Task {
 
 // MARK: - Convenience
 
-extension Task {
+extension QueueTask {
     var activeReminders: [Reminder] {
         reminders.filter { !$0.isDeleted && $0.status == .active }
     }

@@ -7,7 +7,7 @@
 
 import Foundation
 import SwiftUI
-import ClerkSDK
+import Clerk
 
 // MARK: - Auth Service Protocol
 
@@ -58,8 +58,8 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     func signIn(email: String, password: String) async throws {
         let signIn = try await SignIn.create(strategy: .identifier(email, password: password))
-        if let session = signIn.createdSession {
-            try await Clerk.shared.setActive(session: session)
+        if let sessionId = signIn.createdSessionId {
+            try await Clerk.shared.setActive(sessionId: sessionId)
         }
     }
 
@@ -74,9 +74,9 @@ final class ClerkAuthService: AuthServiceProtocol {
         guard let signUp = currentSignUp else {
             throw AuthError.verificationFailed
         }
-        let result = try await signUp.attemptVerification(.emailCode(code: code))
-        if let session = result.createdSession {
-            try await Clerk.shared.setActive(session: session)
+        let result = try await signUp.attemptVerification(strategy: .emailCode(code: code))
+        if let sessionId = result.createdSessionId {
+            try await Clerk.shared.setActive(sessionId: sessionId)
         }
         currentSignUp = nil
     }

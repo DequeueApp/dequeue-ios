@@ -56,5 +56,5 @@ struct CompletedStacksView: View {
 
 #Preview {
     CompletedStacksView()
-        .modelContainer(for: [Stack.self, Task.self, Reminder.self], inMemory: true)
+        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
 }

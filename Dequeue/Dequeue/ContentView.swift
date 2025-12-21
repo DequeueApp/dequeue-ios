@@ -76,5 +76,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: [Stack.self, Task.self, Reminder.self], inMemory: true)
+        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
 }

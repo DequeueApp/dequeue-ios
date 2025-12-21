@@ -7,7 +7,7 @@
 
 import SwiftUI
 import SwiftData
-import ClerkSDK
+import Clerk
 
 @main
 struct DequeueApp: App {
@@ -16,7 +16,7 @@ struct DequeueApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Stack.self,
-            Task.self,
+            QueueTask.self,
             Reminder.self,
             Event.self,
             Device.self,
@@ -71,11 +71,11 @@ struct RootView: View {
 
     return RootView()
         .environment(\.authService, mockAuth)
-        .modelContainer(for: [Stack.self, Task.self, Reminder.self], inMemory: true)
+        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
 }
 
 #Preview("Unauthenticated") {
     RootView()
         .environment(\.authService, MockAuthService())
-        .modelContainer(for: [Stack.self, Task.self, Reminder.self], inMemory: true)
+        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
 }
