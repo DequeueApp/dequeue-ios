@@ -10,51 +10,65 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Query(
+        filter: #Predicate<Stack> { stack in
+            stack.isDeleted == false && stack.isDraft == false
+        },
+        sort: \Stack.sortOrder
+    ) private var stacks: [Stack]
 
     var body: some View {
         NavigationSplitView {
             List {
-                ForEach(items) { item in
+                ForEach(stacks) { stack in
                     NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
+                        Text("Stack: \(stack.title)")
                     } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                        VStack(alignment: .leading) {
+                            Text(stack.title)
+                                .font(.headline)
+                            if let activeTask = stack.activeTask {
+                                Text(activeTask.title)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
-                .onDelete(perform: deleteItems)
+                .onDelete(perform: deleteStacks)
             }
-#if os(macOS)
+            #if os(macOS)
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
+            #endif
             .toolbar {
-#if os(iOS)
+                #if os(iOS)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     EditButton()
                 }
-#endif
+                #endif
                 ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                    Button(action: addStack) {
+                        Label("Add Stack", systemImage: "plus")
                     }
                 }
             }
+            .navigationTitle("Dequeue")
         } detail: {
-            Text("Select an item")
+            Text("Select a stack")
         }
     }
 
-    private func addItem() {
+    private func addStack() {
         withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
+            let newStack = Stack(title: "New Stack")
+            modelContext.insert(newStack)
         }
     }
 
-    private func deleteItems(offsets: IndexSet) {
+    private func deleteStacks(offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                modelContext.delete(items[index])
+                stacks[index].isDeleted = true
             }
         }
     }
@@ -62,5 +76,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: [Stack.self, Task.self, Reminder.self], inMemory: true)
 }
