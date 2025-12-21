@@ -10,6 +10,8 @@ import SwiftData
 
 struct MainTabView: View {
     @State private var selectedTab = 0
+    @State private var previousTab = 0
+    @State private var showAddSheet = false
 
     var body: some View {
         #if os(macOS)
@@ -35,7 +37,8 @@ struct MainTabView: View {
                 }
                 .tag(1)
 
-            AddStackView()
+            // Placeholder for Add tab - actual view presented as sheet
+            Color.clear
                 .tabItem {
                     Label("Add", systemImage: "plus.circle")
                 }
@@ -52,6 +55,17 @@ struct MainTabView: View {
                     Label("Settings", systemImage: "gear")
                 }
                 .tag(4)
+        }
+        .onChange(of: selectedTab) { oldValue, newValue in
+            if newValue == 2 {
+                // Add tab selected - show sheet and return to previous tab
+                selectedTab = oldValue
+                showAddSheet = true
+            }
+            previousTab = oldValue
+        }
+        .sheet(isPresented: $showAddSheet) {
+            AddStackView()
         }
     }
 
@@ -75,14 +89,21 @@ struct MainTabView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+            .toolbar {
+                ToolbarItem {
+                    Button {
+                        showAddSheet = true
+                    } label: {
+                        Label("Add Stack", systemImage: "plus")
+                    }
+                }
+            }
         } detail: {
             switch selectedTab {
             case 0:
                 HomeView()
             case 1:
                 DraftsView()
-            case 2:
-                AddStackView()
             case 3:
                 CompletedStacksView()
             case 4:
@@ -90,6 +111,9 @@ struct MainTabView: View {
             default:
                 HomeView()
             }
+        }
+        .sheet(isPresented: $showAddSheet) {
+            AddStackView()
         }
     }
     #endif
