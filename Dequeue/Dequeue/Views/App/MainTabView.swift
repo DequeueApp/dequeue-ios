@@ -73,15 +73,15 @@ struct MainTabView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            .toolbar {
-                ToolbarItem {
-                    Button {
+            .toolbar(content: {
+                ToolbarItem(placement: .automatic) {
+                    Button(action: {
                         selectedTab = 2
-                    } label: {
+                    }, label: {
                         Label("Add Stack", systemImage: "plus")
-                    }
+                    })
                 }
-            }
+            })
         } detail: {
             switch selectedTab {
             case 0:
