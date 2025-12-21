@@ -61,7 +61,7 @@ struct StackTests {
     }
 
     @Test("pendingTasks filters correctly")
-    func pendingTasksFiltersCorrectly() throws {
+    func pendingTasksFiltersCorrectly() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Stack.self, Task.self, Reminder.self, configurations: config)
         let context = ModelContext(container)
@@ -69,17 +69,15 @@ struct StackTests {
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
 
-        let pendingTask = Task(title: "Pending", status: .pending, sortOrder: 0)
-        let completedTask = Task(title: "Completed", status: .completed, sortOrder: 1)
-        let deletedTask = Task(title: "Deleted", status: .pending, sortOrder: 2, isDeleted: true)
+        let pendingTask = Task(title: "Pending", status: .pending, sortOrder: 0, stack: stack)
+        let completedTask = Task(title: "Completed", status: .completed, sortOrder: 1, stack: stack)
+        let deletedTask = Task(title: "Deleted", status: .pending, sortOrder: 2, isDeleted: true, stack: stack)
 
         context.insert(pendingTask)
         context.insert(completedTask)
         context.insert(deletedTask)
 
-        stack.tasks.append(pendingTask)
-        stack.tasks.append(completedTask)
-        stack.tasks.append(deletedTask)
+        stack.tasks = [pendingTask, completedTask, deletedTask]
 
         try context.save()
 
