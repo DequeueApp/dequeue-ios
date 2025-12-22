@@ -33,9 +33,24 @@ enum Configuration {
 
     // MARK: - Sync Backend
 
-    /// Base URL for the sync API
+    /// App ID for the sync service
+    /// Uses different IDs for debug vs production builds
+    static let syncAppId: String = {
+        #if DEBUG
+        return "dequeue-development"
+        #else
+        return "dequeue"
+        #endif
+    }()
+
+    /// Base URL for the sync service (without app path)
+    private static let syncServiceBaseURL: URL = {
+        return URL(string: "https://sync-service.fly.dev")!
+    }()
+
+    /// Base URL for the sync API (includes /apps/{appId} prefix)
     static let syncAPIBaseURL: URL = {
-        return URL(string: "https://stacks-sync.fly.dev")!
+        return syncServiceBaseURL.appendingPathComponent("apps/\(syncAppId)")
     }()
 
     // MARK: - Feature Flags
