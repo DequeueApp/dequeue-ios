@@ -39,7 +39,7 @@ struct HomeView: View {
                 }
             }
             .sheet(item: $selectedStack) { stack in
-                Text("Stack: \(stack.title)")
+                StackDetailView(stack: stack)
             }
         }
     }
