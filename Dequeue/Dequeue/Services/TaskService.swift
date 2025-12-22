@@ -1,0 +1,135 @@
+//
+//  TaskService.swift
+//  Dequeue
+//
+//  Business logic for Task operations
+//
+
+import Foundation
+import SwiftData
+
+@MainActor
+final class TaskService {
+    private let modelContext: ModelContext
+    private let eventService: EventService
+
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
+        self.eventService = EventService(modelContext: modelContext)
+    }
+
+    // MARK: - Create
+
+    func createTask(
+        title: String,
+        description: String? = nil,
+        stack: Stack,
+        sortOrder: Int? = nil
+    ) throws -> QueueTask {
+        let order = sortOrder ?? stack.pendingTasks.count
+
+        let task = QueueTask(
+            title: title,
+            taskDescription: description,
+            status: .pending,
+            sortOrder: order,
+            stack: stack
+        )
+
+        modelContext.insert(task)
+        stack.tasks.append(task)
+
+        try eventService.recordTaskCreated(task)
+        try modelContext.save()
+
+        return task
+    }
+
+    // MARK: - Update
+
+    func updateTask(_ task: QueueTask, title: String, description: String?) throws {
+        task.title = title
+        task.taskDescription = description
+        task.updatedAt = Date()
+        task.syncState = .pending
+
+        try eventService.recordTaskUpdated(task)
+        try modelContext.save()
+    }
+
+    // MARK: - Status Changes
+
+    func markAsCompleted(_ task: QueueTask) throws {
+        task.status = .completed
+        task.updatedAt = Date()
+        task.syncState = .pending
+
+        try eventService.recordTaskCompleted(task)
+        try modelContext.save()
+    }
+
+    func markAsBlocked(_ task: QueueTask, reason: String?) throws {
+        task.status = .blocked
+        task.blockedReason = reason
+        task.updatedAt = Date()
+        task.syncState = .pending
+
+        try eventService.recordTaskUpdated(task)
+        try modelContext.save()
+    }
+
+    func unblock(_ task: QueueTask) throws {
+        task.status = .pending
+        task.blockedReason = nil
+        task.updatedAt = Date()
+        task.syncState = .pending
+
+        try eventService.recordTaskUpdated(task)
+        try modelContext.save()
+    }
+
+    func closeTask(_ task: QueueTask) throws {
+        task.status = .closed
+        task.updatedAt = Date()
+        task.syncState = .pending
+
+        try eventService.recordTaskUpdated(task)
+        try modelContext.save()
+    }
+
+    // MARK: - Delete
+
+    func deleteTask(_ task: QueueTask) throws {
+        task.isDeleted = true
+        task.updatedAt = Date()
+        task.syncState = .pending
+
+        try eventService.recordTaskDeleted(task)
+        try modelContext.save()
+    }
+
+    // MARK: - Reorder
+
+    func updateSortOrders(_ tasks: [QueueTask]) throws {
+        for (index, task) in tasks.enumerated() {
+            task.sortOrder = index
+            task.updatedAt = Date()
+            task.syncState = .pending
+        }
+
+        try eventService.recordTaskReordered(tasks)
+        try modelContext.save()
+    }
+
+    // MARK: - Activate (move to top)
+
+    func activateTask(_ task: QueueTask) throws {
+        guard let stack = task.stack else { return }
+
+        let pendingTasks = stack.pendingTasks
+        var reorderedTasks = pendingTasks.filter { $0.id != task.id }
+        reorderedTasks.insert(task, at: 0)
+
+        try updateSortOrders(reorderedTasks)
+    }
+}

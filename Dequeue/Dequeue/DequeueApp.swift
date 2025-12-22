@@ -12,12 +12,12 @@ import Clerk
 @main
 struct DequeueApp: App {
     @State private var authService = ClerkAuthService()
+    let sharedModelContainer: ModelContainer
+    let syncManager: SyncManager
 
     init() {
         ErrorReportingService.configure()
-    }
 
-    var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Stack.self,
             QueueTask.self,
@@ -32,15 +32,17 @@ struct DequeueApp: App {
         )
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            sharedModelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
-    }()
+
+        syncManager = SyncManager(modelContainer: sharedModelContainer)
+    }
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            RootView(syncManager: syncManager)
                 .environment(\.authService, authService)
                 .environment(\.clerk, Clerk.shared)
                 .task {
@@ -56,6 +58,7 @@ struct DequeueApp: App {
 /// Handles navigation between auth and main app based on authentication state
 struct RootView: View {
     @Environment(\.authService) private var authService
+    let syncManager: SyncManager
 
     var body: some View {
         Group {
@@ -66,20 +69,65 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut, value: authService.isAuthenticated)
+        .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
+            Task {
+                await handleAuthStateChange(isAuthenticated: isAuthenticated)
+            }
+        }
+        .task {
+            if authService.isAuthenticated {
+                await handleAuthStateChange(isAuthenticated: true)
+            }
+        }
+    }
+
+    private func handleAuthStateChange(isAuthenticated: Bool) async {
+        if isAuthenticated {
+            guard let userId = authService.currentUserId else { return }
+            do {
+                let token = try await authService.getAuthToken()
+                try await syncManager.connect(
+                    userId: userId,
+                    token: token,
+                    getToken: { try await authService.getAuthToken() }
+                )
+                ErrorReportingService.addBreadcrumb(
+                    category: "sync",
+                    message: "Sync connected",
+                    data: ["userId": userId]
+                )
+            } catch {
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["source": "sync_connect"]
+                )
+            }
+        } else {
+            await syncManager.disconnect()
+            ErrorReportingService.addBreadcrumb(
+                category: "sync",
+                message: "Sync disconnected"
+            )
+        }
     }
 }
 
 #Preview("Authenticated") {
     let mockAuth = MockAuthService()
     mockAuth.mockSignIn()
+    let container = try! ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let syncManager = SyncManager(modelContainer: container)
 
-    return RootView()
+    return RootView(syncManager: syncManager)
         .environment(\.authService, mockAuth)
-        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
+        .modelContainer(container)
 }
 
 #Preview("Unauthenticated") {
-    RootView()
+    let container = try! ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let syncManager = SyncManager(modelContainer: container)
+
+    return RootView(syncManager: syncManager)
         .environment(\.authService, MockAuthService())
-        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
+        .modelContainer(container)
 }

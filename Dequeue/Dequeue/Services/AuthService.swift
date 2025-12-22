@@ -27,17 +27,20 @@ protocol AuthServiceProtocol {
 final class ClerkAuthService: AuthServiceProtocol {
     private var currentSignUp: SignUp?
 
-    var isAuthenticated: Bool {
-        Clerk.shared.session != nil
-    }
-
-    var currentUserId: String? {
-        Clerk.shared.user?.id
-    }
+    // Cache auth state to avoid repeated Clerk SDK calls on every view render
+    private(set) var isAuthenticated: Bool = false
+    private(set) var currentUserId: String?
 
     func configure() async {
         Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
         try? await Clerk.shared.load()
+
+        updateAuthState()
+    }
+
+    private func updateAuthState() {
+        isAuthenticated = Clerk.shared.session != nil
+        currentUserId = Clerk.shared.user?.id
 
         if let user = Clerk.shared.user {
             ErrorReportingService.setUser(
@@ -49,6 +52,8 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     func signOut() async throws {
         try await Clerk.shared.signOut()
+        isAuthenticated = false
+        currentUserId = nil
         ErrorReportingService.clearUser()
     }
 
@@ -69,9 +74,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         if let sessionId = signIn.createdSessionId {
             try await Clerk.shared.setActive(sessionId: sessionId)
         }
-        if let user = Clerk.shared.user {
-            ErrorReportingService.setUser(id: user.id, email: email)
-        }
+        updateAuthState()
     }
 
     func signUp(email: String, password: String) async throws {
@@ -89,13 +92,8 @@ final class ClerkAuthService: AuthServiceProtocol {
         if let sessionId = result.createdSessionId {
             try await Clerk.shared.setActive(sessionId: sessionId)
         }
-        if let user = Clerk.shared.user {
-            ErrorReportingService.setUser(
-                id: user.id,
-                email: user.primaryEmailAddress?.emailAddress
-            )
-        }
         currentSignUp = nil
+        updateAuthState()
     }
 }
 
