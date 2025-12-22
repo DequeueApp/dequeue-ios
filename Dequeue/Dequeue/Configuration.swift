@@ -34,14 +34,8 @@ enum Configuration {
     // MARK: - Sync Backend
 
     /// App ID for the sync service
-    /// Uses different IDs for debug vs production builds
-    static let syncAppId: String = {
-        #if DEBUG
-        return "dequeue-development"
-        #else
-        return "dequeue"
-        #endif
-    }()
+    /// TODO: Use "dequeue-development" for DEBUG when backend supports it
+    static let syncAppId: String = "dequeue"
 
     /// Base URL for the sync service (without app path)
     private static let syncServiceBaseURL: URL = {
