@@ -45,7 +45,7 @@ enum Configuration {
 
     /// Base URL for the sync service (without app path)
     private static let syncServiceBaseURL: URL = {
-        return URL(string: "https://sync-service.fly.dev")!
+        return URL(string: "https://stacks-sync.fly.dev")!
     }()
 
     /// Base URL for the sync API (includes /apps/{appId} prefix)
