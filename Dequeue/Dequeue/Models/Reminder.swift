@@ -10,8 +10,8 @@ import SwiftData
 
 @Model
 final class Reminder {
-    @Attribute(.unique) var id: UUID
-    var parentId: UUID
+    @Attribute(.unique) var id: String
+    var parentId: String
     var parentType: ParentType
     var status: ReminderStatus
     var snoozedFrom: Date?
@@ -29,8 +29,8 @@ final class Reminder {
     var revision: Int
 
     init(
-        id: UUID = UUID(),
-        parentId: UUID,
+        id: String = CUID.generate(),
+        parentId: String,
         parentType: ParentType,
         status: ReminderStatus = .active,
         snoozedFrom: Date? = nil,

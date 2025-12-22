@@ -10,7 +10,7 @@ import SwiftData
 
 @Model
 final class Stack {
-    @Attribute(.unique) var id: UUID
+    @Attribute(.unique) var id: String
     var title: String
     var stackDescription: String?
     var startTime: Date?
@@ -44,7 +44,7 @@ final class Stack {
     var reminders: [Reminder] = []
 
     init(
-        id: UUID = UUID(),
+        id: String = CUID.generate(),
         title: String,
         stackDescription: String? = nil,
         startTime: Date? = nil,

@@ -10,7 +10,7 @@ import SwiftData
 
 @Model
 final class QueueTask {
-    @Attribute(.unique) var id: UUID
+    @Attribute(.unique) var id: String
     var title: String
     var taskDescription: String?
     var dueTime: Date?
@@ -41,7 +41,7 @@ final class QueueTask {
     var reminders: [Reminder] = []
 
     init(
-        id: UUID = UUID(),
+        id: String = CUID.generate(),
         title: String,
         taskDescription: String? = nil,
         dueTime: Date? = nil,

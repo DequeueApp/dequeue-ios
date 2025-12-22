@@ -43,6 +43,7 @@ enum EventType: String, Codable, CaseIterable {
     case stackCreated = "stack.created"
     case stackUpdated = "stack.updated"
     case stackDeleted = "stack.deleted"
+    case stackDiscarded = "stack.discarded"
     case stackActivated = "stack.activated"
     case stackDeactivated = "stack.deactivated"
     case stackCompleted = "stack.completed"

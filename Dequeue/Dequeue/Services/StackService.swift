@@ -36,12 +36,36 @@ final class StackService {
 
         modelContext.insert(stack)
 
-        if !isDraft {
-            try eventService.recordStackCreated(stack)
-        }
+        // Always record events - drafts are synced for offline-first behavior
+        try eventService.recordStackCreated(stack)
 
         try modelContext.save()
         return stack
+    }
+
+    /// Updates a draft stack and records the update event
+    func updateDraft(_ stack: Stack, title: String, description: String?) throws {
+        guard stack.isDraft else { return }
+
+        stack.title = title
+        stack.stackDescription = description
+        stack.updatedAt = Date()
+        stack.syncState = .pending
+
+        try eventService.recordStackUpdated(stack)
+        try modelContext.save()
+    }
+
+    /// Discards a draft stack - fires stack.discarded event
+    func discardDraft(_ stack: Stack) throws {
+        guard stack.isDraft else { return }
+
+        stack.isDeleted = true
+        stack.updatedAt = Date()
+        stack.syncState = .pending
+
+        try eventService.recordStackDiscarded(stack)
+        try modelContext.save()
     }
 
     // MARK: - Read
@@ -169,6 +193,40 @@ final class StackService {
         }
 
         try eventService.recordStackReordered(stacks)
+        try modelContext.save()
+    }
+
+    // MARK: - History Revert
+
+    /// Reverts a stack to a historical state captured in an event.
+    /// Creates a NEW update event (preserves immutable history).
+    ///
+    /// Example timeline after revert:
+    /// ```
+    /// 10:00 - Created "Get Bread"
+    /// 10:05 - Updated "Get French Bread"
+    /// 10:10 - Updated "Get Sourdough Bread"
+    /// 10:15 - Updated "Get French Bread"  ← Revert creates NEW event
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - stack: The stack to revert
+    ///   - event: The historical event containing the desired state
+    func revertToHistoricalState(_ stack: Stack, from event: Event) throws {
+        let historicalPayload = try event.decodePayload(StackEventPayload.self)
+
+        // Apply historical values
+        stack.title = historicalPayload.title
+        stack.stackDescription = historicalPayload.description
+        stack.status = historicalPayload.status
+        stack.priority = historicalPayload.priority
+        stack.sortOrder = historicalPayload.sortOrder
+        stack.isDraft = historicalPayload.isDraft
+        stack.updatedAt = Date()  // Current time - this IS a new edit
+        stack.syncState = .pending
+
+        // Record as a NEW update event (preserves immutable history)
+        try eventService.recordStackUpdated(stack)
         try modelContext.save()
     }
 }

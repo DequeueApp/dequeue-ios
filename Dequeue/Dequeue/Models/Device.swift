@@ -10,7 +10,7 @@ import SwiftData
 
 @Model
 final class Device {
-    @Attribute(.unique) var id: UUID
+    @Attribute(.unique) var id: String
     var deviceId: String
     var stableDeviceId: String?
     var name: String
@@ -33,7 +33,7 @@ final class Device {
     var revision: Int
 
     init(
-        id: UUID = UUID(),
+        id: String = CUID.generate(),
         deviceId: String,
         stableDeviceId: String? = nil,
         name: String,

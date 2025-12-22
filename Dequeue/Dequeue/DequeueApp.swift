@@ -9,6 +9,19 @@ import SwiftUI
 import SwiftData
 import Clerk
 
+// MARK: - Environment Key for SyncManager
+
+private struct SyncManagerKey: EnvironmentKey {
+    static let defaultValue: SyncManager? = nil
+}
+
+extension EnvironmentValues {
+    var syncManager: SyncManager? {
+        get { self[SyncManagerKey.self] }
+        set { self[SyncManagerKey.self] = newValue }
+    }
+}
+
 @main
 struct DequeueApp: App {
     @State private var authService = ClerkAuthService()
@@ -34,10 +47,39 @@ struct DequeueApp: App {
         do {
             sharedModelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            // Schema migration failed - delete store and retry
+            print("[DequeueApp] ModelContainer failed, deleting store and retrying: \(error)")
+            Self.deleteSwiftDataStore()
+
+            do {
+                sharedModelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            } catch {
+                fatalError("Could not create ModelContainer after store deletion: \(error)")
+            }
         }
 
         syncManager = SyncManager(modelContainer: sharedModelContainer)
+    }
+
+    /// Deletes SwiftData store files when schema migration fails
+    private static func deleteSwiftDataStore() {
+        let fileManager = FileManager.default
+        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return
+        }
+
+        let storeURL = appSupport.appendingPathComponent("default.store")
+        let storeShmURL = appSupport.appendingPathComponent("default.store-shm")
+        let storeWalURL = appSupport.appendingPathComponent("default.store-wal")
+
+        try? fileManager.removeItem(at: storeURL)
+        try? fileManager.removeItem(at: storeShmURL)
+        try? fileManager.removeItem(at: storeWalURL)
+
+        // Also clear sync checkpoint so we get fresh data from server
+        UserDefaults.standard.removeObject(forKey: "com.dequeue.lastSyncCheckpoint")
+
+        print("[DequeueApp] Deleted SwiftData store files for schema migration")
     }
 
     var body: some Scene {
@@ -45,6 +87,7 @@ struct DequeueApp: App {
             RootView(syncManager: syncManager)
                 .environment(\.authService, authService)
                 .environment(\.clerk, Clerk.shared)
+                .environment(\.syncManager, syncManager)
                 .task {
                     await authService.configure()
                 }
@@ -58,6 +101,7 @@ struct DequeueApp: App {
 /// Handles navigation between auth and main app based on authentication state
 struct RootView: View {
     @Environment(\.authService) private var authService
+    @Environment(\.modelContext) private var modelContext
     let syncManager: SyncManager
 
     var body: some View {
@@ -84,6 +128,21 @@ struct RootView: View {
     private func handleAuthStateChange(isAuthenticated: Bool) async {
         if isAuthenticated {
             guard let userId = authService.currentUserId else { return }
+
+            // Ensure current device is discovered and registered
+            do {
+                try await DeviceService.shared.ensureCurrentDeviceDiscovered(
+                    modelContext: modelContext,
+                    userId: userId
+                )
+            } catch {
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["source": "device_discovery"]
+                )
+            }
+
+            // Connect to sync
             do {
                 let token = try await authService.getAuthToken()
                 try await syncManager.connect(

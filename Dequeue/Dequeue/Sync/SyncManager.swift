@@ -25,9 +25,26 @@ actor SyncManager {
     private var heartbeatTask: Task<Void, Never>?
     private var listenTask: Task<Void, Never>?
 
+    // Key for storing last sync checkpoint in UserDefaults
+    private let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
         self.session = URLSession(configuration: .default)
+    }
+
+    // MARK: - Checkpoint Persistence
+
+    private func saveLastSyncCheckpoint(_ checkpoint: String) {
+        UserDefaults.standard.set(checkpoint, forKey: lastSyncCheckpointKey)
+    }
+
+    private func getLastSyncCheckpoint() -> String {
+        if let checkpoint = UserDefaults.standard.string(forKey: lastSyncCheckpointKey) {
+            return checkpoint
+        }
+        // Default to Unix epoch for initial sync (pull all events)
+        return ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: 0))
     }
 
     // MARK: - Connection
@@ -123,7 +140,7 @@ actor SyncManager {
             }
 
             return [
-                "id": event.id.uuidString,
+                "id": event.id,
                 "device_id": deviceId,
                 "ts": ISO8601DateFormatter().string(from: event.timestamp),
                 "type": event.type,
@@ -171,12 +188,30 @@ actor SyncManager {
             return
         }
 
-        let syncedEvents = events.filter { acknowledged.contains($0.id.uuidString) }
+        let syncedEvents = events.filter { acknowledged.contains($0.id) }
 
         try await MainActor.run {
             let context = ModelContext(modelContainer)
             let eventService = EventService(modelContext: context)
             try eventService.markEventsSynced(syncedEvents)
+        }
+
+        // Handle rejected events
+        if let rejected = response["rejected"] as? [String],
+           let errors = response["errors"] as? [String] {
+            let rejectedEvents = events.filter { rejected.contains($0.id) }
+            for (index, event) in rejectedEvents.enumerated() {
+                let errorMessage = index < errors.count ? errors[index] : "Unknown error"
+                print("[Sync] Event \(event.id) rejected: \(errorMessage)")
+            }
+
+            await MainActor.run {
+                ErrorReportingService.addBreadcrumb(
+                    category: "sync",
+                    message: "Events rejected by server",
+                    data: ["rejected_count": rejected.count, "errors": errors]
+                )
+            }
         }
 
         await MainActor.run {
@@ -192,12 +227,16 @@ actor SyncManager {
 
     func pullEvents() async throws {
         guard let token = try await refreshToken() else {
+            print("[Sync] Pull failed: Not authenticated")
             throw SyncError.notAuthenticated
         }
 
         let since = await getLastSyncTimestamp()
+        print("[Sync] Pulling events since: \(since)")
 
         let pullURL = await MainActor.run { Configuration.syncAPIBaseURL.appendingPathComponent("sync/pull") }
+        print("[Sync] Pull URL: \(pullURL.absoluteString)")
+
         var request = URLRequest(url: pullURL)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -207,11 +246,16 @@ actor SyncManager {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
+            print("[Sync] Pull failed: Invalid response type")
             throw SyncError.pullFailed
         }
 
+        print("[Sync] Pull response status: \(httpResponse.statusCode)")
+
         if httpResponse.statusCode == 401 {
+            print("[Sync] Token expired, refreshing...")
             guard let newToken = try await refreshToken() else {
+                print("[Sync] Token refresh failed")
                 throw SyncError.notAuthenticated
             }
             request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
@@ -219,6 +263,7 @@ actor SyncManager {
 
             guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
                   retryHttpResponse.statusCode == 200 else {
+                print("[Sync] Retry failed with status: \((retryResponse as? HTTPURLResponse)?.statusCode ?? -1)")
                 throw SyncError.pullFailed
             }
 
@@ -226,24 +271,71 @@ actor SyncManager {
         } else if httpResponse.statusCode == 200 {
             try await processPullResponse(data)
         } else {
+            // Log the response body for debugging
+            if let responseBody = String(data: data, encoding: .utf8) {
+                print("[Sync] Pull failed with status \(httpResponse.statusCode): \(responseBody)")
+            }
             throw SyncError.pullFailed
         }
     }
 
     private func processPullResponse(_ data: Data) async throws {
-        guard let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let events = response["events"] as? [[String: Any]] else {
+        // Log raw response for debugging
+        if let rawResponse = String(data: data, encoding: .utf8) {
+            let preview = String(rawResponse.prefix(500))
+            print("[Sync] Raw pull response: \(preview)\(rawResponse.count > 500 ? "..." : "")")
+        }
+
+        guard let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            print("[Sync] Failed to parse pull response as JSON")
             return
         }
 
+        // Handle events being null or missing - treat as empty array
+        let events: [[String: Any]]
+        if let eventsArray = response["events"] as? [[String: Any]] {
+            events = eventsArray
+        } else if response["events"] is NSNull || response["events"] == nil {
+            // Server returned null or no events - this is valid, just no events to process
+            print("[Sync] Server returned no events (null or empty)")
+            events = []
+        } else {
+            print("[Sync] Response 'events' has unexpected type. Keys: \(response.keys.joined(separator: ", "))")
+            return
+        }
+
+        let nextCheckpoint = response["nextCheckpoint"] as? String
+        print("[Sync] Next checkpoint from server: \(nextCheckpoint ?? "nil")")
+
         let deviceId = await DeviceService.shared.getDeviceId()
+        print("[Sync] Current device ID: \(deviceId)")
+
         let filteredEvents = events.filter { event in
             guard let eventDeviceId = event["device_id"] as? String else { return true }
             return eventDeviceId != deviceId
         }
 
+        print("[Sync] Pull received \(events.count) events, \(filteredEvents.count) after filtering (excluded \(events.count - filteredEvents.count) from current device)")
+
+        // Log first few events for debugging
+        for (index, event) in events.prefix(3).enumerated() {
+            let eventType = event["type"] as? String ?? "unknown"
+            let eventId = event["id"] as? String ?? "unknown"
+            let eventDeviceId = event["device_id"] as? String ?? "unknown"
+            print("[Sync] Event \(index): type=\(eventType), id=\(eventId), device_id=\(eventDeviceId)")
+        }
+        if events.count > 3 {
+            print("[Sync] ... and \(events.count - 3) more events")
+        }
+
         if !filteredEvents.isEmpty {
             try await processIncomingEvents(filteredEvents)
+        }
+
+        // Only save checkpoint AFTER successful processing
+        if let nextCheckpoint = nextCheckpoint {
+            saveLastSyncCheckpoint(nextCheckpoint)
+            print("[Sync] Checkpoint updated to \(nextCheckpoint)")
         }
 
         await MainActor.run {
@@ -256,15 +348,17 @@ actor SyncManager {
     }
 
     private func getLastSyncTimestamp() async -> String {
-        // For now, use a fixed initial date
-        // TODO: Track last sync timestamp in UserDefaults or database
-        let initialDate = Date(timeIntervalSince1970: 1737417600) // Jan 21, 2025
-        return ISO8601DateFormatter().string(from: initialDate)
+        return getLastSyncCheckpoint()
     }
 
     // MARK: - Process Incoming Events
 
     private func processIncomingEvents(_ events: [[String: Any]]) async throws {
+        print("[Sync] Processing \(events.count) incoming events")
+        var processed = 0
+        var skipped = 0
+        var incompatible = 0
+
         try await MainActor.run {
             let context = ModelContext(modelContainer)
 
@@ -273,11 +367,13 @@ actor SyncManager {
                       let type = eventData["type"] as? String,
                       let ts = eventData["ts"] as? String,
                       let payload = eventData["payload"] as? [String: Any] else {
+                    print("[Sync] Skipping event - missing required fields")
+                    incompatible += 1
                     continue
                 }
 
-                // Check if event already exists
-                let eventId = UUID(uuidString: id) ?? UUID()
+                // Check if event already exists (using String ID directly to handle both UUID and CUID formats)
+                let eventId = id
                 let predicate = #Predicate<Event> { event in
                     event.id == eventId
                 }
@@ -285,6 +381,7 @@ actor SyncManager {
                 let existingEvents = try context.fetch(descriptor)
 
                 if !existingEvents.isEmpty {
+                    skipped += 1
                     continue // Already have this event
                 }
 
@@ -300,13 +397,29 @@ actor SyncManager {
                     isSynced: true,
                     syncedAt: Date()
                 )
-                context.insert(event)
 
-                // Apply event to local state via ProjectorService
-                try ProjectorService.apply(event: event, context: context)
+                // Try to apply event BEFORE inserting - skip incompatible legacy events
+                do {
+                    try ProjectorService.apply(event: event, context: context)
+                    // Only insert if application succeeded
+                    context.insert(event)
+                    processed += 1
+                } catch {
+                    // Incompatible schema from legacy app - skip this event entirely
+                    // Log the payload for debugging
+                    if let payloadString = String(data: payloadData, encoding: .utf8) {
+                        let preview = String(payloadString.prefix(200))
+                        print("[Sync] Skipping incompatible event \(id) (\(type)): \(error.localizedDescription)")
+                        print("[Sync] Payload preview: \(preview)")
+                    } else {
+                        print("[Sync] Skipping incompatible event \(id) (\(type)): \(error.localizedDescription)")
+                    }
+                    incompatible += 1
+                }
             }
 
             try context.save()
+            print("[Sync] Saved context - processed: \(processed), skipped (duplicates): \(skipped), skipped (incompatible): \(incompatible)")
         }
     }
 
@@ -408,7 +521,16 @@ actor SyncManager {
     private func startPeriodicSync() {
         // Initial pull
         Task {
-            try? await pullEvents()
+            do {
+                print("[Sync] Starting initial pull...")
+                try await pullEvents()
+                print("[Sync] Initial pull completed successfully")
+            } catch {
+                print("[Sync] Initial pull FAILED: \(error.localizedDescription)")
+                await MainActor.run {
+                    ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
+                }
+            }
         }
 
         periodicSyncTask = Task { [weak self] in
@@ -434,6 +556,26 @@ actor SyncManager {
     var connectionStatus: ConnectionStatus {
         guard webSocketTask != nil else { return .disconnected }
         return isConnected ? .connected : .connecting
+    }
+
+    // MARK: - Manual Sync (for debugging)
+
+    /// Manually trigger a pull from the server (for debugging)
+    func manualPull() async throws {
+        print("[Sync] Manual pull triggered")
+        try await pullEvents()
+    }
+
+    /// Manually trigger a push to the server (for debugging)
+    func manualPush() async throws {
+        print("[Sync] Manual push triggered")
+        try await pushEvents()
+    }
+
+    /// Reset sync checkpoint to beginning of time (for debugging)
+    func resetCheckpoint() {
+        UserDefaults.standard.removeObject(forKey: lastSyncCheckpointKey)
+        print("[Sync] Checkpoint reset - next pull will fetch all events")
     }
 }
 

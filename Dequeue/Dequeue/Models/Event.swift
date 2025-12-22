@@ -10,22 +10,27 @@ import SwiftData
 
 @Model
 final class Event {
-    @Attribute(.unique) var id: UUID
+    @Attribute(.unique) var id: String
     var type: String
     var payload: Data
     var timestamp: Date
     var metadata: Data?
+
+    /// The ID of the entity this event relates to (Stack, Task, Reminder, Device).
+    /// Used for efficient history queries.
+    var entityId: String?
 
     // Sync tracking
     var isSynced: Bool
     var syncedAt: Date?
 
     init(
-        id: UUID = UUID(),
+        id: String = CUID.generate(),
         type: String,
         payload: Data,
         timestamp: Date = Date(),
         metadata: Data? = nil,
+        entityId: String? = nil,
         isSynced: Bool = false,
         syncedAt: Date? = nil
     ) {
@@ -34,23 +39,26 @@ final class Event {
         self.payload = payload
         self.timestamp = timestamp
         self.metadata = metadata
+        self.entityId = entityId
         self.isSynced = isSynced
         self.syncedAt = syncedAt
     }
 
     convenience init(
-        id: UUID = UUID(),
+        id: String = CUID.generate(),
         eventType: EventType,
         payload: Data,
         timestamp: Date = Date(),
-        metadata: Data? = nil
+        metadata: Data? = nil,
+        entityId: String? = nil
     ) {
         self.init(
             id: id,
             type: eventType.rawValue,
             payload: payload,
             timestamp: timestamp,
-            metadata: metadata
+            metadata: metadata,
+            entityId: entityId
         )
     }
 }
@@ -62,8 +70,27 @@ extension Event {
         EventType(rawValue: type)
     }
 
+    /// Decodes payload supporting both flat format and legacy `state` wrapper format.
+    /// - Flat format: `{"id": "...", "name": "..."}`
+    /// - Legacy format: `{"state": {"id": "...", "name": "..."}}`
     func decodePayload<T: Decodable>(_ type: T.Type) throws -> T {
-        try JSONDecoder().decode(type, from: payload)
+        let decoder = JSONDecoder()
+
+        // First, try to decode directly (new flat format)
+        do {
+            return try decoder.decode(type, from: payload)
+        } catch {
+            // If that fails, check if it's wrapped in a "state" object (legacy format)
+            if let json = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
+               let stateObject = json["state"] {
+                // Re-serialize just the state object and decode that
+                let stateData = try JSONSerialization.data(withJSONObject: stateObject)
+                return try decoder.decode(type, from: stateData)
+            }
+
+            // Neither format worked, throw the original error
+            throw error
+        }
     }
 
     func decodeMetadata<T: Decodable>(_ type: T.Type) throws -> T? {
