@@ -176,7 +176,7 @@ enum AuthError: LocalizedError {
 @Observable
 final class MockAuthService: AuthServiceProtocol {
     var isAuthenticated: Bool = false
-    var currentUserId: String? = nil
+    var currentUserId: String?
 
     func configure() async {
         // No-op for mock

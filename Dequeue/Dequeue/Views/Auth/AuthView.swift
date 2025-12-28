@@ -57,7 +57,9 @@ struct AuthView: View {
                             errorMessage = nil
                         }
                     } label: {
-                        Text(authMode == .signIn ? "Don't have an account? Sign up" : "Already have an account? Sign in")
+                        Text(authMode == .signIn ?
+                             "Don't have an account? Sign up" :
+                             "Already have an account? Sign in")
                             .font(.footnote)
                     }
                     .padding(.bottom)
@@ -94,11 +96,11 @@ struct AuthView: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button(action: {
+            Button {
                 Task {
                     await performAuth()
                 }
-            }) {
+            } label: {
                 HStack {
                     if isLoading {
                         ProgressView()
@@ -199,11 +201,11 @@ struct AuthView: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button(action: {
+            Button {
                 Task {
                     await verify2FA()
                 }
-            }) {
+            } label: {
                 HStack {
                     if isLoading {
                         ProgressView()
