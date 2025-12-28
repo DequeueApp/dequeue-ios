@@ -149,13 +149,13 @@ final class StackService {
     func setAsActive(_ stack: Stack) throws {
         let activeStacks = try getActiveStacks()
 
-        for (index, s) in activeStacks.enumerated() {
-            if s.id == stack.id {
-                s.sortOrder = 0
-            } else if s.sortOrder <= stack.sortOrder {
-                s.sortOrder = index + 1
+        for (index, activeStack) in activeStacks.enumerated() {
+            if activeStack.id == stack.id {
+                activeStack.sortOrder = 0
+            } else if activeStack.sortOrder <= stack.sortOrder {
+                activeStack.sortOrder = index + 1
             }
-            s.syncState = .pending
+            activeStack.syncState = .pending
         }
 
         try eventService.recordStackActivated(stack)

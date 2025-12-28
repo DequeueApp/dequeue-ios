@@ -51,7 +51,8 @@ struct StackHistoryView: View {
         } message: {
             if let event = eventToRevert,
                let payload = try? event.decodePayload(StackEventPayload.self) {
-                Text("This will restore the stack to \"\(payload.title)\" as it was on \(event.timestamp.formatted(date: .abbreviated, time: .shortened)).")
+                let timestamp = event.timestamp.formatted(date: .abbreviated, time: .shortened)
+                Text("This will restore the stack to \"\(payload.title)\" as it was on \(timestamp).")
             }
         }
         .alert("Revert Failed", isPresented: $showRevertError) {

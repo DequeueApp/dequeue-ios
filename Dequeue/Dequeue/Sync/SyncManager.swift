@@ -5,9 +5,12 @@
 //  Handles sync with the backend via WebSocket and HTTP
 //
 
+// swiftlint:disable file_length
+
 import Foundation
 import SwiftData
 
+// swiftlint:disable:next type_body_length
 actor SyncManager {
     private var webSocketTask: URLSessionWebSocketTask?
     private let session: URLSession
@@ -85,7 +88,8 @@ actor SyncManager {
                 .replacingOccurrences(of: "http://", with: "ws://")
         }
 
-        guard let url = URL(string: "\(wsUrl)/ws?token=\(token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token)") else {
+        let encodedToken = token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token
+        guard let url = URL(string: "\(wsUrl)/ws?token=\(encodedToken)") else {
             throw SyncError.invalidURL
         }
 
@@ -117,6 +121,7 @@ actor SyncManager {
 
     // MARK: - Push Events
 
+    // swiftlint:disable:next function_body_length
     func pushEvents() async throws {
         guard let token = try await refreshToken() else {
             throw SyncError.notAuthenticated
@@ -279,6 +284,7 @@ actor SyncManager {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func processPullResponse(_ data: Data) async throws {
         // Log raw response for debugging
         if let rawResponse = String(data: data, encoding: .utf8) {
@@ -315,7 +321,9 @@ actor SyncManager {
             return eventDeviceId != deviceId
         }
 
-        print("[Sync] Pull received \(events.count) events, \(filteredEvents.count) after filtering (excluded \(events.count - filteredEvents.count) from current device)")
+        let excluded = events.count - filteredEvents.count
+        let msg = "Pull received \(events.count) events, \(filteredEvents.count) after filtering"
+        print("[Sync] \(msg) (excluded \(excluded) from current device)")
 
         // Log first few events for debugging
         for (index, event) in events.prefix(3).enumerated() {
@@ -353,6 +361,7 @@ actor SyncManager {
 
     // MARK: - Process Incoming Events
 
+    // swiftlint:disable:next function_body_length
     private func processIncomingEvents(_ events: [[String: Any]]) async throws {
         print("[Sync] Processing \(events.count) incoming events")
         var processed = 0
@@ -365,7 +374,7 @@ actor SyncManager {
             for eventData in events {
                 guard let id = eventData["id"] as? String,
                       let type = eventData["type"] as? String,
-                      let ts = eventData["ts"] as? String,
+                      let timestamp = eventData["ts"] as? String,
                       let payload = eventData["payload"] as? [String: Any] else {
                     print("[Sync] Skipping event - missing required fields")
                     incompatible += 1
@@ -387,13 +396,13 @@ actor SyncManager {
 
                 // Create event in local database
                 let payloadData = try JSONSerialization.data(withJSONObject: payload)
-                let timestamp = ISO8601DateFormatter().date(from: ts) ?? Date()
+                let eventTimestamp = ISO8601DateFormatter().date(from: timestamp) ?? Date()
 
                 let event = Event(
                     id: eventId,
                     type: type,
                     payload: payloadData,
-                    timestamp: timestamp,
+                    timestamp: eventTimestamp,
                     isSynced: true,
                     syncedAt: Date()
                 )
@@ -419,7 +428,8 @@ actor SyncManager {
             }
 
             try context.save()
-            print("[Sync] Saved context - processed: \(processed), skipped (duplicates): \(skipped), skipped (incompatible): \(incompatible)")
+            let stats = "processed: \(processed), dupes: \(skipped), incompatible: \(incompatible)"
+            print("[Sync] Saved context - \(stats)")
         }
     }
 
