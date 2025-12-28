@@ -26,6 +26,7 @@ protocol AuthServiceProtocol {
 @Observable
 final class ClerkAuthService: AuthServiceProtocol {
     private var currentSignUp: SignUp?
+    private var currentSignIn: SignIn?
 
     // Cache auth state to avoid repeated Clerk SDK calls on every view render
     private(set) var isAuthenticated: Bool = false
@@ -70,10 +71,58 @@ final class ClerkAuthService: AuthServiceProtocol {
     // MARK: - Sign In/Up
 
     func signIn(email: String, password: String) async throws {
-        let signIn = try await SignIn.create(strategy: .identifier(email, password: password))
-        if let sessionId = signIn.createdSessionId {
+        currentSignIn = try await SignIn.create(strategy: .identifier(email, password: password))
+
+        // Check if sign-in is complete
+        if let sessionId = currentSignIn?.createdSessionId {
             try await Clerk.shared.setActive(sessionId: sessionId)
+            updateAuthState()
+            currentSignIn = nil
+            return
         }
+
+        // Handle different sign-in states
+        guard let signIn = currentSignIn else {
+            throw AuthError.invalidCredentials
+        }
+
+        switch signIn.status {
+        case .needsSecondFactor:
+            // Prepare second factor verification (Client Trust or 2FA)
+            // Get email address ID from supported factors
+            if let factors = signIn.supportedSecondFactors, !factors.isEmpty {
+                for factor in factors {
+                    if let safeIdentifier = factor.safeIdentifier, safeIdentifier.contains("@"),
+                       let emailId = factor.emailAddressId {
+                        try? await signIn.prepareSecondFactor(strategy: .emailCode(emailAddressId: emailId))
+                        break
+                    }
+                }
+            }
+            throw AuthError.twoFactorRequired
+
+        case .needsFirstFactor, .needsIdentifier:
+            currentSignIn = nil
+            throw AuthError.invalidCredentials
+        default:
+            currentSignIn = nil
+            throw AuthError.invalidCredentials
+        }
+    }
+
+    func verify2FACode(code: String) async throws {
+        guard let signIn = currentSignIn else {
+            throw AuthError.verificationFailed
+        }
+
+        let result = try await signIn.attemptSecondFactor(strategy: .emailCode(code: code))
+
+        guard let sessionId = result.createdSessionId else {
+            throw AuthError.verificationFailed
+        }
+
+        try await Clerk.shared.setActive(sessionId: sessionId)
+        currentSignIn = nil
         updateAuthState()
     }
 
@@ -104,6 +153,7 @@ enum AuthError: LocalizedError {
     case noToken
     case invalidCredentials
     case verificationFailed
+    case twoFactorRequired
 
     var errorDescription: String? {
         switch self {
@@ -115,6 +165,8 @@ enum AuthError: LocalizedError {
             return "Invalid email or password."
         case .verificationFailed:
             return "Email verification failed. Please try again."
+        case .twoFactorRequired:
+            return "First-time device verification required. Check your email for a verification code to continue."
         }
     }
 }

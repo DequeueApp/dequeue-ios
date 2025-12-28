@@ -13,9 +13,11 @@ struct AuthView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var verificationCode = ""
+    @State private var twoFactorCode = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showVerification = false
+    @State private var show2FA = false
 
     var body: some View {
         NavigationStack {
@@ -37,7 +39,9 @@ struct AuthView: View {
                 .padding(.top, 40)
 
                 // Auth Form
-                if showVerification {
+                if show2FA {
+                    twoFactorForm
+                } else if showVerification {
                     verificationForm
                 } else {
                     authForm
@@ -46,7 +50,7 @@ struct AuthView: View {
                 Spacer()
 
                 // Toggle Auth Mode
-                if !showVerification {
+                if !showVerification && !show2FA {
                     Button {
                         withAnimation {
                             authMode = authMode == .signIn ? .signUp : .signIn
@@ -90,23 +94,24 @@ struct AuthView: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button {
+            Button(action: {
                 Task {
                     await performAuth()
                 }
-            } label: {
-                if isLoading {
-                    ProgressView()
-                        .tint(.white)
-                } else {
-                    Text(authMode == .signIn ? "Sign In" : "Create Account")
+            }) {
+                HStack {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    } else {
+                        Text(authMode == .signIn ? "Sign In" : "Create Account")
+                            .fontWeight(.semibold)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
             }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(email.isEmpty || password.isEmpty ? Color.gray : Color.accentColor)
-            .foregroundStyle(.white)
-            .cornerRadius(12)
+            .buttonStyle(.borderedProminent)
             .disabled(email.isEmpty || password.isEmpty || isLoading)
         }
     }
@@ -167,6 +172,64 @@ struct AuthView: View {
         }
     }
 
+    // MARK: - Two-Factor Form
+
+    private var twoFactorForm: some View {
+        VStack(spacing: 16) {
+            Text("Device Verification")
+                .font(.headline)
+
+            Text("This is your first login on this device. Check your email for a verification code.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            TextField("Verification Code", text: $twoFactorCode)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.center)
+                .font(.title2)
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+
+            if let error = errorMessage {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(action: {
+                Task {
+                    await verify2FA()
+                }
+            }) {
+                HStack {
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    } else {
+                        Text("Verify Code")
+                            .fontWeight(.semibold)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(twoFactorCode.count < 6 || isLoading)
+
+            Button("Back") {
+                withAnimation {
+                    show2FA = false
+                    twoFactorCode = ""
+                    errorMessage = nil
+                }
+            }
+            .font(.footnote)
+        }
+    }
+
     // MARK: - Actions
 
     private func performAuth() async {
@@ -188,6 +251,11 @@ struct AuthView: View {
                     showVerification = true
                 }
             }
+        } catch let error as AuthError where error == .twoFactorRequired {
+            // Show 2FA form
+            withAnimation {
+                show2FA = true
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -206,6 +274,24 @@ struct AuthView: View {
                 return
             }
             try await clerkService.verifyEmail(code: verificationCode)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        isLoading = false
+    }
+
+    private func verify2FA() async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            guard let clerkService = authService as? ClerkAuthService else {
+                errorMessage = "Authentication service not available"
+                isLoading = false
+                return
+            }
+            try await clerkService.verify2FACode(code: twoFactorCode)
         } catch {
             errorMessage = error.localizedDescription
         }
