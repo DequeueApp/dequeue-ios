@@ -174,7 +174,10 @@ struct RootView: View {
     mockAuth.mockSignIn()
     // swiftlint:disable:next force_try
     let container = try! ModelContainer(
-        for: Stack.self, QueueTask.self, Reminder.self, Event.self,
+        for: Stack.self,
+        QueueTask.self,
+        Reminder.self,
+        Event.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let syncManager = SyncManager(modelContainer: container)
@@ -187,7 +190,10 @@ struct RootView: View {
 #Preview("Unauthenticated") {
     // swiftlint:disable:next force_try
     let container = try! ModelContainer(
-        for: Stack.self, QueueTask.self, Reminder.self, Event.self,
+        for: Stack.self,
+        QueueTask.self,
+        Reminder.self,
+        Event.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let syncManager = SyncManager(modelContainer: container)

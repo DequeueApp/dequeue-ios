@@ -510,7 +510,10 @@ private struct EventRowView: View {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // swiftlint:disable:next force_try
     let container = try! ModelContainer(
-        for: Stack.self, QueueTask.self, Reminder.self, Event.self,
+        for: Stack.self,
+        QueueTask.self,
+        Reminder.self,
+        Event.self,
         configurations: config
     )
 
