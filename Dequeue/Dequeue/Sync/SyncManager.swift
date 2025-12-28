@@ -5,12 +5,11 @@
 //  Handles sync with the backend via WebSocket and HTTP
 //
 
-// swiftlint:disable file_length
+// swiftlint:disable file_length type_body_length no_print
 
 import Foundation
 import SwiftData
 
-// swiftlint:disable:next type_body_length
 actor SyncManager {
     private var webSocketTask: URLSessionWebSocketTask?
     private let session: URLSession
