@@ -69,6 +69,10 @@ enum ProjectorService {
     private static func applyDeviceDiscovered(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(DeviceEventPayload.self)
 
+        // Convert timestamps from milliseconds to Date
+        let lastSeenAt = Date(timeIntervalSince1970: Double(payload.lastSeenAt) / 1000.0)
+        let firstSeenAt = Date(timeIntervalSince1970: Double(payload.firstSeenAt) / 1000.0)
+
         // Check if device already exists
         let deviceId = payload.deviceId
         let predicate = #Predicate<Device> { device in
@@ -78,12 +82,15 @@ enum ProjectorService {
         let existingDevices = try context.fetch(descriptor)
 
         if let existing = existingDevices.first {
+            // LWW: Only update if this event's lastSeenAt is newer than current
+            guard lastSeenAt > existing.lastSeenAt else { return }
+
             // Update existing device
             existing.name = payload.name
             existing.model = payload.model
             existing.osName = payload.osName
             existing.osVersion = payload.osVersion
-            existing.lastSeenAt = Date()
+            existing.lastSeenAt = lastSeenAt
             existing.syncState = .synced
             existing.lastSyncedAt = Date()
         } else {
@@ -97,8 +104,8 @@ enum ProjectorService {
                 osVersion: payload.osVersion,
                 isDevice: payload.isDevice,
                 isCurrentDevice: false,  // This is another device
-                lastSeenAt: Date(),
-                firstSeenAt: Date(),
+                lastSeenAt: lastSeenAt,
+                firstSeenAt: firstSeenAt,
                 syncState: .synced,
                 lastSyncedAt: Date()
             )
