@@ -5,12 +5,9 @@
 //  View and manage a stack with its tasks
 //
 
-// swiftlint:disable file_length
-
 import SwiftUI
 import SwiftData
 
-// swiftlint:disable:next type_body_length
 struct StackDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
