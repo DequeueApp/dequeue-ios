@@ -66,7 +66,9 @@ struct AuthView: View {
                 }
             }
             .padding(.horizontal, 24)
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
         }
     }
 
@@ -76,8 +78,10 @@ struct AuthView: View {
         VStack(spacing: 16) {
             TextField("Email", text: $email)
                 .textContentType(.emailAddress)
+                #if os(iOS)
                 .keyboardType(.emailAddress)
                 .autocapitalization(.none)
+                #endif
                 .autocorrectionDisabled()
                 .padding()
                 .background(Color(.systemGray6))
@@ -131,7 +135,9 @@ struct AuthView: View {
                 .multilineTextAlignment(.center)
 
             TextField("Verification Code", text: $verificationCode)
+                #if os(iOS)
                 .keyboardType(.numberPad)
+                #endif
                 .multilineTextAlignment(.center)
                 .font(.title2)
                 .padding()
@@ -187,7 +193,9 @@ struct AuthView: View {
                 .multilineTextAlignment(.center)
 
             TextField("Verification Code", text: $twoFactorCode)
+                #if os(iOS)
                 .keyboardType(.numberPad)
+                #endif
                 .multilineTextAlignment(.center)
                 .font(.title2)
                 .padding()
