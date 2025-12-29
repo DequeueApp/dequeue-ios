@@ -11,9 +11,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    name: Build and Test
+  # Lint check - fastest, runs first
+  swiftlint:
+    name: SwiftLint
     runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run SwiftLint
+        run: swiftlint lint --strict --reporter github-actions-logging
+        working-directory: Dequeue
+
+  # Build jobs run in parallel after lint passes
+  build-ios:
+    name: Build iOS
+    runs-on: macos-14
+    needs: swiftlint
 
     steps:
       - name: Checkout
@@ -21,12 +39,6 @@ jobs:
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.1.app
-
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: List available simulators
-        run: xcrun simctl list devices available | head -50
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -47,27 +59,10 @@ jobs:
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Run Tests
-        run: |
-          xcodebuild test \
-            -project Dequeue/Dequeue.xcodeproj \
-            -scheme Dequeue \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.1' \
-            -configuration Debug \
-            -resultBundlePath TestResults.xcresult \
-            CODE_SIGNING_ALLOWED=NO
-
-      - name: Upload Test Results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: TestResults.xcresult
-          retention-days: 7
-
   build-macos:
     name: Build macOS
     runs-on: macos-14
+    needs: swiftlint
 
     steps:
       - name: Checkout
@@ -85,17 +80,83 @@ jobs:
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO
 
-  swiftlint:
-    name: SwiftLint
+  # Test jobs run in parallel after lint passes
+  unit-tests:
+    name: Unit Tests
     runs-on: macos-14
+    needs: swiftlint
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install SwiftLint
-        run: brew install swiftlint
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.1.app
 
-      - name: Run SwiftLint
-        run: swiftlint lint --strict --reporter github-actions-logging
-        working-directory: Dequeue
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Run Unit Tests
+        run: |
+          xcodebuild test \
+            -project Dequeue/Dequeue.xcodeproj \
+            -scheme Dequeue \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.1' \
+            -only-testing:DequeueTests \
+            -resultBundlePath UnitTestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: UnitTestResults.xcresult
+          retention-days: 7
+
+  ui-tests:
+    name: UI Tests
+    runs-on: macos-14
+    needs: swiftlint
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.1.app
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Run UI Tests
+        run: |
+          xcodebuild test \
+            -project Dequeue/Dequeue.xcodeproj \
+            -scheme Dequeue \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.1' \
+            -only-testing:DequeueUITests \
+            -resultBundlePath UITestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-test-results
+          path: UITestResults.xcresult
+          retention-days: 7
