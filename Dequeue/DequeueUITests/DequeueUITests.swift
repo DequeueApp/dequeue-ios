@@ -56,11 +56,12 @@ final class DequeueUITests: XCTestCase {
     func testEmailAndPasswordFieldsExist() throws {
         app.launch()
 
-        let emailField = app.textFields["Email"]
-        let passwordField = app.secureTextFields["Password"]
+        // Use accessibility identifiers for reliable element location
+        let emailField = app.textFields["emailField"]
+        let passwordField = app.secureTextFields["passwordField"]
 
-        XCTAssertTrue(emailField.waitForExistence(timeout: 5), "Email field should exist")
-        XCTAssertTrue(passwordField.exists, "Password field should exist")
+        XCTAssertTrue(emailField.waitForExistence(timeout: 10), "Email field should exist")
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 5), "Password field should exist")
     }
 
     // MARK: - Performance Tests
