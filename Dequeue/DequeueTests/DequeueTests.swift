@@ -16,13 +16,13 @@ struct DequeueTests {
     @Test("Models can be inserted into container")
     func modelsCanBeInserted() throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, Task.self, Reminder.self, configurations: config)
+        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, configurations: config)
         let context = ModelContext(container)
 
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
 
-        let task = Task(title: "Test Task", stack: stack)
+        let task = QueueTask(title: "Test Task", stack: stack)
         context.insert(task)
 
         let reminder = Reminder(parentId: stack.id, parentType: .stack, remindAt: Date())
