@@ -285,6 +285,7 @@ actor SyncManager {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func processPullResponse(_ data: Data) async throws {
         // Log raw response for debugging
         if let rawResponse = String(data: data, encoding: .utf8) {
@@ -361,6 +362,7 @@ actor SyncManager {
 
     // MARK: - Process Incoming Events
 
+    // swiftlint:disable:next function_body_length
     private func processIncomingEvents(_ events: [[String: Any]]) async throws {
         os_log("[Sync] Processing \(events.count) incoming events")
         var processed = 0
