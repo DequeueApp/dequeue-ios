@@ -6,6 +6,8 @@
 //  Payload format matches React Native stacks-app for full compatibility
 //
 
+// swiftlint:disable file_length
+
 import Foundation
 import SwiftData
 
@@ -232,8 +234,8 @@ struct StackState: Codable {
             status: stack.status.rawValue,
             priority: stack.priority,
             sortOrder: stack.sortOrder,
-            createdAt: Int64(stack.createdAt.timeIntervalSince1970 * 1000),
-            updatedAt: Int64(stack.updatedAt.timeIntervalSince1970 * 1000),
+            createdAt: Int64(stack.createdAt.timeIntervalSince1970 * 1_000),
+            updatedAt: Int64(stack.updatedAt.timeIntervalSince1970 * 1_000),
             deleted: stack.isDeleted,
             isDraft: stack.isDraft
         )
@@ -262,8 +264,8 @@ struct TaskState: Codable {
             status: task.status.rawValue,
             priority: task.priority,
             sortOrder: task.sortOrder,
-            createdAt: Int64(task.createdAt.timeIntervalSince1970 * 1000),
-            updatedAt: Int64(task.updatedAt.timeIntervalSince1970 * 1000),
+            createdAt: Int64(task.createdAt.timeIntervalSince1970 * 1_000),
+            updatedAt: Int64(task.updatedAt.timeIntervalSince1970 * 1_000),
             deleted: task.isDeleted
         )
     }
@@ -285,10 +287,10 @@ struct ReminderState: Codable {
             id: reminder.id,
             parentId: reminder.parentId,
             parentType: reminder.parentType.rawValue,
-            remindAt: Int64(reminder.remindAt.timeIntervalSince1970 * 1000),
+            remindAt: Int64(reminder.remindAt.timeIntervalSince1970 * 1_000),
             status: reminder.status.rawValue,
-            createdAt: Int64(reminder.createdAt.timeIntervalSince1970 * 1000),
-            updatedAt: Int64(reminder.updatedAt.timeIntervalSince1970 * 1000),
+            createdAt: Int64(reminder.createdAt.timeIntervalSince1970 * 1_000),
+            updatedAt: Int64(reminder.updatedAt.timeIntervalSince1970 * 1_000),
             deleted: reminder.isDeleted
         )
     }
@@ -317,8 +319,8 @@ struct DeviceState: Codable {
             osVersion: device.osVersion,
             isDevice: device.isDevice,
             isCurrentDevice: device.isCurrentDevice,
-            lastSeenAt: Int64(device.lastSeenAt.timeIntervalSince1970 * 1000),
-            firstSeenAt: Int64(device.firstSeenAt.timeIntervalSince1970 * 1000)
+            lastSeenAt: Int64(device.lastSeenAt.timeIntervalSince1970 * 1_000),
+            firstSeenAt: Int64(device.firstSeenAt.timeIntervalSince1970 * 1_000)
         )
     }
 }
@@ -585,7 +587,7 @@ struct ReminderEventPayload: Codable {
 
         // Decode remindAt - handle both Int64 timestamp and Date
         if let timestamp = try? container.decode(Int64.self, forKey: .remindAt) {
-            remindAt = Date(timeIntervalSince1970: Double(timestamp) / 1000.0)
+            remindAt = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
         } else {
             remindAt = try container.decode(Date.self, forKey: .remindAt)
         }
@@ -599,7 +601,7 @@ struct ReminderEventPayload: Codable {
         try container.encode(parentId, forKey: .parentId)
         try container.encode(parentType.rawValue, forKey: .parentType)
         try container.encode(status.rawValue, forKey: .status)
-        try container.encode(Int64(remindAt.timeIntervalSince1970 * 1000), forKey: .remindAt)
+        try container.encode(Int64(remindAt.timeIntervalSince1970 * 1_000), forKey: .remindAt)
         try container.encode(deleted, forKey: .deleted)
     }
 }

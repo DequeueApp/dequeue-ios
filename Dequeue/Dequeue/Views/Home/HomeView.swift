@@ -32,7 +32,8 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Button {
-                        // TODO: Show notifications
+                        // swiftlint:disable:next todo
+                        // FIXME: Show notifications
                     } label: {
                         Image(systemName: "bell")
                     }

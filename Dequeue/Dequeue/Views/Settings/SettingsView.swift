@@ -118,7 +118,13 @@ struct SettingsView: View {
                 }
                 Button("Cancel", role: .cancel) { }
             } message: {
-                Text("This will delete all local data including stacks, tasks, events, and sync state. The app will crash and you'll need to relaunch it. Data will be re-synced from the server on next launch.")
+                Text(
+                    """
+                    This will delete all local data including stacks, tasks, events, and sync state. \
+                    The app will crash and you'll need to relaunch it. \
+                    Data will be re-synced from the server on next launch.
+                    """
+                )
             }
         }
     }

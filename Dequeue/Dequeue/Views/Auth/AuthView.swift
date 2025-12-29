@@ -57,14 +57,18 @@ struct AuthView: View {
                             errorMessage = nil
                         }
                     } label: {
-                        Text(authMode == .signIn ? "Don't have an account? Sign up" : "Already have an account? Sign in")
+                        Text(authMode == .signIn ?
+                             "Don't have an account? Sign up" :
+                             "Already have an account? Sign in")
                             .font(.footnote)
                     }
                     .padding(.bottom)
                 }
             }
             .padding(.horizontal, 24)
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
         }
     }
 
@@ -74,17 +78,19 @@ struct AuthView: View {
         VStack(spacing: 16) {
             TextField("Email", text: $email)
                 .textContentType(.emailAddress)
+                #if os(iOS)
                 .keyboardType(.emailAddress)
                 .autocapitalization(.none)
+                #endif
                 .autocorrectionDisabled()
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.gray.opacity(0.1))
                 .cornerRadius(12)
 
             SecureField("Password", text: $password)
                 .textContentType(authMode == .signIn ? .password : .newPassword)
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.gray.opacity(0.1))
                 .cornerRadius(12)
 
             if let error = errorMessage {
@@ -94,11 +100,11 @@ struct AuthView: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button(action: {
+            Button {
                 Task {
                     await performAuth()
                 }
-            }) {
+            } label: {
                 HStack {
                     if isLoading {
                         ProgressView()
@@ -129,11 +135,13 @@ struct AuthView: View {
                 .multilineTextAlignment(.center)
 
             TextField("Verification Code", text: $verificationCode)
+                #if os(iOS)
                 .keyboardType(.numberPad)
+                #endif
                 .multilineTextAlignment(.center)
                 .font(.title2)
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.gray.opacity(0.1))
                 .cornerRadius(12)
 
             if let error = errorMessage {
@@ -185,11 +193,13 @@ struct AuthView: View {
                 .multilineTextAlignment(.center)
 
             TextField("Verification Code", text: $twoFactorCode)
+                #if os(iOS)
                 .keyboardType(.numberPad)
+                #endif
                 .multilineTextAlignment(.center)
                 .font(.title2)
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.gray.opacity(0.1))
                 .cornerRadius(12)
 
             if let error = errorMessage {
@@ -199,11 +209,11 @@ struct AuthView: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button(action: {
+            Button {
                 Task {
                     await verify2FA()
                 }
-            }) {
+            } label: {
                 HStack {
                     if isLoading {
                         ProgressView()

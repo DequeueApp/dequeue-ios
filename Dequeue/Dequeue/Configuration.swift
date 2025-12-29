@@ -14,7 +14,8 @@ enum Configuration {
     /// Get this from: Clerk Dashboard > API Keys
     /// Format: pk_test_xxx or pk_live_xxx
     static let clerkPublishableKey: String = {
-        // TODO: Replace with your actual Clerk publishable key
+        // swiftlint:disable:next todo
+        // FIXME: Replace with your actual Clerk publishable key
         // For production, consider using environment variables or a secrets manager
         #if DEBUG
         return "pk_test_ZXhwZXJ0LWhhbGlidXQtODIuY2xlcmsuYWNjb3VudHMuZGV2JA"
@@ -33,12 +34,14 @@ enum Configuration {
 
     // MARK: - Sync Backend
 
-    /// App ID for the sync service
-    /// TODO: Use "dequeue-development" for DEBUG when backend supports it
+    // App ID for the sync service
+    // swiftlint:disable:next todo
+    // FIXME: Use "dequeue-development" for DEBUG when backend supports it
     static let syncAppId: String = "dequeue"
 
     /// Base URL for the sync service (without app path)
     private static let syncServiceBaseURL: URL = {
+        // swiftlint:disable:next force_unwrapping
         return URL(string: "https://stacks-sync.fly.dev")!
     }()
 

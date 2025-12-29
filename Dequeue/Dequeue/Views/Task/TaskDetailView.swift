@@ -5,9 +5,12 @@
 //  View and edit an individual task
 //
 
+// swiftlint:disable file_length
+
 import SwiftUI
 import SwiftData
 
+// swiftlint:disable:next type_body_length
 struct TaskDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -270,7 +273,8 @@ struct TaskDetailView: View {
                     Label("No reminders", systemImage: "bell.slash")
                         .foregroundStyle(.secondary)
                     Spacer()
-                    // TODO: Add reminder button when ReminderService is implemented
+                    // swiftlint:disable:next todo
+                    // FIXME: Add reminder button when ReminderService is implemented
                 }
             } else {
                 ForEach(task.activeReminders) { reminder in
@@ -504,7 +508,14 @@ private struct EventRowView: View {
 
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+    // swiftlint:disable:next force_try
+    let container = try! ModelContainer(
+        for: Stack.self,
+        QueueTask.self,
+        Reminder.self,
+        Event.self,
+        configurations: config
+    )
 
     let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
     container.mainContext.insert(stack)

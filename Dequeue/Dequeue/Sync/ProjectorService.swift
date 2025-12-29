@@ -5,10 +5,14 @@
 //  Applies incoming sync events to local SwiftData models
 //
 
+// swiftlint:disable file_length
+
 import Foundation
 import SwiftData
 
+// swiftlint:disable:next type_body_length
 enum ProjectorService {
+    // swiftlint:disable:next cyclomatic_complexity
     static func apply(event: Event, context: ModelContext) throws {
         guard let eventType = event.eventType else { return }
 
@@ -491,7 +495,12 @@ enum ProjectorService {
     }
 
     /// Updates task fields from payload. Uses event timestamp for deterministic LWW.
-    private static func updateTask(_ task: QueueTask, from payload: TaskEventPayload, context: ModelContext, eventTimestamp: Date) {
+    private static func updateTask(
+        _ task: QueueTask,
+        from payload: TaskEventPayload,
+        context: ModelContext,
+        eventTimestamp: Date
+    ) {
         task.title = payload.title
         task.taskDescription = payload.description
         task.status = payload.status

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "/Users/victor/Development/stacks/stacks-app/",
+      "/Users/victor/Development/stacks/stacks-sync"
+    ]
+  }
+}

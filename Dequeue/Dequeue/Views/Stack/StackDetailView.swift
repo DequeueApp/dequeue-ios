@@ -82,7 +82,8 @@ struct StackDetailView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 if !stack.pendingTasks.isEmpty {
-                    Text("This stack has \(stack.pendingTasks.count) pending task(s). Would you like to complete them as well?")
+                    let taskCount = stack.pendingTasks.count
+                    Text("This stack has \(taskCount) pending task(s). Would you like to complete them as well?")
                 } else {
                     Text("Mark this stack as completed?")
                 }
@@ -249,7 +250,8 @@ struct StackDetailView: View {
     private func toggleTaskComplete(_ task: QueueTask) {
         do {
             if task.status == .completed {
-                // TODO: Implement uncomplete if needed
+                // swiftlint:disable:next todo
+                // FIXME: Implement uncomplete if needed
             } else {
                 try taskService.markAsCompleted(task)
             }
@@ -392,9 +394,21 @@ private struct CompletedTaskRowView: View {
 
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+    // swiftlint:disable:next force_try
+    let container = try! ModelContainer(
+        for: Stack.self,
+        QueueTask.self,
+        Reminder.self,
+        Event.self,
+        configurations: config
+    )
 
-    let stack = Stack(title: "Test Stack", stackDescription: "This is a test description", status: .active, sortOrder: 0)
+    let stack = Stack(
+        title: "Test Stack",
+        stackDescription: "This is a test description",
+        status: .active,
+        sortOrder: 0
+    )
     container.mainContext.insert(stack)
 
     let task1 = QueueTask(title: "First task", taskDescription: "Do this first", status: .pending, sortOrder: 0)

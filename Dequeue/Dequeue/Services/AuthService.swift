@@ -33,12 +33,13 @@ final class ClerkAuthService: AuthServiceProtocol {
     private(set) var currentUserId: String?
 
     func configure() async {
-        Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
+        await Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
         try? await Clerk.shared.load()
 
-        updateAuthState()
+        await updateAuthState()
     }
 
+    @MainActor
     private func updateAuthState() {
         isAuthenticated = Clerk.shared.session != nil
         currentUserId = Clerk.shared.user?.id
@@ -59,7 +60,8 @@ final class ClerkAuthService: AuthServiceProtocol {
     }
 
     func getAuthToken() async throws -> String {
-        guard let session = Clerk.shared.session else {
+        let session = await MainActor.run { Clerk.shared.session }
+        guard let session else {
             throw AuthError.notAuthenticated
         }
         guard let token = try await session.getToken()?.jwt else {
@@ -76,7 +78,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         // Check if sign-in is complete
         if let sessionId = currentSignIn?.createdSessionId {
             try await Clerk.shared.setActive(sessionId: sessionId)
-            updateAuthState()
+            await updateAuthState()
             currentSignIn = nil
             return
         }
@@ -123,7 +125,7 @@ final class ClerkAuthService: AuthServiceProtocol {
 
         try await Clerk.shared.setActive(sessionId: sessionId)
         currentSignIn = nil
-        updateAuthState()
+        await updateAuthState()
     }
 
     func signUp(email: String, password: String) async throws {
@@ -142,7 +144,7 @@ final class ClerkAuthService: AuthServiceProtocol {
             try await Clerk.shared.setActive(sessionId: sessionId)
         }
         currentSignUp = nil
-        updateAuthState()
+        await updateAuthState()
     }
 }
 
@@ -176,7 +178,7 @@ enum AuthError: LocalizedError {
 @Observable
 final class MockAuthService: AuthServiceProtocol {
     var isAuthenticated: Bool = false
-    var currentUserId: String? = nil
+    var currentUserId: String?
 
     func configure() async {
         // No-op for mock

@@ -36,7 +36,7 @@ struct DequeueApp: App {
             QueueTask.self,
             Reminder.self,
             Event.self,
-            Device.self,
+            Device.self
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
@@ -48,7 +48,7 @@ struct DequeueApp: App {
             sharedModelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
             // Schema migration failed - delete store and retry
-            print("[DequeueApp] ModelContainer failed, deleting store and retrying: \(error)")
+            ErrorReportingService.capture(error: error, context: ["source": "model_container_init"])
             Self.deleteSwiftDataStore()
 
             do {
@@ -78,8 +78,6 @@ struct DequeueApp: App {
 
         // Also clear sync checkpoint so we get fresh data from server
         UserDefaults.standard.removeObject(forKey: "com.dequeue.lastSyncCheckpoint")
-
-        print("[DequeueApp] Deleted SwiftData store files for schema migration")
     }
 
     var body: some Scene {
@@ -174,7 +172,14 @@ struct RootView: View {
 #Preview("Authenticated") {
     let mockAuth = MockAuthService()
     mockAuth.mockSignIn()
-    let container = try! ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    // swiftlint:disable:next force_try
+    let container = try! ModelContainer(
+        for: Stack.self,
+        QueueTask.self,
+        Reminder.self,
+        Event.self,
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+    )
     let syncManager = SyncManager(modelContainer: container)
 
     return RootView(syncManager: syncManager)
@@ -183,7 +188,14 @@ struct RootView: View {
 }
 
 #Preview("Unauthenticated") {
-    let container = try! ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    // swiftlint:disable:next force_try
+    let container = try! ModelContainer(
+        for: Stack.self,
+        QueueTask.self,
+        Reminder.self,
+        Event.self,
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+    )
     let syncManager = SyncManager(modelContainer: container)
 
     return RootView(syncManager: syncManager)

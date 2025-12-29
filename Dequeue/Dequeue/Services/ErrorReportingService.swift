@@ -13,9 +13,6 @@ enum ErrorReportingService {
 
     static func configure() {
         guard Configuration.sentryDSN != "YOUR_SENTRY_DSN_HERE" else {
-            #if DEBUG
-            print("[Sentry] DSN not configured - skipping initialization")
-            #endif
             return
         }
 
@@ -30,7 +27,8 @@ enum ErrorReportingService {
             options.environment = "production"
             #endif
 
-            options.releaseName = "\(Configuration.bundleIdentifier)@\(Configuration.appVersion)+\(Configuration.buildNumber)"
+            let release = "\(Configuration.bundleIdentifier)@\(Configuration.appVersion)"
+            options.releaseName = "\(release)+\(Configuration.buildNumber)"
 
             options.enableAutoSessionTracking = true
             options.enableAutoBreadcrumbTracking = true
