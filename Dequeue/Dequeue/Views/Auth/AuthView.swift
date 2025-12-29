@@ -84,13 +84,13 @@ struct AuthView: View {
                 #endif
                 .autocorrectionDisabled()
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.gray.opacity(0.1))
                 .cornerRadius(12)
 
             SecureField("Password", text: $password)
                 .textContentType(authMode == .signIn ? .password : .newPassword)
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.gray.opacity(0.1))
                 .cornerRadius(12)
 
             if let error = errorMessage {
@@ -141,7 +141,7 @@ struct AuthView: View {
                 .multilineTextAlignment(.center)
                 .font(.title2)
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.gray.opacity(0.1))
                 .cornerRadius(12)
 
             if let error = errorMessage {
@@ -199,7 +199,7 @@ struct AuthView: View {
                 .multilineTextAlignment(.center)
                 .font(.title2)
                 .padding()
-                .background(Color(.systemGray6))
+                .background(Color.gray.opacity(0.1))
                 .cornerRadius(12)
 
             if let error = errorMessage {
