@@ -56,6 +56,17 @@ final class DequeueUITests: XCTestCase {
     func testEmailAndPasswordFieldsExist() throws {
         app.launch()
 
+        // Wait for auth view to appear
+        let authViewAppeared = app.staticTexts["Dequeue"].waitForExistence(timeout: 10)
+        XCTAssertTrue(authViewAppeared, "Auth view should appear")
+
+        // Debug: Print all available text fields
+        let allTextFields = app.textFields.allElementsBoundByIndex
+        print("Found \(allTextFields.count) text fields")
+        for (index, field) in allTextFields.enumerated() {
+            print("TextField[\(index)]: identifier='\(field.identifier)', label='\(field.label)'")
+        }
+
         // Use accessibility identifiers for reliable element location
         let emailField = app.textFields["emailField"]
         let passwordField = app.secureTextFields["passwordField"]
