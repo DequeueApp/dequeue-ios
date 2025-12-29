@@ -2,40 +2,73 @@
 //  DequeueUITests.swift
 //  DequeueUITests
 //
-//  Created by Victor Quinn on 12/21/25.
+//  UI tests for critical user flows
 //
 
 import XCTest
 
 final class DequeueUITests: XCTestCase {
+    var app: XCUIApplication!
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
+        app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
     }
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    // MARK: - Launch Tests
+
+    @MainActor
+    func testAppLaunches() throws {
+        app.launch()
+        XCTAssertTrue(app.exists)
+    }
+
+    // MARK: - Authentication Flow Tests
+
+    @MainActor
+    func testAuthenticationScreenAppears() throws {
+        app.launch()
+
+        // Should show auth screen for unauthenticated user
+        let signInButton = app.buttons["Sign In"]
+        XCTAssertTrue(signInButton.waitForExistence(timeout: 5), "Sign In button should exist")
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
-        let app = XCUIApplication()
+    func testSignUpToggle() throws {
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        // Start on Sign In
+        XCTAssertTrue(app.buttons["Sign In"].exists)
+
+        // Tap toggle to Sign Up
+        let toggleButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Sign up'")).firstMatch
+        if toggleButton.exists {
+            toggleButton.tap()
+
+            // Should now show Create Account button
+            XCTAssertTrue(app.buttons["Create Account"].waitForExistence(timeout: 2))
+        }
     }
+
+    @MainActor
+    func testEmailAndPasswordFieldsExist() throws {
+        app.launch()
+
+        let emailField = app.textFields["Email"]
+        let passwordField = app.secureTextFields["Password"]
+
+        XCTAssertTrue(emailField.waitForExistence(timeout: 5), "Email field should exist")
+        XCTAssertTrue(passwordField.exists, "Password field should exist")
+    }
+
+    // MARK: - Performance Tests
 
     @MainActor
     func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            app.launch()
         }
     }
 }
