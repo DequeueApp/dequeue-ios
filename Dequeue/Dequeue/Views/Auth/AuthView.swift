@@ -86,12 +86,14 @@ struct AuthView: View {
                 .padding()
                 .background(Color.gray.opacity(0.1))
                 .cornerRadius(12)
+                .accessibilityIdentifier("emailField")
 
             SecureField("Password", text: $password)
                 .textContentType(authMode == .signIn ? .password : .newPassword)
                 .padding()
                 .background(Color.gray.opacity(0.1))
                 .cornerRadius(12)
+                .accessibilityIdentifier("passwordField")
 
             if let error = errorMessage {
                 Text(error)
