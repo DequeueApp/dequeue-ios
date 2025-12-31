@@ -11,7 +11,13 @@ import Sentry
 enum ErrorReportingService {
     // MARK: - Configuration
 
-    static func configure() {
+    private static var isConfigured = false
+
+    /// Configures Sentry SDK asynchronously to avoid blocking app launch.
+    /// This should be called from a Task context, not during App init.
+    static func configure() async {
+        guard !isConfigured else { return }
+
         guard Configuration.sentryDSN != "YOUR_SENTRY_DSN_HERE" else {
             return
         }
@@ -25,30 +31,39 @@ enum ErrorReportingService {
         }
         #endif
 
-        SentrySDK.start { options in
-            options.dsn = Configuration.sentryDSN
+        // Run Sentry initialization on a background thread to avoid blocking the main thread
+        // Sentry SDK init can take 10+ seconds on first launch or when processing crash reports
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                SentrySDK.start { options in
+                    options.dsn = Configuration.sentryDSN
 
-            #if DEBUG
-            options.debug = true
-            options.environment = "development"
-            #else
-            options.debug = false
-            options.environment = "production"
-            #endif
+                    #if DEBUG
+                    options.debug = true
+                    options.environment = "development"
+                    #else
+                    options.debug = false
+                    options.environment = "production"
+                    #endif
 
-            let release = "\(Configuration.bundleIdentifier)@\(Configuration.appVersion)"
-            options.releaseName = "\(release)+\(Configuration.buildNumber)"
+                    let release = "\(Configuration.bundleIdentifier)@\(Configuration.appVersion)"
+                    options.releaseName = "\(release)+\(Configuration.buildNumber)"
 
-            options.enableAutoSessionTracking = true
-            options.enableAutoBreadcrumbTracking = true
-            options.attachStacktrace = true
-            options.maxBreadcrumbs = 100
+                    options.enableAutoSessionTracking = true
+                    options.enableAutoBreadcrumbTracking = true
+                    options.attachStacktrace = true
+                    options.maxBreadcrumbs = 100
 
-            #if DEBUG
-            options.tracesSampleRate = 1.0
-            #else
-            options.tracesSampleRate = 0.2
-            #endif
+                    #if DEBUG
+                    options.tracesSampleRate = 1.0
+                    #else
+                    options.tracesSampleRate = 0.2
+                    #endif
+                }
+
+                isConfigured = true
+                continuation.resume()
+            }
         }
     }
 
