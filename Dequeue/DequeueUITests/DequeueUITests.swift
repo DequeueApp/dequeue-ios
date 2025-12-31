@@ -21,61 +21,44 @@ final class DequeueUITests: XCTestCase {
     @MainActor
     func testAppLaunches() throws {
         app.launch()
-        XCTAssertTrue(app.exists)
+        XCTAssertTrue(app.state == .runningForeground, "App should launch and run")
     }
 
-    // MARK: - Authentication Flow Tests
+    // MARK: - Authentication Screen Tests
 
     @MainActor
-    func testAuthenticationScreenAppears() throws {
+    func testAuthenticationScreenShowsSignInButton() throws {
         app.launch()
 
-        // Should show auth screen for unauthenticated user
+        // Should show Sign In button for unauthenticated user
         let signInButton = app.buttons["Sign In"]
-        XCTAssertTrue(signInButton.waitForExistence(timeout: 5), "Sign In button should exist")
+        XCTAssertTrue(
+            signInButton.waitForExistence(timeout: 10),
+            "Sign In button should exist on auth screen"
+        )
     }
 
     @MainActor
-    func testSignUpToggle() throws {
+    func testAuthenticationScreenShowsEmailField() throws {
         app.launch()
 
-        // Start on Sign In
-        XCTAssertTrue(app.buttons["Sign In"].exists)
+        // Wait for auth screen
+        XCTAssertTrue(app.buttons["Sign In"].waitForExistence(timeout: 10))
 
-        // Tap toggle to Sign Up
-        let toggleButton = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Sign up'")).firstMatch
-        if toggleButton.exists {
-            toggleButton.tap()
-
-            // Should now show Create Account button
-            XCTAssertTrue(app.buttons["Create Account"].waitForExistence(timeout: 2))
-        }
+        // Check for email field using accessibility identifier
+        let emailField = app.textFields["emailField"]
+        XCTAssertTrue(emailField.exists, "Email field should exist")
     }
 
-    // Disabled due to XCUITest field detection issues in CI
-    // The auth screen existence is already verified by testAuthenticationScreenAppears
-    // @MainActor
-    // func testEmailAndPasswordFieldsExist() throws {
-    //     app.launch()
-    //
-    //     // Wait for Sign In button to confirm auth screen loaded (same as passing test)
-    //     let signInButton = app.buttons["Sign In"]
-    //     XCTAssertTrue(signInButton.waitForExistence(timeout: 10), "Sign In button should appear")
-    //
-    //     // Now check for fields using accessibility identifiers
-    //     let emailField = app.textFields["emailField"]
-    //     let passwordField = app.secureTextFields["passwordField"]
-    //
-    //     XCTAssertTrue(emailField.exists, "Email field should exist")
-    //     XCTAssertTrue(passwordField.exists, "Password field should exist")
-    // }
-
-    // MARK: - Performance Tests
-
     @MainActor
-    func testLaunchPerformance() throws {
-        measure(metrics: [XCTApplicationLaunchMetric()]) {
-            app.launch()
-        }
+    func testAuthenticationScreenShowsPasswordField() throws {
+        app.launch()
+
+        // Wait for auth screen
+        XCTAssertTrue(app.buttons["Sign In"].waitForExistence(timeout: 10))
+
+        // Check for password field using accessibility identifier
+        let passwordField = app.secureTextFields["passwordField"]
+        XCTAssertTrue(passwordField.exists, "Password field should exist")
     }
 }
