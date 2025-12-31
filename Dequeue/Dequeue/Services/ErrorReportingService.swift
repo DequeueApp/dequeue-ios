@@ -13,28 +13,44 @@ enum ErrorReportingService {
 
     private static var isConfigured = false
 
-    /// Configures Sentry SDK asynchronously to avoid blocking app launch.
-    /// This should be called from a Task context, not during App init.
-    static func configure() async {
-        guard !isConfigured else { return }
-
-        guard Configuration.sentryDSN != "YOUR_SENTRY_DSN_HERE" else {
-            return
+    /// Returns true if Sentry should be skipped (test/CI environments)
+    private static var shouldSkipConfiguration: Bool {
+        if isConfigured {
+            return true
         }
 
-        // Don't initialize Sentry in test/CI environments
+        if Configuration.sentryDSN == "YOUR_SENTRY_DSN_HERE" {
+            return true
+        }
+
         #if DEBUG
+        // Don't initialize Sentry in test/CI environments
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
            ProcessInfo.processInfo.arguments.contains("--uitesting") ||
            ProcessInfo.processInfo.environment["CI"] != nil {
-            return
+            return true
         }
         #endif
+
+        return false
+    }
+
+    /// Configures Sentry SDK asynchronously to avoid blocking app launch.
+    /// This should be called from a Task context, not during App init.
+    static func configure() async {
+        // Quick synchronous check to avoid async overhead in test environments
+        guard !shouldSkipConfiguration else { return }
 
         // Run Sentry initialization on a background thread to avoid blocking the main thread
         // Sentry SDK init can take 10+ seconds on first launch or when processing crash reports
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
+                // Double-check in case of race condition
+                guard !isConfigured else {
+                    continuation.resume()
+                    return
+                }
+
                 SentrySDK.start { options in
                     options.dsn = Configuration.sentryDSN
 
