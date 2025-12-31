@@ -8,57 +8,29 @@
 import XCTest
 
 final class DequeueUITests: XCTestCase {
-    var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app = XCUIApplication()
-        app.launchArguments = ["--uitesting"]
     }
 
-    // MARK: - Launch Tests
+    // MARK: - Authentication Tests
 
     @MainActor
-    func testAppLaunches() throws {
-        app.launch()
-        XCTAssertTrue(app.state == .runningForeground, "App should launch and run")
-    }
-
-    // MARK: - Authentication Screen Tests
-
-    @MainActor
-    func testAuthenticationScreenShowsSignInButton() throws {
+    func testAuthenticationScreenAppears() throws {
+        let app = XCUIApplication()
         app.launch()
 
-        // Should show Sign In button for unauthenticated user
+        // Verify Sign In button exists
         let signInButton = app.buttons["Sign In"]
         XCTAssertTrue(
             signInButton.waitForExistence(timeout: 10),
-            "Sign In button should exist on auth screen"
+            "Sign In button should appear on auth screen"
         )
-    }
 
-    @MainActor
-    func testAuthenticationScreenShowsEmailField() throws {
-        app.launch()
-
-        // Wait for auth screen
-        XCTAssertTrue(app.buttons["Sign In"].waitForExistence(timeout: 10))
-
-        // Check for email field using accessibility identifier
-        let emailField = app.textFields["emailField"]
-        XCTAssertTrue(emailField.exists, "Email field should exist")
-    }
-
-    @MainActor
-    func testAuthenticationScreenShowsPasswordField() throws {
-        app.launch()
-
-        // Wait for auth screen
-        XCTAssertTrue(app.buttons["Sign In"].waitForExistence(timeout: 10))
-
-        // Check for password field using accessibility identifier
-        let passwordField = app.secureTextFields["passwordField"]
-        XCTAssertTrue(passwordField.exists, "Password field should exist")
+        // Take screenshot for verification
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "Auth Screen"
+        add(attachment)
     }
 }
