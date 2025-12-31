@@ -13,6 +13,12 @@ struct StackDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @Bindable var stack: Stack
+    let isReadOnly: Bool
+
+    init(stack: Stack, isReadOnly: Bool = false) {
+        self.stack = stack
+        self.isReadOnly = isReadOnly
+    }
 
     @State private var isEditingDescription = false
     @State private var editedDescription = ""
@@ -53,11 +59,13 @@ struct StackDetailView: View {
             .navigationBarTitleDisplayMode(.large)
             #endif
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        showCompleteConfirmation = true
+                if !isReadOnly {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            showCompleteConfirmation = true
+                        }
+                        .fontWeight(.semibold)
                     }
-                    .fontWeight(.semibold)
                 }
 
                 ToolbarItem(placement: .cancellationAction) {
@@ -118,7 +126,15 @@ struct StackDetailView: View {
 
     private var descriptionSection: some View {
         Section {
-            if isEditingDescription {
+            if isReadOnly {
+                if let description = stack.stackDescription, !description.isEmpty {
+                    Text(description)
+                        .foregroundStyle(.primary)
+                } else {
+                    Text("No description")
+                        .foregroundStyle(.secondary)
+                }
+            } else if isEditingDescription {
                 TextField("Description", text: $editedDescription, axis: .vertical)
                     .lineLimit(3...6)
                     .onSubmit {
@@ -173,20 +189,7 @@ struct StackDetailView: View {
                 }
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(stack.pendingTasks) { task in
-                    NavigationLink {
-                        TaskDetailView(task: task)
-                    } label: {
-                        TaskRowView(
-                            task: task,
-                            isActive: task.id == stack.activeTask?.id,
-                            onToggleComplete: { toggleTaskComplete(task) },
-                            onSetActive: { setTaskActive(task) }
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-                .onMove(perform: moveTask)
+                taskListContent
             }
         } header: {
             HStack {
@@ -195,14 +198,34 @@ struct StackDetailView: View {
                 Text("\(stack.pendingTasks.count) pending")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button {
-                    showAddTask = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundStyle(.blue)
+                if !isReadOnly {
+                    Button {
+                        showAddTask = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(.blue)
+                    }
+                    .accessibilityIdentifier("addTaskButton")
                 }
-                .accessibilityIdentifier("addTaskButton")
             }
+        }
+    }
+
+    @ViewBuilder
+    private var taskListContent: some View {
+        let taskList = ForEach(stack.pendingTasks) { task in
+            NavigationLink {
+                TaskDetailView(task: task)
+            } label: {
+                taskRowContent(for: task)
+            }
+            .buttonStyle(.plain)
+        }
+
+        if isReadOnly {
+            taskList
+        } else {
+            taskList.onMove(perform: moveTask)
         }
     }
 
@@ -228,12 +251,15 @@ struct StackDetailView: View {
         }
     }
 
+    @ViewBuilder
     private var actionsSection: some View {
-        Section {
-            Button(role: .destructive) {
-                showCloseConfirmation = true
-            } label: {
-                Label("Close Without Completing", systemImage: "xmark.circle")
+        if !isReadOnly {
+            Section {
+                Button(role: .destructive) {
+                    showCloseConfirmation = true
+                } label: {
+                    Label("Close Without Completing", systemImage: "xmark.circle")
+                }
             }
         }
     }
@@ -247,6 +273,25 @@ struct StackDetailView: View {
             }
         } footer: {
             Text("View the complete history of changes to this stack")
+        }
+    }
+
+    // MARK: - Helpers
+
+    @ViewBuilder
+    private func taskRowContent(for task: QueueTask) -> some View {
+        if isReadOnly {
+            ReadOnlyTaskRowView(
+                task: task,
+                isActive: task.id == stack.activeTask?.id
+            )
+        } else {
+            TaskRowView(
+                task: task,
+                isActive: task.id == stack.activeTask?.id,
+                onToggleComplete: { toggleTaskComplete(task) },
+                onSetActive: { setTaskActive(task) }
+            )
         }
     }
 
@@ -342,92 +387,6 @@ struct StackDetailView: View {
         errorMessage = error.localizedDescription
         showError = true
         ErrorReportingService.capture(error: error, context: ["view": "StackDetailView"])
-    }
-}
-
-// MARK: - Task Row View
-
-private struct TaskRowView: View {
-    let task: QueueTask
-    let isActive: Bool
-    let onToggleComplete: () -> Void
-    let onSetActive: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button {
-                onToggleComplete()
-            } label: {
-                Image(systemName: "circle")
-                    .font(.title2)
-                    .foregroundStyle(isActive ? .blue : .secondary)
-            }
-            .buttonStyle(.plain)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(task.title)
-                        .fontWeight(isActive ? .semibold : .regular)
-
-                    if isActive {
-                        Text("Active")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.blue.opacity(0.15))
-                            .foregroundStyle(.blue)
-                            .clipShape(Capsule())
-                    }
-                }
-
-                if let description = task.taskDescription, !description.isEmpty {
-                    Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer()
-
-            if !isActive {
-                Button {
-                    onSetActive()
-                } label: {
-                    Image(systemName: "arrow.up.circle")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.vertical, 4)
-        .listRowBackground(isActive ? Color.blue.opacity(0.08) : nil)
-    }
-}
-
-// MARK: - Completed Task Row View
-
-private struct CompletedTaskRowView: View {
-    let task: QueueTask
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.green)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(task.title)
-                    .strikethrough()
-                    .foregroundStyle(.secondary)
-
-                Text(task.updatedAt, style: .relative)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .padding(.vertical, 4)
     }
 }
 
