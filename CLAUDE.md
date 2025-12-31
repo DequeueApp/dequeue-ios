@@ -2,6 +2,8 @@
 
 We're building a production-quality native iOS/iPadOS/macOS app together. Your role is to create maintainable, efficient Swift code while catching potential issues early.
 
+> **See also:** [PROJECT.md](PROJECT.md) for product context, architecture principles, and domain model.
+
 ## Build/Run Commands
 
 - `⌘R` - Build and run in Xcode
