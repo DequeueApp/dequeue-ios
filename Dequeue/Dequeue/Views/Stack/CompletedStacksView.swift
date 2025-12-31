@@ -13,10 +13,13 @@ struct CompletedStacksView: View {
     @Query private var completedStacks: [Stack]
 
     init() {
+        // Include both completed and closed stacks (closed stacks are ones that
+        // were dismissed without completing - the UI says "find it in completed stacks later")
         let completed = StackStatus.completed
+        let closed = StackStatus.closed
         _completedStacks = Query(
             filter: #Predicate<Stack> { stack in
-                stack.isDeleted == false && stack.status == completed
+                stack.isDeleted == false && (stack.status == completed || stack.status == closed)
             },
             sort: \Stack.updatedAt,
             order: .reverse
