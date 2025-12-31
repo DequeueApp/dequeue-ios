@@ -32,6 +32,72 @@ actor SyncManager {
     // Key for storing last sync checkpoint in UserDefaults
     private let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
 
+    // ISO8601 formatter that supports fractional seconds (Go's RFC3339Nano format)
+    private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    // Standard ISO8601 formatter without fractional seconds
+    private static let iso8601Standard: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    /// Parses ISO8601 timestamp, handling Go's RFC3339Nano format with nanosecond precision.
+    /// Go sends timestamps like "2024-01-15T10:30:45.123456789Z" but Swift's ISO8601DateFormatter
+    /// only handles milliseconds (3 decimal places). We truncate to milliseconds for parsing.
+    private static func parseISO8601(_ string: String) -> Date? {
+        // First, try parsing as-is with fractional seconds
+        if let date = iso8601WithFractionalSeconds.date(from: string) {
+            return date
+        }
+
+        // If that fails, try truncating nanoseconds to milliseconds
+        // Go sends: "2024-01-15T10:30:45.123456789Z"
+        // Swift needs: "2024-01-15T10:30:45.123Z"
+        let truncated = truncateNanosecondsToMilliseconds(string)
+        if let date = iso8601WithFractionalSeconds.date(from: truncated) {
+            return date
+        }
+
+        // Fall back to standard format without fractional seconds
+        if let date = iso8601Standard.date(from: string) {
+            return date
+        }
+
+        // Last resort: try removing fractional seconds entirely
+        let withoutFractional = removeFractionalSeconds(string)
+        return iso8601Standard.date(from: withoutFractional)
+    }
+
+    /// Truncates nanosecond precision to millisecond precision for ISO8601 parsing
+    /// Input:  "2024-01-15T10:30:45.123456789Z"
+    /// Output: "2024-01-15T10:30:45.123Z"
+    private static func truncateNanosecondsToMilliseconds(_ string: String) -> String {
+        // Match pattern: digits after decimal point before Z or timezone
+        let pattern = #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d{3})\d*(Z|[+-]\d{2}:\d{2})"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return string
+        }
+        let range = NSRange(string.startIndex..., in: string)
+        return regex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1.$2$3")
+    }
+
+    /// Removes fractional seconds entirely from ISO8601 timestamp
+    /// Input:  "2024-01-15T10:30:45.123456789Z"
+    /// Output: "2024-01-15T10:30:45Z"
+    private static func removeFractionalSeconds(_ string: String) -> String {
+        let pattern = #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d+(Z|[+-]\d{2}:\d{2})"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return string
+        }
+        let range = NSRange(string.startIndex..., in: string)
+        return regex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1$2")
+    }
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
         self.session = URLSession(configuration: .default)
@@ -397,7 +463,13 @@ actor SyncManager {
 
                 // Create event in local database
                 let payloadData = try JSONSerialization.data(withJSONObject: payload)
-                let eventTimestamp = ISO8601DateFormatter().date(from: timestamp) ?? Date()
+                let eventTimestamp: Date
+                if let parsed = SyncManager.parseISO8601(timestamp) {
+                    eventTimestamp = parsed
+                } else {
+                    os_log("[Sync] WARNING: Failed to parse ts '\(timestamp)' for \(id)")
+                    eventTimestamp = Date()
+                }
 
                 let event = Event(
                     id: eventId,

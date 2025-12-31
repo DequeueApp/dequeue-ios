@@ -15,11 +15,14 @@ struct CompletedStacksView: View {
     init() {
         // Include both completed and closed stacks (closed stacks are ones that
         // were dismissed without completing - the UI says "find it in completed stacks later")
-        let completed = StackStatus.completed
-        let closed = StackStatus.closed
+        // Note: SwiftData #Predicate doesn't support captured enum values,
+        // so we compare against the rawValue string directly
+        let completedRaw = StackStatus.completed.rawValue
+        let closedRaw = StackStatus.closed.rawValue
         _completedStacks = Query(
             filter: #Predicate<Stack> { stack in
-                stack.isDeleted == false && (stack.status == completed || stack.status == closed)
+                stack.isDeleted == false &&
+                (stack.statusRawValue == completedRaw || stack.statusRawValue == closedRaw)
             },
             sort: \Stack.updatedAt,
             order: .reverse

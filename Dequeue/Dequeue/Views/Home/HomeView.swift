@@ -14,12 +14,14 @@ struct HomeView: View {
 
     init() {
         // Filter for active stacks only (exclude completed, closed, and archived)
-        let activeStatus = StackStatus.active
+        // Note: SwiftData #Predicate doesn't support captured enum values,
+        // so we compare against the rawValue string directly
+        let activeRawValue = StackStatus.active.rawValue
         _stacks = Query(
             filter: #Predicate<Stack> { stack in
                 stack.isDeleted == false &&
                 stack.isDraft == false &&
-                stack.status == activeStatus
+                stack.statusRawValue == activeRawValue
             },
             sort: \Stack.sortOrder
         )

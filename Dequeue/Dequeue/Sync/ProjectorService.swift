@@ -82,12 +82,12 @@ enum ProjectorService {
         let existingDevices = try context.fetch(descriptor)
 
         if let existing = existingDevices.first {
-            // Update existing device
+            // Update existing device - use event timestamp for lastSeenAt
             existing.name = payload.name
             existing.model = payload.model
             existing.osName = payload.osName
             existing.osVersion = payload.osVersion
-            existing.lastSeenAt = Date()
+            existing.lastSeenAt = event.timestamp  // Use event timestamp, not current time
             existing.syncState = .synced
             existing.lastSyncedAt = Date()
         } else {
@@ -101,8 +101,8 @@ enum ProjectorService {
                 osVersion: payload.osVersion,
                 isDevice: payload.isDevice,
                 isCurrentDevice: false,  // This is another device
-                lastSeenAt: Date(),
-                firstSeenAt: Date(),
+                lastSeenAt: event.timestamp,  // Use event timestamp, not current time
+                firstSeenAt: event.timestamp,  // Use event timestamp for first seen too
                 syncState: .synced,
                 lastSyncedAt: Date()
             )

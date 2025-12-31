@@ -71,9 +71,10 @@ final class StackService {
     // MARK: - Read
 
     func getActiveStacks() throws -> [Stack] {
-        let active = StackStatus.active
+        // Use rawValue for SwiftData predicate compatibility
+        let activeRaw = StackStatus.active.rawValue
         let predicate = #Predicate<Stack> { stack in
-            stack.isDeleted == false && stack.isDraft == false && stack.status == active
+            stack.isDeleted == false && stack.isDraft == false && stack.statusRawValue == activeRaw
         }
         let descriptor = FetchDescriptor<Stack>(
             predicate: predicate,
@@ -83,9 +84,10 @@ final class StackService {
     }
 
     func getCompletedStacks() throws -> [Stack] {
-        let completed = StackStatus.completed
+        // Use rawValue for SwiftData predicate compatibility
+        let completedRaw = StackStatus.completed.rawValue
         let predicate = #Predicate<Stack> { stack in
-            stack.isDeleted == false && stack.status == completed
+            stack.isDeleted == false && stack.statusRawValue == completedRaw
         }
         let descriptor = FetchDescriptor<Stack>(
             predicate: predicate,

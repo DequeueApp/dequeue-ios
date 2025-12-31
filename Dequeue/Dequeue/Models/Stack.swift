@@ -20,7 +20,8 @@ final class Stack {
     var locationLongitude: Double?
     var tags: [String]
     var attachments: [String]
-    var status: StackStatus
+    /// Stored as raw value string for SwiftData predicate compatibility
+    var statusRawValue: String
     var priority: Int?
     var sortOrder: Int
     var createdAt: Date
@@ -42,6 +43,12 @@ final class Stack {
 
     @Relationship(deleteRule: .cascade)
     var reminders: [Reminder] = []
+
+    /// Computed property for type-safe status access
+    var status: StackStatus {
+        get { StackStatus(rawValue: statusRawValue) ?? .active }
+        set { statusRawValue = newValue.rawValue }
+    }
 
     init(
         id: String = CUID.generate(),
@@ -78,7 +85,7 @@ final class Stack {
         self.locationLongitude = locationLongitude
         self.tags = tags
         self.attachments = attachments
-        self.status = status
+        self.statusRawValue = status.rawValue
         self.priority = priority
         self.sortOrder = sortOrder
         self.createdAt = createdAt
