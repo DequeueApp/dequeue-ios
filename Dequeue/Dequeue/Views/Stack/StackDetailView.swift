@@ -21,6 +21,9 @@ struct StackDetailView: View {
     @State private var showCompleteConfirmation = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showAddTask = false
+    @State private var newTaskTitle = ""
+    @State private var newTaskDescription = ""
 
     private var stackService: StackService {
         StackService(modelContext: modelContext)
@@ -99,6 +102,14 @@ struct StackDetailView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This will close the stack without completing it. You can find it in completed stacks later.")
+            }
+            .sheet(isPresented: $showAddTask) {
+                AddTaskSheet(
+                    title: $newTaskTitle,
+                    description: $newTaskDescription,
+                    onSave: addTask,
+                    onCancel: cancelAddTask
+                )
             }
         }
     }
@@ -184,6 +195,13 @@ struct StackDetailView: View {
                 Text("\(stack.pendingTasks.count) pending")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button {
+                    showAddTask = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(.blue)
+                }
+                .accessibilityIdentifier("addTaskButton")
             }
         }
     }
@@ -295,6 +313,29 @@ struct StackDetailView: View {
         } catch {
             showError(error)
         }
+    }
+
+    private func addTask() {
+        guard !newTaskTitle.isEmpty else { return }
+
+        do {
+            _ = try taskService.createTask(
+                title: newTaskTitle,
+                description: newTaskDescription.isEmpty ? nil : newTaskDescription,
+                stack: stack
+            )
+            newTaskTitle = ""
+            newTaskDescription = ""
+            showAddTask = false
+        } catch {
+            showError(error)
+        }
+    }
+
+    private func cancelAddTask() {
+        newTaskTitle = ""
+        newTaskDescription = ""
+        showAddTask = false
     }
 
     private func showError(_ error: Error) {
