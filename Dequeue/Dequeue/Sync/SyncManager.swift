@@ -98,6 +98,45 @@ actor SyncManager {
         return regex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1$2")
     }
 
+    /// Extracts the entity ID from an event payload for history queries.
+    /// Returns the ID of the entity (stack, task, reminder, device) that this event relates to.
+    private static func extractEntityId(from payload: [String: Any], eventType: String) -> String? {
+        // Check for direct ID fields first (used in most payloads)
+        if eventType.hasPrefix("stack.") {
+            if let stackId = payload["stackId"] as? String {
+                return stackId
+            }
+        } else if eventType.hasPrefix("task.") {
+            if let taskId = payload["taskId"] as? String {
+                return taskId
+            }
+        } else if eventType.hasPrefix("reminder.") {
+            if let reminderId = payload["reminderId"] as? String {
+                return reminderId
+            }
+        } else if eventType.hasPrefix("device.") {
+            // Device events use state.id for entity ID (not deviceId which is the hardware ID)
+            if let state = payload["state"] as? [String: Any],
+               let entityId = state["id"] as? String {
+                return entityId
+            }
+        }
+
+        // Fallback: check for state.id (used in created/updated events)
+        if let state = payload["state"] as? [String: Any],
+           let entityId = state["id"] as? String {
+            return entityId
+        }
+
+        // Fallback: check for fullState.id (used in updated events)
+        if let fullState = payload["fullState"] as? [String: Any],
+           let entityId = fullState["id"] as? String {
+            return entityId
+        }
+
+        return nil
+    }
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
         self.session = URLSession(configuration: .default)
@@ -471,11 +510,15 @@ actor SyncManager {
                     eventTimestamp = Date()
                 }
 
+                // Extract entityId from payload for history queries
+                let entityId = SyncManager.extractEntityId(from: payload, eventType: type)
+
                 let event = Event(
                     id: eventId,
                     type: type,
                     payload: payloadData,
                     timestamp: eventTimestamp,
+                    entityId: entityId,
                     isSynced: true,
                     syncedAt: Date()
                 )
