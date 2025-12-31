@@ -12,6 +12,7 @@ struct MainTabView: View {
     @State private var selectedTab = 0
     @State private var previousTab = 0
     @State private var showAddSheet = false
+    @State private var activeStackForDetail: Stack?
 
     var body: some View {
         #if os(macOS)
@@ -23,7 +24,14 @@ struct MainTabView: View {
 
     // MARK: - iOS/iPadOS Layout
 
+    #if os(iOS)
+    private var isIPad: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
+    #endif
+
     private var iOSLayout: some View {
+        #if os(iOS)
         TabView(selection: $selectedTab) {
             HomeView()
                 .tabItem {
@@ -67,6 +75,17 @@ struct MainTabView: View {
         .sheet(isPresented: $showAddSheet) {
             AddStackView()
         }
+        .sheet(item: $activeStackForDetail) { stack in
+            StackDetailView(stack: stack)
+        }
+        .overlay(alignment: isIPad ? .top : .bottom) {
+            activeStackBanner
+                .padding(.horizontal)
+                .padding(isIPad ? .top : .bottom, isIPad ? 8 : 0)
+        }
+        #else
+        EmptyView()
+        #endif
     }
 
     // MARK: - macOS Layout
@@ -99,24 +118,51 @@ struct MainTabView: View {
                 }
             }
         } detail: {
-            switch selectedTab {
-            case 0:
-                HomeView()
-            case 1:
-                DraftsView()
-            case 3:
-                CompletedStacksView()
-            case 4:
-                SettingsView()
-            default:
-                HomeView()
+            ZStack(alignment: .top) {
+                detailContent
+
+                activeStackBanner
+                    .padding(.horizontal)
+                    .padding(.top, 8)
             }
         }
         .sheet(isPresented: $showAddSheet) {
             AddStackView()
         }
+        .sheet(item: $activeStackForDetail) { stack in
+            StackDetailView(stack: stack)
+        }
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        switch selectedTab {
+        case 0:
+            HomeView()
+        case 1:
+            DraftsView()
+        case 3:
+            CompletedStacksView()
+        case 4:
+            SettingsView()
+        default:
+            HomeView()
+        }
     }
     #endif
+
+    // MARK: - Active Stack Banner
+
+    private var activeStackBanner: some View {
+        ActiveStackBanner(
+            onStackTapped: { stack in
+                activeStackForDetail = stack
+            },
+            onEmptyTapped: {
+                selectedTab = 0 // Navigate to Home tab
+            }
+        )
+    }
 }
 
 #Preview {
