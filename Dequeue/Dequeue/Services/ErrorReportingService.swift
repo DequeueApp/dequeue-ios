@@ -16,6 +16,15 @@ enum ErrorReportingService {
             return
         }
 
+        // Don't initialize Sentry in test/CI environments
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
+           ProcessInfo.processInfo.arguments.contains("--uitesting") ||
+           ProcessInfo.processInfo.environment["CI"] != nil {
+            return
+        }
+        #endif
+
         SentrySDK.start { options in
             options.dsn = Configuration.sentryDSN
 
