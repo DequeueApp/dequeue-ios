@@ -11,44 +11,75 @@ import Sentry
 enum ErrorReportingService {
     // MARK: - Configuration
 
-    static func configure() {
-        guard Configuration.sentryDSN != "YOUR_SENTRY_DSN_HERE" else {
-            return
+    private static var isConfigured = false
+
+    /// Returns true if Sentry should be skipped (test/CI environments)
+    private static var shouldSkipConfiguration: Bool {
+        if isConfigured {
+            return true
         }
 
-        // Don't initialize Sentry in test/CI environments
+        if Configuration.sentryDSN == "YOUR_SENTRY_DSN_HERE" {
+            return true
+        }
+
         #if DEBUG
+        // Don't initialize Sentry in test/CI environments
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
            ProcessInfo.processInfo.arguments.contains("--uitesting") ||
            ProcessInfo.processInfo.environment["CI"] != nil {
-            return
+            return true
         }
         #endif
 
-        SentrySDK.start { options in
-            options.dsn = Configuration.sentryDSN
+        return false
+    }
 
-            #if DEBUG
-            options.debug = true
-            options.environment = "development"
-            #else
-            options.debug = false
-            options.environment = "production"
-            #endif
+    /// Configures Sentry SDK asynchronously to avoid blocking app launch.
+    /// This should be called from a Task context, not during App init.
+    static func configure() async {
+        // Quick synchronous check to avoid async overhead in test environments
+        guard !shouldSkipConfiguration else { return }
 
-            let release = "\(Configuration.bundleIdentifier)@\(Configuration.appVersion)"
-            options.releaseName = "\(release)+\(Configuration.buildNumber)"
+        // Run Sentry initialization on a background thread to avoid blocking the main thread
+        // Sentry SDK init can take 10+ seconds on first launch or when processing crash reports
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                // Double-check in case of race condition
+                guard !isConfigured else {
+                    continuation.resume()
+                    return
+                }
 
-            options.enableAutoSessionTracking = true
-            options.enableAutoBreadcrumbTracking = true
-            options.attachStacktrace = true
-            options.maxBreadcrumbs = 100
+                SentrySDK.start { options in
+                    options.dsn = Configuration.sentryDSN
 
-            #if DEBUG
-            options.tracesSampleRate = 1.0
-            #else
-            options.tracesSampleRate = 0.2
-            #endif
+                    #if DEBUG
+                    options.debug = true
+                    options.environment = "development"
+                    #else
+                    options.debug = false
+                    options.environment = "production"
+                    #endif
+
+                    let release = "\(Configuration.bundleIdentifier)@\(Configuration.appVersion)"
+                    options.releaseName = "\(release)+\(Configuration.buildNumber)"
+
+                    options.enableAutoSessionTracking = true
+                    options.enableAutoBreadcrumbTracking = true
+                    options.attachStacktrace = true
+                    options.maxBreadcrumbs = 100
+
+                    #if DEBUG
+                    options.tracesSampleRate = 1.0
+                    #else
+                    options.tracesSampleRate = 0.2
+                    #endif
+                }
+
+                isConfigured = true
+                continuation.resume()
+            }
         }
     }
 

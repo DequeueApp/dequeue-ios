@@ -29,7 +29,8 @@ struct DequeueApp: App {
     let syncManager: SyncManager
 
     init() {
-        ErrorReportingService.configure()
+        // Note: ErrorReportingService.configure() is now called asynchronously
+        // in the body to avoid blocking app launch (was causing 12+ second hangs)
 
         let schema = Schema([
             Stack.self,
@@ -87,6 +88,8 @@ struct DequeueApp: App {
                 .environment(\.clerk, Clerk.shared)
                 .environment(\.syncManager, syncManager)
                 .task {
+                    // Configure error reporting first (runs on background thread)
+                    await ErrorReportingService.configure()
                     await authService.configure()
                 }
         }

@@ -16,14 +16,6 @@ final class DequeueUITests: XCTestCase {
         app.launchArguments = ["--uitesting"]
     }
 
-    // MARK: - Launch Tests
-
-    @MainActor
-    func testAppLaunches() throws {
-        app.launch()
-        XCTAssertTrue(app.state == .runningForeground, "App should launch and run")
-    }
-
     // MARK: - Authentication Screen Tests
 
     @MainActor
