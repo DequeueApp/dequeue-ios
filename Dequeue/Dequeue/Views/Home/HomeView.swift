@@ -10,12 +10,20 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(
-        filter: #Predicate<Stack> { stack in
-            stack.isDeleted == false && stack.isDraft == false
-        },
-        sort: \Stack.sortOrder
-    ) private var stacks: [Stack]
+    @Query private var stacks: [Stack]
+
+    init() {
+        // Filter for active stacks only (exclude completed, closed, and archived)
+        let activeStatus = StackStatus.active
+        _stacks = Query(
+            filter: #Predicate<Stack> { stack in
+                stack.isDeleted == false &&
+                stack.isDraft == false &&
+                stack.status == activeStatus
+            },
+            sort: \Stack.sortOrder
+        )
+    }
 
     @State private var selectedStack: Stack?
 
