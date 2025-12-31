@@ -15,10 +15,6 @@ struct TaskRowView: View {
     var onToggleComplete: (() -> Void)?
     var onSetActive: (() -> Void)?
 
-    private var isInteractive: Bool {
-        onToggleComplete != nil || onSetActive != nil
-    }
-
     var body: some View {
         HStack(spacing: 12) {
             leadingIcon
