@@ -146,3 +146,4 @@ Would you like me to [specific improvement]?"
 
 - **stacks-sync** - Backend sync service (https://stacks-sync.fly.dev)
 - **stacks** - Legacy React Native app (deprecated)
+Use 'bd' for task tracking
