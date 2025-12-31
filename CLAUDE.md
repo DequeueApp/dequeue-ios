@@ -142,8 +142,13 @@ do {
 "The current approach works, but I notice [observation].
 Would you like me to [specific improvement]?"
 
+## Project Management
+
+- **Issue Tracker**: Linear (project key: DEQ)
+- **Always use Linear MCP** to fetch issue details when given a ticket ID (e.g., DEQ-10)
+- Issues follow format: DEQ-XX
+
 ## Related Projects
 
 - **stacks-sync** - Backend sync service (https://stacks-sync.fly.dev)
 - **stacks** - Legacy React Native app (deprecated)
-Use 'bd' for task tracking
