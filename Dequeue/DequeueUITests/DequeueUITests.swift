@@ -21,6 +21,10 @@ final class DequeueUITests: XCTestCase {
     @MainActor
     func testAppLaunches() throws {
         app.launch()
+
+        // Wait for app to fully initialize in slower CI environments
+        _ = app.wait(for: .runningForeground, timeout: 10)
+
         XCTAssertTrue(app.state == .runningForeground, "App should launch and run")
     }
 
