@@ -2,13 +2,27 @@
 //  TaskServiceTests.swift
 //  DequeueTests
 //
-//  Tests for TaskService - task creation and management
+//  Tests for TaskService - task creation and management (DEQ-7)
 //
 
 import Testing
 import SwiftData
 import Foundation
 @testable import Dequeue
+
+// MARK: - Test Helpers
+
+/// Creates an in-memory model container for TaskService tests
+private func makeTestContainer() throws -> ModelContainer {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    return try ModelContainer(
+        for: Stack.self,
+        QueueTask.self,
+        Reminder.self,
+        Event.self,
+        configurations: config
+    )
+}
 
 @Suite("TaskService Tests", .serialized)
 struct TaskServiceTests {
@@ -17,16 +31,8 @@ struct TaskServiceTests {
     @Test("createTask creates a new task with title")
     @MainActor
     func createTaskWithTitle() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Stack.self,
-            QueueTask.self,
-            Reminder.self,
-            Event.self,
-            configurations: config
-        )
+        let container = try makeTestContainer()
         let context = container.mainContext
-
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
         try context.save()
@@ -43,16 +49,8 @@ struct TaskServiceTests {
     @Test("createTask creates a task with description")
     @MainActor
     func createTaskWithDescription() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Stack.self,
-            QueueTask.self,
-            Reminder.self,
-            Event.self,
-            configurations: config
-        )
+        let container = try makeTestContainer()
         let context = container.mainContext
-
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
         try context.save()
@@ -72,22 +70,13 @@ struct TaskServiceTests {
     @Test("createTask assigns correct sort order")
     @MainActor
     func createTaskAssignsSortOrder() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Stack.self,
-            QueueTask.self,
-            Reminder.self,
-            Event.self,
-            configurations: config
-        )
+        let container = try makeTestContainer()
         let context = container.mainContext
-
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
         try context.save()
 
         let taskService = TaskService(modelContext: context)
-
         let task1 = try taskService.createTask(title: "First Task", stack: stack)
         let task2 = try taskService.createTask(title: "Second Task", stack: stack)
         let task3 = try taskService.createTask(title: "Third Task", stack: stack)
@@ -100,16 +89,8 @@ struct TaskServiceTests {
     @Test("createTask allows custom sort order")
     @MainActor
     func createTaskWithCustomSortOrder() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Stack.self,
-            QueueTask.self,
-            Reminder.self,
-            Event.self,
-            configurations: config
-        )
+        let container = try makeTestContainer()
         let context = container.mainContext
-
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
         try context.save()
@@ -123,16 +104,8 @@ struct TaskServiceTests {
     @Test("createTask sets sync state to pending")
     @MainActor
     func createTaskSetsSyncState() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Stack.self,
-            QueueTask.self,
-            Reminder.self,
-            Event.self,
-            configurations: config
-        )
+        let container = try makeTestContainer()
         let context = container.mainContext
-
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
         try context.save()
@@ -146,16 +119,8 @@ struct TaskServiceTests {
     @Test("created task appears in stack's pendingTasks")
     @MainActor
     func createdTaskAppearsInPendingTasks() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Stack.self,
-            QueueTask.self,
-            Reminder.self,
-            Event.self,
-            configurations: config
-        )
+        let container = try makeTestContainer()
         let context = container.mainContext
-
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
         try context.save()
@@ -172,19 +137,10 @@ struct TaskServiceTests {
     @Test("markAsCompleted changes task status")
     @MainActor
     func markAsCompletedChangesStatus() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Stack.self,
-            QueueTask.self,
-            Reminder.self,
-            Event.self,
-            configurations: config
-        )
+        let container = try makeTestContainer()
         let context = container.mainContext
-
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
-
         let task = QueueTask(title: "Test Task", status: .pending, stack: stack)
         context.insert(task)
         stack.tasks.append(task)
@@ -199,19 +155,10 @@ struct TaskServiceTests {
     @Test("completed task moves from pendingTasks to completedTasks")
     @MainActor
     func completedTaskMovesToCompletedList() throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(
-            for: Stack.self,
-            QueueTask.self,
-            Reminder.self,
-            Event.self,
-            configurations: config
-        )
+        let container = try makeTestContainer()
         let context = container.mainContext
-
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
-
         let task = QueueTask(title: "Test Task", status: .pending, stack: stack)
         context.insert(task)
         stack.tasks.append(task)
