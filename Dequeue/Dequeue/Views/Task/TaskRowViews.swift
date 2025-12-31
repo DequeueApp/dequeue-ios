@@ -12,103 +12,90 @@ import SwiftUI
 struct TaskRowView: View {
     let task: QueueTask
     let isActive: Bool
-    let onToggleComplete: () -> Void
-    let onSetActive: () -> Void
+    var onToggleComplete: (() -> Void)?
+    var onSetActive: (() -> Void)?
+
+    private var isInteractive: Bool {
+        onToggleComplete != nil || onSetActive != nil
+    }
 
     var body: some View {
         HStack(spacing: 12) {
-            Button {
-                onToggleComplete()
-            } label: {
-                Image(systemName: "circle")
-                    .font(.title2)
-                    .foregroundStyle(isActive ? .blue : .secondary)
-            }
-            .buttonStyle(.plain)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(task.title)
-                        .fontWeight(isActive ? .semibold : .regular)
-
-                    if isActive {
-                        Text("Active")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.blue.opacity(0.15))
-                            .foregroundStyle(.blue)
-                            .clipShape(Capsule())
-                    }
-                }
-
-                if let description = task.taskDescription, !description.isEmpty {
-                    Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-
+            leadingIcon
+            taskInfo
             Spacer()
-
-            if !isActive {
-                Button {
-                    onSetActive()
-                } label: {
-                    Image(systemName: "arrow.up.circle")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
+            trailingButton
         }
         .padding(.vertical, 4)
         .listRowBackground(isActive ? Color.blue.opacity(0.08) : nil)
     }
-}
 
-// MARK: - Read-Only Task Row View
+    @ViewBuilder
+    private var leadingIcon: some View {
+        if let onToggleComplete {
+            Button {
+                onToggleComplete()
+            } label: {
+                circleIcon
+            }
+            .buttonStyle(.plain)
+        } else {
+            circleIcon
+        }
+    }
 
-struct ReadOnlyTaskRowView: View {
-    let task: QueueTask
-    let isActive: Bool
+    private var circleIcon: some View {
+        Image(systemName: "circle")
+            .font(.title2)
+            .foregroundStyle(isActive ? .blue : .secondary)
+    }
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "circle")
-                .font(.title2)
-                .foregroundStyle(isActive ? .blue : .secondary)
+    private var taskInfo: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(task.title)
+                    .fontWeight(isActive ? .semibold : .regular)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(task.title)
-                        .fontWeight(isActive ? .semibold : .regular)
-
-                    if isActive {
-                        Text("Active")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.blue.opacity(0.15))
-                            .foregroundStyle(.blue)
-                            .clipShape(Capsule())
-                    }
-                }
-
-                if let description = task.taskDescription, !description.isEmpty {
-                    Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                if isActive {
+                    ActiveBadge()
                 }
             }
 
-            Spacer()
+            if let description = task.taskDescription, !description.isEmpty {
+                Text(description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
-        .padding(.vertical, 4)
-        .listRowBackground(isActive ? Color.blue.opacity(0.08) : nil)
+    }
+
+    @ViewBuilder
+    private var trailingButton: some View {
+        if !isActive, let onSetActive {
+            Button {
+                onSetActive()
+            } label: {
+                Image(systemName: "arrow.up.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+// MARK: - Active Badge
+
+private struct ActiveBadge: View {
+    var body: some View {
+        Text("Active")
+            .font(.caption2)
+            .fontWeight(.medium)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.blue.opacity(0.15))
+            .foregroundStyle(.blue)
+            .clipShape(Capsule())
     }
 }
 

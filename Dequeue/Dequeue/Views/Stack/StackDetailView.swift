@@ -278,21 +278,13 @@ struct StackDetailView: View {
 
     // MARK: - Helpers
 
-    @ViewBuilder
     private func taskRowContent(for task: QueueTask) -> some View {
-        if isReadOnly {
-            ReadOnlyTaskRowView(
-                task: task,
-                isActive: task.id == stack.activeTask?.id
-            )
-        } else {
-            TaskRowView(
-                task: task,
-                isActive: task.id == stack.activeTask?.id,
-                onToggleComplete: { toggleTaskComplete(task) },
-                onSetActive: { setTaskActive(task) }
-            )
-        }
+        TaskRowView(
+            task: task,
+            isActive: task.id == stack.activeTask?.id,
+            onToggleComplete: isReadOnly ? nil : { toggleTaskComplete(task) },
+            onSetActive: isReadOnly ? nil : { setTaskActive(task) }
+        )
     }
 
     // MARK: - Actions
