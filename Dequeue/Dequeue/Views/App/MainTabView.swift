@@ -123,12 +123,13 @@ struct MainTabView: View {
                 }
             }
         } detail: {
-            ZStack(alignment: .top) {
+            ZStack(alignment: .bottom) {
                 detailContent
+                    .frame(maxHeight: .infinity, alignment: .top)
 
                 activeStackBanner
                     .padding(.horizontal)
-                    .padding(.top, 8)
+                    .padding(.bottom, 16)
             }
         }
         .sheet(isPresented: $showAddSheet) {
