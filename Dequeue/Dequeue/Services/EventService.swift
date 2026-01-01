@@ -66,6 +66,15 @@ final class EventService {
         try recordEvent(type: .stackActivated, payload: payload, entityId: stack.id)
     }
 
+    func recordStackDeactivated(_ stack: Stack) throws {
+        let payload = StackStatusPayload(
+            stackId: stack.id,
+            status: StackStatus.active.rawValue,  // Status before deactivation
+            fullState: StackState.from(stack)
+        )
+        try recordEvent(type: .stackDeactivated, payload: payload, entityId: stack.id)
+    }
+
     func recordStackReordered(_ stacks: [Stack]) throws {
         let payload = StackReorderedPayload(
             stackIds: stacks.map { $0.id },
