@@ -143,6 +143,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-spm-
 
+      - name: Boot Simulator
+        run: |
+          # Pre-boot the simulator to avoid timeout issues
+          xcrun simctl boot "iPhone 16" || true
+          # Wait for simulator to be ready
+          xcrun simctl bootstatus "iPhone 16" -b
+
       - name: Run UI Tests
         run: |
           xcodebuild test \
@@ -151,6 +158,7 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.1' \
             -only-testing:DequeueUITests \
             -resultBundlePath UITestResults.xcresult \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Upload Test Results
