@@ -93,7 +93,7 @@ struct TaskDetailView: View {
             Text("This action cannot be undone.")
         }
         .sheet(isPresented: $showAddReminder) {
-            AddReminderSheet(task: task, notificationService: notificationService)
+            AddReminderSheet(parent: .task(task), notificationService: notificationService)
         }
     }
 

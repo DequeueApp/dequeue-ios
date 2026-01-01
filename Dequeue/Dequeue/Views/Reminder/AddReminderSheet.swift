@@ -2,18 +2,47 @@
 //  AddReminderSheet.swift
 //  Dequeue
 //
-//  Sheet for adding a reminder to a task with notification permission handling (DEQ-13)
+//  Sheet for adding a reminder to a task or stack with notification permission handling (DEQ-13, DEQ-16)
 //
 
 import SwiftUI
 import SwiftData
 import UserNotifications
 
+// MARK: - Reminder Parent
+
+/// Represents the parent entity for a reminder
+enum ReminderParent {
+    case task(QueueTask)
+    case stack(Stack)
+
+    var title: String {
+        switch self {
+        case .task(let task): return task.title
+        case .stack(let stack): return stack.title
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .task: return "doc.text"
+        case .stack: return "square.stack.3d.up"
+        }
+    }
+
+    var typeLabel: String {
+        switch self {
+        case .task: return "Task"
+        case .stack: return "Stack"
+        }
+    }
+}
+
 struct AddReminderSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    let task: QueueTask
+    let parent: ReminderParent
     let notificationService: NotificationService
 
     @State private var selectedDate = Date().addingTimeInterval(3_600) // 1 hour from now
@@ -133,13 +162,13 @@ struct AddReminderSheet: View {
         Form {
             Section {
                 HStack {
-                    Image(systemName: "doc.text")
+                    Image(systemName: parent.icon)
                         .foregroundStyle(.blue)
-                    Text(task.title)
+                    Text(parent.title)
                         .lineLimit(2)
                 }
             } header: {
-                Text("Task")
+                Text(parent.typeLabel)
             }
 
             Section {
@@ -260,7 +289,13 @@ struct AddReminderSheet: View {
 
         Task {
             do {
-                let reminder = try reminderService.createReminder(for: task, at: selectedDate)
+                let reminder: Reminder
+                switch parent {
+                case .task(let task):
+                    reminder = try reminderService.createReminder(for: task, at: selectedDate)
+                case .stack(let stack):
+                    reminder = try reminderService.createReminder(for: stack, at: selectedDate)
+                }
                 try await notificationService.scheduleNotification(for: reminder)
                 dismiss()
             } catch {
@@ -325,7 +360,7 @@ private struct QuickSelectButton: View {
 
 // MARK: - Preview
 
-#Preview("Authorized") {
+#Preview("Task Reminder") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // swiftlint:disable:next force_try
     let container = try! ModelContainer(
@@ -345,6 +380,26 @@ private struct QuickSelectButton: View {
 
     let service = NotificationService(modelContext: container.mainContext)
 
-    return AddReminderSheet(task: task, notificationService: service)
+    return AddReminderSheet(parent: .task(task), notificationService: service)
+        .modelContainer(container)
+}
+
+#Preview("Stack Reminder") {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    // swiftlint:disable:next force_try
+    let container = try! ModelContainer(
+        for: Stack.self,
+        QueueTask.self,
+        Reminder.self,
+        Event.self,
+        configurations: config
+    )
+
+    let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
+    container.mainContext.insert(stack)
+
+    let service = NotificationService(modelContext: container.mainContext)
+
+    return AddReminderSheet(parent: .stack(stack), notificationService: service)
         .modelContainer(container)
 }
