@@ -28,6 +28,9 @@ final class Stack {
     var updatedAt: Date
     var isDeleted: Bool
     var isDraft: Bool
+    /// Explicit tracking for the single active stack constraint.
+    /// Only one stack should have isActive = true at any time.
+    var isActive: Bool
 
     // Sync fields
     var userId: String?
@@ -68,6 +71,7 @@ final class Stack {
         updatedAt: Date = Date(),
         isDeleted: Bool = false,
         isDraft: Bool = false,
+        isActive: Bool = false,
         userId: String? = nil,
         deviceId: String? = nil,
         syncState: SyncState = .pending,
@@ -92,6 +96,7 @@ final class Stack {
         self.updatedAt = updatedAt
         self.isDeleted = isDeleted
         self.isDraft = isDraft
+        self.isActive = isActive
         self.userId = userId
         self.deviceId = deviceId
         self.syncState = syncState

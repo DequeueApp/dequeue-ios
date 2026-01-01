@@ -237,6 +237,7 @@ struct StackState: Codable {
     let updatedAt: Int64
     let deleted: Bool
     let isDraft: Bool
+    let isActive: Bool
 
     static func from(_ stack: Stack) -> StackState {
         StackState(
@@ -249,7 +250,8 @@ struct StackState: Codable {
             createdAt: Int64(stack.createdAt.timeIntervalSince1970 * 1_000),
             updatedAt: Int64(stack.updatedAt.timeIntervalSince1970 * 1_000),
             deleted: stack.isDeleted,
-            isDraft: stack.isDraft
+            isDraft: stack.isDraft,
+            isActive: stack.isActive
         )
     }
 }
@@ -484,11 +486,12 @@ struct StackEventPayload: Codable {
     let priority: Int?
     let sortOrder: Int
     let isDraft: Bool
+    let isActive: Bool
     let deleted: Bool
 
     // Handle status as string from server
     enum CodingKeys: String, CodingKey {
-        case id, title, description, status, priority, sortOrder, isDraft, deleted
+        case id, title, description, status, priority, sortOrder, isDraft, isActive, deleted
     }
 
     init(from decoder: Decoder) throws {
@@ -508,6 +511,7 @@ struct StackEventPayload: Codable {
         priority = try container.decodeIfPresent(Int.self, forKey: .priority)
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         isDraft = try container.decodeIfPresent(Bool.self, forKey: .isDraft) ?? false
+        isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? false
         deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
     }
 
@@ -520,6 +524,7 @@ struct StackEventPayload: Codable {
         try container.encodeIfPresent(priority, forKey: .priority)
         try container.encode(sortOrder, forKey: .sortOrder)
         try container.encode(isDraft, forKey: .isDraft)
+        try container.encode(isActive, forKey: .isActive)
         try container.encode(deleted, forKey: .deleted)
     }
 }
