@@ -32,6 +32,8 @@ struct StackDetailView: View {
     @State private var newTaskTitle = ""
     @State private var newTaskDescription = ""
     @State private var showAddReminder = false
+    @State private var showSnoozePicker = false
+    @State private var selectedReminderForSnooze: Reminder?
 
     private var stackService: StackService {
         StackService(modelContext: modelContext)
@@ -133,6 +135,17 @@ struct StackDetailView: View {
             }
             .sheet(isPresented: $showAddReminder) {
                 AddReminderSheet(parent: .stack(stack), notificationService: notificationService)
+            }
+            .sheet(isPresented: $showSnoozePicker) {
+                if let reminder = selectedReminderForSnooze {
+                    SnoozePickerSheet(
+                        isPresented: $showSnoozePicker,
+                        reminder: reminder,
+                        onSnooze: { snoozeUntil in
+                            snoozeReminder(reminder, until: snoozeUntil)
+                        }
+                    )
+                }
             }
         }
     }
@@ -300,20 +313,20 @@ struct StackDetailView: View {
 
     @ViewBuilder
     private var remindersList: some View {
-        let list = ForEach(stack.activeReminders) { reminder in
-            HStack {
-                Image(systemName: "bell.fill")
-                    .foregroundStyle(.orange)
-                Text(reminder.remindAt, style: .date)
-                Text(reminder.remindAt, style: .time)
-                    .foregroundStyle(.secondary)
-            }
-        }
-
-        if isReadOnly {
-            list
-        } else {
-            list.onDelete(perform: deleteReminders)
+        ForEach(stack.activeReminders) { reminder in
+            ReminderRowView(
+                reminder: reminder,
+                onTap: isReadOnly ? nil : {
+                    // TODO: DEQ-19 - Edit reminder
+                },
+                onSnooze: isReadOnly ? nil : {
+                    selectedReminderForSnooze = reminder
+                    showSnoozePicker = true
+                },
+                onDelete: isReadOnly ? nil : {
+                    deleteReminder(reminder)
+                }
+            )
         }
     }
 
@@ -439,6 +452,40 @@ struct StackDetailView: View {
         newTaskTitle = ""
         newTaskDescription = ""
         showAddTask = false
+    }
+
+    private func snoozeReminder(_ reminder: Reminder, until date: Date) {
+        do {
+            // Cancel existing notification
+            Task {
+                await notificationService.cancelNotification(for: reminder)
+            }
+
+            // Snooze the reminder
+            try reminderService.snoozeReminder(reminder, until: date)
+
+            // Schedule new notification
+            Task {
+                try? await notificationService.scheduleNotification(for: reminder)
+            }
+
+            selectedReminderForSnooze = nil
+        } catch {
+            showError(error)
+        }
+    }
+
+    private func deleteReminder(_ reminder: Reminder) {
+        do {
+            // Cancel notification
+            Task {
+                await notificationService.cancelNotification(for: reminder)
+            }
+
+            try reminderService.deleteReminder(reminder)
+        } catch {
+            showError(error)
+        }
     }
 
     private func deleteReminders(at offsets: IndexSet) {

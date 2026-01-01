@@ -26,6 +26,8 @@ struct TaskDetailView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showAddReminder = false
+    @State private var showSnoozePicker = false
+    @State private var selectedReminderForSnooze: Reminder?
 
     private var taskService: TaskService {
         TaskService(modelContext: modelContext)
@@ -33,6 +35,10 @@ struct TaskDetailView: View {
 
     private var notificationService: NotificationService {
         NotificationService(modelContext: modelContext)
+    }
+
+    private var reminderService: ReminderService {
+        ReminderService(modelContext: modelContext)
     }
 
     var body: some View {
@@ -94,6 +100,17 @@ struct TaskDetailView: View {
         }
         .sheet(isPresented: $showAddReminder) {
             AddReminderSheet(parent: .task(task), notificationService: notificationService)
+        }
+        .sheet(isPresented: $showSnoozePicker) {
+            if let reminder = selectedReminderForSnooze {
+                SnoozePickerSheet(
+                    isPresented: $showSnoozePicker,
+                    reminder: reminder,
+                    onSnooze: { snoozeUntil in
+                        snoozeReminder(reminder, until: snoozeUntil)
+                    }
+                )
+            }
         }
     }
 
@@ -284,13 +301,19 @@ struct TaskDetailView: View {
                 }
             } else {
                 ForEach(task.activeReminders) { reminder in
-                    HStack {
-                        Image(systemName: "bell.fill")
-                            .foregroundStyle(.orange)
-                        Text(reminder.remindAt, style: .date)
-                        Text(reminder.remindAt, style: .time)
-                            .foregroundStyle(.secondary)
-                    }
+                    ReminderRowView(
+                        reminder: reminder,
+                        onTap: {
+                            // TODO: DEQ-19 - Edit reminder
+                        },
+                        onSnooze: {
+                            selectedReminderForSnooze = reminder
+                            showSnoozePicker = true
+                        },
+                        onDelete: {
+                            deleteReminder(reminder)
+                        }
+                    )
                 }
             }
         } header: {
@@ -417,6 +440,40 @@ struct TaskDetailView: View {
         do {
             try taskService.deleteTask(task)
             dismiss()
+        } catch {
+            showError(error)
+        }
+    }
+
+    private func snoozeReminder(_ reminder: Reminder, until date: Date) {
+        do {
+            // Cancel existing notification
+            Task {
+                await notificationService.cancelNotification(for: reminder)
+            }
+
+            // Snooze the reminder
+            try reminderService.snoozeReminder(reminder, until: date)
+
+            // Schedule new notification
+            Task {
+                try? await notificationService.scheduleNotification(for: reminder)
+            }
+
+            selectedReminderForSnooze = nil
+        } catch {
+            showError(error)
+        }
+    }
+
+    private func deleteReminder(_ reminder: Reminder) {
+        do {
+            // Cancel notification
+            Task {
+                await notificationService.cancelNotification(for: reminder)
+            }
+
+            try reminderService.deleteReminder(reminder)
         } catch {
             showError(error)
         }
