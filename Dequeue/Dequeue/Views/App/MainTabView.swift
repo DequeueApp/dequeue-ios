@@ -78,10 +78,15 @@ struct MainTabView: View {
         .sheet(item: $activeStackForDetail) { stack in
             StackDetailView(stack: stack)
         }
-        .safeAreaInset(edge: isIPad ? .top : .bottom) {
-            activeStackBanner
-                .padding(.horizontal)
-                .padding(isIPad ? .top : .bottom, 8)
+        .overlay(alignment: .bottom) {
+            GeometryReader { geometry in
+                activeStackBanner
+                    .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
+                    .padding(.horizontal)
+                    .padding(.top, 0)
+                    .padding(.bottom, geometry.safeAreaInsets.bottom + 24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            }
         }
         #else
         EmptyView()
