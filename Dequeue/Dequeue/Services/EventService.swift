@@ -145,6 +145,18 @@ final class EventService {
         try recordEvent(type: .reminderDeleted, payload: payload, entityId: reminder.id)
     }
 
+    func recordReminderSnoozed(_ reminder: Reminder) throws {
+        let payload = ReminderSnoozedPayload(
+            reminderId: reminder.id,
+            parentId: reminder.parentId,
+            parentType: reminder.parentType.rawValue,
+            snoozedFrom: reminder.snoozedFrom.map { Int64($0.timeIntervalSince1970 * 1_000) },
+            snoozedUntil: Int64(reminder.remindAt.timeIntervalSince1970 * 1_000),
+            fullState: ReminderState.from(reminder)
+        )
+        try recordEvent(type: .reminderSnoozed, payload: payload, entityId: reminder.id)
+    }
+
     // MARK: - Device Events
 
     func recordDeviceDiscovered(_ device: Device) throws {
@@ -430,6 +442,15 @@ struct ReminderUpdatedPayload: Codable {
 
 struct ReminderDeletedPayload: Codable {
     let reminderId: String
+}
+
+struct ReminderSnoozedPayload: Codable {
+    let reminderId: String
+    let parentId: String
+    let parentType: String
+    let snoozedFrom: Int64?
+    let snoozedUntil: Int64
+    let fullState: ReminderState
 }
 
 // Device payloads
