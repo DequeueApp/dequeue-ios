@@ -53,12 +53,16 @@ struct CompletedStacksView: View {
     private var completedList: some View {
         List {
             ForEach(completedStacks) { stack in
-                VStack(alignment: .leading) {
-                    Text(stack.title)
-                        .font(.headline)
-                    Text("Completed \(stack.updatedAt, style: .relative) ago")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                NavigationLink {
+                    StackDetailView(stack: stack, isReadOnly: true)
+                } label: {
+                    VStack(alignment: .leading) {
+                        Text(stack.title)
+                            .font(.headline)
+                        Text("Completed \(stack.updatedAt, style: .relative) ago")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
