@@ -122,8 +122,13 @@ struct ActiveStackBanner: View {
 
     private var bannerBackground: some View {
         RoundedRectangle(cornerRadius: BannerConstants.cornerRadius)
-            .fill(.ultraThinMaterial)
-            .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+            .fill(.regularMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: BannerConstants.cornerRadius)
+                    .strokeBorder(.primary.opacity(0.1), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+            .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
     }
 }
 

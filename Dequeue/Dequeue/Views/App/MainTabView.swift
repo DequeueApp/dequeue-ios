@@ -83,7 +83,7 @@ struct MainTabView: View {
                 activeStackBanner
                     .padding(.horizontal)
                     .padding(.top, isIPad ? geometry.safeAreaInsets.top + 8 : 0)
-                    .padding(.bottom, isIPad ? 0 : geometry.safeAreaInsets.bottom + 60)
+                    .padding(.bottom, isIPad ? 0 : geometry.safeAreaInsets.bottom + 8)
                     .frame(maxHeight: .infinity, alignment: isIPad ? .top : .bottom)
             }
         }
