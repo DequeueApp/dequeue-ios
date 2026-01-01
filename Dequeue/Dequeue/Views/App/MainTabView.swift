@@ -81,10 +81,11 @@ struct MainTabView: View {
         .overlay(alignment: .bottom) {
             GeometryReader { geometry in
                 activeStackBanner
+                    .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
                     .padding(.horizontal)
                     .padding(.top, 0)
                     .padding(.bottom, geometry.safeAreaInsets.bottom + 24)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
         #else
