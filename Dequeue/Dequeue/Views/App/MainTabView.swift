@@ -78,13 +78,13 @@ struct MainTabView: View {
         .sheet(item: $activeStackForDetail) { stack in
             StackDetailView(stack: stack)
         }
-        .overlay(alignment: isIPad ? .top : .bottom) {
+        .overlay(alignment: .bottom) {
             GeometryReader { geometry in
                 activeStackBanner
                     .padding(.horizontal)
-                    .padding(.top, isIPad ? geometry.safeAreaInsets.top + 8 : 0)
-                    .padding(.bottom, isIPad ? 0 : geometry.safeAreaInsets.bottom + 56)
-                    .frame(maxHeight: .infinity, alignment: isIPad ? .top : .bottom)
+                    .padding(.top, 0)
+                    .padding(.bottom, geometry.safeAreaInsets.bottom + 24)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
             }
         }
         #else
