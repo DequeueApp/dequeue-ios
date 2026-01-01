@@ -11,11 +11,13 @@ import Clerk
 
 struct SettingsView: View {
     @Environment(\.authService) private var authService
+    @Environment(\.syncManager) private var syncManager
     @AppStorage("developerModeEnabled") private var developerModeEnabled = false
     @State private var isSigningOut = false
     @State private var showSignOutError = false
     @State private var signOutError: String?
     @State private var showDeleteDataConfirmation = false
+    @State private var connectionStatus: ConnectionStatus = .disconnected
 
     private var userEmail: String? {
         Clerk.shared.user?.primaryEmailAddress?.emailAddress
@@ -72,6 +74,8 @@ struct SettingsView: View {
 
                 if developerModeEnabled {
                     Section("Developer") {
+                        ConnectionStatusRow(status: connectionStatus)
+
                         NavigationLink {
                             EventLogView()
                         } label: {
@@ -126,7 +130,26 @@ struct SettingsView: View {
                     """
                 )
             }
+            .task {
+                await refreshConnectionStatus()
+            }
+            .task(id: developerModeEnabled) {
+                // Poll connection status when developer mode is enabled
+                guard developerModeEnabled else { return }
+                while !Task.isCancelled {
+                    await refreshConnectionStatus()
+                    try? await Task.sleep(for: .seconds(2))
+                }
+            }
         }
+    }
+
+    private func refreshConnectionStatus() async {
+        guard let syncManager = syncManager else {
+            connectionStatus = .disconnected
+            return
+        }
+        connectionStatus = await syncManager.connectionStatus
     }
 
     private func deleteAllDataAndRestart() {
@@ -172,6 +195,57 @@ struct SettingsView: View {
             ErrorReportingService.capture(error: error, context: ["action": "sign_out"])
         }
         isSigningOut = false
+    }
+}
+
+// MARK: - Connection Status Row
+
+private struct ConnectionStatusRow: View {
+    let status: ConnectionStatus
+    @State private var isPulsing = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 10, height: 10)
+                .scaleEffect(isPulsing && status == .connected ? 1.2 : 1.0)
+                .opacity(isPulsing && status == .connected ? 0.7 : 1.0)
+                .animation(
+                    status == .connected
+                        ? .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
+                        : .default,
+                    value: isPulsing
+                )
+
+            Text(statusLabel)
+                .foregroundStyle(status == .connected ? .primary : .secondary)
+        }
+        .onAppear {
+            isPulsing = true
+        }
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .connected:
+            return .green
+        case .connecting:
+            return .orange
+        case .disconnected:
+            return .red
+        }
+    }
+
+    private var statusLabel: String {
+        switch status {
+        case .connected:
+            return "Live Connection"
+        case .connecting:
+            return "Connecting..."
+        case .disconnected:
+            return "No Live Connection"
+        }
     }
 }
 
