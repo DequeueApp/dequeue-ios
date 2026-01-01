@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 
+// swiftlint:disable:next type_body_length
 struct StackDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -126,56 +127,60 @@ struct StackDetailView: View {
 
     private var descriptionSection: some View {
         Section {
-            if isReadOnly {
-                if let description = stack.stackDescription, !description.isEmpty {
-                    Text(description)
-                        .foregroundStyle(.primary)
-                } else {
-                    Text("No description")
-                        .foregroundStyle(.secondary)
-                }
-            } else if isEditingDescription {
-                TextField("Description", text: $editedDescription, axis: .vertical)
-                    .lineLimit(3...6)
-                    .onSubmit {
-                        saveDescription()
-                    }
-
-                HStack {
-                    Button("Cancel") {
-                        isEditingDescription = false
-                        editedDescription = stack.stackDescription ?? ""
-                    }
-                    .foregroundStyle(.secondary)
-
-                    Spacer()
-
-                    Button("Save") {
-                        saveDescription()
-                    }
-                    .fontWeight(.medium)
-                }
-            } else {
-                Button {
-                    editedDescription = stack.stackDescription ?? ""
-                    isEditingDescription = true
-                } label: {
-                    HStack {
-                        if let description = stack.stackDescription, !description.isEmpty {
-                            Text(description)
-                                .foregroundStyle(.primary)
-                        } else {
-                            Text("Add description...")
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "pencil")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+            descriptionContent
         } header: {
             Text("Description")
+        }
+    }
+
+    @ViewBuilder
+    private var descriptionContent: some View {
+        if isReadOnly {
+            if let description = stack.stackDescription, !description.isEmpty {
+                Text(description).foregroundStyle(.primary)
+            } else {
+                Text("No description").foregroundStyle(.secondary)
+            }
+        } else if isEditingDescription {
+            descriptionEditingView
+        } else {
+            descriptionDisplayButton
+        }
+    }
+
+    private var descriptionEditingView: some View {
+        Group {
+            TextField("Description", text: $editedDescription, axis: .vertical)
+                .lineLimit(3...6)
+                .onSubmit { saveDescription() }
+
+            HStack {
+                Button("Cancel") {
+                    isEditingDescription = false
+                    editedDescription = stack.stackDescription ?? ""
+                }
+                .foregroundStyle(.secondary)
+                Spacer()
+                Button("Save") { saveDescription() }
+                    .fontWeight(.medium)
+            }
+        }
+    }
+
+    private var descriptionDisplayButton: some View {
+        Button {
+            editedDescription = stack.stackDescription ?? ""
+            isEditingDescription = true
+        } label: {
+            HStack {
+                if let description = stack.stackDescription, !description.isEmpty {
+                    Text(description).foregroundStyle(.primary)
+                } else {
+                    Text("Add description...").foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "pencil").foregroundStyle(.secondary)
+            }
         }
     }
 
