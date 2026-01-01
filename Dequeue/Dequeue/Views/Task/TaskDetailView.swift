@@ -25,9 +25,14 @@ struct TaskDetailView: View {
     @State private var showDeleteConfirmation = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showAddReminder = false
 
     private var taskService: TaskService {
         TaskService(modelContext: modelContext)
+    }
+
+    private var notificationService: NotificationService {
+        NotificationService(modelContext: modelContext)
     }
 
     var body: some View {
@@ -86,6 +91,9 @@ struct TaskDetailView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This action cannot be undone.")
+        }
+        .sheet(isPresented: $showAddReminder) {
+            AddReminderSheet(task: task, notificationService: notificationService)
         }
     }
 
@@ -273,8 +281,6 @@ struct TaskDetailView: View {
                     Label("No reminders", systemImage: "bell.slash")
                         .foregroundStyle(.secondary)
                     Spacer()
-                    // swiftlint:disable:next todo
-                    // FIXME: Add reminder button when ReminderService is implemented
                 }
             } else {
                 ForEach(task.activeReminders) { reminder in
@@ -288,7 +294,17 @@ struct TaskDetailView: View {
                 }
             }
         } header: {
-            Text("Reminders")
+            HStack {
+                Text("Reminders")
+                Spacer()
+                Button {
+                    showAddReminder = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(.blue)
+                }
+                .accessibilityIdentifier("addReminderButton")
+            }
         }
     }
 

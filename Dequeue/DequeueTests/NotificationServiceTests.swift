@@ -17,6 +17,7 @@ import UserNotifications
 final class MockNotificationCenter: NotificationCenterProtocol, @unchecked Sendable {
     var authorizationGranted = true
     var authorizationError: Error?
+    var authorizationStatus: UNAuthorizationStatus = .notDetermined
     var addedRequests: [UNNotificationRequest] = []
     var removedIdentifiers: [String] = []
     var allPendingRemoved = false
@@ -45,6 +46,10 @@ final class MockNotificationCenter: NotificationCenterProtocol, @unchecked Senda
 
     func pendingNotificationRequests() async -> [UNNotificationRequest] {
         return pendingRequests
+    }
+
+    func getAuthorizationStatus() async -> UNAuthorizationStatus {
+        return authorizationStatus
     }
 }
 
@@ -416,5 +421,97 @@ struct NotificationServiceTests {
         #expect(trigger?.dateComponents.day == expectedComponents.day)
         #expect(trigger?.dateComponents.hour == expectedComponents.hour)
         #expect(trigger?.dateComponents.minute == expectedComponents.minute)
+    }
+
+    // MARK: - Authorization Status Tests
+
+    @Test("getAuthorizationStatus returns notDetermined when not requested")
+    @MainActor
+    func getAuthorizationStatusNotDetermined() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationStatus = .notDetermined
+
+        let status = await ctx.service.getAuthorizationStatus()
+        #expect(status == .notDetermined)
+    }
+
+    @Test("getAuthorizationStatus returns authorized when granted")
+    @MainActor
+    func getAuthorizationStatusAuthorized() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationStatus = .authorized
+
+        let status = await ctx.service.getAuthorizationStatus()
+        #expect(status == .authorized)
+    }
+
+    @Test("getAuthorizationStatus returns denied when denied")
+    @MainActor
+    func getAuthorizationStatusDenied() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationStatus = .denied
+
+        let status = await ctx.service.getAuthorizationStatus()
+        #expect(status == .denied)
+    }
+
+    @Test("hasPermissionBeenRequested returns false when notDetermined")
+    @MainActor
+    func hasPermissionBeenRequestedFalse() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationStatus = .notDetermined
+
+        let result = await ctx.service.hasPermissionBeenRequested()
+        #expect(result == false)
+    }
+
+    @Test("hasPermissionBeenRequested returns true when authorized")
+    @MainActor
+    func hasPermissionBeenRequestedTrueAuthorized() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationStatus = .authorized
+
+        let result = await ctx.service.hasPermissionBeenRequested()
+        #expect(result == true)
+    }
+
+    @Test("hasPermissionBeenRequested returns true when denied")
+    @MainActor
+    func hasPermissionBeenRequestedTrueDenied() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationStatus = .denied
+
+        let result = await ctx.service.hasPermissionBeenRequested()
+        #expect(result == true)
+    }
+
+    @Test("isAuthorized returns true when authorized")
+    @MainActor
+    func isAuthorizedTrue() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationStatus = .authorized
+
+        let result = await ctx.service.isAuthorized()
+        #expect(result == true)
+    }
+
+    @Test("isAuthorized returns false when denied")
+    @MainActor
+    func isAuthorizedFalseDenied() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationStatus = .denied
+
+        let result = await ctx.service.isAuthorized()
+        #expect(result == false)
+    }
+
+    @Test("isAuthorized returns false when notDetermined")
+    @MainActor
+    func isAuthorizedFalseNotDetermined() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationStatus = .notDetermined
+
+        let result = await ctx.service.isAuthorized()
+        #expect(result == false)
     }
 }

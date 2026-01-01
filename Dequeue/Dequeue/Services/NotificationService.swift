@@ -18,10 +18,15 @@ protocol NotificationCenterProtocol: Sendable {
     func removePendingNotificationRequests(withIdentifiers identifiers: [String])
     func removeAllPendingNotificationRequests()
     func pendingNotificationRequests() async -> [UNNotificationRequest]
+    func getAuthorizationStatus() async -> UNAuthorizationStatus
 }
 
 /// Extension to make UNUserNotificationCenter conform to our protocol
-extension UNUserNotificationCenter: NotificationCenterProtocol {}
+extension UNUserNotificationCenter: NotificationCenterProtocol {
+    func getAuthorizationStatus() async -> UNAuthorizationStatus {
+        await notificationSettings().authorizationStatus
+    }
+}
 
 // MARK: - Notification Service
 
@@ -41,6 +46,18 @@ final class NotificationService: NSObject {
 
     // MARK: - Permission
 
+    /// Returns the current notification authorization status
+    func getAuthorizationStatus() async -> UNAuthorizationStatus {
+        await notificationCenter.getAuthorizationStatus()
+    }
+
+    /// Checks if notification permissions have been determined
+    /// - Returns: `true` if user has already made a permission decision
+    func hasPermissionBeenRequested() async -> Bool {
+        let status = await getAuthorizationStatus()
+        return status != .notDetermined
+    }
+
     /// Requests notification authorization from the user
     /// - Returns: `true` if permission was granted, `false` otherwise
     func requestPermission() async -> Bool {
@@ -51,6 +68,13 @@ final class NotificationService: NSObject {
         } catch {
             return false
         }
+    }
+
+    /// Checks if notifications are currently authorized
+    /// - Returns: `true` if notifications can be scheduled
+    func isAuthorized() async -> Bool {
+        let status = await getAuthorizationStatus()
+        return status == .authorized
     }
 
     // MARK: - Schedule

@@ -23,4 +23,27 @@ final class DequeueUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.exists)
     }
+
+    // MARK: - Notification Permission Flow Tests
+    //
+    // Note: Full UI testing of the notification permission flow is limited because:
+    // 1. System permission dialogs (UNUserNotificationCenter) cannot be controlled in UI tests
+    // 2. The app requires authentication which complicates UI test setup
+    //
+    // The permission flow is thoroughly covered by unit tests in NotificationServiceTests:
+    // - getAuthorizationStatus tests verify all permission states are handled
+    // - hasPermissionBeenRequested tests verify permission checking logic
+    // - isAuthorized tests verify authorization state handling
+    //
+    // The AddReminderSheet UI correctly handles:
+    // - Showing explanation before requesting permission (.notDetermined state)
+    // - Showing date picker when authorized (.authorized state)
+    // - Showing Settings redirect when denied (.denied state)
+    //
+    // Key accessibility identifiers for manual/future testing:
+    // - "addReminderButton" - Button to add a reminder in TaskDetailView
+    // - "enableNotificationsButton" - Button to request permissions in AddReminderSheet
+    // - "openSettingsButton" - Button to open Settings when permission denied
+    // - "saveReminderButton" - Button to save a reminder
+    // - "reminderDatePicker" - Date picker for selecting reminder time
 }
