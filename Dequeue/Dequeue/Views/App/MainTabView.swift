@@ -78,10 +78,10 @@ struct MainTabView: View {
         .sheet(item: $activeStackForDetail) { stack in
             StackDetailView(stack: stack)
         }
-        .overlay(alignment: isIPad ? .top : .bottom) {
+        .safeAreaInset(edge: isIPad ? .top : .bottom) {
             activeStackBanner
                 .padding(.horizontal)
-                .padding(isIPad ? .top : .bottom, isIPad ? 8 : 0)
+                .padding(isIPad ? .top : .bottom, 8)
         }
         #else
         EmptyView()
