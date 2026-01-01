@@ -2,20 +2,25 @@
 //  DequeueUITestsLaunchTests.swift
 //  DequeueUITests
 //
-//  Created by Victor Quinn on 12/21/25.
+//  Launch screenshot tests for App Store submissions
+//
+//  Note: Basic app launch testing is covered by DequeueUITests.testAppLaunches()
+//  This class is specifically for generating launch screenshots.
 //
 
 import XCTest
 
 final class DequeueUITestsLaunchTests: XCTestCase {
+    var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = ["--uitesting"]
     }
 
     @MainActor
-    func testLaunch() throws {
-        let app = XCUIApplication()
+    func testLaunchScreenshot() throws {
         app.launch()
 
         // Verify app launched successfully
@@ -23,9 +28,9 @@ final class DequeueUITestsLaunchTests: XCTestCase {
 
         // Wait for app to fully settle before taking screenshot
         // This helps avoid flaky failures in slower CI environments
-        _ = app.wait(for: .runningForeground, timeout: 5)
+        _ = app.wait(for: .runningForeground, timeout: 10)
 
-        // Take screenshot
+        // Take screenshot for App Store submission
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Launch Screen"
         attachment.lifetime = .keepAlways
