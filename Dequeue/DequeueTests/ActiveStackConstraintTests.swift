@@ -266,4 +266,132 @@ struct ActiveStackConstraintTests {
 
         #expect(fetched?.isActive == true)
     }
+
+    // MARK: - Deactivation Event Tests (DEQ-24)
+
+    @Test("setAsActive emits stack.deactivated event for previously active stack")
+    @MainActor
+    func setAsActiveEmitsDeactivatedEvent() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context)
+
+        let first = try service.createStack(title: "First Stack")
+        let second = try service.createStack(title: "Second Stack")
+
+        // Get event count before activation change
+        let eventDescriptor = FetchDescriptor<Event>()
+        let eventsBefore = try context.fetch(eventDescriptor)
+        let countBefore = eventsBefore.count
+
+        // Activate second stack (should deactivate first)
+        try service.setAsActive(second)
+
+        // Fetch events after
+        let eventsAfter = try context.fetch(eventDescriptor)
+
+        // Should have deactivated, activated, and reordered events
+        #expect(eventsAfter.count > countBefore)
+
+        // Find the deactivation event for the first stack
+        let deactivationEvents = eventsAfter.filter { $0.eventType == .stackDeactivated }
+        #expect(deactivationEvents.count >= 1)
+
+        // Verify deactivation event is for the first stack
+        let deactivationEvent = deactivationEvents.first { event in
+            event.entityId == first.id
+        }
+        #expect(deactivationEvent != nil)
+    }
+
+    @Test("stack.deactivated event is recorded BEFORE stack.activated event")
+    @MainActor
+    func deactivatedEventBeforeActivatedEvent() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context)
+
+        _ = try service.createStack(title: "First Stack")
+        let second = try service.createStack(title: "Second Stack")
+
+        // Activate second stack
+        try service.setAsActive(second)
+
+        // Fetch all events sorted by timestamp
+        let sortedDescriptor = FetchDescriptor<Event>(
+            sortBy: [SortDescriptor(\.timestamp)]
+        )
+        let events = try context.fetch(sortedDescriptor)
+
+        // Find the deactivated and activated events for this activation
+        let deactivatedEvent = events.first { $0.eventType == .stackDeactivated }
+        let activatedEvents = events.filter { $0.eventType == .stackActivated }
+        let lastActivatedEvent = activatedEvents.last { $0.entityId == second.id }
+
+        #expect(deactivatedEvent != nil)
+        #expect(lastActivatedEvent != nil)
+
+        // Deactivation should happen before activation
+        if let deactivated = deactivatedEvent, let activated = lastActivatedEvent {
+            #expect(deactivated.timestamp <= activated.timestamp)
+        }
+    }
+
+    @Test("No deactivation event when activating same stack")
+    @MainActor
+    func noDeactivationEventForSameStack() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context)
+
+        let first = try service.createStack(title: "First Stack")
+        _ = try service.createStack(title: "Second Stack")
+
+        // Count deactivation events before
+        let eventDescriptor = FetchDescriptor<Event>()
+        let eventsBefore = try context.fetch(eventDescriptor)
+        let deactivationCountBefore = eventsBefore.filter { $0.eventType == .stackDeactivated }.count
+
+        // Activate the same stack that's already active
+        try service.setAsActive(first)
+
+        // Count deactivation events after
+        let eventsAfter = try context.fetch(eventDescriptor)
+        let deactivationCountAfter = eventsAfter.filter { $0.eventType == .stackDeactivated }.count
+
+        // No new deactivation event should be recorded
+        #expect(deactivationCountAfter == deactivationCountBefore)
+    }
+
+    @Test("Deactivation event captures stack state while still active")
+    @MainActor
+    func deactivationEventCapturesActiveState() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context)
+
+        let first = try service.createStack(title: "First Stack")
+        let second = try service.createStack(title: "Second Stack")
+        let firstId = first.id
+
+        // Activate second stack (deactivates first)
+        try service.setAsActive(second)
+
+        // Find deactivation event for first stack
+        let eventDescriptor = FetchDescriptor<Event>()
+        let events = try context.fetch(eventDescriptor)
+        let deactivationEvent = events.first { event in
+            event.eventType == .stackDeactivated && event.entityId == firstId
+        }
+
+        #expect(deactivationEvent != nil)
+
+        // Decode the payload to verify state was captured while still active
+        if let event = deactivationEvent {
+            let payload = try event.decodePayload(StackStatusPayload.self)
+            #expect(payload.stackId == firstId)
+            // The fullState should have captured isActive = true before deactivation
+            #expect(payload.fullState.isActive == true)
+        }
+    }
 }

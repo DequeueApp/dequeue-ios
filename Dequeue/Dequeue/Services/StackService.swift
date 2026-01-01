@@ -170,6 +170,14 @@ final class StackService {
     func setAsActive(_ stack: Stack) throws {
         let activeStacks = try getActiveStacks()
 
+        // Find the currently active stack to record deactivation event BEFORE changing state
+        let previouslyActiveStack = activeStacks.first { $0.isActive && $0.id != stack.id }
+
+        // Record deactivation event for previously active stack (captures state while still active)
+        if let previousStack = previouslyActiveStack {
+            try eventService.recordStackDeactivated(previousStack)
+        }
+
         // Deactivate all other stacks and update sort orders
         for (index, activeStack) in activeStacks.enumerated() {
             if activeStack.id == stack.id {
