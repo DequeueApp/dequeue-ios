@@ -8,6 +8,48 @@
 import Foundation
 import SwiftData
 
+// MARK: - Stack Service Errors
+
+/// Errors that can occur during stack operations
+enum StackServiceError: LocalizedError, Equatable {
+    /// Attempted to activate a stack that is deleted
+    case cannotActivateDeletedStack
+    /// Attempted to activate a draft stack (must publish first)
+    case cannotActivateDraftStack
+    /// Constraint violation: multiple stacks marked as active after operation
+    case multipleActiveStacksDetected(count: Int)
+    /// Operation failed and changes were not saved
+    case operationFailed(underlying: Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .cannotActivateDeletedStack:
+            return "Cannot activate a deleted stack"
+        case .cannotActivateDraftStack:
+            return "Cannot activate a draft stack. Publish it first."
+        case .multipleActiveStacksDetected(let count):
+            return "Constraint violation: found \(count) active stacks (expected 1)"
+        case .operationFailed(let underlying):
+            return "Stack operation failed: \(underlying.localizedDescription)"
+        }
+    }
+
+    static func == (lhs: StackServiceError, rhs: StackServiceError) -> Bool {
+        switch (lhs, rhs) {
+        case (.cannotActivateDeletedStack, .cannotActivateDeletedStack):
+            return true
+        case (.cannotActivateDraftStack, .cannotActivateDraftStack):
+            return true
+        case let (.multipleActiveStacksDetected(lhsCount), .multipleActiveStacksDetected(rhsCount)):
+            return lhsCount == rhsCount
+        case let (.operationFailed(lhsError), .operationFailed(rhsError)):
+            return lhsError.localizedDescription == rhsError.localizedDescription
+        default:
+            return false
+        }
+    }
+}
+
 @MainActor
 final class StackService {
     private let modelContext: ModelContext
@@ -89,6 +131,20 @@ final class StackService {
         return results.first
     }
 
+    /// Validates that at most one stack has isActive = true.
+    /// Throws `StackServiceError.multipleActiveStacksDetected` if constraint is violated.
+    func validateSingleActiveConstraint() throws {
+        let predicate = #Predicate<Stack> { stack in
+            stack.isDeleted == false && stack.isDraft == false && stack.isActive == true
+        }
+        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
+        let activeStacks = try modelContext.fetch(descriptor)
+
+        if activeStacks.count > 1 {
+            throw StackServiceError.multipleActiveStacksDetected(count: activeStacks.count)
+        }
+    }
+
     func getActiveStacks() throws -> [Stack] {
         // Use rawValue for SwiftData predicate compatibility
         let activeRaw = StackStatus.active.rawValue
@@ -168,6 +224,14 @@ final class StackService {
     }
 
     func setAsActive(_ stack: Stack) throws {
+        // MARK: Pre-condition validation
+        guard !stack.isDeleted else {
+            throw StackServiceError.cannotActivateDeletedStack
+        }
+        guard !stack.isDraft else {
+            throw StackServiceError.cannotActivateDraftStack
+        }
+
         let activeStacks = try getActiveStacks()
 
         // Find the currently active stack to record deactivation event BEFORE changing state
@@ -202,6 +266,9 @@ final class StackService {
         try eventService.recordStackActivated(stack)
         try eventService.recordStackReordered(activeStacks)
         try modelContext.save()
+
+        // MARK: Post-condition validation
+        try validateSingleActiveConstraint()
     }
 
     func closeStack(_ stack: Stack, reason: String? = nil) throws {
