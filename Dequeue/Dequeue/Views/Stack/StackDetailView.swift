@@ -31,6 +31,7 @@ struct StackDetailView: View {
     @State private var showAddTask = false
     @State private var newTaskTitle = ""
     @State private var newTaskDescription = ""
+    @State private var showAddReminder = false
 
     private var stackService: StackService {
         StackService(modelContext: modelContext)
@@ -38,6 +39,14 @@ struct StackDetailView: View {
 
     private var taskService: TaskService {
         TaskService(modelContext: modelContext)
+    }
+
+    private var notificationService: NotificationService {
+        NotificationService(modelContext: modelContext)
+    }
+
+    private var reminderService: ReminderService {
+        ReminderService(modelContext: modelContext)
     }
 
     var body: some View {
@@ -50,6 +59,8 @@ struct StackDetailView: View {
                 if !stack.completedTasks.isEmpty {
                     completedTasksSection
                 }
+
+                remindersSection
 
                 actionsSection
 
@@ -119,6 +130,9 @@ struct StackDetailView: View {
                     onSave: addTask,
                     onCancel: cancelAddTask
                 )
+            }
+            .sheet(isPresented: $showAddReminder) {
+                AddReminderSheet(parent: .stack(stack), notificationService: notificationService)
             }
         }
     }
@@ -256,6 +270,53 @@ struct StackDetailView: View {
         }
     }
 
+    private var remindersSection: some View {
+        Section {
+            if stack.activeReminders.isEmpty {
+                HStack {
+                    Label("No reminders", systemImage: "bell.slash")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+            } else {
+                remindersList
+            }
+        } header: {
+            HStack {
+                Text("Reminders")
+                Spacer()
+                if !isReadOnly {
+                    Button {
+                        showAddReminder = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(.blue)
+                    }
+                    .accessibilityIdentifier("addStackReminderButton")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var remindersList: some View {
+        let list = ForEach(stack.activeReminders) { reminder in
+            HStack {
+                Image(systemName: "bell.fill")
+                    .foregroundStyle(.orange)
+                Text(reminder.remindAt, style: .date)
+                Text(reminder.remindAt, style: .time)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        if isReadOnly {
+            list
+        } else {
+            list.onDelete(perform: deleteReminders)
+        }
+    }
+
     @ViewBuilder
     private var actionsSection: some View {
         if !isReadOnly {
@@ -378,6 +439,19 @@ struct StackDetailView: View {
         newTaskTitle = ""
         newTaskDescription = ""
         showAddTask = false
+    }
+
+    private func deleteReminders(at offsets: IndexSet) {
+        let remindersToDelete = offsets.map { stack.activeReminders[$0] }
+        for reminder in remindersToDelete {
+            do {
+                try reminderService.deleteReminder(reminder)
+                notificationService.cancelNotification(for: reminder)
+            } catch {
+                showError(error)
+                return
+            }
+        }
     }
 
     private func showError(_ error: Error) {
