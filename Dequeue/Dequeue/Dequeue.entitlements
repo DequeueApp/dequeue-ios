@@ -7,5 +7,9 @@
 		<string>applinks:expert-halibut-82.clerk.accounts.dev</string>
 		<string>webcredentials:expert-halibut-82.clerk.accounts.dev</string>
 	</array>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>
