@@ -25,12 +25,17 @@ final class StackService {
         description: String? = nil,
         isDraft: Bool = false
     ) throws -> Stack {
+        // Check if this will be the first non-draft active stack
+        let existingActiveStacks = try getActiveStacks()
+        let shouldBeActive = !isDraft && existingActiveStacks.isEmpty
+
         let stack = Stack(
             title: title,
             stackDescription: description,
             status: .active,
             sortOrder: 0,
             isDraft: isDraft,
+            isActive: shouldBeActive,
             syncState: .pending
         )
 
@@ -38,6 +43,10 @@ final class StackService {
 
         // Always record events - drafts are synced for offline-first behavior
         try eventService.recordStackCreated(stack)
+
+        if shouldBeActive {
+            try eventService.recordStackActivated(stack)
+        }
 
         try modelContext.save()
         return stack
@@ -69,6 +78,16 @@ final class StackService {
     }
 
     // MARK: - Read
+
+    /// Returns the single currently active stack, or nil if none is active.
+    func getCurrentActiveStack() throws -> Stack? {
+        let predicate = #Predicate<Stack> { stack in
+            stack.isDeleted == false && stack.isDraft == false && stack.isActive == true
+        }
+        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
+        let results = try modelContext.fetch(descriptor)
+        return results.first
+    }
 
     func getActiveStacks() throws -> [Stack] {
         // Use rawValue for SwiftData predicate compatibility
@@ -151,14 +170,26 @@ final class StackService {
     func setAsActive(_ stack: Stack) throws {
         let activeStacks = try getActiveStacks()
 
+        // Deactivate all other stacks and update sort orders
         for (index, activeStack) in activeStacks.enumerated() {
             if activeStack.id == stack.id {
                 activeStack.sortOrder = 0
-            } else if activeStack.sortOrder <= stack.sortOrder {
-                activeStack.sortOrder = index + 1
+                activeStack.isActive = true
+            } else {
+                activeStack.isActive = false
+                if activeStack.sortOrder <= stack.sortOrder {
+                    activeStack.sortOrder = index + 1
+                }
             }
+            activeStack.updatedAt = Date()
             activeStack.syncState = .pending
         }
+
+        // Ensure target stack is active (handles case where stack wasn't in activeStacks)
+        stack.isActive = true
+        stack.sortOrder = 0
+        stack.updatedAt = Date()
+        stack.syncState = .pending
 
         try eventService.recordStackActivated(stack)
         try eventService.recordStackReordered(activeStacks)
@@ -224,11 +255,51 @@ final class StackService {
         stack.priority = historicalPayload.priority
         stack.sortOrder = historicalPayload.sortOrder
         stack.isDraft = historicalPayload.isDraft
+        stack.isActive = historicalPayload.isActive
         stack.updatedAt = Date()  // Current time - this IS a new edit
         stack.syncState = .pending
 
         // Record as a NEW update event (preserves immutable history)
         try eventService.recordStackUpdated(stack)
         try modelContext.save()
+    }
+
+    // MARK: - Migration
+
+    /// Migrates existing data to ensure exactly one stack has isActive = true.
+    /// Call this on app startup to handle the schema migration from sortOrder-based
+    /// active tracking to explicit isActive field.
+    ///
+    /// Migration logic:
+    /// 1. If no stack has isActive = true, set the stack with sortOrder = 0 as active
+    /// 2. If multiple stacks have isActive = true, keep only the one with lowest sortOrder
+    func migrateActiveStackState() throws {
+        let activeStacks = try getActiveStacks()
+        guard !activeStacks.isEmpty else { return }
+
+        // Find stacks that already have isActive = true
+        let currentlyActive = activeStacks.filter { $0.isActive }
+
+        if currentlyActive.isEmpty {
+            // No stack is marked active - activate the one with lowest sortOrder
+            if let firstStack = activeStacks.min(by: { $0.sortOrder < $1.sortOrder }) {
+                firstStack.isActive = true
+                firstStack.syncState = .pending
+                try modelContext.save()
+            }
+        } else if currentlyActive.count > 1 {
+            // Multiple stacks marked active - keep only the one with lowest sortOrder
+            let sorted = currentlyActive.sorted { $0.sortOrder < $1.sortOrder }
+            for (index, stack) in sorted.enumerated() {
+                if index == 0 {
+                    stack.isActive = true
+                } else {
+                    stack.isActive = false
+                }
+                stack.syncState = .pending
+            }
+            try modelContext.save()
+        }
+        // If exactly one is active, no migration needed
     }
 }

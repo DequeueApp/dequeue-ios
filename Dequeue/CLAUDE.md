@@ -131,6 +131,16 @@ do {
 - Test on both iOS and macOS
 - **ALWAYS run tests locally before pushing**
 
+## Project Management
+
+- **Issue Tracker**: Linear (project key: DEQ)
+- **Always use Linear MCP** to fetch issue details when given a ticket ID (e.g., DEQ-10)
+- When starting work on an issue:
+  1. Update the Linear issue status to "In Progress"
+  2. Add a comment with your implementation plan/approach
+  3. Update the issue with any relevant findings or decisions
+- Issues follow format: DEQ-XX
+
 ## Git and Commit Guidelines
 
 - Create feature branches off main (`feat/`, `fix/`, `refactor/`)
