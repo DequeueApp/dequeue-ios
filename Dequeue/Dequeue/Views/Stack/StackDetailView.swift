@@ -47,8 +47,8 @@ struct StackDetailView: View {
         NotificationService(modelContext: modelContext)
     }
 
-    private var reminderService: ReminderService {
-        ReminderService(modelContext: modelContext)
+    private var reminderActionHandler: ReminderActionHandler {
+        ReminderActionHandler(modelContext: modelContext, onError: showError)
     }
 
     var body: some View {
@@ -142,7 +142,8 @@ struct StackDetailView: View {
                         isPresented: $showSnoozePicker,
                         reminder: reminder,
                         onSnooze: { snoozeUntil in
-                            snoozeReminder(reminder, until: snoozeUntil)
+                            reminderActionHandler.snooze(reminder, until: snoozeUntil)
+                            selectedReminderForSnooze = nil
                         }
                     )
                 }
@@ -324,7 +325,7 @@ struct StackDetailView: View {
                     showSnoozePicker = true
                 },
                 onDelete: isReadOnly ? nil : {
-                    deleteReminder(reminder)
+                    reminderActionHandler.delete(reminder)
                 }
             )
         }
@@ -454,50 +455,10 @@ struct StackDetailView: View {
         showAddTask = false
     }
 
-    private func snoozeReminder(_ reminder: Reminder, until date: Date) {
-        do {
-            // Cancel existing notification
-            Task {
-                await notificationService.cancelNotification(for: reminder)
-            }
-
-            // Snooze the reminder
-            try reminderService.snoozeReminder(reminder, until: date)
-
-            // Schedule new notification
-            Task {
-                try? await notificationService.scheduleNotification(for: reminder)
-            }
-
-            selectedReminderForSnooze = nil
-        } catch {
-            showError(error)
-        }
-    }
-
-    private func deleteReminder(_ reminder: Reminder) {
-        do {
-            // Cancel notification
-            Task {
-                await notificationService.cancelNotification(for: reminder)
-            }
-
-            try reminderService.deleteReminder(reminder)
-        } catch {
-            showError(error)
-        }
-    }
-
     private func deleteReminders(at offsets: IndexSet) {
         let remindersToDelete = offsets.map { stack.activeReminders[$0] }
         for reminder in remindersToDelete {
-            do {
-                try reminderService.deleteReminder(reminder)
-                notificationService.cancelNotification(for: reminder)
-            } catch {
-                showError(error)
-                return
-            }
+            reminderActionHandler.delete(reminder)
         }
     }
 

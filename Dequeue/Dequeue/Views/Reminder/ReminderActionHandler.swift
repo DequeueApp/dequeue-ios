@@ -1,0 +1,60 @@
+//
+//  ReminderActionHandler.swift
+//  Dequeue
+//
+//  Shared handler for reminder snooze and delete actions (DEQ-18)
+//
+
+import SwiftUI
+import SwiftData
+
+/// Handles snooze and delete operations for reminders.
+/// Shared between TaskDetailView and StackDetailView to avoid code duplication.
+@MainActor
+struct ReminderActionHandler {
+    let modelContext: ModelContext
+    let onError: (Error) -> Void
+
+    private var reminderService: ReminderService {
+        ReminderService(modelContext: modelContext)
+    }
+
+    private var notificationService: NotificationService {
+        NotificationService(modelContext: modelContext)
+    }
+
+    /// Snoozes a reminder until the specified date.
+    /// Cancels existing notification and schedules a new one.
+    func snooze(_ reminder: Reminder, until date: Date) {
+        do {
+            // Cancel existing notification
+            Task {
+                await notificationService.cancelNotification(for: reminder)
+            }
+
+            // Snooze the reminder
+            try reminderService.snoozeReminder(reminder, until: date)
+
+            // Schedule new notification
+            Task {
+                try? await notificationService.scheduleNotification(for: reminder)
+            }
+        } catch {
+            onError(error)
+        }
+    }
+
+    /// Deletes a reminder and cancels its notification.
+    func delete(_ reminder: Reminder) {
+        do {
+            // Cancel notification
+            Task {
+                await notificationService.cancelNotification(for: reminder)
+            }
+
+            try reminderService.deleteReminder(reminder)
+        } catch {
+            onError(error)
+        }
+    }
+}
