@@ -22,6 +22,7 @@ final class QueueTask {
     var priority: Int?
     var blockedReason: String?
     var sortOrder: Int
+    var lastActiveTime: Date?
     var createdAt: Date
     var updatedAt: Date
     var isDeleted: Bool
@@ -53,6 +54,7 @@ final class QueueTask {
         priority: Int? = nil,
         blockedReason: String? = nil,
         sortOrder: Int = 0,
+        lastActiveTime: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         isDeleted: Bool = false,
@@ -76,6 +78,7 @@ final class QueueTask {
         self.priority = priority
         self.blockedReason = blockedReason
         self.sortOrder = sortOrder
+        self.lastActiveTime = lastActiveTime
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isDeleted = isDeleted

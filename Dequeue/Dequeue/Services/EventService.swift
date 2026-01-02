@@ -286,6 +286,7 @@ struct TaskState: Codable {
     let status: String
     let priority: Int?
     let sortOrder: Int
+    let lastActiveTime: Int64?
     let createdAt: Int64
     let updatedAt: Int64
     let deleted: Bool
@@ -299,6 +300,7 @@ struct TaskState: Codable {
             status: task.status.rawValue,
             priority: task.priority,
             sortOrder: task.sortOrder,
+            lastActiveTime: task.lastActiveTime.map { Int64($0.timeIntervalSince1970 * 1_000) },
             createdAt: Int64(task.createdAt.timeIntervalSince1970 * 1_000),
             updatedAt: Int64(task.updatedAt.timeIntervalSince1970 * 1_000),
             deleted: task.isDeleted
@@ -562,10 +564,11 @@ struct TaskEventPayload: Codable {
     let status: TaskStatus
     let priority: Int?
     let sortOrder: Int
+    let lastActiveTime: Date?
     let deleted: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, stackId, title, description, status, priority, sortOrder, deleted
+        case id, stackId, title, description, status, priority, sortOrder, lastActiveTime, deleted
     }
 
     init(from decoder: Decoder) throws {
@@ -585,6 +588,14 @@ struct TaskEventPayload: Codable {
 
         priority = try container.decodeIfPresent(Int.self, forKey: .priority)
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+
+        // Decode lastActiveTime - handle both Int64 timestamp and Date
+        if let timestamp = try container.decodeIfPresent(Int64.self, forKey: .lastActiveTime) {
+            lastActiveTime = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            lastActiveTime = try container.decodeIfPresent(Date.self, forKey: .lastActiveTime)
+        }
+
         deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
     }
 
@@ -597,6 +608,9 @@ struct TaskEventPayload: Codable {
         try container.encode(status.rawValue, forKey: .status)
         try container.encodeIfPresent(priority, forKey: .priority)
         try container.encode(sortOrder, forKey: .sortOrder)
+        if let lastActiveTime = lastActiveTime {
+            try container.encode(Int64(lastActiveTime.timeIntervalSince1970 * 1_000), forKey: .lastActiveTime)
+        }
         try container.encode(deleted, forKey: .deleted)
     }
 }
