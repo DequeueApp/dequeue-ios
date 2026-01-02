@@ -28,6 +28,8 @@ struct TaskDetailView: View {
     @State private var showAddReminder = false
     @State private var showSnoozePicker = false
     @State private var selectedReminderForSnooze: Reminder?
+    @State private var showEditReminder = false
+    @State private var selectedReminderForEdit: Reminder?
 
     private var taskService: TaskService {
         TaskService(modelContext: modelContext)
@@ -110,6 +112,15 @@ struct TaskDetailView: View {
                         reminderActionHandler.snooze(reminder, until: snoozeUntil)
                         selectedReminderForSnooze = nil
                     }
+                )
+            }
+        }
+        .sheet(isPresented: $showEditReminder) {
+            if let reminder = selectedReminderForEdit {
+                AddReminderSheet(
+                    parent: .task(task),
+                    notificationService: notificationService,
+                    existingReminder: reminder
                 )
             }
         }
@@ -305,7 +316,8 @@ struct TaskDetailView: View {
                     ReminderRowView(
                         reminder: reminder,
                         onTap: {
-                            // TODO: DEQ-19 - Edit reminder
+                            selectedReminderForEdit = reminder
+                            showEditReminder = true
                         },
                         onSnooze: {
                             selectedReminderForSnooze = reminder

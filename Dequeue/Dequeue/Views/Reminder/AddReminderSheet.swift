@@ -44,12 +44,16 @@ struct AddReminderSheet: View {
 
     let parent: ReminderParent
     let notificationService: NotificationService
+    /// When provided, the sheet operates in edit mode instead of create mode
+    var existingReminder: Reminder?
 
     @State private var selectedDate = Date().addingTimeInterval(3_600) // 1 hour from now
     @State private var permissionState: PermissionState = .checking
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var isSaving = false
+
+    private var isEditMode: Bool { existingReminder != nil }
 
     private var reminderService: ReminderService {
         ReminderService(modelContext: modelContext)
@@ -69,7 +73,7 @@ struct AddReminderSheet: View {
                     permissionDeniedView
                 }
             }
-            .navigationTitle("Add Reminder")
+            .navigationTitle(isEditMode ? "Edit Reminder" : "Add Reminder")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -98,6 +102,11 @@ struct AddReminderSheet: View {
         .presentationDetents([.medium])
         .task {
             await checkPermissionState()
+        }
+        .onAppear {
+            if let reminder = existingReminder {
+                selectedDate = reminder.remindAt
+            }
         }
     }
 
@@ -289,19 +298,28 @@ struct AddReminderSheet: View {
 
         Task {
             do {
-                let reminder: Reminder
-                switch parent {
-                case .task(let task):
-                    reminder = try reminderService.createReminder(for: task, at: selectedDate)
-                case .stack(let stack):
-                    reminder = try reminderService.createReminder(for: stack, at: selectedDate)
+                if let existingReminder {
+                    // Edit mode: update existing reminder
+                    await notificationService.cancelNotification(for: existingReminder)
+                    try reminderService.updateReminder(existingReminder, remindAt: selectedDate)
+                    try await notificationService.scheduleNotification(for: existingReminder)
+                } else {
+                    // Create mode: create new reminder
+                    let reminder: Reminder
+                    switch parent {
+                    case .task(let task):
+                        reminder = try reminderService.createReminder(for: task, at: selectedDate)
+                    case .stack(let stack):
+                        reminder = try reminderService.createReminder(for: stack, at: selectedDate)
+                    }
+                    try await notificationService.scheduleNotification(for: reminder)
                 }
-                try await notificationService.scheduleNotification(for: reminder)
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true
-                ErrorReportingService.capture(error: error, context: ["action": "save_reminder"])
+                let action = isEditMode ? "update_reminder" : "save_reminder"
+                ErrorReportingService.capture(error: error, context: ["action": action])
             }
             isSaving = false
         }
