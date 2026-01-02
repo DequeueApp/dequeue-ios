@@ -128,6 +128,7 @@ enum ProjectorService {
                 priority: payload.priority,
                 sortOrder: payload.sortOrder,
                 isDraft: payload.isDraft,
+                activeTaskId: payload.activeTaskId,
                 syncState: .synced,
                 lastSyncedAt: Date()
             )
@@ -347,6 +348,14 @@ enum ProjectorService {
         task.updatedAt = event.timestamp  // LWW: Use event timestamp
         task.syncState = .synced
         task.lastSyncedAt = Date()
+
+        // Update the stack's activeTaskId to match
+        if let stack = task.stack {
+            stack.activeTaskId = task.id
+            stack.updatedAt = event.timestamp
+            stack.syncState = .synced
+            stack.lastSyncedAt = Date()
+        }
     }
 
     private static func applyTaskClosed(event: Event, context: ModelContext) throws {
@@ -489,6 +498,7 @@ enum ProjectorService {
         stack.priority = payload.priority
         stack.sortOrder = payload.sortOrder
         stack.isDraft = payload.isDraft
+        stack.activeTaskId = payload.activeTaskId
         stack.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
