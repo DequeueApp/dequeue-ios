@@ -32,6 +32,8 @@ struct StackDetailView: View {
     @State private var newTaskTitle = ""
     @State private var newTaskDescription = ""
     @State private var showAddReminder = false
+    @State private var showSnoozePicker = false
+    @State private var selectedReminderForSnooze: Reminder?
 
     private var stackService: StackService {
         StackService(modelContext: modelContext)
@@ -45,8 +47,8 @@ struct StackDetailView: View {
         NotificationService(modelContext: modelContext)
     }
 
-    private var reminderService: ReminderService {
-        ReminderService(modelContext: modelContext)
+    private var reminderActionHandler: ReminderActionHandler {
+        ReminderActionHandler(modelContext: modelContext, onError: showError)
     }
 
     var body: some View {
@@ -133,6 +135,18 @@ struct StackDetailView: View {
             }
             .sheet(isPresented: $showAddReminder) {
                 AddReminderSheet(parent: .stack(stack), notificationService: notificationService)
+            }
+            .sheet(isPresented: $showSnoozePicker) {
+                if let reminder = selectedReminderForSnooze {
+                    SnoozePickerSheet(
+                        isPresented: $showSnoozePicker,
+                        reminder: reminder,
+                        onSnooze: { snoozeUntil in
+                            reminderActionHandler.snooze(reminder, until: snoozeUntil)
+                            selectedReminderForSnooze = nil
+                        }
+                    )
+                }
             }
         }
     }
@@ -300,20 +314,20 @@ struct StackDetailView: View {
 
     @ViewBuilder
     private var remindersList: some View {
-        let list = ForEach(stack.activeReminders) { reminder in
-            HStack {
-                Image(systemName: "bell.fill")
-                    .foregroundStyle(.orange)
-                Text(reminder.remindAt, style: .date)
-                Text(reminder.remindAt, style: .time)
-                    .foregroundStyle(.secondary)
-            }
-        }
-
-        if isReadOnly {
-            list
-        } else {
-            list.onDelete(perform: deleteReminders)
+        ForEach(stack.activeReminders) { reminder in
+            ReminderRowView(
+                reminder: reminder,
+                onTap: isReadOnly ? nil : {
+                    // TODO: DEQ-19 - Edit reminder
+                },
+                onSnooze: isReadOnly ? nil : {
+                    selectedReminderForSnooze = reminder
+                    showSnoozePicker = true
+                },
+                onDelete: isReadOnly ? nil : {
+                    reminderActionHandler.delete(reminder)
+                }
+            )
         }
     }
 
@@ -444,13 +458,7 @@ struct StackDetailView: View {
     private func deleteReminders(at offsets: IndexSet) {
         let remindersToDelete = offsets.map { stack.activeReminders[$0] }
         for reminder in remindersToDelete {
-            do {
-                try reminderService.deleteReminder(reminder)
-                notificationService.cancelNotification(for: reminder)
-            } catch {
-                showError(error)
-                return
-            }
+            reminderActionHandler.delete(reminder)
         }
     }
 
@@ -466,34 +474,8 @@ struct StackDetailView: View {
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // swiftlint:disable:next force_try
-    let container = try! ModelContainer(
-        for: Stack.self,
-        QueueTask.self,
-        Reminder.self,
-        Event.self,
-        configurations: config
-    )
-
-    let stack = Stack(
-        title: "Test Stack",
-        stackDescription: "This is a test description",
-        status: .active,
-        sortOrder: 0
-    )
+    let container = try! ModelContainer(for: Stack.self, configurations: config)
+    let stack = Stack(title: "Test Stack", stackDescription: "Test description", status: .active, sortOrder: 0)
     container.mainContext.insert(stack)
-
-    let task1 = QueueTask(title: "First task", taskDescription: "Do this first", status: .pending, sortOrder: 0)
-    task1.stack = stack
-    container.mainContext.insert(task1)
-
-    let task2 = QueueTask(title: "Second task", status: .pending, sortOrder: 1)
-    task2.stack = stack
-    container.mainContext.insert(task2)
-
-    let task3 = QueueTask(title: "Completed task", status: .completed, sortOrder: 2)
-    task3.stack = stack
-    container.mainContext.insert(task3)
-
-    return StackDetailView(stack: stack)
-        .modelContainer(container)
+    return StackDetailView(stack: stack).modelContainer(container)
 }
