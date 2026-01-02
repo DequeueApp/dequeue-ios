@@ -131,6 +131,9 @@ final class TaskService {
         stack.updatedAt = Date()
         stack.syncState = .pending
 
+        // Track when this task was last activated
+        task.lastActiveTime = Date()
+
         // Reorder tasks to maintain sort order consistency
         let pendingTasks = stack.pendingTasks
         var reorderedTasks = pendingTasks.filter { $0.id != task.id }

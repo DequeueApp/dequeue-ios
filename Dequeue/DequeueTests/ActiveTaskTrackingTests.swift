@@ -275,4 +275,77 @@ struct ActiveTaskTrackingTests {
 
         #expect(stack.activeTask?.id == task2.id)
     }
+
+    // MARK: - lastActiveTime Tests
+
+    @Test("QueueTask initializes with nil lastActiveTime")
+    func queueTaskInitializesWithNilLastActiveTime() {
+        let task = QueueTask(title: "Test Task", sortOrder: 0)
+        #expect(task.lastActiveTime == nil)
+    }
+
+    @Test("QueueTask can be initialized with lastActiveTime")
+    func queueTaskInitializesWithLastActiveTime() {
+        let testDate = Date()
+        let task = QueueTask(title: "Test Task", sortOrder: 0, lastActiveTime: testDate)
+        #expect(task.lastActiveTime == testDate)
+    }
+
+    @Test("activateTask sets lastActiveTime on the task")
+    @MainActor
+    func activateTaskSetsLastActiveTime() throws {
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task = ctx.createTask(title: "Test Task", sortOrder: 0, stack: stack)
+        try ctx.save()
+
+        #expect(task.lastActiveTime == nil)
+
+        let taskService = TaskService(modelContext: ctx.context)
+        let beforeActivation = Date()
+        try taskService.activateTask(task)
+        let afterActivation = Date()
+
+        #expect(task.lastActiveTime != nil)
+        // Verify lastActiveTime is within the expected range
+        if let lastActiveTime = task.lastActiveTime {
+            #expect(lastActiveTime >= beforeActivation)
+            #expect(lastActiveTime <= afterActivation)
+        }
+    }
+
+    @Test("TaskState captures lastActiveTime from QueueTask")
+    @MainActor
+    func taskStateCapturesLastActiveTime() throws {
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let testDate = Date()
+        let task = QueueTask(
+            title: "Test Task",
+            sortOrder: 0,
+            lastActiveTime: testDate,
+            stack: stack
+        )
+        ctx.context.insert(task)
+        try ctx.save()
+
+        let state = TaskState.from(task)
+
+        #expect(state.lastActiveTime != nil)
+        // Verify milliseconds match (since we convert to/from Int64 milliseconds)
+        let expectedMs = Int64(testDate.timeIntervalSince1970 * 1_000)
+        #expect(state.lastActiveTime == expectedMs)
+    }
+
+    @Test("TaskState captures nil lastActiveTime correctly")
+    @MainActor
+    func taskStateCapturesNilLastActiveTime() throws {
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task = ctx.createTask(title: "Test Task", sortOrder: 0, stack: stack)
+        try ctx.save()
+
+        let state = TaskState.from(task)
+        #expect(state.lastActiveTime == nil)
+    }
 }

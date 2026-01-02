@@ -276,6 +276,7 @@ enum ProjectorService {
                 status: payload.status,
                 priority: payload.priority,
                 sortOrder: payload.sortOrder,
+                lastActiveTime: payload.lastActiveTime,
                 syncState: .synced,
                 lastSyncedAt: Date()
             )
@@ -345,6 +346,7 @@ enum ProjectorService {
 
         task.status = .pending
         task.sortOrder = 0
+        task.lastActiveTime = event.timestamp  // Track when task was activated
         task.updatedAt = event.timestamp  // LWW: Use event timestamp
         task.syncState = .synced
         task.lastSyncedAt = Date()
@@ -516,6 +518,7 @@ enum ProjectorService {
         task.status = payload.status
         task.priority = payload.priority
         task.sortOrder = payload.sortOrder
+        task.lastActiveTime = payload.lastActiveTime
         task.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         task.syncState = .synced
         task.lastSyncedAt = Date()
