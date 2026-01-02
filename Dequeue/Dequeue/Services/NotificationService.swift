@@ -2,12 +2,33 @@
 //  NotificationService.swift
 //  Dequeue
 //
-//  Local notification scheduling and management (DEQ-12)
+//  Local notification scheduling and management (DEQ-12, DEQ-21)
 //
 
 import Foundation
 import SwiftData
 import UserNotifications
+
+// MARK: - Notification Constants
+
+/// Action and category identifiers for notification actions
+enum NotificationConstants {
+    static let categoryIdentifier = "REMINDER_CATEGORY"
+
+    enum Action {
+        static let complete = "COMPLETE_ACTION"
+        static let snooze = "SNOOZE_ACTION"
+    }
+
+    enum UserInfoKey {
+        static let reminderId = "reminderId"
+        static let parentType = "parentType"
+        static let parentId = "parentId"
+    }
+
+    /// Default snooze duration (15 minutes)
+    static let defaultSnoozeDuration: TimeInterval = 15 * 60
+}
 
 // MARK: - Notification Center Protocol
 
@@ -19,6 +40,7 @@ protocol NotificationCenterProtocol: Sendable {
     func removeAllPendingNotificationRequests()
     func pendingNotificationRequests() async -> [UNNotificationRequest]
     func getAuthorizationStatus() async -> UNAuthorizationStatus
+    func setNotificationCategories(_ categories: Set<UNNotificationCategory>)
 }
 
 /// Extension to make UNUserNotificationCenter conform to our protocol
@@ -77,6 +99,33 @@ final class NotificationService: NSObject {
         return status == .authorized
     }
 
+    // MARK: - Categories
+
+    /// Configures notification categories with action buttons
+    /// Call this once during app startup
+    func configureNotificationCategories() {
+        let completeAction = UNNotificationAction(
+            identifier: NotificationConstants.Action.complete,
+            title: "Complete",
+            options: [.authenticationRequired]
+        )
+
+        let snoozeAction = UNNotificationAction(
+            identifier: NotificationConstants.Action.snooze,
+            title: "Snooze 15 min",
+            options: []
+        )
+
+        let reminderCategory = UNNotificationCategory(
+            identifier: NotificationConstants.categoryIdentifier,
+            actions: [completeAction, snoozeAction],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        notificationCenter.setNotificationCategories([reminderCategory])
+    }
+
     // MARK: - Schedule
 
     /// Schedules a local notification for the given reminder
@@ -94,11 +143,19 @@ final class NotificationService: NSObject {
 
         let content = UNMutableNotificationContent()
         content.sound = .default
+        content.categoryIdentifier = NotificationConstants.categoryIdentifier
 
         // Get parent title for notification content
         let parentTitle = try fetchParentTitle(for: reminder)
         content.title = parentTitle ?? "Reminder"
         content.body = formatReminderBody(for: reminder, parentTitle: parentTitle)
+
+        // Store reminder info for action handling
+        content.userInfo = [
+            NotificationConstants.UserInfoKey.reminderId: reminder.id,
+            NotificationConstants.UserInfoKey.parentType: reminder.parentType.rawValue,
+            NotificationConstants.UserInfoKey.parentId: reminder.parentId
+        ]
 
         // Create trigger based on reminder date
         let triggerDate = Calendar.current.dateComponents(
@@ -223,9 +280,92 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        // The notification identifier is the reminder ID
-        // This can be used to navigate to the reminder/task/stack
-        _ = response.notification.request.identifier
+        let userInfo = response.notification.request.content.userInfo
+        let actionIdentifier = response.actionIdentifier
+
+        // Handle custom actions
+        switch actionIdentifier {
+        case NotificationConstants.Action.complete:
+            await handleCompleteAction(userInfo: userInfo)
+        case NotificationConstants.Action.snooze:
+            await handleSnoozeAction(userInfo: userInfo)
+        case UNNotificationDefaultActionIdentifier:
+            // User tapped the notification - can be used for navigation
+            break
+        case UNNotificationDismissActionIdentifier:
+            // User dismissed the notification
+            break
+        default:
+            break
+        }
+    }
+
+    /// Handles the "Complete" action from a notification
+    nonisolated private func handleCompleteAction(userInfo: [AnyHashable: Any]) async {
+        guard let parentType = userInfo[NotificationConstants.UserInfoKey.parentType] as? String,
+              let parentId = userInfo[NotificationConstants.UserInfoKey.parentId] as? String,
+              parentType == ParentType.task.rawValue else {
+            // Can only complete tasks, not stacks
+            return
+        }
+
+        await MainActor.run {
+            do {
+                let taskService = TaskService(modelContext: modelContext)
+                if let task = try fetchTask(id: parentId) {
+                    try taskService.markAsCompleted(task)
+                }
+            } catch {
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["action": "notification_complete_task"]
+                )
+            }
+        }
+    }
+
+    /// Handles the "Snooze" action from a notification
+    nonisolated private func handleSnoozeAction(userInfo: [AnyHashable: Any]) async {
+        guard let reminderId = userInfo[NotificationConstants.UserInfoKey.reminderId] as? String else {
+            return
+        }
+
+        await MainActor.run {
+            do {
+                let reminderService = ReminderService(modelContext: modelContext)
+                if let reminder = try fetchReminder(id: reminderId) {
+                    let snoozeUntil = Date().addingTimeInterval(NotificationConstants.defaultSnoozeDuration)
+                    try reminderService.snoozeReminder(reminder, until: snoozeUntil)
+                    // Reschedule notification for snoozed time
+                    Task {
+                        try? await scheduleNotification(for: reminder)
+                    }
+                }
+            } catch {
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["action": "notification_snooze_reminder"]
+                )
+            }
+        }
+    }
+
+    /// Fetches a task by ID
+    private func fetchTask(id: String) throws -> QueueTask? {
+        let predicate = #Predicate<QueueTask> { task in
+            task.id == id
+        }
+        let descriptor = FetchDescriptor<QueueTask>(predicate: predicate)
+        return try modelContext.fetch(descriptor).first
+    }
+
+    /// Fetches a reminder by ID
+    private func fetchReminder(id: String) throws -> Reminder? {
+        let predicate = #Predicate<Reminder> { reminder in
+            reminder.id == id
+        }
+        let descriptor = FetchDescriptor<Reminder>(predicate: predicate)
+        return try modelContext.fetch(descriptor).first
     }
 }
 
