@@ -34,6 +34,8 @@ struct StackDetailView: View {
     @State private var showAddReminder = false
     @State private var showSnoozePicker = false
     @State private var selectedReminderForSnooze: Reminder?
+    @State private var showEditReminder = false
+    @State private var selectedReminderForEdit: Reminder?
 
     private var stackService: StackService {
         StackService(modelContext: modelContext)
@@ -145,6 +147,15 @@ struct StackDetailView: View {
                             reminderActionHandler.snooze(reminder, until: snoozeUntil)
                             selectedReminderForSnooze = nil
                         }
+                    )
+                }
+            }
+            .sheet(isPresented: $showEditReminder) {
+                if let reminder = selectedReminderForEdit {
+                    AddReminderSheet(
+                        parent: .stack(stack),
+                        notificationService: notificationService,
+                        existingReminder: reminder
                     )
                 }
             }
@@ -318,7 +329,8 @@ struct StackDetailView: View {
             ReminderRowView(
                 reminder: reminder,
                 onTap: isReadOnly ? nil : {
-                    // TODO: DEQ-19 - Edit reminder
+                    selectedReminderForEdit = reminder
+                    showEditReminder = true
                 },
                 onSnooze: isReadOnly ? nil : {
                     selectedReminderForSnooze = reminder
