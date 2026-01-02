@@ -13,6 +13,7 @@ struct ReminderRowView: View {
     var parentTitle: String?
     var onTap: (() -> Void)?
     var onSnooze: (() -> Void)?
+    var onDismiss: (() -> Void)?
     var onDelete: (() -> Void)?
 
     var body: some View {
@@ -22,13 +23,22 @@ struct ReminderRowView: View {
             rowContent
         }
         .buttonStyle(.plain)
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if let onDelete {
                 Button(role: .destructive) {
                     onDelete()
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
+            }
+            // Dismiss action for overdue reminders
+            if let onDismiss, reminder.isPastDue {
+                Button {
+                    onDismiss()
+                } label: {
+                    Label("Dismiss", systemImage: "checkmark.circle")
+                }
+                .tint(.green)
             }
         }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
@@ -183,6 +193,9 @@ struct ReminderRowView: View {
         }
         if onSnooze != nil && reminder.status != .snoozed {
             hints.append("Swipe right to snooze")
+        }
+        if onDismiss != nil && reminder.isPastDue {
+            hints.append("Swipe left to dismiss")
         }
         if onDelete != nil {
             hints.append("Swipe left to delete")
