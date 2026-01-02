@@ -43,7 +43,7 @@ struct DraftsView: View {
         List {
             ForEach(drafts) { draft in
                 NavigationLink {
-                    AddStackView(draft: draft)
+                    StackEditorView(mode: .edit(draft))
                 } label: {
                     VStack(alignment: .leading) {
                         Text(draft.title.isEmpty ? "Untitled" : draft.title)

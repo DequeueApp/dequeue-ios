@@ -73,10 +73,10 @@ struct MainTabView: View {
             previousTab = oldValue
         }
         .sheet(isPresented: $showAddSheet) {
-            AddStackView()
+            StackEditorView(mode: .create)
         }
         .sheet(item: $activeStackForDetail) { stack in
-            StackDetailView(stack: stack)
+            StackEditorView(mode: .edit(stack))
         }
         .overlay(alignment: .bottom) {
             GeometryReader { geometry in
@@ -133,10 +133,10 @@ struct MainTabView: View {
             }
         }
         .sheet(isPresented: $showAddSheet) {
-            AddStackView()
+            StackEditorView(mode: .create)
         }
         .sheet(item: $activeStackForDetail) { stack in
-            StackDetailView(stack: stack)
+            StackEditorView(mode: .edit(stack))
         }
     }
 

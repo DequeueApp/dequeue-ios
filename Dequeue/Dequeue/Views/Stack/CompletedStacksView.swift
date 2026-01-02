@@ -54,7 +54,7 @@ struct CompletedStacksView: View {
         List {
             ForEach(completedStacks) { stack in
                 NavigationLink {
-                    StackDetailView(stack: stack, isReadOnly: true)
+                    StackEditorView(mode: .edit(stack), isReadOnly: true)
                 } label: {
                     VStack(alignment: .leading) {
                         Text(stack.title)
