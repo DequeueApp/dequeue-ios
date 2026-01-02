@@ -68,9 +68,11 @@ struct HomeView: View {
                                 .font(.caption2)
                                 .fontWeight(.bold)
                                 .foregroundStyle(.white)
-                                .padding(4)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .frame(minWidth: 16, minHeight: 16)
                                 .background(Color.red)
-                                .clipShape(Circle())
+                                .clipShape(Capsule())
                                 .offset(x: 8, y: -8)
                         }
                     }
