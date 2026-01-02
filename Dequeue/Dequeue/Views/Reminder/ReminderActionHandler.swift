@@ -57,4 +57,19 @@ struct ReminderActionHandler {
             onError(error)
         }
     }
+
+    /// Dismisses an overdue reminder, marking it as handled.
+    /// This removes it from the active/overdue list without deleting it.
+    func dismiss(_ reminder: Reminder) {
+        do {
+            // Cancel notification (if any)
+            Task {
+                await notificationService.cancelNotification(for: reminder)
+            }
+
+            try reminderService.dismissReminder(reminder)
+        } catch {
+            onError(error)
+        }
+    }
 }

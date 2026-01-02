@@ -74,6 +74,19 @@ final class ReminderService {
         try modelContext.save()
     }
 
+    // MARK: - Dismiss
+
+    /// Dismisses an overdue reminder, marking it as handled without deleting it.
+    /// This removes it from the active/overdue lists and decreases the badge count.
+    func dismissReminder(_ reminder: Reminder) throws {
+        reminder.status = .fired
+        reminder.updatedAt = Date()
+        reminder.syncState = .pending
+
+        try eventService.recordReminderUpdated(reminder)
+        try modelContext.save()
+    }
+
     // MARK: - Delete
 
     func deleteReminder(_ reminder: Reminder) throws {

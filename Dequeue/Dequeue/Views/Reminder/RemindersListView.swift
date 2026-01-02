@@ -233,6 +233,9 @@ struct RemindersListView: View {
                 selectedReminderForSnooze = reminder
                 showSnoozePicker = true
             } : nil,
+            onDismiss: reminder.isPastDue ? {
+                reminderActionHandler.dismiss(reminder)
+            } : nil,
             onDelete: {
                 reminderToDelete = reminder
                 showDeleteConfirmation = true
