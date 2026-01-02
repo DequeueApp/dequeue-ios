@@ -544,7 +544,9 @@ struct NotificationServiceTests {
         let category = ctx.mockCenter.setCategories.first
         let actionIds = category?.actions.map(\.identifier) ?? []
         #expect(actionIds.contains(NotificationConstants.Action.complete))
-        #expect(actionIds.contains(NotificationConstants.Action.snooze))
+        #expect(actionIds.contains(NotificationConstants.Action.snooze5Min))
+        #expect(actionIds.contains(NotificationConstants.Action.snooze15Min))
+        #expect(actionIds.contains(NotificationConstants.Action.snooze1Hour))
     }
 
     @Test("scheduled notification includes category identifier")
