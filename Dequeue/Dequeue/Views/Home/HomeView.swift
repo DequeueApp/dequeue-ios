@@ -80,7 +80,7 @@ struct HomeView: View {
                 RemindersListView()
             }
             .sheet(item: $selectedStack) { stack in
-                StackDetailView(stack: stack)
+                StackEditorView(mode: .edit(stack))
             }
         }
     }

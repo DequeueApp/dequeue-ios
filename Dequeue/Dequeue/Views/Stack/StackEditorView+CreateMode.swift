@@ -1,0 +1,145 @@
+//
+//  StackEditorView+CreateMode.swift
+//  Dequeue
+//
+//  Create mode content and actions for StackEditorView
+//
+
+import SwiftUI
+import os
+
+private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView")
+
+// MARK: - Create Mode Content
+
+extension StackEditorView {
+    var createModeContent: some View {
+        Form {
+            Section("Stack") {
+                TextField("Title", text: $title)
+                    .onChange(of: title) { _, newValue in
+                        handleTitleChange(newValue)
+                    }
+                TextField("Description (optional)", text: $stackDescription, axis: .vertical)
+                    .lineLimit(3...6)
+                    .onChange(of: stackDescription) { _, newValue in
+                        handleDescriptionChange(newValue)
+                    }
+            }
+
+            Section("First Task") {
+                TextField("Task title (optional)", text: $firstTaskTitle)
+            }
+
+            // Reminders section - only show when draft exists
+            if draftStack != nil {
+                remindersSection
+            }
+        }
+    }
+
+    // MARK: - Create Mode Actions
+
+    func handleTitleChange(_ newTitle: String) {
+        guard !isCreatingDraft else { return }
+
+        if draftStack == nil && !newTitle.isEmpty {
+            createDraft(title: newTitle)
+        } else if let draft = draftStack {
+            updateDraft(draft, title: newTitle, description: stackDescription)
+        }
+    }
+
+    func handleDescriptionChange(_ newDescription: String) {
+        guard let draft = draftStack else { return }
+        updateDraft(draft, title: title, description: newDescription)
+    }
+
+    func createDraft(title: String) {
+        isCreatingDraft = true
+
+        do {
+            let draft = try stackService.createStack(
+                title: title,
+                description: stackDescription.isEmpty ? nil : stackDescription,
+                isDraft: true
+            )
+            draftStack = draft
+            logger.info("Auto-created draft: \(draft.id)")
+        } catch {
+            logger.error("Failed to create draft: \(error.localizedDescription)")
+            errorMessage = "Failed to save draft: \(error.localizedDescription)"
+            showError = true
+        }
+
+        isCreatingDraft = false
+    }
+
+    func updateDraft(_ draft: Stack, title: String, description: String) {
+        do {
+            try stackService.updateDraft(
+                draft,
+                title: title.isEmpty ? "Untitled" : title,
+                description: description.isEmpty ? nil : description
+            )
+            logger.debug("Auto-updated draft: \(draft.id)")
+        } catch {
+            logger.error("Failed to update draft: \(error.localizedDescription)")
+        }
+    }
+
+    func handleCreateCancel() {
+        if draftStack != nil {
+            showDiscardAlert = true
+        } else {
+            dismiss()
+        }
+    }
+
+    func discardDraftAndDismiss() {
+        if let draft = draftStack {
+            do {
+                try stackService.discardDraft(draft)
+                logger.info("Draft discarded: \(draft.id)")
+            } catch {
+                logger.error("Failed to discard draft: \(error.localizedDescription)")
+            }
+        }
+        dismiss()
+    }
+
+    func publishAndCreate() {
+        do {
+            let stack: Stack
+
+            if let existingDraft = draftStack {
+                existingDraft.title = title
+                existingDraft.stackDescription = stackDescription.isEmpty ? nil : stackDescription
+                try stackService.publishDraft(existingDraft)
+                stack = existingDraft
+                logger.info("Draft published as stack: \(stack.id)")
+            } else {
+                stack = try stackService.createStack(
+                    title: title,
+                    description: stackDescription.isEmpty ? nil : stackDescription
+                )
+                logger.info("Stack created: \(stack.id)")
+            }
+
+            // Add first task if provided
+            if !firstTaskTitle.isEmpty {
+                let task = try taskService.createTask(
+                    title: firstTaskTitle,
+                    stack: stack
+                )
+                logger.info("Task created: \(task.id)")
+            }
+
+            dismiss()
+        } catch {
+            logger.error("Failed to create stack: \(error.localizedDescription)")
+            errorMessage = "Failed to create stack: \(error.localizedDescription)"
+            showError = true
+        }
+    }
+}
