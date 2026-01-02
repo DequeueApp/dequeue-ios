@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import Clerk
+import UserNotifications
 
 // MARK: - Environment Key for SyncManager
 
@@ -27,6 +28,7 @@ struct DequeueApp: App {
     @State private var authService = ClerkAuthService()
     let sharedModelContainer: ModelContainer
     let syncManager: SyncManager
+    let notificationService: NotificationService
 
     init() {
         // Note: ErrorReportingService.configure() is now called asynchronously
@@ -60,6 +62,11 @@ struct DequeueApp: App {
         }
 
         syncManager = SyncManager(modelContainer: sharedModelContainer)
+
+        // Set up notification service as delegate early for background action handling
+        notificationService = NotificationService(modelContext: sharedModelContainer.mainContext)
+        UNUserNotificationCenter.current().delegate = notificationService
+        notificationService.configureNotificationCategories()
     }
 
     /// Deletes SwiftData store files when schema migration fails

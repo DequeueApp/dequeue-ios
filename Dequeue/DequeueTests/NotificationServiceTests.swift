@@ -51,6 +51,11 @@ final class MockNotificationCenter: NotificationCenterProtocol, @unchecked Senda
     func getAuthorizationStatus() async -> UNAuthorizationStatus {
         return authorizationStatus
     }
+
+    var setCategories: Set<UNNotificationCategory> = []
+    func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {
+        setCategories = categories
+    }
 }
 
 // MARK: - Test Context
@@ -513,5 +518,65 @@ struct NotificationServiceTests {
 
         let result = await ctx.service.isAuthorized()
         #expect(result == false)
+    }
+
+    // MARK: - Notification Action Tests
+
+    @Test("configureNotificationCategories sets reminder category")
+    @MainActor
+    func configureNotificationCategoriesSetsCategory() async throws {
+        let ctx = try TestContext()
+
+        ctx.service.configureNotificationCategories()
+
+        #expect(ctx.mockCenter.setCategories.count == 1)
+        let category = ctx.mockCenter.setCategories.first
+        #expect(category?.identifier == NotificationConstants.categoryIdentifier)
+    }
+
+    @Test("configureNotificationCategories includes complete and snooze actions")
+    @MainActor
+    func configureNotificationCategoriesIncludesActions() async throws {
+        let ctx = try TestContext()
+
+        ctx.service.configureNotificationCategories()
+
+        let category = ctx.mockCenter.setCategories.first
+        let actionIds = category?.actions.map(\.identifier) ?? []
+        #expect(actionIds.contains(NotificationConstants.Action.complete))
+        #expect(actionIds.contains(NotificationConstants.Action.snooze))
+    }
+
+    @Test("scheduled notification includes category identifier")
+    @MainActor
+    func scheduledNotificationIncludesCategory() async throws {
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task = ctx.createTask(stack: stack)
+        let reminder = ctx.createTaskReminder(task: task)
+        try ctx.save()
+
+        try await ctx.service.scheduleNotification(for: reminder)
+
+        let request = ctx.mockCenter.addedRequests.first
+        #expect(request?.content.categoryIdentifier == NotificationConstants.categoryIdentifier)
+    }
+
+    @Test("scheduled notification includes reminder userInfo")
+    @MainActor
+    func scheduledNotificationIncludesUserInfo() async throws {
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task = ctx.createTask(stack: stack)
+        let reminder = ctx.createTaskReminder(task: task)
+        try ctx.save()
+
+        try await ctx.service.scheduleNotification(for: reminder)
+
+        let request = ctx.mockCenter.addedRequests.first
+        let userInfo = request?.content.userInfo
+        #expect(userInfo?[NotificationConstants.UserInfoKey.reminderId] as? String == reminder.id)
+        #expect(userInfo?[NotificationConstants.UserInfoKey.parentType] as? String == ParentType.task.rawValue)
+        #expect(userInfo?[NotificationConstants.UserInfoKey.parentId] as? String == task.id)
     }
 }
