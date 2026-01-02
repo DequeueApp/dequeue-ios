@@ -474,34 +474,8 @@ struct StackDetailView: View {
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // swiftlint:disable:next force_try
-    let container = try! ModelContainer(
-        for: Stack.self,
-        QueueTask.self,
-        Reminder.self,
-        Event.self,
-        configurations: config
-    )
-
-    let stack = Stack(
-        title: "Test Stack",
-        stackDescription: "This is a test description",
-        status: .active,
-        sortOrder: 0
-    )
+    let container = try! ModelContainer(for: Stack.self, configurations: config)
+    let stack = Stack(title: "Test Stack", stackDescription: "Test description", status: .active, sortOrder: 0)
     container.mainContext.insert(stack)
-
-    let task1 = QueueTask(title: "First task", taskDescription: "Do this first", status: .pending, sortOrder: 0)
-    task1.stack = stack
-    container.mainContext.insert(task1)
-
-    let task2 = QueueTask(title: "Second task", status: .pending, sortOrder: 1)
-    task2.stack = stack
-    container.mainContext.insert(task2)
-
-    let task3 = QueueTask(title: "Completed task", status: .completed, sortOrder: 2)
-    task3.stack = stack
-    container.mainContext.insert(task3)
-
-    return StackDetailView(stack: stack)
-        .modelContainer(container)
+    return StackDetailView(stack: stack).modelContainer(container)
 }
