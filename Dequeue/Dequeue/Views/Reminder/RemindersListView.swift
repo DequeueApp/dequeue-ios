@@ -48,7 +48,7 @@ struct RemindersListView: View {
     }
 
     private var overdueReminders: [Reminder] {
-        activeReminders
+        return activeReminders
             .filter { $0.isPastDue && $0.status == .active }
             .sorted { $0.remindAt < $1.remindAt }
     }
@@ -68,7 +68,7 @@ struct RemindersListView: View {
     }
 
     private var snoozedReminders: [Reminder] {
-        activeReminders
+        return activeReminders
             .filter { $0.status == .snoozed }
             .sorted { $0.remindAt < $1.remindAt }
     }
@@ -96,7 +96,9 @@ struct RemindersListView: View {
                 }
             }
             .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) { }
+                Button("OK", role: .cancel) {
+                    // Dismisses alert automatically
+                }
             } message: {
                 Text(errorMessage)
             }
@@ -118,7 +120,9 @@ struct RemindersListView: View {
                         reminderActionHandler.delete(reminder)
                     }
                 }
-                Button("Cancel", role: .cancel) { }
+                Button("Cancel", role: .cancel) {
+                    // Dismisses dialog automatically
+                }
             } message: {
                 Text("Are you sure you want to delete this reminder?")
             }
