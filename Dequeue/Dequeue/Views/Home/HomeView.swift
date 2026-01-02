@@ -11,6 +11,7 @@ import SwiftData
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var stacks: [Stack]
+    @Query private var reminders: [Reminder]
 
     init() {
         // Filter for active stacks only (exclude completed, closed, and archived)
@@ -25,9 +26,22 @@ struct HomeView: View {
             },
             sort: \Stack.sortOrder
         )
+
+        // Fetch active reminders for badge count
+        _reminders = Query(
+            filter: #Predicate<Reminder> { reminder in
+                reminder.isDeleted == false
+            }
+        )
     }
 
     @State private var selectedStack: Stack?
+    @State private var showReminders = false
+
+    /// Count of overdue reminders for badge display
+    private var overdueCount: Int {
+        reminders.filter { $0.status == .active && $0.isPastDue }.count
+    }
 
     var body: some View {
         NavigationStack {
@@ -42,12 +56,28 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .automatic) {
                     Button {
-                        // swiftlint:disable:next todo
-                        // FIXME: Show notifications
+                        showReminders = true
                     } label: {
-                        Image(systemName: "bell")
+                        Image(systemName: overdueCount > 0 ? "bell.badge.fill" : "bell")
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(overdueCount > 0 ? .red : .primary, .primary)
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if overdueCount > 0 {
+                            Text("\(overdueCount)")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .padding(4)
+                                .background(Color.red)
+                                .clipShape(Circle())
+                                .offset(x: 8, y: -8)
+                        }
                     }
                 }
+            }
+            .sheet(isPresented: $showReminders) {
+                RemindersListView()
             }
             .sheet(item: $selectedStack) { stack in
                 StackDetailView(stack: stack)
