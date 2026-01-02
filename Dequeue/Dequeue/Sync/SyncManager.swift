@@ -473,6 +473,7 @@ actor SyncManager {
         var processed = 0
         var skipped = 0
         var incompatible = 0
+        var hasReminderEvents = false
 
         try await MainActor.run {
             let context = ModelContext(modelContainer)
@@ -529,6 +530,11 @@ actor SyncManager {
                     // Only insert if application succeeded
                     context.insert(event)
                     processed += 1
+
+                    // Track if any reminder events were processed for notification scheduling
+                    if type.hasPrefix("reminder.") {
+                        hasReminderEvents = true
+                    }
                 } catch {
                     // Incompatible schema from legacy app - skip this event entirely
                     // Log the payload for debugging
@@ -546,6 +552,15 @@ actor SyncManager {
             try context.save()
             let stats = "processed: \(processed), dupes: \(skipped), incompatible: \(incompatible)"
             os_log("[Sync] Saved context - \(stats)")
+
+            // Reschedule notifications for any synced reminders
+            if hasReminderEvents {
+                os_log("[Sync] Reminder events detected, rescheduling notifications")
+                let notificationService = NotificationService(modelContext: context)
+                Task {
+                    await notificationService.rescheduleAllNotifications()
+                }
+            }
         }
     }
 
