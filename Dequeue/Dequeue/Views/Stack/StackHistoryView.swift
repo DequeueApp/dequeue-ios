@@ -79,7 +79,7 @@ struct StackHistoryView: View {
 
     private func loadHistory() async {
         let service = EventService(modelContext: modelContext)
-        events = (try? service.fetchHistoryReversed(for: stack.id)) ?? []
+        events = (try? service.fetchStackHistoryWithRelated(for: stack)) ?? []
         isLoading = false
     }
 
@@ -123,20 +123,33 @@ struct StackHistoryRow: View {
 
     private var actionLabel: String {
         switch event.type {
-        case "stack.created": return "Created"
-        case "stack.updated": return "Updated"
-        case "stack.completed": return "Completed"
-        case "stack.activated": return "Activated"
-        case "stack.deactivated": return "Deactivated"
-        case "stack.closed": return "Closed"
-        case "stack.deleted": return "Deleted"
-        case "stack.reordered": return "Reordered"
+        // Stack events
+        case "stack.created": return "Stack Created"
+        case "stack.updated": return "Stack Updated"
+        case "stack.completed": return "Stack Completed"
+        case "stack.activated": return "Stack Activated"
+        case "stack.deactivated": return "Stack Deactivated"
+        case "stack.closed": return "Stack Closed"
+        case "stack.deleted": return "Stack Deleted"
+        case "stack.reordered": return "Stack Reordered"
+        // Task events
+        case "task.created": return "Task Added"
+        case "task.updated": return "Task Updated"
+        case "task.completed": return "Task Completed"
+        case "task.deleted": return "Task Deleted"
+        case "task.reordered": return "Tasks Reordered"
+        // Reminder events
+        case "reminder.created": return "Reminder Set"
+        case "reminder.updated": return "Reminder Updated"
+        case "reminder.deleted": return "Reminder Removed"
+        case "reminder.snoozed": return "Reminder Snoozed"
         default: return event.type
         }
     }
 
     private var actionIcon: String {
         switch event.type {
+        // Stack events
         case "stack.created": return "plus.circle.fill"
         case "stack.updated": return "pencil.circle.fill"
         case "stack.completed": return "checkmark.circle.fill"
@@ -145,12 +158,24 @@ struct StackHistoryRow: View {
         case "stack.closed": return "xmark.circle.fill"
         case "stack.deleted": return "trash.circle.fill"
         case "stack.reordered": return "arrow.up.arrow.down.circle.fill"
+        // Task events
+        case "task.created": return "checklist"
+        case "task.updated": return "pencil"
+        case "task.completed": return "checkmark.square.fill"
+        case "task.deleted": return "trash"
+        case "task.reordered": return "arrow.up.arrow.down"
+        // Reminder events
+        case "reminder.created": return "bell.fill"
+        case "reminder.updated": return "bell.badge"
+        case "reminder.deleted": return "bell.slash"
+        case "reminder.snoozed": return "moon.zzz.fill"
         default: return "questionmark.circle.fill"
         }
     }
 
     private var actionColor: Color {
         switch event.type {
+        // Stack events
         case "stack.created": return .green
         case "stack.updated": return .blue
         case "stack.completed": return .purple
@@ -159,8 +184,40 @@ struct StackHistoryRow: View {
         case "stack.closed": return .gray
         case "stack.deleted": return .red
         case "stack.reordered": return .secondary
+        // Task events
+        case "task.created": return .teal
+        case "task.updated": return .blue
+        case "task.completed": return .purple
+        case "task.deleted": return .red
+        case "task.reordered": return .secondary
+        // Reminder events
+        case "reminder.created": return .yellow
+        case "reminder.updated": return .yellow
+        case "reminder.deleted": return .red
+        case "reminder.snoozed": return .indigo
         default: return .secondary
         }
+    }
+
+    /// Extracts display details from the event payload based on event type
+    private var eventDetails: (title: String?, subtitle: String?)? {
+        // Stack events
+        if event.type.hasPrefix("stack."),
+           let payload = try? event.decodePayload(StackEventPayload.self) {
+            return (payload.title, payload.description)
+        }
+        // Task events
+        if event.type.hasPrefix("task."),
+           let payload = try? event.decodePayload(TaskEventPayload.self) {
+            return (payload.title, payload.description)
+        }
+        // Reminder events
+        if event.type.hasPrefix("reminder."),
+           let payload = try? event.decodePayload(ReminderEventPayload.self) {
+            let dateStr = payload.remindAt.formatted(date: .abbreviated, time: .shortened)
+            return ("Reminder for \(dateStr)", nil)
+        }
+        return nil
     }
 
     var body: some View {
@@ -179,14 +236,16 @@ struct StackHistoryRow: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if let payload = try? event.decodePayload(StackEventPayload.self) {
-                    Text(payload.title)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                if let details = eventDetails {
+                    if let title = details.title {
+                        Text(title)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
 
-                    if let description = payload.description, !description.isEmpty {
-                        Text(description)
+                    if let subtitle = details.subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                             .lineLimit(2)
