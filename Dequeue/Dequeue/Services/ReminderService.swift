@@ -28,6 +28,7 @@ final class ReminderService {
         )
 
         modelContext.insert(reminder)
+        task.reminders.append(reminder)
         try eventService.recordReminderCreated(reminder)
         try modelContext.save()
 
@@ -42,6 +43,7 @@ final class ReminderService {
         )
 
         modelContext.insert(reminder)
+        stack.reminders.append(reminder)
         try eventService.recordReminderCreated(reminder)
         try modelContext.save()
 
