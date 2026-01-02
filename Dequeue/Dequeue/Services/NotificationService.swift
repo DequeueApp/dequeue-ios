@@ -301,7 +301,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
     }
 
     /// Handles the "Complete" action from a notification
-    private nonisolated func handleCompleteAction(userInfo: [AnyHashable: Any]) async {
+    nonisolated private func handleCompleteAction(userInfo: [AnyHashable: Any]) async {
         guard let parentType = userInfo[NotificationConstants.UserInfoKey.parentType] as? String,
               let parentId = userInfo[NotificationConstants.UserInfoKey.parentId] as? String,
               parentType == ParentType.task.rawValue else {
@@ -325,7 +325,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
     }
 
     /// Handles the "Snooze" action from a notification
-    private nonisolated func handleSnoozeAction(userInfo: [AnyHashable: Any]) async {
+    nonisolated private func handleSnoozeAction(userInfo: [AnyHashable: Any]) async {
         guard let reminderId = userInfo[NotificationConstants.UserInfoKey.reminderId] as? String else {
             return
         }
