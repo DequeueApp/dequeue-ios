@@ -10,23 +10,55 @@ import SwiftData
 import Foundation
 @testable import Dequeue
 
-// MARK: - Test Helpers
+// MARK: - Test Context
 
-/// Creates an in-memory model container for active task tracking tests
-private func makeTestContainer() throws -> ModelContainer {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    return try ModelContainer(
-        for: Stack.self,
-        QueueTask.self,
-        Reminder.self,
-        Event.self,
-        configurations: config
-    )
+/// Shared test context to reduce setup duplication
+@MainActor
+private struct TestContext {
+    let container: ModelContainer
+    let context: ModelContext
+
+    init() throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        container = try ModelContainer(
+            for: Stack.self,
+            QueueTask.self,
+            Reminder.self,
+            Event.self,
+            configurations: config
+        )
+        context = container.mainContext
+    }
+
+    func createStack(
+        title: String = "Test Stack",
+        isActive: Bool = false,
+        activeTaskId: String? = nil
+    ) -> Stack {
+        let stack = Stack(title: title, isActive: isActive, activeTaskId: activeTaskId)
+        context.insert(stack)
+        return stack
+    }
+
+    func createTask(
+        title: String,
+        sortOrder: Int,
+        stack: Stack,
+        status: TaskStatus = .pending
+    ) -> QueueTask {
+        let task = QueueTask(title: title, status: status, sortOrder: sortOrder, stack: stack)
+        context.insert(task)
+        stack.tasks.append(task)
+        return task
+    }
+
+    func save() throws {
+        try context.save()
+    }
 }
 
 @Suite("Active Task Tracking Tests", .serialized)
 struct ActiveTaskTrackingTests {
-
     // MARK: - Stack Model Tests
 
     @Test("Stack initializes with nil activeTaskId")
@@ -47,11 +79,9 @@ struct ActiveTaskTrackingTests {
     @Test("activeTask returns nil when no tasks")
     @MainActor
     func activeTaskReturnsNilWhenNoTasks() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-        let stack = Stack(title: "Test Stack")
-        context.insert(stack)
-        try context.save()
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        try ctx.save()
 
         #expect(stack.activeTask == nil)
     }
@@ -59,43 +89,29 @@ struct ActiveTaskTrackingTests {
     @Test("activeTask returns task by activeTaskId when set")
     @MainActor
     func activeTaskReturnsTaskByActiveTaskId() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-        let stack = Stack(title: "Test Stack")
-        context.insert(stack)
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
+        let task2 = ctx.createTask(title: "Second Task", sortOrder: 1, stack: stack)
 
-        let task1 = QueueTask(title: "First Task", sortOrder: 0, stack: stack)
-        let task2 = QueueTask(title: "Second Task", sortOrder: 1, stack: stack)
-        context.insert(task1)
-        context.insert(task2)
-        stack.tasks.append(task1)
-        stack.tasks.append(task2)
-
-        // Set activeTaskId to second task
         stack.activeTaskId = task2.id
-        try context.save()
+        try ctx.save()
 
         #expect(stack.activeTask?.id == task2.id)
         #expect(stack.activeTask?.title == "Second Task")
+        // Verify task1 exists to avoid unused variable warning
+        #expect(task1.title == "First Task")
     }
 
     @Test("activeTask falls back to first pending task when activeTaskId is nil")
     @MainActor
     func activeTaskFallsBackToFirstPendingTask() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-        let stack = Stack(title: "Test Stack")
-        context.insert(stack)
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
+        _ = ctx.createTask(title: "Second Task", sortOrder: 1, stack: stack)
+        try ctx.save()
 
-        let task1 = QueueTask(title: "First Task", sortOrder: 0, stack: stack)
-        let task2 = QueueTask(title: "Second Task", sortOrder: 1, stack: stack)
-        context.insert(task1)
-        context.insert(task2)
-        stack.tasks.append(task1)
-        stack.tasks.append(task2)
-        try context.save()
-
-        // activeTaskId is nil, should fall back to first pending task
         #expect(stack.activeTaskId == nil)
         #expect(stack.activeTask?.id == task1.id)
     }
@@ -103,23 +119,14 @@ struct ActiveTaskTrackingTests {
     @Test("activeTask falls back when activeTaskId points to completed task")
     @MainActor
     func activeTaskFallsBackWhenActiveTaskIdPointsToCompletedTask() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-        let stack = Stack(title: "Test Stack")
-        context.insert(stack)
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack, status: .completed)
+        let task2 = ctx.createTask(title: "Second Task", sortOrder: 1, stack: stack)
 
-        let task1 = QueueTask(title: "First Task", status: .completed, sortOrder: 0, stack: stack)
-        let task2 = QueueTask(title: "Second Task", status: .pending, sortOrder: 1, stack: stack)
-        context.insert(task1)
-        context.insert(task2)
-        stack.tasks.append(task1)
-        stack.tasks.append(task2)
-
-        // Set activeTaskId to completed task
         stack.activeTaskId = task1.id
-        try context.save()
+        try ctx.save()
 
-        // Should fall back to second task since first is completed
         #expect(stack.activeTask?.id == task2.id)
     }
 
@@ -133,20 +140,13 @@ struct ActiveTaskTrackingTests {
     @Test("activateTask sets activeTaskId on stack")
     @MainActor
     func activateTaskSetsActiveTaskId() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-        let stack = Stack(title: "Test Stack")
-        context.insert(stack)
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        _ = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
+        let task2 = ctx.createTask(title: "Second Task", sortOrder: 1, stack: stack)
+        try ctx.save()
 
-        let task1 = QueueTask(title: "First Task", sortOrder: 0, stack: stack)
-        let task2 = QueueTask(title: "Second Task", sortOrder: 1, stack: stack)
-        context.insert(task1)
-        context.insert(task2)
-        stack.tasks.append(task1)
-        stack.tasks.append(task2)
-        try context.save()
-
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: ctx.context)
         try taskService.activateTask(task2)
 
         #expect(stack.activeTaskId == task2.id)
@@ -155,23 +155,14 @@ struct ActiveTaskTrackingTests {
     @Test("activateTask reorders tasks so activated task is first")
     @MainActor
     func activateTaskReordersTasks() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-        let stack = Stack(title: "Test Stack")
-        context.insert(stack)
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
+        let task2 = ctx.createTask(title: "Second Task", sortOrder: 1, stack: stack)
+        let task3 = ctx.createTask(title: "Third Task", sortOrder: 2, stack: stack)
+        try ctx.save()
 
-        let task1 = QueueTask(title: "First Task", sortOrder: 0, stack: stack)
-        let task2 = QueueTask(title: "Second Task", sortOrder: 1, stack: stack)
-        let task3 = QueueTask(title: "Third Task", sortOrder: 2, stack: stack)
-        context.insert(task1)
-        context.insert(task2)
-        context.insert(task3)
-        stack.tasks.append(task1)
-        stack.tasks.append(task2)
-        stack.tasks.append(task3)
-        try context.save()
-
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: ctx.context)
         try taskService.activateTask(task3)
 
         #expect(task3.sortOrder == 0)
@@ -182,24 +173,18 @@ struct ActiveTaskTrackingTests {
     @Test("activateTask emits task.activated event")
     @MainActor
     func activateTaskEmitsEvent() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-        let stack = Stack(title: "Test Stack")
-        context.insert(stack)
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task = ctx.createTask(title: "Test Task", sortOrder: 0, stack: stack)
+        try ctx.save()
 
-        let task = QueueTask(title: "Test Task", sortOrder: 0, stack: stack)
-        context.insert(task)
-        stack.tasks.append(task)
-        try context.save()
-
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: ctx.context)
         try taskService.activateTask(task)
 
-        // Fetch events
         let eventDescriptor = FetchDescriptor<Event>()
-        let events = try context.fetch(eventDescriptor)
-
+        let events = try ctx.context.fetch(eventDescriptor)
         let activatedEvents = events.filter { $0.eventType == .taskActivated }
+
         #expect(activatedEvents.count == 1)
         #expect(activatedEvents.first?.entityId == task.id)
     }
@@ -209,24 +194,15 @@ struct ActiveTaskTrackingTests {
     @Test("migrateActiveTaskId populates activeTaskId from first pending task")
     @MainActor
     func migrateActiveTaskIdPopulatesFromFirstPendingTask() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-
-        // Create stack without activeTaskId (simulates pre-migration data)
-        let stack = Stack(title: "Test Stack", isActive: true)
-        context.insert(stack)
-
-        let task1 = QueueTask(title: "First Task", sortOrder: 0, stack: stack)
-        let task2 = QueueTask(title: "Second Task", sortOrder: 1, stack: stack)
-        context.insert(task1)
-        context.insert(task2)
-        stack.tasks.append(task1)
-        stack.tasks.append(task2)
-        try context.save()
+        let ctx = try TestContext()
+        let stack = ctx.createStack(isActive: true)
+        let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
+        _ = ctx.createTask(title: "Second Task", sortOrder: 1, stack: stack)
+        try ctx.save()
 
         #expect(stack.activeTaskId == nil)
 
-        let stackService = StackService(modelContext: context)
+        let stackService = StackService(modelContext: ctx.context)
         try stackService.migrateActiveTaskId()
 
         #expect(stack.activeTaskId == task1.id)
@@ -235,43 +211,28 @@ struct ActiveTaskTrackingTests {
     @Test("migrateActiveTaskId skips stacks that already have activeTaskId")
     @MainActor
     func migrateActiveTaskIdSkipsStacksWithActiveTaskId() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
+        let ctx = try TestContext()
+        let stack = ctx.createStack(isActive: true, activeTaskId: "existing-task-id")
+        _ = ctx.createTask(title: "Test Task", sortOrder: 0, stack: stack)
+        try ctx.save()
 
-        let stack = Stack(title: "Test Stack", isActive: true, activeTaskId: "existing-task-id")
-        context.insert(stack)
-
-        let task = QueueTask(title: "Test Task", sortOrder: 0, stack: stack)
-        context.insert(task)
-        stack.tasks.append(task)
-        try context.save()
-
-        let stackService = StackService(modelContext: context)
+        let stackService = StackService(modelContext: ctx.context)
         try stackService.migrateActiveTaskId()
 
-        // Should keep existing activeTaskId
         #expect(stack.activeTaskId == "existing-task-id")
     }
 
     @Test("migrateActiveTaskId handles stacks with no pending tasks")
     @MainActor
     func migrateActiveTaskIdHandlesStacksWithNoPendingTasks() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
+        let ctx = try TestContext()
+        let stack = ctx.createStack(isActive: true)
+        _ = ctx.createTask(title: "Completed Task", sortOrder: 0, stack: stack, status: .completed)
+        try ctx.save()
 
-        let stack = Stack(title: "Test Stack", isActive: true)
-        context.insert(stack)
-
-        // Only completed tasks
-        let task = QueueTask(title: "Completed Task", status: .completed, sortOrder: 0, stack: stack)
-        context.insert(task)
-        stack.tasks.append(task)
-        try context.save()
-
-        let stackService = StackService(modelContext: context)
+        let stackService = StackService(modelContext: ctx.context)
         try stackService.migrateActiveTaskId()
 
-        // Should remain nil since no pending tasks
         #expect(stack.activeTaskId == nil)
     }
 
@@ -280,27 +241,18 @@ struct ActiveTaskTrackingTests {
     @Test("activeTask and activeTaskId stay in sync after activation")
     @MainActor
     func activeTaskAndActiveTaskIdStayInSync() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-        let stack = Stack(title: "Test Stack")
-        context.insert(stack)
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
+        let task2 = ctx.createTask(title: "Second Task", sortOrder: 1, stack: stack)
+        try ctx.save()
 
-        let task1 = QueueTask(title: "First Task", sortOrder: 0, stack: stack)
-        let task2 = QueueTask(title: "Second Task", sortOrder: 1, stack: stack)
-        context.insert(task1)
-        context.insert(task2)
-        stack.tasks.append(task1)
-        stack.tasks.append(task2)
-        try context.save()
+        let taskService = TaskService(modelContext: ctx.context)
 
-        let taskService = TaskService(modelContext: context)
-
-        // Activate task2
         try taskService.activateTask(task2)
         #expect(stack.activeTaskId == task2.id)
         #expect(stack.activeTask?.id == task2.id)
 
-        // Activate task1
         try taskService.activateTask(task1)
         #expect(stack.activeTaskId == task1.id)
         #expect(stack.activeTask?.id == task1.id)
@@ -309,26 +261,18 @@ struct ActiveTaskTrackingTests {
     @Test("completing active task clears activeTaskId relevance")
     @MainActor
     func completingActiveTaskUpdatesActiveTask() throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-        let stack = Stack(title: "Test Stack")
-        context.insert(stack)
-
-        let task1 = QueueTask(title: "First Task", sortOrder: 0, stack: stack)
-        let task2 = QueueTask(title: "Second Task", sortOrder: 1, stack: stack)
-        context.insert(task1)
-        context.insert(task2)
-        stack.tasks.append(task1)
-        stack.tasks.append(task2)
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
+        let task2 = ctx.createTask(title: "Second Task", sortOrder: 1, stack: stack)
         stack.activeTaskId = task1.id
-        try context.save()
+        try ctx.save()
 
         #expect(stack.activeTask?.id == task1.id)
 
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: ctx.context)
         try taskService.markAsCompleted(task1)
 
-        // activeTask should fall back to task2 since task1 is now completed
         #expect(stack.activeTask?.id == task2.id)
     }
 }
