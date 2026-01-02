@@ -30,6 +30,8 @@ struct TaskDetailView: View {
     @State private var selectedReminderForSnooze: Reminder?
     @State private var showEditReminder = false
     @State private var selectedReminderForEdit: Reminder?
+    @State private var showDeleteReminderConfirmation = false
+    @State private var reminderToDelete: Reminder?
 
     private var taskService: TaskService {
         TaskService(modelContext: modelContext)
@@ -123,6 +125,14 @@ struct TaskDetailView: View {
                     existingReminder: reminder
                 )
             }
+        }
+        .confirmationDialog("Delete Reminder", isPresented: $showDeleteReminderConfirmation) {
+            Button("Delete", role: .destructive) {
+                if let reminder = reminderToDelete { reminderActionHandler.delete(reminder) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to delete this reminder?")
         }
     }
 
@@ -324,7 +334,8 @@ struct TaskDetailView: View {
                             showSnoozePicker = true
                         },
                         onDelete: {
-                            reminderActionHandler.delete(reminder)
+                            reminderToDelete = reminder
+                            showDeleteReminderConfirmation = true
                         }
                     )
                 }
