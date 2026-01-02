@@ -50,7 +50,9 @@ struct SnoozePickerSheet: View {
                 }
             }
             .navigationTitle("Snooze Reminder")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
