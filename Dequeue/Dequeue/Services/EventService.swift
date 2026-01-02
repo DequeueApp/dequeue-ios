@@ -222,6 +222,35 @@ final class EventService {
         return try modelContext.fetch(descriptor)
     }
 
+    /// Fetches all events related to a stack, including events for its tasks and reminders
+    func fetchStackHistoryWithRelated(for stack: Stack) throws -> [Event] {
+        // Collect all entity IDs we need to query
+        var entityIds: Set<String> = [stack.id]
+
+        // Add task IDs
+        for task in stack.tasks {
+            entityIds.insert(task.id)
+        }
+
+        // Add reminder IDs (both stack reminders and task reminders)
+        for reminder in stack.reminders {
+            entityIds.insert(reminder.id)
+        }
+
+        // Fetch all events (SwiftData predicates don't support complex contains with optionals)
+        // We'll filter in memory after fetching
+        let descriptor = FetchDescriptor<Event>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        let allEvents = try modelContext.fetch(descriptor)
+
+        // Filter to only events for our entity IDs
+        return allEvents.filter { event in
+            guard let eventEntityId = event.entityId else { return false }
+            return entityIds.contains(eventEntityId)
+        }
+    }
+
     // MARK: - Private
 
     private func recordEvent<T: Encodable>(type: EventType, payload: T, entityId: String? = nil) throws {
