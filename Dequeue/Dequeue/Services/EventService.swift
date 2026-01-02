@@ -119,6 +119,16 @@ final class EventService {
         try recordEvent(type: .taskCompleted, payload: payload, entityId: task.id)
     }
 
+    func recordTaskActivated(_ task: QueueTask) throws {
+        let payload = TaskStatusPayload(
+            taskId: task.id,
+            stackId: task.stack?.id ?? "",
+            status: TaskStatus.pending.rawValue,
+            fullState: TaskState.from(task)
+        )
+        try recordEvent(type: .taskActivated, payload: payload, entityId: task.id)
+    }
+
     func recordTaskReordered(_ tasks: [QueueTask]) throws {
         let payload = TaskReorderedPayload(
             taskIds: tasks.map { $0.id },
@@ -247,6 +257,7 @@ struct StackState: Codable {
     let deleted: Bool
     let isDraft: Bool
     let isActive: Bool
+    let activeTaskId: String?
 
     static func from(_ stack: Stack) -> StackState {
         StackState(
@@ -260,7 +271,8 @@ struct StackState: Codable {
             updatedAt: Int64(stack.updatedAt.timeIntervalSince1970 * 1_000),
             deleted: stack.isDeleted,
             isDraft: stack.isDraft,
-            isActive: stack.isActive
+            isActive: stack.isActive,
+            activeTaskId: stack.activeTaskId
         )
     }
 }
@@ -496,11 +508,12 @@ struct StackEventPayload: Codable {
     let sortOrder: Int
     let isDraft: Bool
     let isActive: Bool
+    let activeTaskId: String?
     let deleted: Bool
 
     // Handle status as string from server
     enum CodingKeys: String, CodingKey {
-        case id, title, description, status, priority, sortOrder, isDraft, isActive, deleted
+        case id, title, description, status, priority, sortOrder, isDraft, isActive, activeTaskId, deleted
     }
 
     init(from decoder: Decoder) throws {
@@ -521,6 +534,7 @@ struct StackEventPayload: Codable {
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         isDraft = try container.decodeIfPresent(Bool.self, forKey: .isDraft) ?? false
         isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? false
+        activeTaskId = try container.decodeIfPresent(String.self, forKey: .activeTaskId)
         deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
     }
 
@@ -534,6 +548,7 @@ struct StackEventPayload: Codable {
         try container.encode(sortOrder, forKey: .sortOrder)
         try container.encode(isDraft, forKey: .isDraft)
         try container.encode(isActive, forKey: .isActive)
+        try container.encodeIfPresent(activeTaskId, forKey: .activeTaskId)
         try container.encode(deleted, forKey: .deleted)
     }
 }

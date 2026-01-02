@@ -32,6 +32,11 @@ final class Stack {
     /// Only one stack should have isActive = true at any time.
     var isActive: Bool
 
+    /// Explicit tracking for the active task within this stack.
+    /// When set, this task ID takes precedence over sort order.
+    /// When nil, falls back to first pending task by sort order.
+    var activeTaskId: String?
+
     // Sync fields
     var userId: String?
     var deviceId: String?
@@ -72,6 +77,7 @@ final class Stack {
         isDeleted: Bool = false,
         isDraft: Bool = false,
         isActive: Bool = false,
+        activeTaskId: String? = nil,
         userId: String? = nil,
         deviceId: String? = nil,
         syncState: SyncState = .pending,
@@ -97,6 +103,7 @@ final class Stack {
         self.isDeleted = isDeleted
         self.isDraft = isDraft
         self.isActive = isActive
+        self.activeTaskId = activeTaskId
         self.userId = userId
         self.deviceId = deviceId
         self.syncState = syncState
@@ -122,7 +129,13 @@ extension Stack {
     }
 
     var activeTask: QueueTask? {
-        pendingTasks.first
+        // Use explicit activeTaskId if set and valid
+        if let activeId = activeTaskId,
+           let task = tasks.first(where: { $0.id == activeId && !$0.isDeleted && $0.status == .pending }) {
+            return task
+        }
+        // Fallback to first pending task by sort order
+        return pendingTasks.first
     }
 
     var activeReminders: [Reminder] {

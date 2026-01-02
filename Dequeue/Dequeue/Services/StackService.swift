@@ -331,6 +331,7 @@ final class StackService {
         stack.sortOrder = historicalPayload.sortOrder
         stack.isDraft = historicalPayload.isDraft
         stack.isActive = historicalPayload.isActive
+        stack.activeTaskId = historicalPayload.activeTaskId
         stack.updatedAt = Date()  // Current time - this IS a new edit
         stack.syncState = .pending
 
@@ -376,5 +377,31 @@ final class StackService {
             try modelContext.save()
         }
         // If exactly one is active, no migration needed
+    }
+
+    /// Migrates existing data to populate activeTaskId from computed value.
+    /// Call this on app startup after migrateActiveStackState().
+    ///
+    /// Migration logic:
+    /// For each stack without activeTaskId, set it to the first pending task (if any)
+    func migrateActiveTaskId() throws {
+        let activeStacks = try getActiveStacks()
+
+        var needsSave = false
+        for stack in activeStacks {
+            // Skip if already has activeTaskId set
+            guard stack.activeTaskId == nil else { continue }
+
+            // Set activeTaskId to first pending task (matches previous computed behavior)
+            if let firstPendingTask = stack.pendingTasks.first {
+                stack.activeTaskId = firstPendingTask.id
+                stack.syncState = .pending
+                needsSave = true
+            }
+        }
+
+        if needsSave {
+            try modelContext.save()
+        }
     }
 }

@@ -126,10 +126,25 @@ final class TaskService {
     func activateTask(_ task: QueueTask) throws {
         guard let stack = task.stack else { return }
 
+        // Set explicit active task tracking
+        stack.activeTaskId = task.id
+        stack.updatedAt = Date()
+        stack.syncState = .pending
+
+        // Reorder tasks to maintain sort order consistency
         let pendingTasks = stack.pendingTasks
         var reorderedTasks = pendingTasks.filter { $0.id != task.id }
         reorderedTasks.insert(task, at: 0)
 
-        try updateSortOrders(reorderedTasks)
+        for (index, reorderedTask) in reorderedTasks.enumerated() {
+            reorderedTask.sortOrder = index
+            reorderedTask.updatedAt = Date()
+            reorderedTask.syncState = .pending
+        }
+
+        // Record events
+        try eventService.recordTaskActivated(task)
+        try eventService.recordTaskReordered(reorderedTasks)
+        try modelContext.save()
     }
 }
