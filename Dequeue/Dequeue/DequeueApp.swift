@@ -110,7 +110,12 @@ struct DequeueApp: App {
 struct RootView: View {
     @Environment(\.authService) private var authService
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     let syncManager: SyncManager
+
+    private var notificationService: NotificationService {
+        NotificationService(modelContext: modelContext)
+    }
 
     var body: some View {
         Group {
@@ -126,9 +131,17 @@ struct RootView: View {
                 await handleAuthStateChange(isAuthenticated: isAuthenticated)
             }
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active && authService.isAuthenticated {
+                Task {
+                    await notificationService.updateAppBadge()
+                }
+            }
+        }
         .task {
             if authService.isAuthenticated {
                 await handleAuthStateChange(isAuthenticated: true)
+                await notificationService.updateAppBadge()
             }
         }
     }

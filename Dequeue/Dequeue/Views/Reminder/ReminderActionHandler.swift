@@ -35,9 +35,10 @@ struct ReminderActionHandler {
             // Snooze the reminder
             try reminderService.snoozeReminder(reminder, until: date)
 
-            // Schedule new notification
+            // Schedule new notification and update badge
             Task {
                 try? await notificationService.scheduleNotification(for: reminder)
+                await notificationService.updateAppBadge()
             }
         } catch {
             onError(error)
@@ -53,6 +54,11 @@ struct ReminderActionHandler {
             }
 
             try reminderService.deleteReminder(reminder)
+
+            // Update app badge
+            Task {
+                await notificationService.updateAppBadge()
+            }
         } catch {
             onError(error)
         }
@@ -68,6 +74,11 @@ struct ReminderActionHandler {
             }
 
             try reminderService.dismissReminder(reminder)
+
+            // Update app badge
+            Task {
+                await notificationService.updateAppBadge()
+            }
         } catch {
             onError(error)
         }

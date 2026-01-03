@@ -288,6 +288,9 @@ struct StackEditorView: View {
                         selectedReminderForSnooze = reminder
                         showSnoozePicker = true
                     },
+                    onDismiss: (isReadOnly || !reminder.isPastDue) ? nil : {
+                        reminderActionHandler.dismiss(reminder)
+                    },
                     onDelete: isReadOnly ? nil : {
                         reminderToDelete = reminder
                         showDeleteReminderConfirmation = true

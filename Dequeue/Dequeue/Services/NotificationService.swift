@@ -47,12 +47,17 @@ protocol NotificationCenterProtocol: Sendable {
     func pendingNotificationRequests() async -> [UNNotificationRequest]
     func getAuthorizationStatus() async -> UNAuthorizationStatus
     func setNotificationCategories(_ categories: Set<UNNotificationCategory>)
+    func setBadgeCount(_ count: Int) async throws
 }
 
 /// Extension to make UNUserNotificationCenter conform to our protocol
 extension UNUserNotificationCenter: NotificationCenterProtocol {
     func getAuthorizationStatus() async -> UNAuthorizationStatus {
         await notificationSettings().authorizationStatus
+    }
+
+    func setBadgeCount(_ count: Int) async throws {
+        try await self.setBadgeCount(count)
     }
 }
 
@@ -224,6 +229,38 @@ final class NotificationService: NSObject {
         } catch {
             // Log error but don't throw - best effort reschedule
         }
+    }
+
+    // MARK: - App Badge
+
+    /// Updates the app badge count to show the number of overdue reminders
+    func updateAppBadge() async {
+        do {
+            let overdueCount = try fetchOverdueReminderCount()
+            try await notificationCenter.setBadgeCount(overdueCount)
+        } catch {
+            // Log error but don't throw - best effort badge update
+            ErrorReportingService.capture(
+                error: error,
+                context: ["action": "update_app_badge"]
+            )
+        }
+    }
+
+    /// Clears the app badge
+    func clearAppBadge() async {
+        try? await notificationCenter.setBadgeCount(0)
+    }
+
+    private func fetchOverdueReminderCount() throws -> Int {
+        let now = Date()
+        let predicate = #Predicate<Reminder> { reminder in
+            reminder.isDeleted == false
+        }
+        let descriptor = FetchDescriptor<Reminder>(predicate: predicate)
+        return try modelContext.fetch(descriptor)
+            .filter { $0.status == .active && $0.remindAt <= now }
+            .count
     }
 
     // MARK: - Private Helpers
