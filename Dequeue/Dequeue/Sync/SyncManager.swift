@@ -28,6 +28,12 @@ actor SyncManager {
     private var periodicSyncTask: Task<Void, Never>?
     private var heartbeatTask: Task<Void, Never>?
     private var listenTask: Task<Void, Never>?
+    private var networkMonitorTask: Task<Void, Never>?
+
+    // Health monitoring
+    private var consecutiveHeartbeatFailures = 0
+    private let maxConsecutiveHeartbeatFailures = 3
+    private var lastSuccessfulHeartbeat: Date?
 
     // Key for storing last sync checkpoint in UserDefaults
     private let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
@@ -174,12 +180,16 @@ actor SyncManager {
         heartbeatTask = nil
         listenTask?.cancel()
         listenTask = nil
+        networkMonitorTask?.cancel()
+        networkMonitorTask = nil
 
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         isConnected = false
         token = nil
         userId = nil
+        consecutiveHeartbeatFailures = 0
+        lastSuccessfulHeartbeat = nil
     }
 
     private func connectWebSocket() async throws {
@@ -204,9 +214,12 @@ actor SyncManager {
 
         isConnected = true
         reconnectAttempts = 0
+        consecutiveHeartbeatFailures = 0
+        lastSuccessfulHeartbeat = Date()
 
         startListening()
         startHeartbeat()
+        startNetworkMonitoring()
 
         await MainActor.run {
             ErrorReportingService.addBreadcrumb(
@@ -614,11 +627,35 @@ actor SyncManager {
     private func handleDisconnect() async {
         isConnected = false
 
-        guard reconnectAttempts < maxReconnectAttempts,
-              token != nil else { return }
+        let currentAttempts = reconnectAttempts
+        guard currentAttempts < maxReconnectAttempts,
+              token != nil else {
+            await MainActor.run {
+                ErrorReportingService.addBreadcrumb(
+                    category: "sync",
+                    message: "Max reconnect attempts reached",
+                    data: ["attempts": currentAttempts]
+                )
+            }
+            return
+        }
 
         reconnectAttempts += 1
-        let delay = baseReconnectDelay * pow(2.0, Double(reconnectAttempts - 1))
+        let attemptNumber = reconnectAttempts
+
+        // Exponential backoff with jitter (±25%)
+        let baseDelay = baseReconnectDelay * pow(2.0, Double(attemptNumber - 1))
+        let jitterRange = baseDelay * 0.5 // ±25% when centered at 0.75
+        let jitter = Double.random(in: 0...jitterRange)
+        let delay = (baseDelay * 0.75) + jitter
+
+        await MainActor.run {
+            ErrorReportingService.addBreadcrumb(
+                category: "sync",
+                message: "Reconnecting with backoff",
+                data: ["attempt": attemptNumber, "delay_seconds": delay]
+            )
+        }
 
         try? await Task.sleep(for: .seconds(delay))
 
@@ -649,12 +686,38 @@ actor SyncManager {
                             }
                         }
                     }
+
+                    // Reset failure count on success
+                    await self.resetHeartbeatFailures()
                 } catch {
-                    await self.handleDisconnect()
-                    break
+                    // Track consecutive failures
+                    let failures = await self.recordHeartbeatFailure()
+                    let maxFailures = await self.maxConsecutiveHeartbeatFailures
+
+                    if failures >= maxFailures {
+                        await MainActor.run {
+                            ErrorReportingService.addBreadcrumb(
+                                category: "sync",
+                                message: "Connection health degraded",
+                                data: ["consecutive_failures": failures]
+                            )
+                        }
+                        await self.handleDisconnect()
+                        break
+                    }
                 }
             }
         }
+    }
+
+    private func recordHeartbeatFailure() -> Int {
+        consecutiveHeartbeatFailures += 1
+        return consecutiveHeartbeatFailures
+    }
+
+    private func resetHeartbeatFailures() {
+        consecutiveHeartbeatFailures = 0
+        lastSuccessfulHeartbeat = Date()
     }
 
     // MARK: - Periodic Sync
@@ -690,6 +753,16 @@ actor SyncManager {
                 }
             }
         }
+    }
+
+    // MARK: - Network Monitoring
+
+    /// Network monitoring will be enhanced when NetworkMonitor from DEQ-47 is available.
+    /// For now, we rely on the improved backoff and health monitoring.
+    private func startNetworkMonitoring() {
+        // TODO: Integrate with NetworkMonitor when DEQ-47 is merged
+        // This will enable immediate reconnect when network comes back online
+        networkMonitorTask = nil
     }
 
     // MARK: - Status
