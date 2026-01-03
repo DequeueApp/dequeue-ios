@@ -119,12 +119,15 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if authService.isAuthenticated {
+            if authService.isLoading {
+                SplashView()
+            } else if authService.isAuthenticated {
                 MainTabView()
             } else {
                 AuthView()
             }
         }
+        .animation(.easeInOut, value: authService.isLoading)
         .animation(.easeInOut, value: authService.isAuthenticated)
         .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
             Task {
