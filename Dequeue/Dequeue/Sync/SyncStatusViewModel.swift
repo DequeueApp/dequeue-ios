@@ -26,6 +26,10 @@ final class SyncStatusViewModel {
         startMonitoring()
     }
 
+    deinit {
+        updateTask?.cancel()
+    }
+
     func stopMonitoring() {
         updateTask?.cancel()
         updateTask = nil
