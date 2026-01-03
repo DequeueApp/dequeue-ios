@@ -64,6 +64,41 @@ Currently, the backend (`stacks-sync`) is mostly a passive event store and sync 
    - Need periodic polling to catch missed updates
    - Must handle rate limits gracefully
 
+### Architectural Decision: Separate Service vs. Monolith
+
+A key decision to make early: should integration/sync capabilities live in `stacks-sync` or in a separate service?
+
+**Option A: Extend stacks-sync**
+| Pros | Cons |
+|------|------|
+| Single deployment, simpler ops | Mixes concerns (event relay vs. active integration) |
+| Direct access to event store | Harder to scale independently |
+| No inter-service communication needed | OAuth/webhook complexity pollutes a simple codebase |
+| Faster initial development | Risk of monolith growing unwieldy |
+
+**Option B: Separate integrations service (e.g., `dequeue-integrations`)**
+| Pros | Cons |
+|------|------|
+| Clean separation of concerns | Additional infrastructure to manage |
+| Can scale independently (webhooks are bursty) | Inter-service communication complexity |
+| Isolates OAuth/credential management | Need to define service API contract |
+| Easier to add new integrations without touching core | More moving parts in production |
+| Can be developed/deployed independently | Latency for cross-service calls |
+
+**Hybrid Approach?**
+- Keep `stacks-sync` as the event backbone
+- New service handles OAuth, webhooks, and external API calls
+- Integrations service publishes events TO `stacks-sync` (which then propagates to devices)
+- Clear boundary: `stacks-sync` never talks to external systems directly
+
+**Recommendation**: Lean toward **separate service** given:
+- OAuth and credential storage is security-sensitive (isolation is good)
+- Webhook handling has different scaling characteristics
+- Future integrations (email, calendar, Slack) compound the complexity
+- Keeps `stacks-sync` simple and focused on its core job
+
+This is a decision to make before Phase 1 begins.
+
 ### Implementation Phases (suggested)
 1. **Phase 1**: Linear OAuth + Link Only (no sync)
 2. **Phase 2**: Basic sync (completed state only)
