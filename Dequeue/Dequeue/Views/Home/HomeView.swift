@@ -55,6 +55,8 @@ struct HomeView: View {
     @State private var selectedStack: Stack?
     @State private var selectedTask: QueueTask?
     @State private var showReminders = false
+    @State private var syncError: Error?
+    @State private var showingSyncError = false
 
     /// Count of overdue reminders for badge display
     private var overdueCount: Int {
@@ -109,6 +111,13 @@ struct HomeView: View {
                     TaskDetailView(task: task)
                 }
             }
+            .alert("Sync Failed", isPresented: $showingSyncError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                if let syncError = syncError {
+                    Text(syncError.localizedDescription)
+                }
+            }
         }
     }
 
@@ -144,9 +153,17 @@ struct HomeView: View {
 
     // MARK: - Sync
 
-    /// Performs a manual sync: pushes local changes then pulls from server
+    /// Performs a manual sync: pushes local changes first, then pulls from server.
+    /// Push-first order ensures local changes are sent before potentially receiving
+    /// conflicting updates, allowing the server to handle conflict resolution.
     private func performSync() async {
-        guard let syncManager = syncManager else { return }
+        guard let syncManager = syncManager else {
+            ErrorReportingService.addBreadcrumb(
+                category: "sync",
+                message: "Pull-to-refresh attempted with nil syncManager"
+            )
+            return
+        }
 
         do {
             // Push local changes first
@@ -154,6 +171,8 @@ struct HomeView: View {
             // Then pull from server
             try await syncManager.manualPull()
         } catch {
+            syncError = error
+            showingSyncError = true
             ErrorReportingService.capture(
                 error: error,
                 context: ["source": "pull_to_refresh"]
