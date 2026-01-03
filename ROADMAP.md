@@ -11,7 +11,7 @@ Connect Dequeue to external issue trackers and project management systems, start
 
 ### Rationale: Why This Matters
 
-Dequeue is a **personal task manager**—not a team-based issue tracking system. However, much of what you personally need to track and work on lives in remote systems. A developer might be working on a Jira ticket. A consultant might have tasks in multiple clients' Asana boards. The reality is that your work is fragmented across systems you don't control.
+Dequeue is a **personal task manager**—not a team-based issue tracking system. However, much of what you personally need to track and work on lives in remote systems. A developer might be working on a Jira ticket or a GitHub issue. A consultant might have tasks in multiple clients' Asana boards. The reality is that your work is fragmented across systems you don't control.
 
 **The core problem**: Most personal todo apps are completely disconnected from these external systems. This forces you into bad options:
 - Track everything in the team system (cluttered, inappropriate for personal micro-tasks)
@@ -30,7 +30,7 @@ When you're working on a Jira ticket, you create a Stack in Dequeue and *link* i
 This is a novel approach we haven't seen in other personal task management software. The insight is that personal productivity tools and team collaboration tools serve different purposes, but they don't have to be islands. Dequeue bridges them while respecting that *you* are the one who decides what enters your personal system.
 
 ### Core Concept
-- Users can connect **multiple accounts** from various systems (e.g., two Linear workspaces, one Jira instance)
+- Users can connect **multiple accounts** from various systems (e.g., two Linear workspaces, one Jira instance, GitHub repos)
 - When creating a Stack or Task, optionally **link** it to a remote issue
 - Two modes of connection:
   - **Link Only**: Stores a reference to the foreign issue; no automatic actions
@@ -142,6 +142,7 @@ A scrollable feed showing what the user accomplished, summarized by day (and wee
 - Stacks activated and/or completed
 - Tasks activated and/or completed
 - (Future) Events from linked external systems (Linear issues closed, etc.)
+- (Future) GitHub activity: commits pushed, PRs opened/merged/reviewed, issues closed
 - (Future) Emails sent/replied to (requires email integration)
 
 ### Timeline Detail View
@@ -175,6 +176,7 @@ When tapping into a daily card:
 - Consider sharing capability (share your weekly summary)
 
 ### Future Enhancements
+- GitHub integration (commits, PRs opened/merged/reviewed, issues closed, code reviews)
 - Email integration (emails sent/received)
 - Calendar integration (meetings attended)
 - Slack integration (messages sent in key channels)
