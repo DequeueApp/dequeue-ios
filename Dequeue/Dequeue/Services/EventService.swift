@@ -263,11 +263,14 @@ final class EventService {
 
     // MARK: - Private
 
+    /// Records an event without saving - caller is responsible for batching saves.
+    /// This improves performance by avoiding multiple disk writes per operation.
     private func recordEvent<T: Encodable>(type: EventType, payload: T, entityId: String? = nil) throws {
         let payloadData = try JSONEncoder().encode(payload)
         let event = Event(eventType: type, payload: payloadData, entityId: entityId)
         modelContext.insert(event)
-        try modelContext.save()
+        // Note: Caller must call modelContext.save() to persist changes.
+        // This allows batching multiple events into a single disk write.
     }
 }
 

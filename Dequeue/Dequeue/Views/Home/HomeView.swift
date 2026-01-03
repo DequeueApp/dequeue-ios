@@ -200,18 +200,24 @@ struct HomeView: View {
         var reorderedStacks = stacks
         reorderedStacks.move(fromOffsets: source, toOffset: destination)
 
-        for (index, stack) in reorderedStacks.enumerated() {
-            stack.sortOrder = index
-            stack.updatedAt = Date()
-            stack.syncState = .pending
+        let stackService = StackService(modelContext: modelContext)
+        do {
+            try stackService.updateSortOrders(reorderedStacks)
+        } catch {
+            // Log error but don't crash - changes are still in memory
+            ErrorReportingService.capture(error: error, context: ["action": "moveStacks"])
         }
     }
 
     private func deleteStacks(at offsets: IndexSet) {
+        let stackService = StackService(modelContext: modelContext)
         for index in offsets {
-            stacks[index].isDeleted = true
-            stacks[index].updatedAt = Date()
-            stacks[index].syncState = .pending
+            do {
+                try stackService.deleteStack(stacks[index])
+            } catch {
+                // Log error but don't crash - changes are still in memory
+                ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
+            }
         }
     }
 }
