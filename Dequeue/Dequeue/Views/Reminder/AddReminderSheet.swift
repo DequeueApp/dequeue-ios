@@ -102,7 +102,7 @@ struct AddReminderSheet: View {
                 Text(errorMessage)
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .task {
             await checkPermissionState()
         }
