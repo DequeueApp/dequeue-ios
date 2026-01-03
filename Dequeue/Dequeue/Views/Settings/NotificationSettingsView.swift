@@ -154,23 +154,29 @@ struct NotificationSettingsView: View {
 
     // MARK: - Actions
 
-    private func loadAuthorizationStatus() async {
-        // Initialize service lazily to avoid creating multiple instances
-        if notificationService == nil {
-            notificationService = NotificationService(modelContext: modelContext)
+    /// Ensures NotificationService is initialized and returns it
+    private func ensureService() -> NotificationService {
+        if let service = notificationService {
+            return service
         }
-        guard let service = notificationService else { return }
+        let service = NotificationService(modelContext: modelContext)
+        notificationService = service
+        return service
+    }
+
+    private func loadAuthorizationStatus() async {
+        let service = ensureService()
         authorizationStatus = await service.getAuthorizationStatus()
     }
 
     private func requestPermission() async {
-        guard let service = notificationService else { return }
+        let service = ensureService()
         let granted = await service.requestPermission()
         authorizationStatus = granted ? .authorized : .denied
     }
 
     private func handleBadgeToggle(enabled: Bool) async {
-        guard let service = notificationService else { return }
+        let service = ensureService()
         if !enabled {
             await service.clearAppBadge()
         } else {
