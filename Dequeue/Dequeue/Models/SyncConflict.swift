@@ -38,14 +38,17 @@ final class SyncConflict {
     // MARK: - Properties
 
     private(set) var id: String
-    internal var entityTypeRaw: String
+    /// Raw string value for entityType enum (needed for SwiftData predicates)
+    private(set) var entityTypeRaw: String
     private(set) var entityId: String
     private(set) var localTimestamp: Date
     private(set) var remoteTimestamp: Date
-    internal var conflictTypeRaw: String
+    /// Raw string value for conflictType enum (needed for SwiftData predicates)
+    private(set) var conflictTypeRaw: String
     private(set) var localState: Data?
     private(set) var remoteState: Data?
-    internal var resolutionRaw: String
+    /// Raw string value for resolution enum (needed for SwiftData predicates)
+    private(set) var resolutionRaw: String
     private(set) var detectedAt: Date
     var isResolved: Bool
 

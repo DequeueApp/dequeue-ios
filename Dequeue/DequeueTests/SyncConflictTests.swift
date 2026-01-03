@@ -114,7 +114,7 @@ struct SyncConflictTests {
         context.insert(taskConflict)
         try context.save()
 
-        // Filter by entity type
+        // Filter by entity type using raw value (SwiftData predicates can't use computed properties)
         let entityTypeRaw = SyncConflictEntityType.stack.rawValue
         let predicate = #Predicate<SyncConflict> { conflict in
             conflict.entityTypeRaw == entityTypeRaw

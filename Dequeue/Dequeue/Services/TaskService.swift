@@ -68,15 +68,6 @@ final class TaskService {
         try modelContext.save()
     }
 
-    func markAsUncompleted(_ task: QueueTask) throws {
-        task.status = .pending
-        task.updatedAt = Date()
-        task.syncState = .pending
-
-        try eventService.recordTaskUncompleted(task)
-        try modelContext.save()
-    }
-
     func markAsBlocked(_ task: QueueTask, reason: String?) throws {
         task.status = .blocked
         task.blockedReason = reason

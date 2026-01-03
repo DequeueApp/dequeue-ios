@@ -7,9 +7,6 @@
 
 import SwiftUI
 import SwiftData
-import os
-
-private let logger = Logger(subsystem: "com.dequeue", category: "DraftsView")
 
 struct DraftsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -21,10 +18,6 @@ struct DraftsView: View {
         order: .reverse
     ) private var drafts: [Stack]
 
-    @State private var showDeleteError = false
-    @State private var deleteErrorMessage = ""
-    @State private var stackService: StackService?
-
     var body: some View {
         NavigationStack {
             Group {
@@ -34,17 +27,7 @@ struct DraftsView: View {
                     draftsList
                 }
             }
-            .onAppear {
-                if stackService == nil {
-                    stackService = StackService(modelContext: modelContext)
-                }
-            }
             .navigationTitle("Drafts")
-            .alert("Delete Failed", isPresented: $showDeleteError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(deleteErrorMessage)
-            }
         }
     }
 
@@ -70,36 +53,14 @@ struct DraftsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button(role: .destructive) {
-                        deleteDraft(draft)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                }
             }
+            .onDelete(perform: deleteDrafts)
         }
     }
 
-    private func deleteDraft(_ draft: Stack) {
-        guard let service = stackService else {
-            logger.error("StackService not initialized")
-            deleteErrorMessage = "Service not ready. Please try again."
-            showDeleteError = true
-            return
-        }
-
-        do {
-            // Use stackService.discardDraft to properly fire stack.discarded event
-            try service.discardDraft(draft)
-            logger.info("Draft discarded via swipe: \(draft.id)")
-        } catch {
-            logger.error("Failed to discard draft: \(error.localizedDescription)")
-            // Show error to user - don't silently bypass event emission
-            // Note: Using custom swipe action instead of onDelete ensures draft
-            // only disappears from list if deletion succeeds
-            deleteErrorMessage = "Could not delete draft. Please try again."
-            showDeleteError = true
+    private func deleteDrafts(at offsets: IndexSet) {
+        for index in offsets {
+            drafts[index].isDeleted = true
         }
     }
 }
