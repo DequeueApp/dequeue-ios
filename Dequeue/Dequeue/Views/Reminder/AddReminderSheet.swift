@@ -73,6 +73,9 @@ struct AddReminderSheet: View {
                     permissionDeniedView
                 }
             }
+            #if os(macOS)
+            .frame(minWidth: 350, minHeight: 300)
+            #endif
             .navigationTitle(isEditMode ? "Edit Reminder" : "Add Reminder")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

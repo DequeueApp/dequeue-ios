@@ -59,6 +59,9 @@ struct TaskDetailView: View {
 
             eventHistorySection
         }
+        #if os(macOS)
+        .frame(minWidth: 450, minHeight: 400)
+        #endif
         .navigationTitle("Task Details")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

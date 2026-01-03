@@ -58,23 +58,25 @@ struct HomeView: View {
                     Button {
                         showReminders = true
                     } label: {
-                        Image(systemName: overdueCount > 0 ? "bell.badge.fill" : "bell")
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(overdueCount > 0 ? .red : .primary, .primary)
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        if overdueCount > 0 {
-                            Text("\(overdueCount)")
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .frame(minWidth: 16, minHeight: 16)
-                                .background(Color.red)
-                                .clipShape(Capsule())
-                                .offset(x: 8, y: -8)
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: overdueCount > 0 ? "bell.badge.fill" : "bell")
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(overdueCount > 0 ? .red : .primary, .primary)
+                                .font(.body)
+
+                            if overdueCount > 0 {
+                                Text("\(overdueCount)")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .frame(minWidth: 14, minHeight: 14)
+                                    .background(Color.red)
+                                    .clipShape(Capsule())
+                                    .offset(x: 6, y: -6)
+                            }
                         }
+                        .frame(width: 32, height: 32)
                     }
                 }
             }

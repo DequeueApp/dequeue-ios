@@ -131,6 +131,9 @@ struct StackEditorView: View {
                     editModeContent
                 }
             }
+            #if os(macOS)
+            .frame(minWidth: 500, minHeight: 400)
+            #endif
             .navigationTitle(navigationTitle)
             #if os(iOS)
             .navigationBarTitleDisplayMode(isCreateMode ? .inline : .large)
@@ -287,6 +290,9 @@ struct StackEditorView: View {
                     onSnooze: isReadOnly ? nil : {
                         selectedReminderForSnooze = reminder
                         showSnoozePicker = true
+                    },
+                    onDismiss: (isReadOnly || !reminder.isPastDue) ? nil : {
+                        reminderActionHandler.dismiss(reminder)
                     },
                     onDelete: isReadOnly ? nil : {
                         reminderToDelete = reminder
