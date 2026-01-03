@@ -43,7 +43,7 @@ struct StackConstraintValidationTests {
 
     // MARK: - Post-condition Validation Tests
 
-    @Test("validateSingleActiveConstraint passes with zero active stacks")
+    @Test("validateAndFixSingleActiveConstraint returns true with zero active stacks")
     @MainActor
     func validateConstraintPassesWithZeroActive() async throws {
         let container = try createTestContainer()
@@ -54,11 +54,12 @@ struct StackConstraintValidationTests {
         _ = try service.createStack(title: "Draft 1", isDraft: true)
         _ = try service.createStack(title: "Draft 2", isDraft: true)
 
-        // Should not throw
-        try service.validateSingleActiveConstraint()
+        // Should return true
+        let result = try service.validateAndFixSingleActiveConstraint()
+        #expect(result == true)
     }
 
-    @Test("validateSingleActiveConstraint passes with one active stack")
+    @Test("validateAndFixSingleActiveConstraint returns true with one active stack")
     @MainActor
     func validateConstraintPassesWithOneActive() async throws {
         let container = try createTestContainer()
@@ -67,13 +68,37 @@ struct StackConstraintValidationTests {
 
         _ = try service.createStack(title: "Active Stack")
 
-        // Should not throw
-        try service.validateSingleActiveConstraint()
+        // Should return true
+        let result = try service.validateAndFixSingleActiveConstraint()
+        #expect(result == true)
     }
 
-    @Test("validateSingleActiveConstraint throws with multiple active stacks")
+    @Test("validateAndFixSingleActiveConstraint fixes multiple active stacks when target provided")
     @MainActor
-    func validateConstraintThrowsWithMultipleActive() async throws {
+    func validateConstraintFixesMultipleActiveWithTarget() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context)
+
+        // Create stacks normally
+        let stack1 = try service.createStack(title: "Stack 1")
+        let stack2 = try service.createStack(title: "Stack 2")
+
+        // Manually corrupt state to simulate constraint violation (e.g., from sync)
+        stack1.isActive = true
+        stack2.isActive = true
+        try context.save()
+
+        // Should fix by keeping only stack1 active
+        let result = try service.validateAndFixSingleActiveConstraint(keeping: stack1.id)
+        #expect(result == true)
+        #expect(stack1.isActive == true)
+        #expect(stack2.isActive == false)
+    }
+
+    @Test("validateAndFixSingleActiveConstraint returns false with multiple active stacks and no target")
+    @MainActor
+    func validateConstraintReturnsFalseWithMultipleActiveNoTarget() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
         let service = StackService(modelContext: context)
@@ -87,9 +112,9 @@ struct StackConstraintValidationTests {
         stack2.isActive = true
         try context.save()
 
-        #expect(throws: StackServiceError.multipleActiveStacksDetected(count: 2)) {
-            try service.validateSingleActiveConstraint()
-        }
+        // Should return false when no target provided (can't auto-fix)
+        let result = try service.validateAndFixSingleActiveConstraint()
+        #expect(result == false)
     }
 
     // MARK: - Atomicity Tests
@@ -168,7 +193,8 @@ struct StackConstraintValidationTests {
         }
 
         // Constraint should still hold
-        try service.validateSingleActiveConstraint()
+        let result = try service.validateAndFixSingleActiveConstraint()
+        #expect(result == true)
 
         let activeCount = [stack1, stack2, stack3].filter { $0.isActive }.count
         #expect(activeCount == 1)
@@ -211,7 +237,8 @@ struct StackConstraintValidationTests {
         #expect(stack.isActive == true)
 
         // Constraint should still hold
-        try service.validateSingleActiveConstraint()
+        let result = try service.validateAndFixSingleActiveConstraint()
+        #expect(result == true)
     }
 
     @Test("Constraint validation ignores deleted stacks")
@@ -233,7 +260,8 @@ struct StackConstraintValidationTests {
         try context.save()
 
         // Constraint should still pass because deleted stacks are ignored
-        try service.validateSingleActiveConstraint()
+        let result = try service.validateAndFixSingleActiveConstraint()
+        #expect(result == true)
     }
 
     @Test("Constraint validation ignores draft stacks")
@@ -251,6 +279,39 @@ struct StackConstraintValidationTests {
         try context.save()
 
         // Constraint should pass because drafts are ignored
-        try service.validateSingleActiveConstraint()
+        let result = try service.validateAndFixSingleActiveConstraint()
+        #expect(result == true)
+    }
+
+    // MARK: - Sync Scenario Tests
+
+    @Test("setAsActive handles stacks with isActive=true from sync")
+    @MainActor
+    func setAsActiveHandlesSyncedStacks() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context)
+
+        // Create stacks
+        let stack1 = try service.createStack(title: "Stack 1")
+        let stack2 = try service.createStack(title: "Stack 2")
+        let stack3 = try service.createStack(title: "Stack 3")
+
+        // Simulate sync setting multiple stacks as active (constraint violation)
+        stack1.isActive = true
+        stack2.isActive = true
+        stack3.isActive = true
+        try context.save()
+
+        // setAsActive should silently fix this by deactivating all others
+        try service.setAsActive(stack2)
+
+        #expect(stack1.isActive == false)
+        #expect(stack2.isActive == true)
+        #expect(stack3.isActive == false)
+
+        // Constraint should be fixed
+        let result = try service.validateAndFixSingleActiveConstraint()
+        #expect(result == true)
     }
 }

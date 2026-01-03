@@ -132,17 +132,45 @@ final class StackService {
     }
 
     /// Validates that at most one stack has isActive = true.
-    /// Throws `StackServiceError.multipleActiveStacksDetected` if constraint is violated.
-    func validateSingleActiveConstraint() throws {
+    /// If multiple stacks have isActive = true (e.g., from sync), silently fixes by keeping only the target stack active.
+    /// - Parameter targetStackId: The ID of the stack that should remain active (pass nil to just check without fixing)
+    /// - Returns: True if constraint was valid or was fixed, false if no target provided and multiple found
+    @discardableResult
+    func validateAndFixSingleActiveConstraint(keeping targetStackId: String? = nil) throws -> Bool {
         let predicate = #Predicate<Stack> { stack in
             stack.isDeleted == false && stack.isDraft == false && stack.isActive == true
         }
         let descriptor = FetchDescriptor<Stack>(predicate: predicate)
         let activeStacks = try modelContext.fetch(descriptor)
 
-        if activeStacks.count > 1 {
-            throw StackServiceError.multipleActiveStacksDetected(count: activeStacks.count)
+        if activeStacks.count <= 1 {
+            return true
         }
+
+        // Multiple stacks have isActive = true - fix it
+        if let targetId = targetStackId {
+            // Deactivate all except the target
+            for stack in activeStacks where stack.id != targetId {
+                stack.isActive = false
+                stack.updatedAt = Date()
+                stack.syncState = .pending
+            }
+            return true
+        }
+
+        // No target specified and multiple found - can't auto-fix
+        return false
+    }
+
+    /// Returns ALL stacks with isActive = true, regardless of status.
+    /// Use this to ensure we deactivate all stacks before activating a new one,
+    /// including stacks that may have been synced with isActive = true but different status.
+    func getAllStacksWithIsActiveTrue() throws -> [Stack] {
+        let predicate = #Predicate<Stack> { stack in
+            stack.isDeleted == false && stack.isDraft == false && stack.isActive == true
+        }
+        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
+        return try modelContext.fetch(descriptor)
     }
 
     func getActiveStacks() throws -> [Stack] {
@@ -232,32 +260,36 @@ final class StackService {
             throw StackServiceError.cannotActivateDraftStack
         }
 
-        let activeStacks = try getActiveStacks()
+        // Get ALL stacks with isActive = true (not just those with status == .active)
+        // This handles synced stacks that may have isActive = true but different status
+        let allCurrentlyActiveStacks = try getAllStacksWithIsActiveTrue()
 
-        // Find the currently active stack to record deactivation event BEFORE changing state
-        let previouslyActiveStack = activeStacks.first { $0.isActive && $0.id != stack.id }
+        // Find stacks to deactivate (any stack with isActive = true except the target)
+        let stacksToDeactivate = allCurrentlyActiveStacks.filter { $0.id != stack.id }
 
-        // Record deactivation event for previously active stack (captures state while still active)
-        if let previousStack = previouslyActiveStack {
-            try eventService.recordStackDeactivated(previousStack)
+        // Record deactivation events BEFORE changing state
+        for stackToDeactivate in stacksToDeactivate {
+            try eventService.recordStackDeactivated(stackToDeactivate)
+            stackToDeactivate.isActive = false
+            stackToDeactivate.updatedAt = Date()
+            stackToDeactivate.syncState = .pending
         }
 
-        // Deactivate all other stacks and update sort orders
+        // Get stacks with status == .active for sort order management
+        let activeStacks = try getActiveStacks()
+
+        // Update sort orders for active stacks
         for (index, activeStack) in activeStacks.enumerated() {
             if activeStack.id == stack.id {
                 activeStack.sortOrder = 0
-                activeStack.isActive = true
-            } else {
-                activeStack.isActive = false
-                if activeStack.sortOrder <= stack.sortOrder {
-                    activeStack.sortOrder = index + 1
-                }
+            } else if activeStack.sortOrder <= stack.sortOrder {
+                activeStack.sortOrder = index + 1
             }
             activeStack.updatedAt = Date()
             activeStack.syncState = .pending
         }
 
-        // Ensure target stack is active (handles case where stack wasn't in activeStacks)
+        // Ensure target stack is active
         stack.isActive = true
         stack.sortOrder = 0
         stack.updatedAt = Date()
@@ -267,8 +299,8 @@ final class StackService {
         try eventService.recordStackReordered(activeStacks)
         try modelContext.save()
 
-        // MARK: Post-condition validation
-        try validateSingleActiveConstraint()
+        // MARK: Post-condition validation (fix rather than throw)
+        try validateAndFixSingleActiveConstraint(keeping: stack.id)
     }
 
     func closeStack(_ stack: Stack, reason: String? = nil) throws {
@@ -353,21 +385,30 @@ final class StackService {
         let activeStacks = try getActiveStacks()
         guard !activeStacks.isEmpty else { return }
 
-        // Find stacks that already have isActive = true
-        let currentlyActive = activeStacks.filter { $0.isActive }
+        // Find ALL stacks that have isActive = true (regardless of status)
+        let allWithIsActiveTrue = try getAllStacksWithIsActiveTrue()
 
-        if currentlyActive.isEmpty {
+        if allWithIsActiveTrue.isEmpty {
             // No stack is marked active - activate the one with lowest sortOrder
             if let firstStack = activeStacks.min(by: { $0.sortOrder < $1.sortOrder }) {
                 firstStack.isActive = true
                 firstStack.syncState = .pending
                 try modelContext.save()
             }
-        } else if currentlyActive.count > 1 {
+        } else if allWithIsActiveTrue.count > 1 {
             // Multiple stacks marked active - keep only the one with lowest sortOrder
-            let sorted = currentlyActive.sorted { $0.sortOrder < $1.sortOrder }
-            for (index, stack) in sorted.enumerated() {
-                if index == 0 {
+            // Prefer stacks with status == .active
+            let activeStatusStacks = allWithIsActiveTrue.filter { $0.status == .active }
+            let stackToKeepActive: Stack?
+
+            if !activeStatusStacks.isEmpty {
+                stackToKeepActive = activeStatusStacks.min(by: { $0.sortOrder < $1.sortOrder })
+            } else {
+                stackToKeepActive = allWithIsActiveTrue.min(by: { $0.sortOrder < $1.sortOrder })
+            }
+
+            for stack in allWithIsActiveTrue {
+                if stack.id == stackToKeepActive?.id {
                     stack.isActive = true
                 } else {
                     stack.isActive = false
