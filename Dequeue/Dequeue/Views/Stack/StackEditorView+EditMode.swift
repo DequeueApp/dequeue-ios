@@ -212,11 +212,21 @@ extension StackEditorView {
     var eventHistorySection: some View {
         Section {
             if case .edit(let stack) = mode {
+                #if os(macOS)
+                // On macOS, NavigationLink destinations don't render properly inside sheets,
+                // so we use a Button that triggers a separate sheet instead
+                Button {
+                    showEventHistory = true
+                } label: {
+                    Label("Event History", systemImage: "clock.arrow.circlepath")
+                }
+                #else
                 NavigationLink {
                     StackHistoryView(stack: stack)
                 } label: {
                     Label("Event History", systemImage: "clock.arrow.circlepath")
                 }
+                #endif
             }
         } footer: {
             Text("View the complete history of changes to this stack")

@@ -69,6 +69,7 @@ struct StackEditorView: View {
     @State var selectedReminderForEdit: Reminder?
     @State var showDeleteReminderConfirmation = false
     @State var reminderToDelete: Reminder?
+    @State var showEventHistory = false
 
     // MARK: - Computed Properties
 
@@ -209,6 +210,21 @@ struct StackEditorView: View {
             } message: {
                 Text("Are you sure you want to delete this reminder?")
             }
+            #if os(macOS)
+            .sheet(isPresented: $showEventHistory) {
+                if case .edit(let stack) = mode {
+                    NavigationStack {
+                        StackHistoryView(stack: stack)
+                            .toolbar {
+                                ToolbarItem(placement: .cancellationAction) {
+                                    Button("Done") { showEventHistory = false }
+                                }
+                            }
+                    }
+                    .frame(minWidth: 500, minHeight: 400)
+                }
+            }
+            #endif
         }
     }
 

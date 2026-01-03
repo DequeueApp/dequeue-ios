@@ -21,21 +21,25 @@ struct StackHistoryView: View {
     @State private var revertError: Error?
     @State private var showRevertError = false
 
-    var body: some View {
-        Group {
-            if isLoading {
-                ProgressView("Loading history...")
-            } else if events.isEmpty {
-                ContentUnavailableView(
-                    "No History",
-                    systemImage: "clock.arrow.circlepath",
-                    description: Text("No events recorded for this stack")
-                )
-            } else {
-                historyList
-            }
+    @ViewBuilder
+    private var content: some View {
+        if isLoading {
+            ProgressView("Loading history...")
+        } else if events.isEmpty {
+            ContentUnavailableView(
+                "No History",
+                systemImage: "clock.arrow.circlepath",
+                description: Text("No events recorded for this stack")
+            )
+        } else {
+            historyList
         }
-        .navigationTitle("Event History")
+    }
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle("Event History")
         // Use .task(id:) with updatedAt to:
         // 1. Load reliably on both iOS and macOS (onAppear is unreliable on macOS in sheets)
         // 2. Automatically refresh when the stack is modified elsewhere
