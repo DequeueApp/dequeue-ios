@@ -145,7 +145,18 @@ enum ProjectorService {
         guard !stack.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > stack.updatedAt else { return }
+        guard event.timestamp > stack.updatedAt else {
+            // Log conflict: incoming event is older, keeping local state
+            logConflict(
+                entityType: "stack",
+                entityId: payload.id,
+                localTimestamp: stack.updatedAt,
+                remoteTimestamp: event.timestamp,
+                conflictType: "update",
+                context: context
+            )
+            return
+        }
 
         updateStack(stack, from: payload, eventTimestamp: event.timestamp)
     }
@@ -537,5 +548,44 @@ enum ProjectorService {
         reminder.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         reminder.syncState = .synced
         reminder.lastSyncedAt = Date()
+    }
+
+    // MARK: - Conflict Detection
+
+    /// Logs a sync conflict when LWW resolution skips an incoming event
+    private static func logConflict(
+        entityType: String,
+        entityId: String,
+        localTimestamp: Date,
+        remoteTimestamp: Date,
+        conflictType: String,
+        context: ModelContext
+    ) {
+        let conflict = SyncConflict(
+            entityType: entityType,
+            entityId: entityId,
+            localTimestamp: localTimestamp,
+            remoteTimestamp: remoteTimestamp,
+            conflictType: conflictType,
+            resolution: "kept_local",  // LWW kept local because it was newer
+            detectedAt: Date(),
+            isResolved: true  // Auto-resolved by LWW
+        )
+
+        context.insert(conflict)
+
+        // Log for debugging
+        let timeDiff = abs(localTimestamp.timeIntervalSince(remoteTimestamp))
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_conflict",
+            message: "LWW conflict detected",
+            data: [
+                "entity_type": entityType,
+                "entity_id": entityId,
+                "conflict_type": conflictType,
+                "time_diff_seconds": Int(timeDiff),
+                "resolution": "kept_local"
+            ]
+        )
     }
 }
