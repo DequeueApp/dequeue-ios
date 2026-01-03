@@ -47,7 +47,7 @@ protocol NotificationCenterProtocol: Sendable {
     func pendingNotificationRequests() async -> [UNNotificationRequest]
     func getAuthorizationStatus() async -> UNAuthorizationStatus
     func setNotificationCategories(_ categories: Set<UNNotificationCategory>)
-    func setBadgeCount(_ count: Int) async throws
+    func updateBadgeCount(_ count: Int) async throws
 }
 
 /// Extension to make UNUserNotificationCenter conform to our protocol
@@ -56,8 +56,8 @@ extension UNUserNotificationCenter: NotificationCenterProtocol {
         await notificationSettings().authorizationStatus
     }
 
-    func setBadgeCount(_ count: Int) async throws {
-        try await self.setBadgeCount(count)
+    func updateBadgeCount(_ count: Int) async throws {
+        try await setBadgeCount(count)
     }
 }
 
@@ -237,7 +237,7 @@ final class NotificationService: NSObject {
     func updateAppBadge() async {
         do {
             let overdueCount = try fetchOverdueReminderCount()
-            try await notificationCenter.setBadgeCount(overdueCount)
+            try await notificationCenter.updateBadgeCount(overdueCount)
         } catch {
             // Log error but don't throw - best effort badge update
             ErrorReportingService.capture(
@@ -249,7 +249,7 @@ final class NotificationService: NSObject {
 
     /// Clears the app badge
     func clearAppBadge() async {
-        try? await notificationCenter.setBadgeCount(0)
+        try? await notificationCenter.updateBadgeCount(0)
     }
 
     private func fetchOverdueReminderCount() throws -> Int {
