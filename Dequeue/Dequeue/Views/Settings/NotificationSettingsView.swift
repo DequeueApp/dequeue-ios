@@ -11,15 +11,13 @@ import UserNotifications
 
 struct NotificationSettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    // Note: Sound/badge preferences are stored for future use when NotificationService
+    // is updated to respect these settings. Currently they control UI state only.
     @AppStorage("notificationSoundEnabled") private var soundEnabled = true
     @AppStorage("notificationBadgeEnabled") private var badgeEnabled = true
 
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
-    @State private var isLoading = true
-
-    private var notificationService: NotificationService {
-        NotificationService(modelContext: modelContext)
-    }
+    @State private var notificationService: NotificationService?
 
     var body: some View {
         List {
@@ -157,21 +155,26 @@ struct NotificationSettingsView: View {
     // MARK: - Actions
 
     private func loadAuthorizationStatus() async {
-        isLoading = true
-        authorizationStatus = await notificationService.getAuthorizationStatus()
-        isLoading = false
+        // Initialize service lazily to avoid creating multiple instances
+        if notificationService == nil {
+            notificationService = NotificationService(modelContext: modelContext)
+        }
+        guard let service = notificationService else { return }
+        authorizationStatus = await service.getAuthorizationStatus()
     }
 
     private func requestPermission() async {
-        let granted = await notificationService.requestPermission()
+        guard let service = notificationService else { return }
+        let granted = await service.requestPermission()
         authorizationStatus = granted ? .authorized : .denied
     }
 
     private func handleBadgeToggle(enabled: Bool) async {
+        guard let service = notificationService else { return }
         if !enabled {
-            await notificationService.clearAppBadge()
+            await service.clearAppBadge()
         } else {
-            await notificationService.updateAppBadge()
+            await service.updateAppBadge()
         }
     }
 
