@@ -55,7 +55,7 @@ final class SyncStatusViewModel {
         updateTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.updateStatus()
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(3))
             }
         }
     }
