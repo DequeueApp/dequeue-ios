@@ -117,17 +117,10 @@ enum ProjectorService {
 
         if let existing = try findStack(id: payload.id, context: context) {
             // LWW: Only update if this event is newer than current state
-            guard event.timestamp > existing.updatedAt else {
-                logConflict(
-                    entityType: .stack,
-                    entityId: payload.id,
-                    localTimestamp: existing.updatedAt,
-                    remoteTimestamp: event.timestamp,
-                    conflictType: .update,
-                    context: context
-                )
-                return
-            }
+            guard shouldApplyEvent(
+                eventTimestamp: event.timestamp, localTimestamp: existing.updatedAt,
+                entityType: .stack, entityId: payload.id, conflictType: .update, context: context
+            ) else { return }
             updateStack(existing, from: payload, eventTimestamp: event.timestamp)
         } else {
             let stack = Stack(
@@ -155,18 +148,10 @@ enum ProjectorService {
         guard !stack.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > stack.updatedAt else {
-            // Log conflict: incoming event is older, keeping local state
-            logConflict(
-                entityType: .stack,
-                entityId: payload.id,
-                localTimestamp: stack.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .update,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: stack.updatedAt,
+            entityType: .stack, entityId: payload.id, conflictType: .update, context: context
+        ) else { return }
 
         updateStack(stack, from: payload, eventTimestamp: event.timestamp)
     }
@@ -176,17 +161,10 @@ enum ProjectorService {
         guard let stack = try findStack(id: payload.id, context: context) else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > stack.updatedAt else {
-            logConflict(
-                entityType: .stack,
-                entityId: payload.id,
-                localTimestamp: stack.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .delete,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: stack.updatedAt,
+            entityType: .stack, entityId: payload.id, conflictType: .delete, context: context
+        ) else { return }
 
         stack.isDeleted = true
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -199,17 +177,10 @@ enum ProjectorService {
         guard let stack = try findStack(id: payload.id, context: context) else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > stack.updatedAt else {
-            logConflict(
-                entityType: .stack,
-                entityId: payload.id,
-                localTimestamp: stack.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .delete,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: stack.updatedAt,
+            entityType: .stack, entityId: payload.id, conflictType: .delete, context: context
+        ) else { return }
 
         // Discarded drafts are deleted
         stack.isDeleted = true
@@ -226,17 +197,10 @@ enum ProjectorService {
         guard !stack.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > stack.updatedAt else {
-            logConflict(
-                entityType: .stack,
-                entityId: payload.id,
-                localTimestamp: stack.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .statusChange,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: stack.updatedAt,
+            entityType: .stack, entityId: payload.id, conflictType: .statusChange, context: context
+        ) else { return }
 
         stack.status = .completed
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -252,17 +216,10 @@ enum ProjectorService {
         guard !stack.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > stack.updatedAt else {
-            logConflict(
-                entityType: .stack,
-                entityId: payload.id,
-                localTimestamp: stack.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .statusChange,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: stack.updatedAt,
+            entityType: .stack, entityId: payload.id, conflictType: .statusChange, context: context
+        ) else { return }
 
         stack.status = .active
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -278,17 +235,10 @@ enum ProjectorService {
         guard !stack.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > stack.updatedAt else {
-            logConflict(
-                entityType: .stack,
-                entityId: payload.id,
-                localTimestamp: stack.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .statusChange,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: stack.updatedAt,
+            entityType: .stack, entityId: payload.id, conflictType: .statusChange, context: context
+        ) else { return }
 
         stack.status = .archived
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -304,17 +254,10 @@ enum ProjectorService {
         guard !stack.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > stack.updatedAt else {
-            logConflict(
-                entityType: .stack,
-                entityId: payload.id,
-                localTimestamp: stack.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .statusChange,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: stack.updatedAt,
+            entityType: .stack, entityId: payload.id, conflictType: .statusChange, context: context
+        ) else { return }
 
         stack.status = .closed
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -331,17 +274,10 @@ enum ProjectorService {
             guard !stack.isDeleted else { continue }
 
             // LWW: Only apply if this event is newer than current state (per entity)
-            guard event.timestamp > stack.updatedAt else {
-                logConflict(
-                    entityType: .stack,
-                    entityId: id,
-                    localTimestamp: stack.updatedAt,
-                    remoteTimestamp: event.timestamp,
-                    conflictType: .reorder,
-                    context: context
-                )
-                continue
-            }
+            guard shouldApplyEvent(
+                eventTimestamp: event.timestamp, localTimestamp: stack.updatedAt,
+                entityType: .stack, entityId: id, conflictType: .reorder, context: context
+            ) else { continue }
 
             stack.sortOrder = payload.sortOrders[index]
             stack.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -357,17 +293,10 @@ enum ProjectorService {
 
         if let existing = try findTask(id: payload.id, context: context) {
             // LWW: Only update if this event is newer than current state
-            guard event.timestamp > existing.updatedAt else {
-                logConflict(
-                    entityType: .task,
-                    entityId: payload.id,
-                    localTimestamp: existing.updatedAt,
-                    remoteTimestamp: event.timestamp,
-                    conflictType: .update,
-                    context: context
-                )
-                return
-            }
+            guard shouldApplyEvent(
+                eventTimestamp: event.timestamp, localTimestamp: existing.updatedAt,
+                entityType: .task, entityId: payload.id, conflictType: .update, context: context
+            ) else { return }
             updateTask(existing, from: payload, context: context, eventTimestamp: event.timestamp)
         } else {
             let task = QueueTask(
@@ -401,17 +330,10 @@ enum ProjectorService {
         guard !task.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > task.updatedAt else {
-            logConflict(
-                entityType: .task,
-                entityId: payload.id,
-                localTimestamp: task.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .update,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: task.updatedAt,
+            entityType: .task, entityId: payload.id, conflictType: .update, context: context
+        ) else { return }
 
         updateTask(task, from: payload, context: context, eventTimestamp: event.timestamp)
     }
@@ -421,17 +343,10 @@ enum ProjectorService {
         guard let task = try findTask(id: payload.id, context: context) else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > task.updatedAt else {
-            logConflict(
-                entityType: .task,
-                entityId: payload.id,
-                localTimestamp: task.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .delete,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: task.updatedAt,
+            entityType: .task, entityId: payload.id, conflictType: .delete, context: context
+        ) else { return }
 
         task.isDeleted = true
         task.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -447,17 +362,10 @@ enum ProjectorService {
         guard !task.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > task.updatedAt else {
-            logConflict(
-                entityType: .task,
-                entityId: payload.id,
-                localTimestamp: task.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .statusChange,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: task.updatedAt,
+            entityType: .task, entityId: payload.id, conflictType: .statusChange, context: context
+        ) else { return }
 
         task.status = .completed
         task.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -473,17 +381,10 @@ enum ProjectorService {
         guard !task.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > task.updatedAt else {
-            logConflict(
-                entityType: .task,
-                entityId: payload.id,
-                localTimestamp: task.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .statusChange,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: task.updatedAt,
+            entityType: .task, entityId: payload.id, conflictType: .statusChange, context: context
+        ) else { return }
 
         task.status = .pending
         task.sortOrder = 0
@@ -509,17 +410,10 @@ enum ProjectorService {
         guard !task.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > task.updatedAt else {
-            logConflict(
-                entityType: .task,
-                entityId: payload.id,
-                localTimestamp: task.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .statusChange,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: task.updatedAt,
+            entityType: .task, entityId: payload.id, conflictType: .statusChange, context: context
+        ) else { return }
 
         task.status = .closed
         task.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -536,17 +430,10 @@ enum ProjectorService {
             guard !task.isDeleted else { continue }
 
             // LWW: Only apply if this event is newer than current state (per entity)
-            guard event.timestamp > task.updatedAt else {
-                logConflict(
-                    entityType: .task,
-                    entityId: id,
-                    localTimestamp: task.updatedAt,
-                    remoteTimestamp: event.timestamp,
-                    conflictType: .reorder,
-                    context: context
-                )
-                continue
-            }
+            guard shouldApplyEvent(
+                eventTimestamp: event.timestamp, localTimestamp: task.updatedAt,
+                entityType: .task, entityId: id, conflictType: .reorder, context: context
+            ) else { continue }
 
             task.sortOrder = payload.sortOrders[index]
             task.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -562,17 +449,10 @@ enum ProjectorService {
 
         if let existing = try findReminder(id: payload.id, context: context) {
             // LWW: Only update if this event is newer than current state
-            guard event.timestamp > existing.updatedAt else {
-                logConflict(
-                    entityType: .reminder,
-                    entityId: payload.id,
-                    localTimestamp: existing.updatedAt,
-                    remoteTimestamp: event.timestamp,
-                    conflictType: .update,
-                    context: context
-                )
-                return
-            }
+            guard shouldApplyEvent(
+                eventTimestamp: event.timestamp, localTimestamp: existing.updatedAt,
+                entityType: .reminder, entityId: payload.id, conflictType: .update, context: context
+            ) else { return }
             updateReminder(existing, from: payload, eventTimestamp: event.timestamp)
         } else {
             let reminder = Reminder(
@@ -608,17 +488,10 @@ enum ProjectorService {
         guard !reminder.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > reminder.updatedAt else {
-            logConflict(
-                entityType: .reminder,
-                entityId: payload.id,
-                localTimestamp: reminder.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .update,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: reminder.updatedAt,
+            entityType: .reminder, entityId: payload.id, conflictType: .update, context: context
+        ) else { return }
 
         updateReminder(reminder, from: payload, eventTimestamp: event.timestamp)
     }
@@ -628,17 +501,10 @@ enum ProjectorService {
         guard let reminder = try findReminder(id: payload.id, context: context) else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > reminder.updatedAt else {
-            logConflict(
-                entityType: .reminder,
-                entityId: payload.id,
-                localTimestamp: reminder.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .delete,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: reminder.updatedAt,
+            entityType: .reminder, entityId: payload.id, conflictType: .delete, context: context
+        ) else { return }
 
         reminder.isDeleted = true
         reminder.updatedAt = event.timestamp  // LWW: Use event timestamp
@@ -654,17 +520,10 @@ enum ProjectorService {
         guard !reminder.isDeleted else { return }
 
         // LWW: Only apply if this event is newer than current state
-        guard event.timestamp > reminder.updatedAt else {
-            logConflict(
-                entityType: .reminder,
-                entityId: payload.id,
-                localTimestamp: reminder.updatedAt,
-                remoteTimestamp: event.timestamp,
-                conflictType: .statusChange,
-                context: context
-            )
-            return
-        }
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp, localTimestamp: reminder.updatedAt,
+            entityType: .reminder, entityId: payload.id, conflictType: .statusChange, context: context
+        ) else { return }
 
         reminder.status = .snoozed
         reminder.remindAt = payload.remindAt
@@ -740,10 +599,35 @@ enum ProjectorService {
         reminder.lastSyncedAt = Date()
     }
 
-    // MARK: - Conflict Detection
+    // MARK: - LWW Conflict Resolution
 
-    /// Logs a sync conflict when LWW resolution skips an incoming event
-    private static func logConflict(
+    /// Checks if event should be applied using LWW (Last-Write-Wins).
+    /// Returns true if the event is newer and should be applied.
+    /// If older, logs a conflict and returns false.
+    private static func shouldApplyEvent(
+        eventTimestamp: Date,
+        localTimestamp: Date,
+        entityType: SyncConflictEntityType,
+        entityId: String,
+        conflictType: SyncConflictType,
+        context: ModelContext
+    ) -> Bool {
+        guard eventTimestamp > localTimestamp else {
+            recordConflict(
+                entityType: entityType,
+                entityId: entityId,
+                localTimestamp: localTimestamp,
+                remoteTimestamp: eventTimestamp,
+                conflictType: conflictType,
+                context: context
+            )
+            return false
+        }
+        return true
+    }
+
+    /// Records a sync conflict when LWW resolution skips an incoming event
+    private static func recordConflict(
         entityType: SyncConflictEntityType,
         entityId: String,
         localTimestamp: Date,
