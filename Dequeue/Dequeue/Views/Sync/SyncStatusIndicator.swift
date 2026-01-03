@@ -9,6 +9,16 @@ import SwiftUI
 import SwiftData
 
 struct SyncStatusIndicator: View {
+    // MARK: - Constants
+
+    private enum Constants {
+        static let iconFrameSize: CGFloat = 32
+        static let rotationAnimationDuration: TimeInterval = 2.0
+        static let fullRotation = Angle.degrees(360)
+        static let popoverMinWidth: CGFloat = 200
+        static let badgeOffset = CGSize(width: 6, height: -6)
+    }
+
     @Bindable var viewModel: SyncStatusViewModel
     @State private var showDetails = false
 
@@ -22,10 +32,10 @@ struct SyncStatusIndicator: View {
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(iconColor, .primary)
                     .font(.body)
-                    .rotationEffect(viewModel.isSyncing ? .degrees(360) : .degrees(0))
+                    .rotationEffect(viewModel.isSyncing ? Constants.fullRotation : .zero)
                     .animation(
                         viewModel.isSyncing ?
-                            .linear(duration: 2).repeatForever(autoreverses: false) :
+                            .linear(duration: Constants.rotationAnimationDuration).repeatForever(autoreverses: false) :
                             .default,
                         value: viewModel.isSyncing
                     )
@@ -40,16 +50,16 @@ struct SyncStatusIndicator: View {
                         .frame(minWidth: 14, minHeight: 14)
                         .background(badgeColor)
                         .clipShape(Capsule())
-                        .offset(x: 6, y: -6)
+                        .offset(Constants.badgeOffset)
                 }
             }
-            .frame(width: 32, height: 32)
+            .frame(width: Constants.iconFrameSize, height: Constants.iconFrameSize)
         }
         .buttonStyle(.plain)
         .popover(isPresented: $showDetails) {
             detailsView
                 .padding()
-                .frame(minWidth: 200)
+                .frame(minWidth: Constants.popoverMinWidth)
         }
     }
 

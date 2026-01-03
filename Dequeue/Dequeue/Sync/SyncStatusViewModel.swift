@@ -30,7 +30,8 @@ final class SyncStatusViewModel {
 
     private let modelContext: ModelContext
     private var syncManager: SyncManager?
-    private var updateTask: Task<Void, Never>?
+    // nonisolated(unsafe) allows access from deinit for cleanup
+    private nonisolated(unsafe) var updateTask: Task<Void, Never>?
     private var previousPendingCount: Int = 0
 
     init(modelContext: ModelContext) {
