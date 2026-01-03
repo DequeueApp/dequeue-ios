@@ -55,7 +55,8 @@ final class SyncStatusViewModel {
     private func startMonitoring() {
         updateTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.updateStatus()
+                guard let self = self else { break }
+                await self.updateStatus()
                 try? await Task.sleep(for: .seconds(3))
             }
         }
