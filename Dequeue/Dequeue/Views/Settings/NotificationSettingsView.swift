@@ -9,7 +9,7 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 
-struct NotificationSettingsView: View {
+internal struct NotificationSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     // Note: Sound/badge preferences are stored for future use when NotificationService
     // is updated to respect these settings. Currently they control UI state only.
@@ -100,7 +100,9 @@ struct NotificationSettingsView: View {
                 Label("Open Settings", systemImage: "gear")
             }
             .accessibilityIdentifier("openSettingsButton")
-        case .authorized, .provisional, .ephemeral, _:
+        case .authorized, .provisional, .ephemeral:
+            EmptyView()
+        @unknown default:
             EmptyView()
         }
     }
