@@ -7,9 +7,15 @@
 
 import SwiftUI
 
+// MARK: - Constants
+
+private enum AppearanceConstants {
+    static let themeStorageKey = "appTheme"
+}
+
 // MARK: - App Theme Enum
 
-enum AppTheme: String, CaseIterable, Identifiable {
+internal enum AppTheme: String, CaseIterable, Identifiable {
     case system
     case light
     case dark
@@ -43,8 +49,8 @@ enum AppTheme: String, CaseIterable, Identifiable {
 
 // MARK: - Appearance Settings View
 
-struct AppearanceSettingsView: View {
-    @AppStorage("appTheme") private var selectedTheme: String = AppTheme.system.rawValue
+internal struct AppearanceSettingsView: View {
+    @AppStorage(AppearanceConstants.themeStorageKey) private var selectedTheme: String = AppTheme.system.rawValue
 
     private var theme: AppTheme {
         AppTheme(rawValue: selectedTheme) ?? .system
@@ -149,7 +155,7 @@ extension View {
 }
 
 private struct AppThemeModifier: ViewModifier {
-    @AppStorage("appTheme") private var selectedTheme: String = AppTheme.system.rawValue
+    @AppStorage(AppearanceConstants.themeStorageKey) private var selectedTheme: String = AppTheme.system.rawValue
 
     private var colorScheme: ColorScheme? {
         (AppTheme(rawValue: selectedTheme) ?? .system).colorScheme
