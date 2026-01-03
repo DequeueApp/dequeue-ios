@@ -94,6 +94,7 @@ struct DequeueApp: App {
                 .environment(\.authService, authService)
                 .environment(\.clerk, Clerk.shared)
                 .environment(\.syncManager, syncManager)
+                .applyAppTheme()
                 .task {
                     // Configure error reporting first (runs on background thread)
                     await ErrorReportingService.configure()

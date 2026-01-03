@@ -55,8 +55,16 @@ struct SettingsView: View {
                 }
 
                 Section("Preferences") {
-                    Text("Notifications")
-                    Text("Appearance")
+                    NavigationLink {
+                        NotificationSettingsView()
+                    } label: {
+                        Label("Notifications", systemImage: "bell.badge")
+                    }
+                    NavigationLink {
+                        AppearanceSettingsView()
+                    } label: {
+                        Label("Appearance", systemImage: "paintbrush")
+                    }
                 }
 
                 Section("About") {
