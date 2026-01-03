@@ -23,10 +23,7 @@ struct DraftsView: View {
 
     @State private var showDeleteError = false
     @State private var deleteErrorMessage = ""
-
-    private var stackService: StackService {
-        StackService(modelContext: modelContext)
-    }
+    @State private var stackService: StackService?
 
     var body: some View {
         NavigationStack {
@@ -35,6 +32,11 @@ struct DraftsView: View {
                     emptyState
                 } else {
                     draftsList
+                }
+            }
+            .onAppear {
+                if stackService == nil {
+                    stackService = StackService(modelContext: modelContext)
                 }
             }
             .navigationTitle("Drafts")
@@ -68,24 +70,36 @@ struct DraftsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        deleteDraft(draft)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
             }
-            .onDelete(perform: deleteDrafts)
         }
     }
 
-    private func deleteDrafts(at offsets: IndexSet) {
-        for index in offsets {
-            let draft = drafts[index]
-            do {
-                // Use stackService.discardDraft to properly fire stack.discarded event
-                try stackService.discardDraft(draft)
-                logger.info("Draft discarded via swipe: \(draft.id)")
-            } catch {
-                logger.error("Failed to discard draft: \(error.localizedDescription)")
-                // Show error to user - don't silently bypass event emission
-                deleteErrorMessage = "Could not delete draft. Please try again."
-                showDeleteError = true
-            }
+    private func deleteDraft(_ draft: Stack) {
+        guard let service = stackService else {
+            logger.error("StackService not initialized")
+            deleteErrorMessage = "Service not ready. Please try again."
+            showDeleteError = true
+            return
+        }
+
+        do {
+            // Use stackService.discardDraft to properly fire stack.discarded event
+            try service.discardDraft(draft)
+            logger.info("Draft discarded via swipe: \(draft.id)")
+        } catch {
+            logger.error("Failed to discard draft: \(error.localizedDescription)")
+            // Show error to user - don't silently bypass event emission
+            // Note: Using custom swipe action instead of onDelete ensures draft
+            // only disappears from list if deletion succeeds
+            deleteErrorMessage = "Could not delete draft. Please try again."
+            showDeleteError = true
         }
     }
 }

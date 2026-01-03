@@ -10,9 +10,6 @@ import os
 
 private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView")
 
-/// Default title used when user leaves title empty
-private let defaultDraftTitle = "Untitled"
-
 // MARK: - Create Mode Content
 
 extension StackEditorView {
@@ -84,8 +81,8 @@ extension StackEditorView {
         // Use currentStack to handle both new drafts and editing existing drafts
         guard let draft = currentStack, draft.isDraft else { return }
 
-        let currentTitle = title.isEmpty ? defaultDraftTitle : title
-        let currentDescription: String? = stackDescription.isEmpty ? nil : stackDescription
+        let currentTitle = title.orIfEmpty(defaultDraftTitle)
+        let currentDescription = stackDescription.nilIfEmpty
 
         // Only save if there are actual changes
         if draft.title != currentTitle || draft.stackDescription != currentDescription {
@@ -101,7 +98,7 @@ extension StackEditorView {
         do {
             let draft = try stackService.createStack(
                 title: title,
-                description: stackDescription.isEmpty ? nil : stackDescription,
+                description: stackDescription.nilIfEmpty,
                 isDraft: true
             )
             draftStack = draft
@@ -119,7 +116,7 @@ extension StackEditorView {
         do {
             try stackService.updateDraft(
                 draft,
-                title: title.isEmpty ? defaultDraftTitle : title,
+                title: title.orIfEmpty(defaultDraftTitle),
                 description: description
             )
             logger.debug("Auto-updated draft: \(draft.id)")
@@ -157,14 +154,14 @@ extension StackEditorView {
 
             if let existingDraft = draftStack {
                 existingDraft.title = title
-                existingDraft.stackDescription = stackDescription.isEmpty ? nil : stackDescription
+                existingDraft.stackDescription = stackDescription.nilIfEmpty
                 try stackService.publishDraft(existingDraft)
                 stack = existingDraft
                 logger.info("Draft published as stack: \(stack.id)")
             } else {
                 stack = try stackService.createStack(
                     title: title,
-                    description: stackDescription.isEmpty ? nil : stackDescription
+                    description: stackDescription.nilIfEmpty
                 )
                 logger.info("Stack created: \(stack.id)")
             }
