@@ -20,6 +20,7 @@ final class SyncStatusViewModel {
     private let modelContext: ModelContext
     private var syncManager: SyncManager?
     private var updateTask: Task<Void, Never>?
+    private var previousPendingCount: Int = 0
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
@@ -67,10 +68,11 @@ final class SyncStatusViewModel {
             isSyncing = connectionStatus == .connected && pendingEventCount > 0
         }
 
-        // Update last sync time when we transition from having pending events to none
-        if pendingEventCount == 0 && connectionStatus == .connected {
+        // Update last sync time only when transitioning from pending → synced
+        if previousPendingCount > 0 && pendingEventCount == 0 && connectionStatus == .connected {
             lastSyncTime = Date()
         }
+        previousPendingCount = pendingEventCount
     }
 
     /// Format last sync time for display
