@@ -58,7 +58,7 @@ final class MockNotificationCenter: NotificationCenterProtocol, @unchecked Senda
     }
 
     var badgeCount: Int = 0
-    func setBadgeCount(_ count: Int) async throws {
+    func updateBadgeCount(_ count: Int) async throws {
         badgeCount = count
     }
 }
