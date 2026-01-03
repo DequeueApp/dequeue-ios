@@ -119,6 +119,16 @@ final class EventService {
         try recordEvent(type: .taskCompleted, payload: payload, entityId: task.id)
     }
 
+    func recordTaskUncompleted(_ task: QueueTask) throws {
+        let payload = TaskStatusPayload(
+            taskId: task.id,
+            stackId: task.stack?.id ?? "",
+            status: TaskStatus.pending.rawValue,
+            fullState: TaskState.from(task)
+        )
+        try recordEvent(type: .taskUncompleted, payload: payload, entityId: task.id)
+    }
+
     func recordTaskActivated(_ task: QueueTask) throws {
         let payload = TaskStatusPayload(
             taskId: task.id,
