@@ -109,4 +109,37 @@ actor DeviceService {
         let descriptor = FetchDescriptor<Device>(predicate: predicate)
         return try modelContext.fetch(descriptor).first
     }
+
+    // MARK: - Device Activity
+
+    /// Minimum interval between activity updates to avoid excessive events
+    private static let activityUpdateThreshold: TimeInterval = 60  // 1 minute
+
+    /// Updates the current device's lastSeenAt and emits a device.discovered event
+    /// so other devices learn about the activity. Throttled to avoid excessive events.
+    @MainActor
+    func updateDeviceActivity(modelContext: ModelContext) async throws {
+        guard let device = try await getCurrentDevice(modelContext: modelContext) else {
+            logger.warning("Cannot update device activity: device not found")
+            return
+        }
+
+        // Throttle: only update if more than 1 minute has passed
+        let timeSinceLastSeen = Date().timeIntervalSince(device.lastSeenAt)
+        guard timeSinceLastSeen >= Self.activityUpdateThreshold else {
+            logger.debug("Skipping activity update: only \(Int(timeSinceLastSeen))s since last update")
+            return
+        }
+
+        // Update lastSeenAt
+        device.lastSeenAt = Date()
+        device.syncState = .pending
+
+        // Emit device.discovered event so other devices learn about the activity
+        let eventService = EventService(modelContext: modelContext)
+        try eventService.recordDeviceDiscovered(device)
+
+        try modelContext.save()
+        logger.info("Device activity updated: \(device.deviceId)")
+    }
 }

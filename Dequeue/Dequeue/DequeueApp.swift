@@ -134,6 +134,7 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active && authService.isAuthenticated {
                 Task {
+                    await handleAppBecameActive()
                     await notificationService.updateAppBadge()
                 }
             }
@@ -187,6 +188,18 @@ struct RootView: View {
             ErrorReportingService.addBreadcrumb(
                 category: "sync",
                 message: "Sync disconnected"
+            )
+        }
+    }
+
+    private func handleAppBecameActive() async {
+        // Update device activity so other devices see this device as recently active
+        do {
+            try await DeviceService.shared.updateDeviceActivity(modelContext: modelContext)
+        } catch {
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "device_activity_update"]
             )
         }
     }
