@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 /// Minimal splash screen displayed during app launch while auth state loads
 struct SplashView: View {
@@ -20,7 +23,11 @@ struct SplashView: View {
                 .fontWeight(.bold)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #if os(iOS)
         .background(Color(.systemBackground))
+        #else
+        .background(Color(NSColor.windowBackgroundColor))
+        #endif
     }
 }
 

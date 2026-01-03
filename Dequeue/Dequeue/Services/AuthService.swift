@@ -12,8 +12,11 @@ import Clerk
 // MARK: - Auth Service Protocol
 
 protocol AuthServiceProtocol {
+    /// Whether the user is currently authenticated with a valid session
     var isAuthenticated: Bool { get }
+    /// Whether the auth state is still being determined during app launch
     var isLoading: Bool { get }
+    /// The unique identifier of the currently authenticated user, if any
     var currentUserId: String? { get }
 
     func configure() async
