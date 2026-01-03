@@ -503,24 +503,33 @@ struct TaskHistoryView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var events: [Event] = []
+    @State private var isLoading = true
 
     var body: some View {
-        List {
-            if events.isEmpty {
+        Group {
+            if isLoading {
+                ProgressView("Loading history...")
+            } else if events.isEmpty {
                 ContentUnavailableView {
                     Label("No History", systemImage: "clock")
                 } description: {
                     Text("No events recorded for this task")
                 }
             } else {
-                ForEach(events) { event in
-                    EventRowView(event: event)
+                List {
+                    ForEach(events) { event in
+                        EventRowView(event: event)
+                    }
                 }
             }
         }
-        .navigationTitle("Task History")
-        .task {
-            loadEvents()
+        .navigationTitle("Event History")
+        .onAppear {
+            // Use onAppear instead of .task for better macOS compatibility
+            // in nested navigation contexts (e.g., NavigationLink inside a sheet)
+            if events.isEmpty && isLoading {
+                loadEvents()
+            }
         }
     }
 
@@ -538,6 +547,7 @@ struct TaskHistoryView: View {
         } catch {
             ErrorReportingService.capture(error: error, context: ["view": "TaskHistoryView"])
         }
+        isLoading = false
     }
 }
 

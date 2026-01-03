@@ -33,9 +33,15 @@ struct StackHistoryView: View {
                 historyList
             }
         }
-        .navigationTitle("History")
-        .task {
-            await loadHistory()
+        .navigationTitle("Event History")
+        .onAppear {
+            // Use onAppear instead of .task for better macOS compatibility
+            // in nested navigation contexts (e.g., NavigationLink inside a sheet)
+            if events.isEmpty && isLoading {
+                Task {
+                    await loadHistory()
+                }
+            }
         }
         .confirmationDialog(
             "Revert to this version?",
