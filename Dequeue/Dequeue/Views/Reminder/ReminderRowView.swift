@@ -12,6 +12,7 @@ struct ReminderRowView: View {
     let reminder: Reminder
     var parentTitle: String?
     var onTap: (() -> Void)?
+    var onGoToItem: (() -> Void)?
     var onSnooze: (() -> Void)?
     var onDismiss: (() -> Void)?
     var onDelete: (() -> Void)?
@@ -49,6 +50,18 @@ struct ReminderRowView: View {
                 }
                 .tint(.orange)
             }
+            // Go to parent item (Stack or Task)
+            if let onGoToItem {
+                Button {
+                    onGoToItem()
+                } label: {
+                    Label(
+                        reminder.parentType == .task ? "Go to Task" : "Go to Stack",
+                        systemImage: reminder.parentType == .task ? "doc.text" : "square.stack.3d.up"
+                    )
+                }
+                .tint(.blue)
+            }
         }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             if let onSnooze, reminder.status != .snoozed {
@@ -61,6 +74,17 @@ struct ReminderRowView: View {
             }
         }
         .contextMenu {
+            // Go to parent item - primary action
+            if let onGoToItem {
+                Button {
+                    onGoToItem()
+                } label: {
+                    Label(
+                        reminder.parentType == .task ? "Go to Task" : "Go to Stack",
+                        systemImage: reminder.parentType == .task ? "doc.text" : "square.stack.3d.up"
+                    )
+                }
+            }
             if let onSnooze, reminder.status != .snoozed {
                 Button {
                     onSnooze()
@@ -230,6 +254,10 @@ struct ReminderRowView: View {
 
         if onTap != nil {
             hints.append("Double tap to edit")
+        }
+        if onGoToItem != nil {
+            let itemType = reminder.parentType == .task ? "task" : "stack"
+            hints.append("Swipe left to go to \(itemType)")
         }
         if onSnooze != nil && reminder.status != .snoozed {
             hints.append("Swipe right to snooze")
