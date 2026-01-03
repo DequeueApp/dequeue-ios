@@ -475,42 +475,10 @@ actor SyncManager {
         var incompatible = 0
         var hasReminderEvents = false
 
-        // Sort events by timestamp to ensure correct LWW ordering
-        // Events must be processed in chronological order (oldest first) for LWW to work correctly
-
-        // Parse timestamps once before sorting to avoid O(n log n) * 2 parsing operations
-        // This reduces from ~2 * n * log(n) parses to just n parses
-        let eventsWithTimestamps = events.map { event in
-            (event: event, timestamp: (event["ts"] as? String).flatMap(SyncManager.parseISO8601))
-        }
-
-        // Using switch statement to ensure strict weak ordering compliance for all timestamp cases
-        let sortedEventsWithTimestamps = eventsWithTimestamps.sorted { pair1, pair2 in
-            switch (pair1.timestamp, pair2.timestamp) {
-            case let (.some(date1), .some(date2)):
-                // Both timestamps valid - sort chronologically (oldest first)
-                return date1 < date2
-            case (.some, .none):
-                // Only pair1 has valid timestamp - it comes first
-                return true
-            case (.none, .some):
-                // Only pair2 has valid timestamp - it comes first
-                return false
-            case (.none, .none):
-                // Both invalid - treat as equivalent (consistent ordering)
-                return false
-            }
-        }
-
-        // Extract just the events from the sorted pairs
-        let sortedEvents = sortedEventsWithTimestamps.map { $0.event }
-
-        os_log("[Sync] Events sorted by timestamp (oldest first)")
-
         try await MainActor.run {
             let context = ModelContext(modelContainer)
 
-            for eventData in sortedEvents {
+            for eventData in events {
                 guard let id = eventData["id"] as? String,
                       let type = eventData["type"] as? String,
                       let timestamp = eventData["ts"] as? String,

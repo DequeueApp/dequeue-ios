@@ -16,8 +16,6 @@ enum StackServiceError: LocalizedError, Equatable {
     case cannotActivateDeletedStack
     /// Attempted to activate a draft stack (must publish first)
     case cannotActivateDraftStack
-    /// Attempted to update a stack that is not a draft
-    case cannotUpdateNonDraftStack
     /// Constraint violation: multiple stacks marked as active after operation
     case multipleActiveStacksDetected(count: Int)
     /// Operation failed and changes were not saved
@@ -29,8 +27,6 @@ enum StackServiceError: LocalizedError, Equatable {
             return "Cannot activate a deleted stack"
         case .cannotActivateDraftStack:
             return "Cannot activate a draft stack. Publish it first."
-        case .cannotUpdateNonDraftStack:
-            return "Cannot update a stack that is not a draft"
         case .multipleActiveStacksDetected(let count):
             return "Constraint violation: found \(count) active stacks (expected 1)"
         case .operationFailed(let underlying):
@@ -43,8 +39,6 @@ enum StackServiceError: LocalizedError, Equatable {
         case (.cannotActivateDeletedStack, .cannotActivateDeletedStack):
             return true
         case (.cannotActivateDraftStack, .cannotActivateDraftStack):
-            return true
-        case (.cannotUpdateNonDraftStack, .cannotUpdateNonDraftStack):
             return true
         case let (.multipleActiveStacksDetected(lhsCount), .multipleActiveStacksDetected(rhsCount)):
             return lhsCount == rhsCount
@@ -101,12 +95,8 @@ final class StackService {
     }
 
     /// Updates a draft stack and records the update event
-    /// - Throws: `StackServiceError.cannotUpdateNonDraftStack` if the stack is not a draft
     func updateDraft(_ stack: Stack, title: String, description: String?) throws {
-        // Validate that the stack is still a draft to prevent race conditions
-        guard stack.isDraft else {
-            throw StackServiceError.cannotUpdateNonDraftStack
-        }
+        guard stack.isDraft else { return }
 
         stack.title = title
         stack.stackDescription = description
