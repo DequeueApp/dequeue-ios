@@ -83,34 +83,34 @@ struct StackEditorView: View {
 
     /// Lazily initialized and cached stack service
     var stackService: StackService {
-        if _stackService == nil {
-            _stackService = StackService(modelContext: modelContext)
-        }
-        return _stackService!  // Safe: we just ensured it's not nil
+        if let service = _stackService { return service }
+        let service = StackService(modelContext: modelContext)
+        _stackService = service
+        return service
     }
 
     /// Lazily initialized and cached task service
     var taskService: TaskService {
-        if _taskService == nil {
-            _taskService = TaskService(modelContext: modelContext)
-        }
-        return _taskService!  // Safe: we just ensured it's not nil
+        if let service = _taskService { return service }
+        let service = TaskService(modelContext: modelContext)
+        _taskService = service
+        return service
     }
 
     /// Lazily initialized and cached notification service
     var notificationService: NotificationService {
-        if _notificationService == nil {
-            _notificationService = NotificationService(modelContext: modelContext)
-        }
-        return _notificationService!  // Safe: we just ensured it's not nil
+        if let service = _notificationService { return service }
+        let service = NotificationService(modelContext: modelContext)
+        _notificationService = service
+        return service
     }
 
     /// Lazily initialized and cached reminder action handler
     var reminderActionHandler: ReminderActionHandler {
-        if _reminderActionHandler == nil {
-            _reminderActionHandler = ReminderActionHandler(modelContext: modelContext, onError: handleError)
-        }
-        return _reminderActionHandler!  // Safe: we just ensured it's not nil
+        if let handler = _reminderActionHandler { return handler }
+        let handler = ReminderActionHandler(modelContext: modelContext, onError: handleError)
+        _reminderActionHandler = handler
+        return handler
     }
 
     /// True if we're creating a new stack OR editing a draft (both use the simple form UI)
