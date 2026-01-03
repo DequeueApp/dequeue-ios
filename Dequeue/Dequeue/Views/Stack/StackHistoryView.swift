@@ -34,15 +34,23 @@ struct StackHistoryView: View {
             }
         }
         .navigationTitle("Event History")
+        #if os(macOS)
+        // On macOS, use .task(id:) which triggers reliably when the view appears
+        // in NavigationLink destinations inside sheets. onAppear doesn't fire
+        // reliably in this context on macOS.
+        .task(id: stack.id) {
+            await loadHistory()
+        }
+        #else
         .onAppear {
-            // Use onAppear instead of .task for better macOS compatibility
-            // in nested navigation contexts (e.g., NavigationLink inside a sheet)
+            // On iOS, onAppear works reliably in nested navigation contexts
             if events.isEmpty && isLoading {
                 Task {
                     await loadHistory()
                 }
             }
         }
+        #endif
         .confirmationDialog(
             "Revert to this version?",
             isPresented: $showRevertConfirmation,
