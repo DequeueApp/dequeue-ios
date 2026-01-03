@@ -126,28 +126,29 @@ struct NotificationSettingsView: View {
 
     // MARK: - Preferences Section
 
-    @ViewBuilder
     private var preferencesSection: some View {
-        if authorizationStatus == .authorized || authorizationStatus == .provisional {
-            Section {
-                Toggle(isOn: $soundEnabled) {
-                    Label("Sound", systemImage: "speaker.wave.2")
-                }
-                .accessibilityIdentifier("notificationSoundToggle")
-
-                Toggle(isOn: $badgeEnabled) {
-                    Label("Badge", systemImage: "app.badge")
-                }
-                .accessibilityIdentifier("notificationBadgeToggle")
-                .onChange(of: badgeEnabled) { _, newValue in
-                    Task {
-                        await handleBadgeToggle(enabled: newValue)
+        Group {
+            if authorizationStatus == .authorized || authorizationStatus == .provisional {
+                Section {
+                    Toggle(isOn: $soundEnabled) {
+                        Label("Sound", systemImage: "speaker.wave.2")
                     }
+                    .accessibilityIdentifier("notificationSoundToggle")
+
+                    Toggle(isOn: $badgeEnabled) {
+                        Label("Badge", systemImage: "app.badge")
+                    }
+                    .accessibilityIdentifier("notificationBadgeToggle")
+                    .onChange(of: badgeEnabled) { _, newValue in
+                        Task {
+                            await handleBadgeToggle(enabled: newValue)
+                        }
+                    }
+                } header: {
+                    Text("Preferences")
+                } footer: {
+                    Text("Control how notifications appear on your device.")
                 }
-            } header: {
-                Text("Preferences")
-            } footer: {
-                Text("Control how notifications appear on your device.")
             }
         }
     }
