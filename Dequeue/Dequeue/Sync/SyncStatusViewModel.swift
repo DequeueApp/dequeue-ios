@@ -56,7 +56,11 @@ final class SyncStatusViewModel {
             let pendingEvents = try eventService.fetchPendingEvents()
             pendingEventCount = pendingEvents.count
         } catch {
-            // Silently fail - don't crash the app
+            // Log error but don't crash - status indicator is non-critical
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "sync_status_fetch_pending"]
+            )
             pendingEventCount = 0
         }
 
