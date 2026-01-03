@@ -46,6 +46,8 @@ enum ProjectorService {
             try applyTaskDeleted(event: event, context: context)
         case .taskCompleted:
             try applyTaskCompleted(event: event, context: context)
+        case .taskUncompleted:
+            try applyTaskUncompleted(event: event, context: context)
         case .taskActivated:
             try applyTaskActivated(event: event, context: context)
         case .taskClosed:
@@ -368,6 +370,22 @@ enum ProjectorService {
         ) else { return }
 
         task.status = .completed
+        task.updatedAt = event.timestamp  // LWW: Use event timestamp
+        task.syncState = .synced
+        task.lastSyncedAt = Date()
+    }
+
+    private static func applyTaskUncompleted(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(EntityStatusPayload.self)
+        guard let task = try findTask(id: payload.id, context: context) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !task.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard event.timestamp > task.updatedAt else { return }
+
+        task.status = .pending
         task.updatedAt = event.timestamp  // LWW: Use event timestamp
         task.syncState = .synced
         task.lastSyncedAt = Date()

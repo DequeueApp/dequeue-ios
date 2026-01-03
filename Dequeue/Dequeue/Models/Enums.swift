@@ -56,6 +56,7 @@ enum EventType: String, Codable, CaseIterable {
     case taskDeleted = "task.deleted"
     case taskActivated = "task.activated"
     case taskCompleted = "task.completed"
+    case taskUncompleted = "task.uncompleted"
     case taskClosed = "task.closed"
     case taskReordered = "task.reordered"
 

@@ -70,7 +70,48 @@ struct StackEditorView: View {
     @State var showDeleteReminderConfirmation = false
     @State var reminderToDelete: Reminder?
 
+    // Initialization guard to prevent duplicate onAppear calls
+    @State private var hasInitialized = false
+
+    // Services (lazily initialized on first access, then cached)
+    @State private var _stackService: StackService?
+    @State private var _taskService: TaskService?
+    @State private var _notificationService: NotificationService?
+    @State private var _reminderActionHandler: ReminderActionHandler?
+
     // MARK: - Computed Properties
+
+    /// Lazily initialized and cached stack service
+    var stackService: StackService {
+        if let service = _stackService { return service }
+        let service = StackService(modelContext: modelContext)
+        _stackService = service
+        return service
+    }
+
+    /// Lazily initialized and cached task service
+    var taskService: TaskService {
+        if let service = _taskService { return service }
+        let service = TaskService(modelContext: modelContext)
+        _taskService = service
+        return service
+    }
+
+    /// Lazily initialized and cached notification service
+    var notificationService: NotificationService {
+        if let service = _notificationService { return service }
+        let service = NotificationService(modelContext: modelContext)
+        _notificationService = service
+        return service
+    }
+
+    /// Lazily initialized and cached reminder action handler
+    var reminderActionHandler: ReminderActionHandler {
+        if let handler = _reminderActionHandler { return handler }
+        let handler = ReminderActionHandler(modelContext: modelContext, onError: handleError)
+        _reminderActionHandler = handler
+        return handler
+    }
 
     /// True if we're creating a new stack OR editing a draft (both use the simple form UI)
     var isCreateMode: Bool {
@@ -102,24 +143,6 @@ struct StackEditorView: View {
         }
     }
 
-    // MARK: - Services
-
-    var stackService: StackService {
-        StackService(modelContext: modelContext)
-    }
-
-    var taskService: TaskService {
-        TaskService(modelContext: modelContext)
-    }
-
-    var notificationService: NotificationService {
-        NotificationService(modelContext: modelContext)
-    }
-
-    var reminderActionHandler: ReminderActionHandler {
-        ReminderActionHandler(modelContext: modelContext, onError: handleError)
-    }
-
     // MARK: - Body
 
     var body: some View {
@@ -130,6 +153,9 @@ struct StackEditorView: View {
                 } else {
                     editModeContent
                 }
+            }
+            .onAppear {
+                initializeStateFromMode()
             }
             #if os(macOS)
             .frame(minWidth: 500, minHeight: 400)
@@ -209,6 +235,21 @@ struct StackEditorView: View {
             } message: {
                 Text("Are you sure you want to delete this reminder?")
             }
+        }
+    }
+
+    /// Initialize state variables when view appears (services are lazily initialized)
+    private func initializeStateFromMode() {
+        // Guard against duplicate onAppear calls (SwiftUI can call onAppear multiple times)
+        guard !hasInitialized else { return }
+        hasInitialized = true
+
+        if case .edit(let stack) = mode, stack.isDraft {
+            // Editing an existing draft - initialize state from the stack
+            title = stack.title
+            stackDescription = stack.stackDescription ?? ""
+            // Set draftStack so the view knows we have an existing draft
+            draftStack = stack
         }
     }
 
