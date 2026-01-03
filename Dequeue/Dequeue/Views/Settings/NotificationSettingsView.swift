@@ -100,9 +100,7 @@ struct NotificationSettingsView: View {
                 Label("Open Settings", systemImage: "gear")
             }
             .accessibilityIdentifier("openSettingsButton")
-        case .authorized, .provisional, .ephemeral:
-            EmptyView()
-        @unknown default:
+        case .authorized, .provisional, .ephemeral, _:
             EmptyView()
         }
     }
