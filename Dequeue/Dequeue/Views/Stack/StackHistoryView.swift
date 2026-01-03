@@ -136,6 +136,7 @@ struct StackHistoryRow: View {
         case "task.created": return "Task Added"
         case "task.updated": return "Task Updated"
         case "task.completed": return "Task Completed"
+        case "task.activated": return "Task Activated"
         case "task.deleted": return "Task Deleted"
         case "task.reordered": return "Tasks Reordered"
         // Reminder events
@@ -162,6 +163,7 @@ struct StackHistoryRow: View {
         case "task.created": return "checklist"
         case "task.updated": return "pencil"
         case "task.completed": return "checkmark.square.fill"
+        case "task.activated": return "star.fill"
         case "task.deleted": return "trash"
         case "task.reordered": return "arrow.up.arrow.down"
         // Reminder events
@@ -188,6 +190,7 @@ struct StackHistoryRow: View {
         case "task.created": return .teal
         case "task.updated": return .blue
         case "task.completed": return .purple
+        case "task.activated": return .cyan
         case "task.deleted": return .red
         case "task.reordered": return .secondary
         // Reminder events
