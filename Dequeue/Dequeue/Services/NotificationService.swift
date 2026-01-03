@@ -17,7 +17,9 @@ enum NotificationConstants {
 
     enum Action {
         static let complete = "COMPLETE_ACTION"
-        static let snooze = "SNOOZE_ACTION"
+        static let snooze5Min = "SNOOZE_5_MIN_ACTION"
+        static let snooze15Min = "SNOOZE_15_MIN_ACTION"
+        static let snooze1Hour = "SNOOZE_1_HOUR_ACTION"
     }
 
     enum UserInfoKey {
@@ -26,8 +28,12 @@ enum NotificationConstants {
         static let parentId = "parentId"
     }
 
-    /// Default snooze duration (15 minutes)
-    static let defaultSnoozeDuration: TimeInterval = 15 * 60
+    /// Snooze durations in seconds
+    enum SnoozeDuration {
+        static let fiveMinutes: TimeInterval = 5 * 60
+        static let fifteenMinutes: TimeInterval = 15 * 60
+        static let oneHour: TimeInterval = 60 * 60
+    }
 }
 
 // MARK: - Notification Center Protocol
@@ -110,15 +116,27 @@ final class NotificationService: NSObject {
             options: [.authenticationRequired]
         )
 
-        let snoozeAction = UNNotificationAction(
-            identifier: NotificationConstants.Action.snooze,
+        let snooze5MinAction = UNNotificationAction(
+            identifier: NotificationConstants.Action.snooze5Min,
+            title: "Snooze 5 min",
+            options: []
+        )
+
+        let snooze15MinAction = UNNotificationAction(
+            identifier: NotificationConstants.Action.snooze15Min,
             title: "Snooze 15 min",
+            options: []
+        )
+
+        let snooze1HourAction = UNNotificationAction(
+            identifier: NotificationConstants.Action.snooze1Hour,
+            title: "Snooze 1 hour",
             options: []
         )
 
         let reminderCategory = UNNotificationCategory(
             identifier: NotificationConstants.categoryIdentifier,
-            actions: [completeAction, snoozeAction],
+            actions: [completeAction, snooze5MinAction, snooze15MinAction, snooze1HourAction],
             intentIdentifiers: [],
             options: []
         )
@@ -287,8 +305,12 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         switch actionIdentifier {
         case NotificationConstants.Action.complete:
             await handleCompleteAction(userInfo: userInfo)
-        case NotificationConstants.Action.snooze:
-            await handleSnoozeAction(userInfo: userInfo)
+        case NotificationConstants.Action.snooze5Min:
+            await handleSnoozeAction(userInfo: userInfo, duration: NotificationConstants.SnoozeDuration.fiveMinutes)
+        case NotificationConstants.Action.snooze15Min:
+            await handleSnoozeAction(userInfo: userInfo, duration: NotificationConstants.SnoozeDuration.fifteenMinutes)
+        case NotificationConstants.Action.snooze1Hour:
+            await handleSnoozeAction(userInfo: userInfo, duration: NotificationConstants.SnoozeDuration.oneHour)
         case UNNotificationDefaultActionIdentifier:
             // User tapped the notification - can be used for navigation
             break
@@ -325,7 +347,10 @@ extension NotificationService: UNUserNotificationCenterDelegate {
     }
 
     /// Handles the "Snooze" action from a notification
-    nonisolated private func handleSnoozeAction(userInfo: [AnyHashable: Any]) async {
+    /// - Parameters:
+    ///   - userInfo: The notification's user info dictionary
+    ///   - duration: The snooze duration in seconds
+    nonisolated private func handleSnoozeAction(userInfo: [AnyHashable: Any], duration: TimeInterval) async {
         guard let reminderId = userInfo[NotificationConstants.UserInfoKey.reminderId] as? String else {
             return
         }
@@ -334,7 +359,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             do {
                 let reminderService = ReminderService(modelContext: modelContext)
                 if let reminder = try fetchReminder(id: reminderId) {
-                    let snoozeUntil = Date().addingTimeInterval(NotificationConstants.defaultSnoozeDuration)
+                    let snoozeUntil = Date().addingTimeInterval(duration)
                     try reminderService.snoozeReminder(reminder, until: snoozeUntil)
                     // Reschedule notification for snoozed time
                     Task {
@@ -344,7 +369,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             } catch {
                 ErrorReportingService.capture(
                     error: error,
-                    context: ["action": "notification_snooze_reminder"]
+                    context: ["action": "notification_snooze_reminder", "duration": "\(duration)"]
                 )
             }
         }
