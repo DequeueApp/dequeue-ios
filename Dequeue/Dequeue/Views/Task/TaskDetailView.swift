@@ -66,7 +66,7 @@ struct TaskDetailView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 if task.status != .completed {
-                    Button("Done") {
+                    Button("Complete") {
                         completeTask()
                     }
                     .fontWeight(.semibold)
@@ -357,6 +357,14 @@ struct TaskDetailView: View {
 
     private var actionsSection: some View {
         Section {
+            if task.status == .pending && !isActiveTask {
+                Button {
+                    setTaskActive()
+                } label: {
+                    Label("Set as Active Task", systemImage: "star.fill")
+                }
+            }
+
             if task.status == .blocked {
                 Button {
                     unblockTask()
@@ -446,6 +454,14 @@ struct TaskDetailView: View {
     private func unblockTask() {
         do {
             try taskService.unblock(task)
+        } catch {
+            showError(error)
+        }
+    }
+
+    private func setTaskActive() {
+        do {
+            try taskService.activateTask(task)
         } catch {
             showError(error)
         }
