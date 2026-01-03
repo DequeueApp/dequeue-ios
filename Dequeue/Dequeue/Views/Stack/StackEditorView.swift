@@ -11,7 +11,7 @@ import os
 
 private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView")
 
-struct StackEditorView: View {
+internal struct StackEditorView: View {
     enum Mode: Equatable {
         case create
         case edit(Stack)
