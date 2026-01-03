@@ -10,6 +10,7 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.syncManager) private var syncManager
     @Query private var stacks: [Stack]
     @Query private var allStacks: [Stack]
     @Query private var tasks: [QueueTask]
@@ -136,6 +137,28 @@ struct HomeView: View {
             .onDelete(perform: deleteStacks)
         }
         .listStyle(.plain)
+        .refreshable {
+            await performSync()
+        }
+    }
+
+    // MARK: - Sync
+
+    /// Performs a manual sync: pushes local changes then pulls from server
+    private func performSync() async {
+        guard let syncManager = syncManager else { return }
+
+        do {
+            // Push local changes first
+            try await syncManager.manualPush()
+            // Then pull from server
+            try await syncManager.manualPull()
+        } catch {
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "pull_to_refresh"]
+            )
+        }
     }
 
     // MARK: - Actions
