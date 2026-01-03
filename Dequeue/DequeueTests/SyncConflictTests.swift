@@ -115,9 +115,9 @@ struct SyncConflictTests {
         try context.save()
 
         // Filter by entity type
-        let entityType = SyncConflictEntityType.stack
+        let entityTypeRaw = SyncConflictEntityType.stack.rawValue
         let predicate = #Predicate<SyncConflict> { conflict in
-            conflict.entityType == entityType
+            conflict.entityTypeRaw == entityTypeRaw
         }
         let descriptor = FetchDescriptor<SyncConflict>(predicate: predicate)
         let stackConflicts = try context.fetch(descriptor)

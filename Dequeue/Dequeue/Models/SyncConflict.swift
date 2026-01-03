@@ -38,14 +38,14 @@ final class SyncConflict {
     // MARK: - Properties
 
     private(set) var id: String
-    private var entityTypeRaw: String
+    internal var entityTypeRaw: String
     private(set) var entityId: String
     private(set) var localTimestamp: Date
     private(set) var remoteTimestamp: Date
-    private var conflictTypeRaw: String
+    internal var conflictTypeRaw: String
     private(set) var localState: Data?
     private(set) var remoteState: Data?
-    private var resolutionRaw: String
+    internal var resolutionRaw: String
     private(set) var detectedAt: Date
     var isResolved: Bool
 
