@@ -276,6 +276,113 @@ struct ReminderServiceTests {
         #expect(reminder.syncState == .pending)
     }
 
+    // MARK: - Dismiss Reminder Tests
+
+    @Test("dismissReminder sets status to fired")
+    @MainActor
+    func dismissReminderSetsStatus() throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        try context.save()
+
+        let reminderService = ReminderService(modelContext: context)
+        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3600)) // overdue
+
+        try reminderService.dismissReminder(reminder)
+
+        #expect(reminder.status == .fired)
+    }
+
+    @Test("dismissReminder sets syncState to pending")
+    @MainActor
+    func dismissReminderSetsSyncState() throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        try context.save()
+
+        let reminderService = ReminderService(modelContext: context)
+        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3600))
+        reminder.syncState = .synced
+        try context.save()
+
+        try reminderService.dismissReminder(reminder)
+
+        #expect(reminder.syncState == .pending)
+    }
+
+    @Test("dismissReminder updates updatedAt timestamp")
+    @MainActor
+    func dismissReminderUpdatesTimestamp() throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        try context.save()
+
+        let reminderService = ReminderService(modelContext: context)
+        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3600))
+        let originalUpdatedAt = reminder.updatedAt
+
+        try reminderService.dismissReminder(reminder)
+
+        #expect(reminder.updatedAt >= originalUpdatedAt)
+    }
+
+    @Test("dismissReminder removes reminder from overdue list")
+    @MainActor
+    func dismissReminderRemovesFromOverdue() throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        try context.save()
+
+        // Create an overdue reminder directly
+        let overdueReminder = Reminder(
+            parentId: stack.id,
+            parentType: .stack,
+            remindAt: Date().addingTimeInterval(-3600)
+        )
+        context.insert(overdueReminder)
+        try context.save()
+
+        let reminderService = ReminderService(modelContext: context)
+
+        // Verify it's in overdue list before dismissing
+        let overdueBefore = try reminderService.getOverdueReminders()
+        #expect(overdueBefore.count == 1)
+
+        try reminderService.dismissReminder(overdueReminder)
+
+        // Verify it's removed from overdue list after dismissing
+        let overdueAfter = try reminderService.getOverdueReminders()
+        #expect(overdueAfter.isEmpty)
+    }
+
+    @Test("dismissReminder records reminderUpdated event")
+    @MainActor
+    func dismissReminderRecordsEvent() throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        try context.save()
+
+        let reminderService = ReminderService(modelContext: context)
+        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3600))
+        try reminderService.dismissReminder(reminder)
+
+        let eventService = EventService(modelContext: context)
+        let events = try eventService.fetchHistory(for: reminder.id)
+
+        // dismissReminder records a reminderUpdated event
+        #expect(events.filter { $0.eventType == .reminderUpdated }.count >= 1)
+    }
+
     // MARK: - Delete Reminder Tests
 
     @Test("deleteReminder sets isDeleted to true")
