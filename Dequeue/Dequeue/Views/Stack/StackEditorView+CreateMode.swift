@@ -10,6 +10,9 @@ import os
 
 private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView")
 
+/// Default title used when user leaves title empty
+private let defaultDraftTitle = "Untitled"
+
 // MARK: - Create Mode Content
 
 extension StackEditorView {
@@ -32,6 +35,12 @@ extension StackEditorView {
                     .onSubmit {
                         // Save draft on submit
                         saveDraftIfNeeded()
+                    }
+                    .onChange(of: stackDescription) { _, newValue in
+                        // Create draft if user types description first (before title)
+                        if draftStack == nil && !newValue.isEmpty && !isCreatingDraft {
+                            createDraft(title: defaultDraftTitle)
+                        }
                     }
             }
 
@@ -75,12 +84,12 @@ extension StackEditorView {
         // Use currentStack to handle both new drafts and editing existing drafts
         guard let draft = currentStack, draft.isDraft else { return }
 
-        let currentTitle = title.isEmpty ? "Untitled" : title
-        let currentDescription = stackDescription.isEmpty ? nil : stackDescription
+        let currentTitle = title.isEmpty ? defaultDraftTitle : title
+        let currentDescription: String? = stackDescription.isEmpty ? nil : stackDescription
 
         // Only save if there are actual changes
         if draft.title != currentTitle || draft.stackDescription != currentDescription {
-            updateDraft(draft, title: currentTitle, description: stackDescription)
+            updateDraft(draft, title: currentTitle, description: currentDescription)
         }
     }
 
@@ -106,16 +115,19 @@ extension StackEditorView {
         isCreatingDraft = false
     }
 
-    func updateDraft(_ draft: Stack, title: String, description: String) {
+    func updateDraft(_ draft: Stack, title: String, description: String?) {
         do {
             try stackService.updateDraft(
                 draft,
-                title: title.isEmpty ? "Untitled" : title,
-                description: description.isEmpty ? nil : description
+                title: title.isEmpty ? defaultDraftTitle : title,
+                description: description
             )
             logger.debug("Auto-updated draft: \(draft.id)")
         } catch {
             logger.error("Failed to update draft: \(error.localizedDescription)")
+            // Show error to user - draft updates failing means potential data loss
+            errorMessage = "Failed to save changes. Please try again."
+            showError = true
         }
     }
 
