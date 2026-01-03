@@ -8,50 +8,98 @@
 import Foundation
 import SwiftData
 
+// MARK: - Type-Safe Enums
+
+/// Types of entities that can have sync conflicts
+enum SyncConflictEntityType: String, Codable {
+    case stack
+    case task
+    case reminder
+}
+
+/// Types of operations that can cause conflicts
+enum SyncConflictType: String, Codable {
+    case update
+    case delete
+    case statusChange = "status_change"
+    case reorder
+}
+
+/// How the conflict was resolved
+enum SyncConflictResolution: String, Codable {
+    case keptLocal = "kept_local"
+    case keptRemote = "kept_remote"
+}
+
+// MARK: - SyncConflict Model
+
 @Model
 final class SyncConflict {
-    var id: String
-    var entityType: String  // "stack", "task", "reminder"
-    var entityId: String
-    var localTimestamp: Date
-    var remoteTimestamp: Date
-    var conflictType: String  // "update", "delete", "status_change"
-    var localState: Data?  // JSON snapshot of local state
-    var remoteState: Data?  // JSON snapshot of remote state
-    var resolution: String  // "kept_local" or "kept_remote"
-    var detectedAt: Date
+    // MARK: - Properties
+
+    private(set) var id: String
+    private var entityTypeRaw: String
+    private(set) var entityId: String
+    private(set) var localTimestamp: Date
+    private(set) var remoteTimestamp: Date
+    private var conflictTypeRaw: String
+    private(set) var localState: Data?
+    private(set) var remoteState: Data?
+    private var resolutionRaw: String
+    private(set) var detectedAt: Date
     var isResolved: Bool
+
+    // MARK: - Type-Safe Accessors
+
+    var entityType: SyncConflictEntityType {
+        get { SyncConflictEntityType(rawValue: entityTypeRaw) ?? .stack }
+        set { entityTypeRaw = newValue.rawValue }
+    }
+
+    var conflictType: SyncConflictType {
+        get { SyncConflictType(rawValue: conflictTypeRaw) ?? .update }
+        set { conflictTypeRaw = newValue.rawValue }
+    }
+
+    var resolution: SyncConflictResolution {
+        get { SyncConflictResolution(rawValue: resolutionRaw) ?? .keptLocal }
+        set { resolutionRaw = newValue.rawValue }
+    }
+
+    // MARK: - Initialization
 
     init(
         id: String = UUID().uuidString,
-        entityType: String,
+        entityType: SyncConflictEntityType,
         entityId: String,
         localTimestamp: Date,
         remoteTimestamp: Date,
-        conflictType: String,
+        conflictType: SyncConflictType,
         localState: Data? = nil,
         remoteState: Data? = nil,
-        resolution: String,
+        resolution: SyncConflictResolution,
         detectedAt: Date = Date(),
         isResolved: Bool = false
     ) {
         self.id = id
-        self.entityType = entityType
+        self.entityTypeRaw = entityType.rawValue
         self.entityId = entityId
         self.localTimestamp = localTimestamp
         self.remoteTimestamp = remoteTimestamp
-        self.conflictType = conflictType
+        self.conflictTypeRaw = conflictType.rawValue
         self.localState = localState
         self.remoteState = remoteState
-        self.resolution = resolution
+        self.resolutionRaw = resolution.rawValue
         self.detectedAt = detectedAt
         self.isResolved = isResolved
     }
 
+    // MARK: - Computed Properties
+
     /// Returns a human-readable description of the conflict
     var conflictDescription: String {
         let timeDiff = abs(localTimestamp.timeIntervalSince(remoteTimestamp))
-        let direction = resolution == "kept_local" ? "kept local changes" : "applied remote changes"
-        return "\(entityType.capitalized) conflict: \(direction) (\(Int(timeDiff))s apart)"
+        let direction = resolution == .keptLocal ? "kept local changes" : "applied remote changes"
+        return "\(entityType.rawValue.capitalized) conflict: \(direction) (\(Int(timeDiff))s apart)"
     }
 }
