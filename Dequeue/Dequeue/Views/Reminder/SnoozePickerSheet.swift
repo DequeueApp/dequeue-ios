@@ -65,7 +65,7 @@ struct SnoozePickerSheet: View {
             }
         }
         #if os(iOS)
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         #endif
     }
 }
