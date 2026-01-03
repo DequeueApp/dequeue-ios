@@ -12,6 +12,17 @@ import Observation
 @MainActor
 @Observable
 final class SyncStatusViewModel {
+    // MARK: - Static
+
+    private static let dateTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    // MARK: - Properties
+
     private(set) var pendingEventCount: Int = 0
     private(set) var isSyncing: Bool = false
     private(set) var lastSyncTime: Date?
@@ -97,10 +108,7 @@ final class SyncStatusViewModel {
             let hours = Int(interval / 3_600)
             return "\(hours)h ago"
         } else {
-            let formatter = DateFormatter()
-            formatter.dateStyle = .short
-            formatter.timeStyle = .short
-            return formatter.string(from: lastSyncTime)
+            return Self.dateTimeFormatter.string(from: lastSyncTime)
         }
     }
 
