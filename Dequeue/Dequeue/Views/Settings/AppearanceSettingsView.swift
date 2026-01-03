@@ -140,7 +140,11 @@ internal struct AppearanceSettingsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
+        #if os(iOS)
         .background(Color(.secondarySystemGroupedBackground))
+        #else
+        .background(Color(.windowBackgroundColor).opacity(0.5))
+        #endif
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
