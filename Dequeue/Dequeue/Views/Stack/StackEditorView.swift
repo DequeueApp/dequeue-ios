@@ -237,7 +237,7 @@ struct StackEditorView: View {
             }
             if !isReadOnly {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { showCompleteConfirmation = true }
+                    Button("Complete") { showCompleteConfirmation = true }
                         .fontWeight(.semibold)
                 }
             }
