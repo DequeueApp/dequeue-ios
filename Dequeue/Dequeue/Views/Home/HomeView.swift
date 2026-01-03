@@ -10,10 +10,13 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.syncManager) private var syncManager
     @Query private var stacks: [Stack]
     @Query private var allStacks: [Stack]
     @Query private var tasks: [QueueTask]
     @Query private var reminders: [Reminder]
+
+    @State private var syncStatusViewModel: SyncStatusViewModel?
 
     init() {
         // Filter for active stacks only (exclude completed, closed, and archived)
@@ -72,6 +75,12 @@ struct HomeView: View {
             .navigationTitle("Dequeue")
             .toolbar {
                 ToolbarItem(placement: .automatic) {
+                    if let viewModel = syncStatusViewModel {
+                        SyncStatusIndicator(viewModel: viewModel)
+                    }
+                }
+
+                ToolbarItem(placement: .automatic) {
                     Button {
                         showReminders = true
                     } label: {
@@ -94,6 +103,15 @@ struct HomeView: View {
                             }
                         }
                         .frame(width: 32, height: 32)
+                    }
+                }
+            }
+            .task {
+                // Initialize sync status view model
+                if syncStatusViewModel == nil {
+                    syncStatusViewModel = SyncStatusViewModel(modelContext: modelContext)
+                    if let syncManager = syncManager {
+                        syncStatusViewModel?.setSyncManager(syncManager)
                     }
                 }
             }
