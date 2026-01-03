@@ -131,6 +131,9 @@ struct StackEditorView: View {
                     editModeContent
                 }
             }
+            #if os(macOS)
+            .frame(minWidth: 500, minHeight: 400)
+            #endif
             .navigationTitle(navigationTitle)
             #if os(iOS)
             .navigationBarTitleDisplayMode(isCreateMode ? .inline : .large)
