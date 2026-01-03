@@ -477,12 +477,18 @@ actor SyncManager {
 
         // Sort events by timestamp to ensure correct LWW ordering
         // Events must be processed in chronological order (oldest first) for LWW to work correctly
+        // Note: Swift's sort requires a strict weak ordering. We handle unparseable timestamps
+        // by placing them at the end (they'll be logged as errors during processing)
         let sortedEvents = events.sorted { event1, event2 in
             guard let ts1 = event1["ts"] as? String,
-                  let ts2 = event2["ts"] as? String,
-                  let date1 = SyncManager.parseISO8601(ts1),
+                  let date1 = SyncManager.parseISO8601(ts1) else {
+                // event1 has no valid timestamp - place it after event2
+                return false
+            }
+            guard let ts2 = event2["ts"] as? String,
                   let date2 = SyncManager.parseISO8601(ts2) else {
-                return false  // Keep original order if timestamps can't be parsed
+                // event2 has no valid timestamp - place event1 before it
+                return true
             }
             return date1 < date2  // Oldest first for correct LWW
         }

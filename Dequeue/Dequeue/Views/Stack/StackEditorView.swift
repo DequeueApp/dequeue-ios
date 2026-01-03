@@ -70,6 +70,9 @@ struct StackEditorView: View {
     @State var showDeleteReminderConfirmation = false
     @State var reminderToDelete: Reminder?
 
+    // Initialization guard to prevent duplicate onAppear calls
+    @State private var hasInitialized = false
+
     // MARK: - Computed Properties
 
     /// True if we're creating a new stack OR editing a draft (both use the simple form UI)
@@ -217,18 +220,16 @@ struct StackEditorView: View {
 
     /// Initialize state variables when editing an existing draft
     private func initializeStateFromMode() {
+        // Guard against duplicate onAppear calls (SwiftUI can call onAppear multiple times)
+        guard !hasInitialized else { return }
+        hasInitialized = true
+
         if case .edit(let stack) = mode, stack.isDraft {
             // Editing an existing draft - initialize state from the stack
-            if title.isEmpty {
-                title = stack.title
-            }
-            if stackDescription.isEmpty {
-                stackDescription = stack.stackDescription ?? ""
-            }
+            title = stack.title
+            stackDescription = stack.stackDescription ?? ""
             // Set draftStack so the view knows we have an existing draft
-            if draftStack == nil {
-                draftStack = stack
-            }
+            draftStack = stack
         }
     }
 

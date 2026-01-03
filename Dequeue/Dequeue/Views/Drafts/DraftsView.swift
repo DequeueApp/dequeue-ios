@@ -21,6 +21,9 @@ struct DraftsView: View {
         order: .reverse
     ) private var drafts: [Stack]
 
+    @State private var showDeleteError = false
+    @State private var deleteErrorMessage = ""
+
     private var stackService: StackService {
         StackService(modelContext: modelContext)
     }
@@ -35,6 +38,11 @@ struct DraftsView: View {
                 }
             }
             .navigationTitle("Drafts")
+            .alert("Delete Failed", isPresented: $showDeleteError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(deleteErrorMessage)
+            }
         }
     }
 
@@ -74,8 +82,9 @@ struct DraftsView: View {
                 logger.info("Draft discarded via swipe: \(draft.id)")
             } catch {
                 logger.error("Failed to discard draft: \(error.localizedDescription)")
-                // Fallback: at least mark as deleted locally
-                draft.isDeleted = true
+                // Show error to user - don't silently bypass event emission
+                deleteErrorMessage = "Could not delete draft. Please try again."
+                showDeleteError = true
             }
         }
     }

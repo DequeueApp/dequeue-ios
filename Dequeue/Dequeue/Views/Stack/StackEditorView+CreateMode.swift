@@ -7,7 +7,6 @@
 
 import SwiftUI
 import os
-import Combine
 
 private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView")
 
