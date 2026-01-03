@@ -14,6 +14,8 @@ struct StackHistoryView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var events: [Event] = []
     @State private var isLoading = true
+    @State private var loadError: Error?
+    @State private var showLoadError = false
     @State private var eventToRevert: Event?
     @State private var showRevertConfirmation = false
     @State private var revertError: Error?
@@ -34,14 +36,11 @@ struct StackHistoryView: View {
             }
         }
         .navigationTitle("Event History")
-        .onAppear {
-            // Use onAppear instead of .task for better macOS compatibility
-            // in nested navigation contexts (e.g., NavigationLink inside a sheet)
-            if events.isEmpty && isLoading {
-                Task {
-                    await loadHistory()
-                }
-            }
+        // Use .task(id:) with updatedAt to:
+        // 1. Load reliably on both iOS and macOS (onAppear is unreliable on macOS in sheets)
+        // 2. Automatically refresh when the stack is modified elsewhere
+        .task(id: stack.updatedAt) {
+            await loadHistory()
         }
         .confirmationDialog(
             "Revert to this version?",
@@ -68,6 +67,18 @@ struct StackHistoryView: View {
                 Text(error.localizedDescription)
             }
         }
+        .alert("Failed to Load History", isPresented: $showLoadError) {
+            Button("Retry") {
+                Task {
+                    await loadHistory()
+                }
+            }
+            Button("OK", role: .cancel) { }
+        } message: {
+            if let error = loadError {
+                Text(error.localizedDescription)
+            }
+        }
     }
 
     private var historyList: some View {
@@ -84,8 +95,17 @@ struct StackHistoryView: View {
     }
 
     private func loadHistory() async {
+        isLoading = true
+        loadError = nil
+
         let service = EventService(modelContext: modelContext)
-        events = (try? service.fetchStackHistoryWithRelated(for: stack)) ?? []
+        do {
+            events = try service.fetchStackHistoryWithRelated(for: stack)
+        } catch {
+            loadError = error
+            showLoadError = true
+            events = []
+        }
         isLoading = false
     }
 
