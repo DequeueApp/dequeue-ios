@@ -44,6 +44,8 @@ enum StackServiceError: LocalizedError, Equatable {
             return true
         case (.cannotActivateDraftStack, .cannotActivateDraftStack):
             return true
+        case (.cannotUpdateNonDraftStack, .cannotUpdateNonDraftStack):
+            return true
         case let (.multipleActiveStacksDetected(lhsCount), .multipleActiveStacksDetected(rhsCount)):
             return lhsCount == rhsCount
         case let (.operationFailed(lhsError), .operationFailed(rhsError)):

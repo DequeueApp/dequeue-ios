@@ -477,27 +477,33 @@ actor SyncManager {
 
         // Sort events by timestamp to ensure correct LWW ordering
         // Events must be processed in chronological order (oldest first) for LWW to work correctly
-        // Using switch statement to ensure strict weak ordering compliance for all timestamp cases
-        let sortedEvents = events.sorted { event1, event2 in
-            // Extract both timestamps first to handle all four cases explicitly
-            let date1 = (event1["ts"] as? String).flatMap(SyncManager.parseISO8601)
-            let date2 = (event2["ts"] as? String).flatMap(SyncManager.parseISO8601)
 
-            switch (date1, date2) {
-            case let (.some(d1), .some(d2)):
+        // Parse timestamps once before sorting to avoid O(n log n) * 2 parsing operations
+        // This reduces from ~2 * n * log(n) parses to just n parses
+        let eventsWithTimestamps = events.map { event in
+            (event: event, timestamp: (event["ts"] as? String).flatMap(SyncManager.parseISO8601))
+        }
+
+        // Using switch statement to ensure strict weak ordering compliance for all timestamp cases
+        let sortedEventsWithTimestamps = eventsWithTimestamps.sorted { pair1, pair2 in
+            switch (pair1.timestamp, pair2.timestamp) {
+            case let (.some(date1), .some(date2)):
                 // Both timestamps valid - sort chronologically (oldest first)
-                return d1 < d2
+                return date1 < date2
             case (.some, .none):
-                // Only event1 has valid timestamp - it comes first
+                // Only pair1 has valid timestamp - it comes first
                 return true
             case (.none, .some):
-                // Only event2 has valid timestamp - it comes first
+                // Only pair2 has valid timestamp - it comes first
                 return false
             case (.none, .none):
                 // Both invalid - treat as equivalent (consistent ordering)
                 return false
             }
         }
+
+        // Extract just the events from the sorted pairs
+        let sortedEvents = sortedEventsWithTimestamps.map { $0.event }
 
         os_log("[Sync] Events sorted by timestamp (oldest first)")
 

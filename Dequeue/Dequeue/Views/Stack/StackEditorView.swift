@@ -73,7 +73,7 @@ struct StackEditorView: View {
     // Initialization guard to prevent duplicate onAppear calls
     @State private var hasInitialized = false
 
-    // Services (cached to avoid recreation on every access)
+    // Services (lazily initialized on first access, then cached)
     @State private var _stackService: StackService?
     @State private var _taskService: TaskService?
     @State private var _notificationService: NotificationService?
@@ -81,36 +81,36 @@ struct StackEditorView: View {
 
     // MARK: - Computed Properties
 
-    /// Safely unwrap stackService with error handling
+    /// Lazily initialized and cached stack service
     var stackService: StackService {
-        guard let service = _stackService else {
-            fatalError("StackService not initialized. This is a programmer error.")
+        if _stackService == nil {
+            _stackService = StackService(modelContext: modelContext)
         }
-        return service
+        return _stackService!  // Safe: we just ensured it's not nil
     }
 
-    /// Safely unwrap taskService with error handling
+    /// Lazily initialized and cached task service
     var taskService: TaskService {
-        guard let service = _taskService else {
-            fatalError("TaskService not initialized. This is a programmer error.")
+        if _taskService == nil {
+            _taskService = TaskService(modelContext: modelContext)
         }
-        return service
+        return _taskService!  // Safe: we just ensured it's not nil
     }
 
-    /// Safely unwrap notificationService with error handling
+    /// Lazily initialized and cached notification service
     var notificationService: NotificationService {
-        guard let service = _notificationService else {
-            fatalError("NotificationService not initialized. This is a programmer error.")
+        if _notificationService == nil {
+            _notificationService = NotificationService(modelContext: modelContext)
         }
-        return service
+        return _notificationService!  // Safe: we just ensured it's not nil
     }
 
-    /// Safely unwrap reminderActionHandler with error handling
+    /// Lazily initialized and cached reminder action handler
     var reminderActionHandler: ReminderActionHandler {
-        guard let handler = _reminderActionHandler else {
-            fatalError("ReminderActionHandler not initialized. This is a programmer error.")
+        if _reminderActionHandler == nil {
+            _reminderActionHandler = ReminderActionHandler(modelContext: modelContext, onError: handleError)
         }
-        return handler
+        return _reminderActionHandler!  // Safe: we just ensured it's not nil
     }
 
     /// True if we're creating a new stack OR editing a draft (both use the simple form UI)
@@ -238,25 +238,11 @@ struct StackEditorView: View {
         }
     }
 
-    /// Initialize state variables and services when view appears
+    /// Initialize state variables when view appears (services are lazily initialized)
     private func initializeStateFromMode() {
         // Guard against duplicate onAppear calls (SwiftUI can call onAppear multiple times)
         guard !hasInitialized else { return }
         hasInitialized = true
-
-        // Initialize services (cached to avoid recreation on every access)
-        if _stackService == nil {
-            _stackService = StackService(modelContext: modelContext)
-        }
-        if _taskService == nil {
-            _taskService = TaskService(modelContext: modelContext)
-        }
-        if _notificationService == nil {
-            _notificationService = NotificationService(modelContext: modelContext)
-        }
-        if _reminderActionHandler == nil {
-            _reminderActionHandler = ReminderActionHandler(modelContext: modelContext, onError: handleError)
-        }
 
         if case .edit(let stack) = mode, stack.isDraft {
             // Editing an existing draft - initialize state from the stack
