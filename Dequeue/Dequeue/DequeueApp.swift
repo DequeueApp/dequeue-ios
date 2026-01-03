@@ -113,6 +113,10 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     let syncManager: SyncManager
 
+    private var notificationService: NotificationService {
+        NotificationService(modelContext: modelContext)
+    }
+
     var body: some View {
         Group {
             if authService.isAuthenticated {
@@ -131,12 +135,14 @@ struct RootView: View {
             if newPhase == .active && authService.isAuthenticated {
                 Task {
                     await handleAppBecameActive()
+                    await notificationService.updateAppBadge()
                 }
             }
         }
         .task {
             if authService.isAuthenticated {
                 await handleAuthStateChange(isAuthenticated: true)
+                await notificationService.updateAppBadge()
             }
         }
     }

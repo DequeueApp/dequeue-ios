@@ -49,6 +49,9 @@ struct SnoozePickerSheet: View {
                     Text("The reminder will fire again at the selected time.")
                 }
             }
+            #if os(macOS)
+            .frame(minWidth: 350, minHeight: 250)
+            #endif
             .navigationTitle("Snooze Reminder")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -61,7 +64,9 @@ struct SnoozePickerSheet: View {
                 }
             }
         }
+        #if os(iOS)
         .presentationDetents([.medium])
+        #endif
     }
 }
 

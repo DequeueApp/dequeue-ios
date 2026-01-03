@@ -56,6 +56,11 @@ final class MockNotificationCenter: NotificationCenterProtocol, @unchecked Senda
     func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {
         setCategories = categories
     }
+
+    var badgeCount: Int = 0
+    func setBadgeCount(_ count: Int) async throws {
+        badgeCount = count
+    }
 }
 
 // MARK: - Test Context

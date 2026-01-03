@@ -84,6 +84,9 @@ struct RemindersListView: View {
                     remindersList
                 }
             }
+            #if os(macOS)
+            .frame(minWidth: 400, minHeight: 300)
+            #endif
             .navigationTitle("Reminders")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

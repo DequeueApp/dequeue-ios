@@ -40,6 +40,15 @@ struct ReminderRowView: View {
                 }
                 .tint(.green)
             }
+            // Snooze also available on trailing for discoverability
+            if let onSnooze, reminder.status != .snoozed {
+                Button {
+                    onSnooze()
+                } label: {
+                    Label("Snooze", systemImage: "clock")
+                }
+                .tint(.orange)
+            }
         }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             if let onSnooze, reminder.status != .snoozed {
@@ -49,6 +58,37 @@ struct ReminderRowView: View {
                     Label("Snooze", systemImage: "clock.badge.questionmark")
                 }
                 .tint(.orange)
+            }
+        }
+        .contextMenu {
+            if let onSnooze, reminder.status != .snoozed {
+                Button {
+                    onSnooze()
+                } label: {
+                    Label("Snooze", systemImage: "clock")
+                }
+            }
+            if let onDismiss, reminder.isPastDue {
+                Button {
+                    onDismiss()
+                } label: {
+                    Label("Dismiss", systemImage: "checkmark.circle")
+                }
+            }
+            if let onTap {
+                Button {
+                    onTap()
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+            }
+            if let onDelete {
+                Divider()
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
             }
         }
         .accessibilityElement(children: .combine)

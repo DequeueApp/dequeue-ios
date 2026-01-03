@@ -181,12 +181,31 @@ extension StackEditorView {
     var actionsSection: some View {
         if !isReadOnly && !isCreateMode {
             Section {
+                if case .edit(let stack) = mode, !stack.isActive {
+                    Button {
+                        setStackActive()
+                    } label: {
+                        Label("Set as Active Stack", systemImage: "star.fill")
+                    }
+                }
+
                 Button(role: .destructive) {
                     showCloseConfirmation = true
                 } label: {
                     Label("Close Without Completing", systemImage: "xmark.circle")
                 }
             }
+        }
+    }
+
+    func setStackActive() {
+        guard case .edit(let stack) = mode else { return }
+
+        do {
+            try stackService.setAsActive(stack)
+            dismiss()
+        } catch {
+            handleError(error)
         }
     }
 
