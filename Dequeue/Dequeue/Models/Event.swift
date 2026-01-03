@@ -70,22 +70,29 @@ extension Event {
         EventType(rawValue: type)
     }
 
-    /// Decodes payload supporting both flat format and legacy `state` wrapper format.
+    /// Decodes payload supporting multiple wrapper formats.
     /// - Flat format: `{"id": "...", "name": "..."}`
-    /// - Legacy format: `{"state": {"id": "...", "name": "..."}}`
+    /// - State wrapper: `{"state": {"id": "...", "name": "..."}}`
+    /// - FullState wrapper: `{"fullState": {"id": "...", "name": "..."}}`
     func decodePayload<T: Decodable>(_ type: T.Type) throws -> T {
         let decoder = JSONDecoder()
 
-        // First, try to decode directly (new flat format)
+        // First, try to decode directly (flat format)
         do {
             return try decoder.decode(type, from: payload)
         } catch {
-            // If that fails, check if it's wrapped in a "state" object (legacy format)
-            if let json = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
-               let stateObject = json["state"] {
-                // Re-serialize just the state object and decode that
-                let stateData = try JSONSerialization.data(withJSONObject: stateObject)
-                return try decoder.decode(type, from: stateData)
+            // If that fails, check for wrapped formats
+            if let json = try? JSONSerialization.jsonObject(with: payload) as? [String: Any] {
+                // Check for "fullState" wrapper (used by stack.updated, task.updated, etc.)
+                if let fullStateObject = json["fullState"] {
+                    let stateData = try JSONSerialization.data(withJSONObject: fullStateObject)
+                    return try decoder.decode(type, from: stateData)
+                }
+                // Check for "state" wrapper (used by stack.created, task.created, etc.)
+                if let stateObject = json["state"] {
+                    let stateData = try JSONSerialization.data(withJSONObject: stateObject)
+                    return try decoder.decode(type, from: stateData)
+                }
             }
 
             // Neither format worked, throw the original error
