@@ -12,7 +12,11 @@ import Clerk
 // MARK: - Auth Service Protocol
 
 protocol AuthServiceProtocol {
+    /// Whether the user is currently authenticated with a valid session
     var isAuthenticated: Bool { get }
+    /// Whether the auth state is still being determined during app launch
+    var isLoading: Bool { get }
+    /// The unique identifier of the currently authenticated user, if any
     var currentUserId: String? { get }
 
     func configure() async
@@ -30,6 +34,7 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     // Cache auth state to avoid repeated Clerk SDK calls on every view render
     private(set) var isAuthenticated: Bool = false
+    private(set) var isLoading: Bool = true
     private(set) var currentUserId: String?
 
     func configure() async {
@@ -37,6 +42,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         try? await Clerk.shared.load()
 
         await updateAuthState()
+        await MainActor.run { isLoading = false }
     }
 
     @MainActor
@@ -178,6 +184,7 @@ enum AuthError: LocalizedError {
 @Observable
 final class MockAuthService: AuthServiceProtocol {
     var isAuthenticated: Bool = false
+    var isLoading: Bool = false
     var currentUserId: String?
 
     func configure() async {
