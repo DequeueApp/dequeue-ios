@@ -110,6 +110,7 @@ struct DequeueApp: App {
 struct RootView: View {
     @Environment(\.authService) private var authService
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     let syncManager: SyncManager
 
     var body: some View {
@@ -124,6 +125,13 @@ struct RootView: View {
         .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
             Task {
                 await handleAuthStateChange(isAuthenticated: isAuthenticated)
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active && authService.isAuthenticated {
+                Task {
+                    await handleAppBecameActive()
+                }
             }
         }
         .task {
@@ -174,6 +182,18 @@ struct RootView: View {
             ErrorReportingService.addBreadcrumb(
                 category: "sync",
                 message: "Sync disconnected"
+            )
+        }
+    }
+
+    private func handleAppBecameActive() async {
+        // Update device activity so other devices see this device as recently active
+        do {
+            try await DeviceService.shared.updateDeviceActivity(modelContext: modelContext)
+        } catch {
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "device_activity_update"]
             )
         }
     }
