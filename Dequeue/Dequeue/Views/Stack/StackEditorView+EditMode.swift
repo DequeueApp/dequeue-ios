@@ -159,7 +159,10 @@ extension StackEditorView {
                         NavigationLink {
                             TaskDetailView(task: task)
                         } label: {
-                            CompletedTaskRowView(task: task)
+                            CompletedTaskRowView(
+                                task: task,
+                                onUncomplete: isReadOnly ? nil : { uncompleteTask(task) }
+                            )
                         }
                         .buttonStyle(.plain)
                     }
@@ -245,6 +248,14 @@ extension StackEditorView {
             if task.status != .completed {
                 try taskService.markAsCompleted(task)
             }
+        } catch {
+            handleError(error)
+        }
+    }
+
+    func uncompleteTask(_ task: QueueTask) {
+        do {
+            try taskService.markAsUncompleted(task)
         } catch {
             handleError(error)
         }
