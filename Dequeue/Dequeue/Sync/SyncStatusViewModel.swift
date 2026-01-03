@@ -70,11 +70,11 @@ final class SyncStatusViewModel {
             pendingEventCount = pendingEvents.count
         } catch {
             // Log error but don't crash - status indicator is non-critical
+            // Keep previous count instead of resetting to avoid misleading UI
             ErrorReportingService.capture(
                 error: error,
                 context: ["source": "sync_status_fetch_pending"]
             )
-            pendingEventCount = 0
         }
 
         // Update connection status from SyncManager
