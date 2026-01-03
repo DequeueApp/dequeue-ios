@@ -46,6 +46,7 @@ struct OfflineBanner: View {
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss offline banner")
             }
             .padding()
             .background(Color.orange.gradient)
