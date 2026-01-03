@@ -11,7 +11,7 @@ import Observation
 
 @MainActor
 @Observable
-final class SyncStatusViewModel {
+internal final class SyncStatusViewModel {
     // MARK: - Static
 
     private static let dateTimeFormatter: DateFormatter = {

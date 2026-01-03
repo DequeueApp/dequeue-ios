@@ -8,7 +8,7 @@
 import SwiftUI
 import SwiftData
 
-struct SyncStatusIndicator: View {
+internal struct SyncStatusIndicator: View {
     // MARK: - Constants
 
     private enum Constants {
