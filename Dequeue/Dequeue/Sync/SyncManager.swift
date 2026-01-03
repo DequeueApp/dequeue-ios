@@ -643,9 +643,9 @@ actor SyncManager {
         reconnectAttempts += 1
         let attemptNumber = reconnectAttempts
 
-        // Exponential backoff with jitter (±25%)
+        // Exponential backoff with jitter: final delay ranges from 75% to 125% of base (±25%)
         let baseDelay = baseReconnectDelay * pow(2.0, Double(attemptNumber - 1))
-        let jitterRange = baseDelay * 0.5 // ±25% when centered at 0.75
+        let jitterRange = baseDelay * 0.5
         let jitter = Double.random(in: 0...jitterRange)
         let delay = (baseDelay * 0.75) + jitter
 
@@ -692,9 +692,8 @@ actor SyncManager {
                 } catch {
                     // Track consecutive failures
                     let failures = await self.recordHeartbeatFailure()
-                    let maxFailures = await self.maxConsecutiveHeartbeatFailures
 
-                    if failures >= maxFailures {
+                    if failures >= self.maxConsecutiveHeartbeatFailures {
                         await MainActor.run {
                             ErrorReportingService.addBreadcrumb(
                                 category: "sync",
