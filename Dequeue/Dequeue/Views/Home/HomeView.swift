@@ -11,6 +11,8 @@ import SwiftData
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var stacks: [Stack]
+    @Query private var allStacks: [Stack]
+    @Query private var tasks: [QueueTask]
     @Query private var reminders: [Reminder]
 
     init() {
@@ -27,6 +29,20 @@ struct HomeView: View {
             sort: \Stack.sortOrder
         )
 
+        // Fetch all stacks for reminder navigation (includes completed, closed, etc.)
+        _allStacks = Query(
+            filter: #Predicate<Stack> { stack in
+                stack.isDeleted == false
+            }
+        )
+
+        // Fetch all tasks for reminder navigation
+        _tasks = Query(
+            filter: #Predicate<QueueTask> { task in
+                task.isDeleted == false
+            }
+        )
+
         // Fetch active reminders for badge count
         _reminders = Query(
             filter: #Predicate<Reminder> { reminder in
@@ -36,6 +52,7 @@ struct HomeView: View {
     }
 
     @State private var selectedStack: Stack?
+    @State private var selectedTask: QueueTask?
     @State private var showReminders = false
 
     /// Count of overdue reminders for badge display
@@ -81,10 +98,15 @@ struct HomeView: View {
                 }
             }
             .sheet(isPresented: $showReminders) {
-                RemindersListView()
+                RemindersListView(onGoToItem: handleGoToItem)
             }
             .sheet(item: $selectedStack) { stack in
                 StackEditorView(mode: .edit(stack))
+            }
+            .sheet(item: $selectedTask) { task in
+                NavigationStack {
+                    TaskDetailView(task: task)
+                }
             }
         }
     }
@@ -117,6 +139,20 @@ struct HomeView: View {
     }
 
     // MARK: - Actions
+
+    /// Handle navigation to a Stack or Task from the Reminders list
+    private func handleGoToItem(parentId: String, parentType: ParentType) {
+        switch parentType {
+        case .stack:
+            if let stack = allStacks.first(where: { $0.id == parentId }) {
+                selectedStack = stack
+            }
+        case .task:
+            if let task = tasks.first(where: { $0.id == parentId }) {
+                selectedTask = task
+            }
+        }
+    }
 
     private func moveStacks(from source: IndexSet, to destination: Int) {
         var reorderedStacks = stacks

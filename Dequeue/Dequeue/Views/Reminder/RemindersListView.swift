@@ -16,7 +16,12 @@ struct RemindersListView: View {
     @Query private var stacks: [Stack]
     @Query private var tasks: [QueueTask]
 
-    init() {
+    /// Callback when user wants to navigate to a Stack or Task
+    /// Parameters: parentId, parentType
+    var onGoToItem: ((String, ParentType) -> Void)?
+
+    init(onGoToItem: ((String, ParentType) -> Void)? = nil) {
+        self.onGoToItem = onGoToItem
         // Fetch active and snoozed reminders that aren't deleted
         _reminders = Query(
             filter: #Predicate<Reminder> { reminder in
@@ -232,6 +237,14 @@ struct RemindersListView: View {
             reminder: reminder,
             parentTitle: parentTitle(for: reminder),
             onTap: nil,
+            onGoToItem: onGoToItem != nil ? {
+                // Dismiss sheet first, then navigate
+                dismiss()
+                // Small delay to ensure sheet dismisses before navigation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    onGoToItem?(reminder.parentId, reminder.parentType)
+                }
+            } : nil,
             onSnooze: reminder.status != .snoozed ? {
                 selectedReminderForSnooze = reminder
                 showSnoozePicker = true
