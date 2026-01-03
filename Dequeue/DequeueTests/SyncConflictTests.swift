@@ -20,18 +20,18 @@ struct SyncConflictTests {
         let remoteTime = Date().addingTimeInterval(-60)
 
         let conflict = SyncConflict(
-            entityType: "stack",
+            entityType: .stack,
             entityId: "test-123",
             localTimestamp: localTime,
             remoteTimestamp: remoteTime,
-            conflictType: "update",
-            resolution: "kept_local"
+            conflictType: .update,
+            resolution: .keptLocal
         )
 
-        #expect(conflict.entityType == "stack")
+        #expect(conflict.entityType == .stack)
         #expect(conflict.entityId == "test-123")
-        #expect(conflict.conflictType == "update")
-        #expect(conflict.resolution == "kept_local")
+        #expect(conflict.conflictType == .update)
+        #expect(conflict.resolution == .keptLocal)
         #expect(conflict.isResolved == false) // Default
     }
 
@@ -41,12 +41,12 @@ struct SyncConflictTests {
         let remoteTime = Date().addingTimeInterval(-120) // 2 minutes ago
 
         let conflict = SyncConflict(
-            entityType: "task",
+            entityType: .task,
             entityId: "task-456",
             localTimestamp: localTime,
             remoteTimestamp: remoteTime,
-            conflictType: "delete",
-            resolution: "kept_local"
+            conflictType: .delete,
+            resolution: .keptLocal
         )
 
         let description = conflict.conflictDescription
@@ -64,12 +64,12 @@ struct SyncConflictTests {
         let context = ModelContext(container)
 
         let conflict = SyncConflict(
-            entityType: "reminder",
+            entityType: .reminder,
             entityId: "reminder-789",
             localTimestamp: Date(),
             remoteTimestamp: Date().addingTimeInterval(-30),
-            conflictType: "status_change",
-            resolution: "kept_remote"
+            conflictType: .statusChange,
+            resolution: .keptRemote
         )
 
         context.insert(conflict)
@@ -80,7 +80,7 @@ struct SyncConflictTests {
         let conflicts = try context.fetch(descriptor)
 
         #expect(conflicts.count == 1)
-        #expect(conflicts.first?.entityType == "reminder")
+        #expect(conflicts.first?.entityType == .reminder)
     }
 
     @Test("Can filter conflicts by entity type")
@@ -93,21 +93,21 @@ struct SyncConflictTests {
 
         // Insert multiple conflicts
         let stackConflict = SyncConflict(
-            entityType: "stack",
+            entityType: .stack,
             entityId: "stack-1",
             localTimestamp: Date(),
             remoteTimestamp: Date().addingTimeInterval(-10),
-            conflictType: "update",
-            resolution: "kept_local"
+            conflictType: .update,
+            resolution: .keptLocal
         )
 
         let taskConflict = SyncConflict(
-            entityType: "task",
+            entityType: .task,
             entityId: "task-1",
             localTimestamp: Date(),
             remoteTimestamp: Date().addingTimeInterval(-20),
-            conflictType: "update",
-            resolution: "kept_local"
+            conflictType: .update,
+            resolution: .keptLocal
         )
 
         context.insert(stackConflict)
@@ -115,7 +115,7 @@ struct SyncConflictTests {
         try context.save()
 
         // Filter by entity type
-        let entityType = "stack"
+        let entityType = SyncConflictEntityType.stack
         let predicate = #Predicate<SyncConflict> { conflict in
             conflict.entityType == entityType
         }
@@ -123,7 +123,7 @@ struct SyncConflictTests {
         let stackConflicts = try context.fetch(descriptor)
 
         #expect(stackConflicts.count == 1)
-        #expect(stackConflicts.first?.entityType == "stack")
+        #expect(stackConflicts.first?.entityType == .stack)
     }
 
     @Test("Can query recent conflicts")
@@ -139,23 +139,23 @@ struct SyncConflictTests {
 
         // Old conflict
         let oldConflict = SyncConflict(
-            entityType: "stack",
+            entityType: .stack,
             entityId: "stack-old",
             localTimestamp: now,
             remoteTimestamp: now,
-            conflictType: "update",
-            resolution: "kept_local",
+            conflictType: .update,
+            resolution: .keptLocal,
             detectedAt: oneHourAgo
         )
 
         // Recent conflict
         let recentConflict = SyncConflict(
-            entityType: "stack",
+            entityType: .stack,
             entityId: "stack-recent",
             localTimestamp: now,
             remoteTimestamp: now,
-            conflictType: "update",
-            resolution: "kept_local",
+            conflictType: .update,
+            resolution: .keptLocal,
             detectedAt: now
         )
 
