@@ -33,7 +33,10 @@ final class NetworkMonitor {
         monitor.start(queue: queue)
     }
 
-    private func stopMonitoring() {
+    /// Stops monitoring network connectivity. Call this for testing cleanup
+    /// or if you need to release the monitor. Note: For the shared instance,
+    /// this typically should not be called as it runs for the app's lifetime.
+    func stopMonitoring() {
         monitor.cancel()
     }
 
