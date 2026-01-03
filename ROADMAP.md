@@ -9,6 +9,26 @@ This document captures feature ideas that are not yet fully specified but worth 
 ### Overview
 Connect Dequeue to external issue trackers and project management systems, starting with Linear (our own tool), then expanding to Jira, Asana, GitHub Issues, and others.
 
+### Rationale: Why This Matters
+
+Dequeue is a **personal task manager**—not a team-based issue tracking system. However, much of what you personally need to track and work on lives in remote systems. A developer might be working on a Jira ticket. A consultant might have tasks in multiple clients' Asana boards. The reality is that your work is fragmented across systems you don't control.
+
+**The core problem**: Most personal todo apps are completely disconnected from these external systems. This forces you into bad options:
+- Track everything in the team system (cluttered, inappropriate for personal micro-tasks)
+- Use two separate systems and constantly context-switch between "what's in Jira" and "what's in my personal list"
+- Give up on personal task tracking entirely
+
+**The Dequeue approach**: Explicit linking with optional sync.
+
+When you're working on a Jira ticket, you create a Stack in Dequeue and *link* it to that remote issue. Now you can:
+- **Break it down your way**: Create as many micro-tasks as you need without polluting the team's issue tracker. Sometimes the truly atomic units of work are too granular for a shared system, but perfect for personal tracking.
+- **Work in one place**: Your personal items and your linked work items all live in Dequeue. "What am I doing now?" and "What did I do yesterday?" have one answer, not two.
+- **Complete in sync**: When you finish, optionally mark the remote issue as done too. Best of both worlds.
+- **Connect multiple systems**: Working for multiple clients with different tools? Link them all. Your personal task manager becomes the unified view across everything.
+- **Stay lightweight**: You explicitly choose what to link. We don't automatically sync every issue assigned to you in Jira—that could be a mess. (Though power users can optionally enable auto-sync for assigned issues if they want.)
+
+This is a novel approach we haven't seen in other personal task management software. The insight is that personal productivity tools and team collaboration tools serve different purposes, but they don't have to be islands. Dequeue bridges them while respecting that *you* are the one who decides what enters your personal system.
+
 ### Core Concept
 - Users can connect **multiple accounts** from various systems (e.g., two Linear workspaces, one Jira instance)
 - When creating a Stack or Task, optionally **link** it to a remote issue
