@@ -7,6 +7,7 @@
 
 import SwiftUI
 import os
+import Combine
 
 private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView")
 
@@ -17,13 +18,21 @@ extension StackEditorView {
         Form {
             Section("Stack") {
                 TextField("Title", text: $title)
+                    .onSubmit {
+                        // Save draft on submit (pressing Enter)
+                        saveDraftIfNeeded()
+                    }
                     .onChange(of: title) { _, newValue in
-                        handleTitleChange(newValue)
+                        // Only create draft on first character, don't update on every keystroke
+                        if draftStack == nil && !newValue.isEmpty && !isCreatingDraft {
+                            createDraft(title: newValue)
+                        }
                     }
                 TextField("Description (optional)", text: $stackDescription, axis: .vertical)
                     .lineLimit(3...6)
-                    .onChange(of: stackDescription) { _, newValue in
-                        handleDescriptionChange(newValue)
+                    .onSubmit {
+                        // Save draft on submit
+                        saveDraftIfNeeded()
                     }
             }
 
@@ -35,25 +44,48 @@ extension StackEditorView {
             if draftStack != nil {
                 remindersSection
             }
+
+            // Event history section - show when draft exists (either new or editing existing)
+            if currentStack != nil {
+                draftEventHistorySection
+            }
+        }
+        .onDisappear {
+            // Save any pending changes when view disappears (blur equivalent)
+            saveDraftIfNeeded()
+        }
+    }
+
+    /// Event history section for drafts
+    private var draftEventHistorySection: some View {
+        Section {
+            if let draft = currentStack {
+                NavigationLink {
+                    StackHistoryView(stack: draft)
+                } label: {
+                    Label("Event History", systemImage: "clock.arrow.circlepath")
+                }
+            }
+        } footer: {
+            Text("View the complete history of changes to this draft")
+        }
+    }
+
+    /// Saves the draft if it exists and has changes
+    func saveDraftIfNeeded() {
+        // Use currentStack to handle both new drafts and editing existing drafts
+        guard let draft = currentStack, draft.isDraft else { return }
+
+        let currentTitle = title.isEmpty ? "Untitled" : title
+        let currentDescription = stackDescription.isEmpty ? nil : stackDescription
+
+        // Only save if there are actual changes
+        if draft.title != currentTitle || draft.stackDescription != currentDescription {
+            updateDraft(draft, title: currentTitle, description: stackDescription)
         }
     }
 
     // MARK: - Create Mode Actions
-
-    func handleTitleChange(_ newTitle: String) {
-        guard !isCreatingDraft else { return }
-
-        if draftStack == nil && !newTitle.isEmpty {
-            createDraft(title: newTitle)
-        } else if let draft = draftStack {
-            updateDraft(draft, title: newTitle, description: stackDescription)
-        }
-    }
-
-    func handleDescriptionChange(_ newDescription: String) {
-        guard let draft = draftStack else { return }
-        updateDraft(draft, title: title, description: newDescription)
-    }
 
     func createDraft(title: String) {
         isCreatingDraft = true

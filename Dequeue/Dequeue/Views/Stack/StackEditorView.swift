@@ -209,6 +209,26 @@ struct StackEditorView: View {
             } message: {
                 Text("Are you sure you want to delete this reminder?")
             }
+            .onAppear {
+                initializeStateFromMode()
+            }
+        }
+    }
+
+    /// Initialize state variables when editing an existing draft
+    private func initializeStateFromMode() {
+        if case .edit(let stack) = mode, stack.isDraft {
+            // Editing an existing draft - initialize state from the stack
+            if title.isEmpty {
+                title = stack.title
+            }
+            if stackDescription.isEmpty {
+                stackDescription = stack.stackDescription ?? ""
+            }
+            // Set draftStack so the view knows we have an existing draft
+            if draftStack == nil {
+                draftStack = stack
+            }
         }
     }
 

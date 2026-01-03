@@ -7,6 +7,9 @@
 
 import SwiftUI
 import SwiftData
+import os
+
+private let logger = Logger(subsystem: "com.dequeue", category: "DraftsView")
 
 struct DraftsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -17,6 +20,10 @@ struct DraftsView: View {
         sort: \Stack.updatedAt,
         order: .reverse
     ) private var drafts: [Stack]
+
+    private var stackService: StackService {
+        StackService(modelContext: modelContext)
+    }
 
     var body: some View {
         NavigationStack {
@@ -60,7 +67,16 @@ struct DraftsView: View {
 
     private func deleteDrafts(at offsets: IndexSet) {
         for index in offsets {
-            drafts[index].isDeleted = true
+            let draft = drafts[index]
+            do {
+                // Use stackService.discardDraft to properly fire stack.discarded event
+                try stackService.discardDraft(draft)
+                logger.info("Draft discarded via swipe: \(draft.id)")
+            } catch {
+                logger.error("Failed to discard draft: \(error.localizedDescription)")
+                // Fallback: at least mark as deleted locally
+                draft.isDeleted = true
+            }
         }
     }
 }
