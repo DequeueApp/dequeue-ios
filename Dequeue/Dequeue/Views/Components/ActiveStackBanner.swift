@@ -18,15 +18,14 @@ struct ActiveStackBanner: View {
         onStackTapped: @escaping (Stack) -> Void,
         onEmptyTapped: @escaping () -> Void
     ) {
-        // Query for the active stack: sortOrder == 0, status == active, not deleted/draft
-        let activeRawValue = StackStatus.active.rawValue
+        // Query for the explicitly active stack (isActive == true)
+        // This ensures consistency with StackService.getCurrentActiveStack()
         _activeStacks = Query(
             filter: #Predicate<Stack> { stack in
                 stack.isDeleted == false &&
                 stack.isDraft == false &&
-                stack.statusRawValue == activeRawValue
-            },
-            sort: \Stack.sortOrder
+                stack.isActive == true
+            }
         )
         self.onStackTapped = onStackTapped
         self.onEmptyTapped = onEmptyTapped
@@ -155,7 +154,8 @@ private enum BannerConstants {
         title: "My Active Stack",
         stackDescription: "Working on the new feature implementation",
         status: .active,
-        sortOrder: 0
+        sortOrder: 0,
+        isActive: true
     )
     container.mainContext.insert(stack)
 
