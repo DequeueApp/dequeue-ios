@@ -10,7 +10,12 @@ import SwiftData
 import Observation
 
 /// ViewModel that tracks sync status for UI display.
-/// Uses @MainActor isolation since it primarily works with SwiftData ModelContext.
+///
+/// Uses @MainActor isolation because:
+/// - SwiftData's ModelContext is MainActor-isolated
+/// - EventService (used for fetching pending events) is @MainActor
+/// - All properties are observed by SwiftUI views which run on MainActor
+/// - This is an exception per CLAUDE.md: "@MainActor unless truly needed" - this qualifies
 @MainActor
 @Observable
 internal final class SyncStatusViewModel {
@@ -36,7 +41,10 @@ internal final class SyncStatusViewModel {
     private let eventService: EventService
     private var syncManager: SyncManager?
     // nonisolated(unsafe) allows access from deinit for cleanup with @Observable.
-    // This is safe because updateTask is only written during init and deinit.
+    // This is safe because:
+    // - The class is @MainActor isolated, so all mutations happen on the same thread
+    // - stopMonitoring() is only called from onDisappear, which runs on MainActor
+    // - deinit only reads/cancels the task, doesn't modify it
     nonisolated(unsafe) private var updateTask: Task<Void, Never>?
     private var previousPendingCount: Int = 0
 
