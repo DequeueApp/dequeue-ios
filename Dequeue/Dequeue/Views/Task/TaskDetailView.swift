@@ -533,16 +533,21 @@ struct TaskHistoryView: View {
             }
         }
         .navigationTitle("Event History")
-        .onAppear {
-            // Use onAppear instead of .task for better macOS compatibility
-            // in nested navigation contexts (e.g., NavigationLink inside a sheet)
-            if events.isEmpty && isLoading {
-                loadEvents()
-            }
+        #if os(macOS)
+        // macOS sheets and navigation destinations need explicit frame sizing
+        // to render correctly within NavigationStack contexts
+        .frame(minWidth: 500, minHeight: 400)
+        #endif
+        // Use .task(id:) with updatedAt to:
+        // 1. Load reliably on both iOS and macOS (onAppear is unreliable on macOS in sheets)
+        // 2. Automatically refresh when the task is modified elsewhere
+        .task(id: task.updatedAt) {
+            await loadEvents()
         }
     }
 
-    private func loadEvents() {
+    private func loadEvents() async {
+        isLoading = true
         let taskId = task.id
         let descriptor = FetchDescriptor<Event>(
             predicate: #Predicate<Event> { event in
