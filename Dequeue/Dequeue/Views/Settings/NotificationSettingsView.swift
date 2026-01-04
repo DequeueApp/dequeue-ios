@@ -222,6 +222,9 @@ private struct PreferencesSection: View {
     @Binding var badgeEnabled: Bool
     let onBadgeToggle: (Bool) async -> Void
 
+    /// Tracks whether the initial load has occurred to prevent triggering on first appear
+    @State private var hasLoaded = false
+
     var body: some View {
         Group {
             if isVisible {
@@ -230,12 +233,14 @@ private struct PreferencesSection: View {
                         Label("Badge", systemImage: "app.badge")
                     }
                     .accessibilityIdentifier("notificationBadgeToggle")
-                    .onChange(of: badgeEnabled) { _, newValue in
-                        // Task is safe here: toggle is only visible when view is active,
-                        // and badge operations are idempotent fire-and-forget updates
-                        Task {
-                            await onBadgeToggle(newValue)
+                    // Use .task(id:) for structured concurrency - automatically cancels on view disappear
+                    .task(id: badgeEnabled) {
+                        // Skip the initial task run when view first appears
+                        guard hasLoaded else {
+                            hasLoaded = true
+                            return
                         }
+                        await onBadgeToggle(badgeEnabled)
                     }
                 } header: {
                     Text("Preferences")
