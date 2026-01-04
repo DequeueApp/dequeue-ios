@@ -334,7 +334,8 @@ private final class DefaultAuthService: AuthServiceProtocol, @unchecked Sendable
 private struct AuthServiceKey: EnvironmentKey {
     // Note: DefaultAuthService is a simple nonisolated implementation used only as a fallback.
     // Real authService (ClerkAuthService) is injected in DequeueApp.swift.
-    static let defaultValue: any AuthServiceProtocol = DefaultAuthService()
+    // nonisolated(unsafe) is safe here because DefaultAuthService is immutable and Sendable.
+    nonisolated(unsafe) static let defaultValue: any AuthServiceProtocol = DefaultAuthService()
 }
 
 extension EnvironmentValues {
