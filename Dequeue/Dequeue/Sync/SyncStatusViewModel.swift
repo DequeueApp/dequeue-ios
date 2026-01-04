@@ -46,7 +46,7 @@ internal final class SyncStatusViewModel {
         startMonitoring()
     }
 
-    nonisolated deinit {
+    deinit {
         updateTask?.cancel()
     }
 
