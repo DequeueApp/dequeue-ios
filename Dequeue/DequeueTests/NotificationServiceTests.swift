@@ -176,6 +176,38 @@ struct NotificationServiceTests {
         #expect(result == false)
     }
 
+    @Test("requestPermissionWithError returns true when authorization is granted")
+    @MainActor
+    func requestPermissionWithErrorGranted() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationGranted = true
+
+        let result = try await ctx.service.requestPermissionWithError()
+        #expect(result == true)
+    }
+
+    @Test("requestPermissionWithError returns false when authorization is denied")
+    @MainActor
+    func requestPermissionWithErrorDenied() async throws {
+        let ctx = try TestContext()
+        ctx.mockCenter.authorizationGranted = false
+
+        let result = try await ctx.service.requestPermissionWithError()
+        #expect(result == false)
+    }
+
+    @Test("requestPermissionWithError throws when authorization fails")
+    @MainActor
+    func requestPermissionWithErrorThrows() async throws {
+        let ctx = try TestContext()
+        let expectedError = NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Test error"])
+        ctx.mockCenter.authorizationError = expectedError
+
+        await #expect(throws: Error.self) {
+            try await ctx.service.requestPermissionWithError()
+        }
+    }
+
     // MARK: - Schedule Notification Tests
 
     @Test("scheduleNotification adds notification request")

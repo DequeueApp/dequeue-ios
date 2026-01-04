@@ -9,15 +9,24 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 
+// MARK: - UserDefaults Keys
+
+private enum UserDefaultsKey {
+    static let notificationSoundEnabled = "notificationSoundEnabled"
+    static let notificationBadgeEnabled = "notificationBadgeEnabled"
+}
+
 internal struct NotificationSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     // Note: Sound/badge preferences are stored for future use when NotificationService
     // is updated to respect these settings. Currently they control UI state only.
-    @AppStorage("notificationSoundEnabled") private var soundEnabled = true
-    @AppStorage("notificationBadgeEnabled") private var badgeEnabled = true
+    @AppStorage(UserDefaultsKey.notificationSoundEnabled) private var soundEnabled = true
+    @AppStorage(UserDefaultsKey.notificationBadgeEnabled) private var badgeEnabled = true
 
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @State private var notificationService: NotificationService?
+    @State private var showPermissionError = false
+    @State private var permissionErrorMessage: String?
 
     var body: some View {
         List {
@@ -30,6 +39,11 @@ internal struct NotificationSettingsView: View {
         #endif
         .task {
             await loadAuthorizationStatus()
+        }
+        .alert("Permission Error", isPresented: $showPermissionError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(permissionErrorMessage ?? "Failed to request notification permission.")
         }
     }
 
@@ -172,8 +186,19 @@ internal struct NotificationSettingsView: View {
 
     private func requestPermission() async {
         let service = ensureService()
-        let granted = await service.requestPermission()
-        authorizationStatus = granted ? .authorized : .denied
+        do {
+            let granted = try await service.requestPermissionWithError()
+            authorizationStatus = granted ? .authorized : .denied
+        } catch {
+            permissionErrorMessage = error.localizedDescription
+            showPermissionError = true
+            ErrorReportingService.capture(
+                error: error,
+                context: ["action": "request_notification_permission"]
+            )
+            // Refresh status in case it changed
+            authorizationStatus = await service.getAuthorizationStatus()
+        }
     }
 
     private func handleBadgeToggle(enabled: Bool) async {
@@ -191,7 +216,12 @@ internal struct NotificationSettingsView: View {
             UIApplication.shared.open(url)
         }
         #elseif os(macOS)
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+        // macOS Ventura+ uses the new Notifications extension URL
+        // Falls back to the legacy URL for older macOS versions
+        let modernURL = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")
+        let legacyURL = URL(string: "x-apple.systempreferences:com.apple.preference.notifications")
+
+        if let url = modernURL ?? legacyURL {
             NSWorkspace.shared.open(url)
         }
         #endif
