@@ -10,6 +10,7 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.syncManager) private var syncManager
     @Query private var stacks: [Stack]
     @Query private var allStacks: [Stack]
     @Query private var tasks: [QueueTask]
@@ -54,6 +55,8 @@ struct HomeView: View {
     @State private var selectedStack: Stack?
     @State private var selectedTask: QueueTask?
     @State private var showReminders = false
+    @State private var syncError: Error?
+    @State private var showingSyncError = false
 
     /// Count of overdue reminders for badge display
     private var overdueCount: Int {
@@ -108,6 +111,13 @@ struct HomeView: View {
                     TaskDetailView(task: task)
                 }
             }
+            .alert("Sync Failed", isPresented: $showingSyncError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                if let syncError = syncError {
+                    Text(syncError.localizedDescription)
+                }
+            }
         }
     }
 
@@ -136,6 +146,38 @@ struct HomeView: View {
             .onDelete(perform: deleteStacks)
         }
         .listStyle(.plain)
+        .refreshable {
+            await performSync()
+        }
+    }
+
+    // MARK: - Sync
+
+    /// Performs a manual sync: pushes local changes first, then pulls from server.
+    /// Push-first order ensures local changes are sent before potentially receiving
+    /// conflicting updates, allowing the server to handle conflict resolution.
+    private func performSync() async {
+        guard let syncManager = syncManager else {
+            ErrorReportingService.addBreadcrumb(
+                category: "sync",
+                message: "Pull-to-refresh attempted with nil syncManager"
+            )
+            return
+        }
+
+        do {
+            // Push local changes first
+            try await syncManager.manualPush()
+            // Then pull from server
+            try await syncManager.manualPull()
+        } catch {
+            syncError = error
+            showingSyncError = true
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "pull_to_refresh"]
+            )
+        }
     }
 
     // MARK: - Actions
