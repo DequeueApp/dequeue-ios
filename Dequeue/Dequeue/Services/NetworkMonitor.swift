@@ -9,10 +9,11 @@ import Foundation
 import Network
 import Observation
 
+@MainActor
 @Observable
 final class NetworkMonitor {
-    @MainActor private(set) var isConnected: Bool = true
-    @MainActor private(set) var connectionType: NWInterface.InterfaceType?
+    private(set) var isConnected: Bool = true
+    private(set) var connectionType: NWInterface.InterfaceType?
 
     private let monitor: NWPathMonitor
     private let queue = DispatchQueue(label: "com.dequeue.networkmonitor")
@@ -23,6 +24,8 @@ final class NetworkMonitor {
     }
 
     deinit {
+        // Cancel monitor to stop path updates
+        // Any in-flight Tasks will complete naturally
         monitor.cancel()
     }
 
@@ -31,7 +34,8 @@ final class NetworkMonitor {
             let status = path.status
             let interfaceType = path.availableInterfaces.first?.type
 
-            Task { @MainActor in
+            // Create ephemeral task to update MainActor properties
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.isConnected = status == .satisfied
                 self.connectionType = interfaceType
@@ -48,5 +52,5 @@ final class NetworkMonitor {
     }
 
     /// Shared instance for app-wide network monitoring
-    nonisolated(unsafe) static let shared = NetworkMonitor()
+    static let shared = NetworkMonitor()
 }
