@@ -12,7 +12,6 @@ import Foundation
 
 @Suite("Event Model Tests")
 struct EventTests {
-
     @Test("Event initializes with type string")
     func eventInitializesWithTypeString() {
         let payload = try! JSONEncoder().encode(["key": "value"])

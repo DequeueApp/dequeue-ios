@@ -106,7 +106,7 @@ private struct TestContext {
         parentId: String,
         parentType: ParentType,
         status: ReminderStatus = .active,
-        remindAt: Date = Date().addingTimeInterval(3600)
+        remindAt: Date = Date().addingTimeInterval(3_600)
     ) -> Reminder {
         let reminder = Reminder(
             parentId: parentId,
@@ -121,7 +121,7 @@ private struct TestContext {
     func createStackReminder(
         stack: Stack,
         status: ReminderStatus = .active,
-        remindAt: Date = Date().addingTimeInterval(3600)
+        remindAt: Date = Date().addingTimeInterval(3_600)
     ) -> Reminder {
         createReminder(parentId: stack.id, parentType: .stack, status: status, remindAt: remindAt)
     }
@@ -129,7 +129,7 @@ private struct TestContext {
     func createTaskReminder(
         task: QueueTask,
         status: ReminderStatus = .active,
-        remindAt: Date = Date().addingTimeInterval(3600)
+        remindAt: Date = Date().addingTimeInterval(3_600)
     ) -> Reminder {
         createReminder(parentId: task.id, parentType: .task, status: status, remindAt: remindAt)
     }
@@ -143,7 +143,6 @@ private struct TestContext {
 
 @Suite("NotificationService Tests", .serialized)
 struct NotificationServiceTests {
-
     // MARK: - Permission Tests
 
     @Test("requestPermission returns true when authorization is granted")
@@ -270,7 +269,7 @@ struct NotificationServiceTests {
         let ctx = try TestContext()
         let stack = ctx.createStack()
         let deletedReminder = ctx.createStackReminder(stack: stack)
-        let activeReminder = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(7200))
+        let activeReminder = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(7_200))
         try ctx.save()
 
         // Mark deleted in-flight (SwiftData quirk)
@@ -300,7 +299,7 @@ struct NotificationServiceTests {
     func scheduleNotificationSkipsPastReminders() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack()
-        let reminder = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(-3600))
+        let reminder = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(-3_600))
         try ctx.save()
 
         try await ctx.service.scheduleNotification(for: reminder)
@@ -329,7 +328,7 @@ struct NotificationServiceTests {
         let ctx = try TestContext()
         let stack = ctx.createStack()
         let reminder1 = ctx.createStackReminder(stack: stack)
-        let reminder2 = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(7200))
+        let reminder2 = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(7_200))
         try ctx.save()
 
         ctx.service.cancelNotifications(for: [reminder1, reminder2])
@@ -357,8 +356,8 @@ struct NotificationServiceTests {
         let stack = ctx.createStack()
 
         let upcomingReminder = ctx.createStackReminder(stack: stack)
-        _ = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(-3600)) // past
-        let deletedReminder = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(7200))
+        _ = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(-3_600)) // past
+        let deletedReminder = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(7_200))
         try ctx.save()
 
         deletedReminder.isDeleted = true
@@ -444,7 +443,7 @@ struct NotificationServiceTests {
     func notificationUsesCalendarTrigger() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack()
-        let remindAt = Date().addingTimeInterval(3600)
+        let remindAt = Date().addingTimeInterval(3_600)
         let reminder = ctx.createStackReminder(stack: stack, remindAt: remindAt)
         try ctx.save()
 

@@ -301,7 +301,23 @@ extension StackEditorView {
     }
 
     func addTask() {
-        guard !newTaskTitle.isEmpty, let stack = currentStack else { return }
+        guard !newTaskTitle.isEmpty else { return }
+
+        // In create mode (or draft mode), add to pending tasks array
+        if isCreateMode {
+            let pendingTask = StackEditorView.PendingTask(
+                title: newTaskTitle,
+                description: newTaskDescription.isEmpty ? nil : newTaskDescription
+            )
+            pendingTasks.append(pendingTask)
+            newTaskTitle = ""
+            newTaskDescription = ""
+            showAddTask = false
+            return
+        }
+
+        // In edit mode, create actual task
+        guard let stack = currentStack else { return }
 
         do {
             _ = try taskService.createTask(
