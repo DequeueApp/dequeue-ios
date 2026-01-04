@@ -13,7 +13,6 @@ import Foundation
 
 @Suite("Stack Filtering Tests", .serialized)
 struct StackFilteringTests {
-
     // MARK: - HomeView Filter Logic Tests
     // These tests verify the filtering logic that HomeView uses
 
