@@ -52,6 +52,5 @@ final class DequeueUITests: XCTestCase {
     // NotificationSettingsView (Settings > Notifications):
     // - "enableNotificationsButton" - Button to request permissions
     // - "openSettingsButton" - Button to open system Settings when denied
-    // - "notificationSoundToggle" - Toggle for notification sounds
-    // - "notificationBadgeToggle" - Toggle for app badge
+    // - "notificationBadgeToggle" - Toggle for app badge (shows overdue reminder count)
 }
