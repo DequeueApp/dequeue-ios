@@ -11,7 +11,7 @@ import Foundation
 enum CUID {
     /// Generates a new CUID string
     /// Format similar to CUID2: random alphanumeric, 24 characters
-    static func generate() -> String {
+    nonisolated static func generate() -> String {
         let timestamp = UInt64(Date().timeIntervalSince1970 * 1_000)
         let randomPart = randomAlphanumeric(count: 16)
         let timestampHex = String(timestamp, radix: 36)
@@ -22,13 +22,13 @@ enum CUID {
     }
 
     /// Generates a random alphanumeric string
-    private static func randomAlphanumeric(count: Int) -> String {
+    nonisolated private static func randomAlphanumeric(count: Int) -> String {
         let characters = "0123456789abcdefghijklmnopqrstuvwxyz"
         return String((0..<count).compactMap { _ in characters.randomElement() })
     }
 
     /// Validates if a string could be a valid entity ID (UUID or CUID)
-    static func isValidId(_ id: String) -> Bool {
+    nonisolated static func isValidId(_ id: String) -> Bool {
         // Accept UUIDs (36 chars with dashes) or CUIDs (typically 24-25 chars alphanumeric)
         if UUID(uuidString: id) != nil {
             return true

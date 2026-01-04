@@ -199,6 +199,14 @@ final class EventService {
         return try modelContext.fetch(descriptor)
     }
 
+    func fetchEventsByIds(_ ids: [String]) throws -> [Event] {
+        let predicate = #Predicate<Event> { event in
+            ids.contains(event.id)
+        }
+        let descriptor = FetchDescriptor<Event>(predicate: predicate)
+        return try modelContext.fetch(descriptor)
+    }
+
     func markEventsSynced(_ events: [Event]) throws {
         let now = Date()
         for event in events {

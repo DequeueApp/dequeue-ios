@@ -84,6 +84,7 @@ import AppKit
 #endif
 
 extension Device {
+    @MainActor
     static func createCurrentDevice() -> Device {
         #if os(iOS)
         let device = UIDevice.current

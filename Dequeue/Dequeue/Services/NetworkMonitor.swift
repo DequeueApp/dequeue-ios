@@ -48,7 +48,7 @@ final class NetworkMonitor {
 
     private let monitor: NWPathMonitor
     private let queue = DispatchQueue(label: "com.dequeue.networkmonitor")
-    private static let logger = Logger(
+    nonisolated(unsafe) private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.dequeue",
         category: "NetworkMonitor"
     )
@@ -58,7 +58,7 @@ final class NetworkMonitor {
         startMonitoring()
     }
 
-    deinit {
+    nonisolated deinit {
         // Note: The shared singleton never deallocates (intentional - runs for app lifetime)
         // This deinit only fires for test instances or custom monitors
         // NWPathMonitor.cancel() is thread-safe

@@ -11,7 +11,7 @@ import Clerk
 
 // MARK: - Auth Service Protocol
 
-protocol AuthServiceProtocol {
+protocol AuthServiceProtocol: Sendable {
     /// Whether the user is currently authenticated with a valid session
     var isAuthenticated: Bool { get }
     /// Whether the auth state is still being determined during app launch

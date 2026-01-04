@@ -11,6 +11,14 @@ import Foundation
 import SwiftData
 import os.log
 
+/// Sendable representation of Event data for cross-actor communication
+private struct EventData: Sendable {
+    let id: String
+    let timestamp: Date
+    let type: String
+    let payload: Data
+}
+
 // swiftlint:disable:next type_body_length
 actor SyncManager {
     private var webSocketTask: URLSessionWebSocketTask?
@@ -31,7 +39,7 @@ actor SyncManager {
     private let heartbeatIntervalSeconds: UInt64 = 30
 
     private let modelContainer: ModelContainer
-    private var getTokenFunction: (() async throws -> String)?
+    private var getTokenFunction: (@Sendable () async throws -> String)?
 
     private var periodicSyncTask: Task<Void, Never>?
     private var heartbeatTask: Task<Void, Never>?
@@ -47,14 +55,14 @@ actor SyncManager {
     private let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
 
     // ISO8601 formatter that supports fractional seconds (Go's RFC3339Nano format)
-    private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+    nonisolated(unsafe) private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
 
     // Standard ISO8601 formatter without fractional seconds
-    private static let iso8601Standard: ISO8601DateFormatter = {
+    nonisolated(unsafe) private static let iso8601Standard: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
@@ -180,7 +188,7 @@ actor SyncManager {
 
     // MARK: - Connection
 
-    func connect(userId: String, token: String, getToken: @escaping () async throws -> String) async throws {
+    func connect(userId: String, token: String, getToken: @escaping @Sendable () async throws -> String) async throws {
         self.userId = userId
         self.token = token
         self.getTokenFunction = getToken
@@ -264,13 +272,21 @@ actor SyncManager {
             throw SyncError.notAuthenticated
         }
 
-        let pendingEvents = try await MainActor.run {
+        let pendingEventData = try await MainActor.run {
             let context = ModelContext(modelContainer)
             let eventService = EventService(modelContext: context)
-            return try eventService.fetchPendingEvents()
+            let events = try eventService.fetchPendingEvents()
+            return events.map { event in
+                EventData(
+                    id: event.id,
+                    timestamp: event.timestamp,
+                    type: event.type,
+                    payload: event.payload
+                )
+            }
         }
 
-        guard !pendingEvents.isEmpty else { return }
+        guard !pendingEventData.isEmpty else { return }
 
         // Use cached deviceId (falls back to fetching if not cached, e.g., during reconnect)
         let eventDeviceId: String
@@ -280,19 +296,19 @@ actor SyncManager {
             eventDeviceId = await DeviceService.shared.getDeviceId()
         }
 
-        let syncEvents = pendingEvents.map { event -> [String: Any] in
+        let syncEvents = pendingEventData.map { eventData -> [String: Any] in
             let payload: Any
-            if let payloadDict = try? JSONSerialization.jsonObject(with: event.payload) {
+            if let payloadDict = try? JSONSerialization.jsonObject(with: eventData.payload) {
                 payload = payloadDict
             } else {
                 payload = [:]
             }
 
             return [
-                "id": event.id,
+                "id": eventData.id,
                 "device_id": eventDeviceId,
-                "ts": SyncManager.iso8601WithFractionalSeconds.string(from: event.timestamp),
-                "type": event.type,
+                "ts": SyncManager.iso8601WithFractionalSeconds.string(from: eventData.timestamp),
+                "type": eventData.type,
                 "payload": payload
             ]
         }
@@ -323,35 +339,36 @@ actor SyncManager {
                 throw SyncError.pushFailed
             }
 
-            try await processPushResponse(retryData, events: pendingEvents)
+            try await processPushResponse(retryData, eventIds: pendingEventData.map { $0.id })
         } else if httpResponse.statusCode == 200 {
-            try await processPushResponse(data, events: pendingEvents)
+            try await processPushResponse(data, eventIds: pendingEventData.map { $0.id })
         } else {
             throw SyncError.pushFailed
         }
     }
 
-    private func processPushResponse(_ data: Data, events: [Event]) async throws {
+    private func processPushResponse(_ data: Data, eventIds: [String]) async throws {
         guard let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let acknowledged = response["acknowledged"] as? [String] else {
             return
         }
 
-        let syncedEvents = events.filter { acknowledged.contains($0.id) }
+        let syncedEventIds = eventIds.filter { acknowledged.contains($0) }
 
         try await MainActor.run {
             let context = ModelContext(modelContainer)
             let eventService = EventService(modelContext: context)
+            let syncedEvents = try eventService.fetchEventsByIds(syncedEventIds)
             try eventService.markEventsSynced(syncedEvents)
         }
 
         // Handle rejected events
         if let rejected = response["rejected"] as? [String],
            let errors = response["errors"] as? [String] {
-            let rejectedEvents = events.filter { rejected.contains($0.id) }
-            for (index, event) in rejectedEvents.enumerated() {
+            let rejectedEventIds = eventIds.filter { rejected.contains($0) }
+            for (index, eventId) in rejectedEventIds.enumerated() {
                 let errorMessage = index < errors.count ? errors[index] : "Unknown error"
-                os_log("[Sync] Event \(event.id) rejected: \(errorMessage)")
+                os_log("[Sync] Event \(eventId) rejected: \(errorMessage)")
             }
 
             await MainActor.run {
@@ -366,8 +383,8 @@ actor SyncManager {
         await MainActor.run {
             ErrorReportingService.addBreadcrumb(
                 category: "sync",
-                message: "Pushed \(syncedEvents.count) events",
-                data: ["total": events.count, "synced": syncedEvents.count]
+                message: "Pushed \(syncedEventIds.count) events",
+                data: ["total": eventIds.count, "synced": syncedEventIds.count]
             )
         }
     }
@@ -480,6 +497,10 @@ actor SyncManager {
             os_log("[Sync] ... and \(events.count - 3) more events")
         }
 
+        // Extract counts before crossing actor boundary
+        let totalCount = events.count
+        let processedCount = filteredEvents.count
+
         if !filteredEvents.isEmpty {
             try await processIncomingEvents(filteredEvents)
         }
@@ -493,8 +514,8 @@ actor SyncManager {
         await MainActor.run {
             ErrorReportingService.addBreadcrumb(
                 category: "sync",
-                message: "Pulled \(filteredEvents.count) events",
-                data: ["total": events.count, "processed": filteredEvents.count]
+                message: "Pulled \(processedCount) events",
+                data: ["total": totalCount, "processed": processedCount]
             )
         }
     }
@@ -505,7 +526,7 @@ actor SyncManager {
 
     // MARK: - Process Incoming Events
 
-    // swiftlint:disable:next function_body_length
+    @MainActor
     private func processIncomingEvents(_ events: [[String: Any]]) async throws {
         os_log("[Sync] Processing \(events.count) incoming events")
         var processed = 0
@@ -513,8 +534,7 @@ actor SyncManager {
         var incompatible = 0
         var hasReminderEvents = false
 
-        try await MainActor.run {
-            let context = ModelContext(modelContainer)
+        let context = ModelContext(modelContainer)
 
             for eventData in events {
                 guard let id = eventData["id"] as? String,
@@ -591,13 +611,12 @@ actor SyncManager {
             let stats = "processed: \(processed), dupes: \(skipped), incompatible: \(incompatible)"
             os_log("[Sync] Saved context - \(stats)")
 
-            // Reschedule notifications for any synced reminders
-            if hasReminderEvents {
-                os_log("[Sync] Reminder events detected, rescheduling notifications")
-                let notificationService = NotificationService(modelContext: context)
-                Task {
-                    await notificationService.rescheduleAllNotifications()
-                }
+        // Reschedule notifications for any synced reminders
+        if hasReminderEvents {
+            os_log("[Sync] Reminder events detected, rescheduling notifications")
+            let notificationService = NotificationService(modelContext: context)
+            Task {
+                await notificationService.rescheduleAllNotifications()
             }
         }
     }

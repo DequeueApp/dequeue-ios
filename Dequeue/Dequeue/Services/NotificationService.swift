@@ -12,7 +12,7 @@ import UserNotifications
 // MARK: - Notification Constants
 
 /// Action and category identifiers for notification actions
-enum NotificationConstants {
+nonisolated enum NotificationConstants {
     static let categoryIdentifier = "REMINDER_CATEGORY"
 
     enum Action {
