@@ -132,6 +132,7 @@ struct StackTests {
     // MARK: - Stack Creation with Multiple Tasks (DEQ-129)
 
     @Test("Creating stack with multiple tasks")
+    @MainActor
     func creatingStackWithMultipleTasks() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
@@ -182,6 +183,7 @@ struct StackTests {
     }
 
     @Test("Creating stack with no tasks")
+    @MainActor
     func creatingStackWithNoTasks() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
@@ -204,6 +206,7 @@ struct StackTests {
     }
 
     @Test("Task sort order is correct when created sequentially")
+    @MainActor
     func taskSortOrderCorrect() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)

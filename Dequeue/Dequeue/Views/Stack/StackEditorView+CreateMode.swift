@@ -44,6 +44,7 @@ extension StackEditorView {
                 HStack {
                     Label("No Tasks", systemImage: "checkmark.circle")
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel("No tasks added yet")
                     Spacer()
                 }
             } else {
@@ -184,14 +185,25 @@ extension StackEditorView {
                 logger.info("Stack created: \(stack.id)")
             }
 
-            // Create all pending tasks
+            // Create all pending tasks with error tracking
+            var failedTasks: [String] = []
             for pendingTask in pendingTasks {
-                let task = try taskService.createTask(
-                    title: pendingTask.title,
-                    description: pendingTask.description,
-                    stack: stack
-                )
-                logger.info("Task created: \(task.id)")
+                do {
+                    let task = try taskService.createTask(
+                        title: pendingTask.title,
+                        description: pendingTask.description,
+                        stack: stack
+                    )
+                    logger.info("Task created: \(task.id)")
+                } catch {
+                    logger.error("Failed to create task '\(pendingTask.title)': \(error.localizedDescription)")
+                    failedTasks.append(pendingTask.title)
+                }
+            }
+
+            // Warn user if some tasks failed but stack was created
+            if !failedTasks.isEmpty {
+                logger.warning("Stack created but \(failedTasks.count) task(s) failed to create")
             }
 
             syncManager?.triggerImmediatePush()

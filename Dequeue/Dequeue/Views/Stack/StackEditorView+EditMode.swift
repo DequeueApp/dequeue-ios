@@ -102,6 +102,7 @@ extension StackEditorView {
                         Text("All tasks completed!")
                     }
                     .listRowBackground(Color.clear)
+                    .accessibilityLabel("No pending tasks. All tasks completed!")
                 } else {
                     taskListContent(for: stack)
                 }

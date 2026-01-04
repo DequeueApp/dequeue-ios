@@ -72,12 +72,14 @@ final class StackService {
         let shouldBeActive = !isDraft && existingActiveStacks.isEmpty
 
         // Determine sortOrder: active stack gets 0, inactive stacks get next available
+        // Query ALL non-deleted stacks (not just active) to prevent sortOrder collisions
         let sortOrder: Int
         if shouldBeActive {
             sortOrder = 0
         } else {
-            // Find the max sortOrder and add 1
-            let maxSortOrder = existingActiveStacks.map(\.sortOrder).max() ?? -1
+            // Find the max sortOrder from ALL stacks (including drafts, completed, closed)
+            let allStacks = try getAllNonDeletedStacks()
+            let maxSortOrder = allStacks.map(\.sortOrder).max() ?? -1
             sortOrder = maxSortOrder + 1
         }
 
@@ -193,6 +195,16 @@ final class StackService {
             predicate: predicate,
             sortBy: [SortDescriptor(\.sortOrder)]
         )
+        return try modelContext.fetch(descriptor)
+    }
+
+    /// Returns all non-deleted stacks regardless of status, draft state, or isActive flag.
+    /// Used for calculating max sortOrder to prevent collisions.
+    func getAllNonDeletedStacks() throws -> [Stack] {
+        let predicate = #Predicate<Stack> { stack in
+            stack.isDeleted == false
+        }
+        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
         return try modelContext.fetch(descriptor)
     }
 
