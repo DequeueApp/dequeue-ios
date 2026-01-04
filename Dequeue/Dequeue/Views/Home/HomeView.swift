@@ -17,6 +17,8 @@ struct HomeView: View {
     @Query private var reminders: [Reminder]
     @Query private var pendingEvents: [Event]
 
+    @State private var syncStatusViewModel: SyncStatusViewModel?
+
     init() {
         // Filter for active stacks only (exclude completed, closed, and archived)
         // Note: SwiftData #Predicate doesn't support captured enum values,
@@ -106,6 +108,12 @@ struct HomeView: View {
             .navigationTitle("Dequeue")
             .toolbar {
                 ToolbarItem(placement: .automatic) {
+                    if let viewModel = syncStatusViewModel {
+                        SyncStatusIndicator(viewModel: viewModel)
+                    }
+                }
+
+                ToolbarItem(placement: .automatic) {
                     Button {
                         showReminders = true
                     } label: {
@@ -130,6 +138,19 @@ struct HomeView: View {
                         .frame(width: 32, height: 32)
                     }
                 }
+            }
+            .task {
+                // Initialize sync status view model
+                if syncStatusViewModel == nil {
+                    syncStatusViewModel = SyncStatusViewModel(modelContext: modelContext)
+                    if let syncManager = syncManager {
+                        syncStatusViewModel?.setSyncManager(syncManager)
+                    }
+                }
+            }
+            .onDisappear {
+                // Stop monitoring to prevent background Task from running indefinitely
+                syncStatusViewModel?.stopMonitoring()
             }
             .sheet(isPresented: $showReminders) {
                 RemindersListView(onGoToItem: handleGoToItem)

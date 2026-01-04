@@ -1,8 +1,8 @@
 {
   "permissions": {
     "additionalDirectories": [
-      "/Users/victor/Development/stacks/stacks-app/",
-      "/Users/victor/Development/stacks/stacks-sync"
+      "/Users/victor/Development/dequeue/stacks-app/",
+      "/Users/victor/Development/dequeue/stacks-sync"
     ]
   }
 }
