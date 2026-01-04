@@ -434,41 +434,54 @@ struct ProjectorServiceTests {
         let container = try createTestContainer()
         let context = ModelContext(container)
 
-        // Create a deleted stack (insert/save first, then mark deleted and save again for SwiftData)
         let stackId = CUID.generate()
-        let stack = Stack(id: stackId, title: "Deleted Stack", isActive: false)
-        context.insert(stack)
+
+        // Step 1: Create the stack via an event (same pattern as other tests)
+        let createPayload = try createStackPayload(id: stackId, title: "Test Stack", isActive: false)
+        let createEvent = Event(eventType: .stackCreated, payload: createPayload, entityId: stackId)
+        context.insert(createEvent)
         try context.save()
-        stack.isDeleted = true
-        try context.save()
+        try applyEvents([createEvent], context: context)
 
-        // Verify initial state
-        #expect(stack.isDeleted == true)
-        #expect(stack.isActive == false)
-
-        // Try to activate the deleted stack via event
-        let payloadData = try createEntityStatusPayload(id: stackId, status: "active")
-        let event = Event(eventType: .stackActivated, payload: payloadData, entityId: stackId)
-        context.insert(event)
-        try context.save()
-
-        // Apply the activation event
-        try applyEvents([event], context: context)
-
-        // Re-fetch the stack to verify persisted state
+        // Verify stack was created
         let predicate = #Predicate<Stack> { $0.id == stackId }
         let descriptor = FetchDescriptor<Stack>(predicate: predicate)
-        let fetchedStacks = try context.fetch(descriptor)
+        var stacks = try context.fetch(descriptor)
+        #expect(stacks.count == 1)
+        #expect(stacks.first?.isDeleted == false)
+        #expect(stacks.first?.isActive == false)
 
-        #expect(fetchedStacks.count == 1)
-        guard let fetchedStack = fetchedStacks.first else {
+        // Step 2: Delete the stack via an event
+        let deletePayloadDict: [String: Any] = ["id": stackId, "deleted": true]
+        let deletePayloadData = try JSONSerialization.data(withJSONObject: deletePayloadDict)
+        let deleteEvent = Event(eventType: .stackDeleted, payload: deletePayloadData, entityId: stackId)
+        context.insert(deleteEvent)
+        try context.save()
+        try applyEvents([deleteEvent], context: context)
+
+        // Verify stack is now deleted
+        stacks = try context.fetch(descriptor)
+        #expect(stacks.count == 1)
+        #expect(stacks.first?.isDeleted == true)
+        #expect(stacks.first?.isActive == false)
+
+        // Step 3: Try to activate the deleted stack via event
+        let activatePayloadData = try createEntityStatusPayload(id: stackId, status: "active")
+        let activateEvent = Event(eventType: .stackActivated, payload: activatePayloadData, entityId: stackId)
+        context.insert(activateEvent)
+        try context.save()
+        try applyEvents([activateEvent], context: context)
+
+        // Step 4: Verify the deleted stack was NOT activated (guard should prevent it)
+        stacks = try context.fetch(descriptor)
+        #expect(stacks.count == 1)
+        guard let finalStack = stacks.first else {
             Issue.record("Failed to fetch stack")
             return
         }
 
-        // Verify the deleted stack was NOT activated (guard should prevent it)
-        #expect(fetchedStack.isDeleted == true)
-        #expect(fetchedStack.isActive == false)
+        #expect(finalStack.isDeleted == true)
+        #expect(finalStack.isActive == false)
     }
 
     @Test("Stack deletion sets isActive to false")
