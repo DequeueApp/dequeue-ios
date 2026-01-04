@@ -11,7 +11,6 @@ import Foundation
 
 @Suite("SyncManager Reconnection Tests")
 struct SyncManagerReconnectTests {
-
     @Test("Exponential backoff with jitter stays within expected range")
     func testBackoffJitter() async {
         let baseDelay: TimeInterval = 1.0

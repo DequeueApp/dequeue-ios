@@ -13,7 +13,6 @@ import SwiftData
 @Suite("Sync Conflict Tests")
 @MainActor
 struct SyncConflictTests {
-
     @Test("SyncConflict model initializes correctly")
     func testSyncConflictInit() async {
         let localTime = Date()

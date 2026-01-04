@@ -12,7 +12,6 @@ import Foundation
 
 @Suite("Stack Model Tests")
 struct StackTests {
-
     @Test("Stack initializes with default values")
     func stackInitializesWithDefaults() {
         let stack = Stack(title: "Test Stack")
@@ -128,5 +127,108 @@ struct StackTests {
         try context.save()
 
         #expect(stack.activeTask?.title == "First")
+    }
+
+    // MARK: - Stack Creation with Multiple Tasks (DEQ-129)
+
+    @Test("Creating stack with multiple tasks")
+    func creatingStackWithMultipleTasks() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let context = ModelContext(container)
+
+        let stackService = StackService(modelContext: context)
+        let taskService = TaskService(modelContext: context)
+
+        // Create stack
+        let stack = try stackService.createStack(
+            title: "Test Stack",
+            description: "Stack with multiple tasks"
+        )
+
+        // Create multiple tasks (simulating the create mode flow)
+        let task1 = try taskService.createTask(
+            title: "First Task",
+            description: "Description 1",
+            stack: stack
+        )
+        let task2 = try taskService.createTask(
+            title: "Second Task",
+            description: nil,
+            stack: stack
+        )
+        let task3 = try taskService.createTask(
+            title: "Third Task",
+            description: "Description 3",
+            stack: stack
+        )
+
+        try context.save()
+
+        // Verify all tasks were created
+        #expect(stack.tasks.count == 3)
+        #expect(stack.pendingTasks.count == 3)
+
+        // Verify tasks are in correct order
+        let tasks = stack.tasks.sorted { $0.sortOrder < $1.sortOrder }
+        #expect(tasks[0].title == "First Task")
+        #expect(tasks[1].title == "Second Task")
+        #expect(tasks[2].title == "Third Task")
+
+        // Verify descriptions
+        #expect(tasks[0].taskDescription == "Description 1")
+        #expect(tasks[1].taskDescription == nil)
+        #expect(tasks[2].taskDescription == "Description 3")
+    }
+
+    @Test("Creating stack with no tasks")
+    func creatingStackWithNoTasks() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let context = ModelContext(container)
+
+        let stackService = StackService(modelContext: context)
+
+        // Create stack without tasks
+        let stack = try stackService.createStack(
+            title: "Empty Stack",
+            description: nil
+        )
+
+        try context.save()
+
+        // Verify stack created successfully with no tasks
+        #expect(stack.tasks.isEmpty)
+        #expect(stack.pendingTasks.isEmpty)
+        #expect(stack.title == "Empty Stack")
+    }
+
+    @Test("Task sort order is correct when created sequentially")
+    func taskSortOrderCorrect() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let context = ModelContext(container)
+
+        let stackService = StackService(modelContext: context)
+        let taskService = TaskService(modelContext: context)
+
+        let stack = try stackService.createStack(title: "Test Stack")
+
+        // Create 5 tasks
+        for index in 1...5 {
+            _ = try taskService.createTask(
+                title: "Task \(index)",
+                stack: stack
+            )
+        }
+
+        try context.save()
+
+        // Verify sort orders are sequential
+        let tasks = stack.tasks.sorted { $0.sortOrder < $1.sortOrder }
+        for (index, task) in tasks.enumerated() {
+            #expect(task.sortOrder == index)
+            #expect(task.title == "Task \(index + 1)")
+        }
     }
 }

@@ -42,7 +42,7 @@ extension StackEditorView {
         Section {
             if pendingTasks.isEmpty {
                 HStack {
-                    Label("No tasks yet", systemImage: "checkmark.circle")
+                    Label("No Tasks", systemImage: "checkmark.circle")
                         .foregroundStyle(.secondary)
                     Spacer()
                 }

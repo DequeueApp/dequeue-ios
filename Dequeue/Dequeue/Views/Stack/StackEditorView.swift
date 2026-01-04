@@ -51,6 +51,10 @@ struct StackEditorView: View {
     @State var showDiscardAlert = false
 
     // Pending task model for create mode
+    // NOTE: Pending tasks are stored in @State and are NOT persisted to draft Stack.
+    // If the app crashes or is backgrounded during creation, pending tasks will be lost
+    // even though the draft Stack itself is auto-saved. This is acceptable for v1 since
+    // Stack creation is typically a quick flow. Future improvement: persist to draft Stack.
     struct PendingTask: Identifiable, Equatable {
         let id = UUID()
         var title: String

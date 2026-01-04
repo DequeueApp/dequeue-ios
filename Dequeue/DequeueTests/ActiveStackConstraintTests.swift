@@ -12,7 +12,6 @@ import Foundation
 
 @Suite("Active Stack Constraint Tests")
 struct ActiveStackConstraintTests {
-
     // MARK: - Test Helpers
 
     private func createTestContainer() throws -> ModelContainer {
