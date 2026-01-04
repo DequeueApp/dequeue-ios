@@ -436,7 +436,7 @@ struct ProjectorServiceTests {
 
         // Create a deleted stack
         let stackId = CUID.generate()
-        let stack = Stack(id: stackId, title: "Deleted Stack", isActive: false, isDeleted: true)
+        let stack = Stack(id: stackId, title: "Deleted Stack", isDeleted: true, isActive: false)
         context.insert(stack)
         try context.save()
 
