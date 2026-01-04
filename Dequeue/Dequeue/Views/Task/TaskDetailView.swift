@@ -513,6 +513,8 @@ struct TaskHistoryView: View {
 
     @State private var events: [Event] = []
     @State private var isLoading = true
+    @State private var loadError: Error?
+    @State private var showLoadError = false
 
     var body: some View {
         Group {
@@ -544,10 +546,24 @@ struct TaskHistoryView: View {
         .task(id: task.updatedAt) {
             await loadEvents()
         }
+        .alert("Failed to Load History", isPresented: $showLoadError) {
+            Button("Retry") {
+                Task {
+                    await loadEvents()
+                }
+            }
+            Button("OK", role: .cancel) { }
+        } message: {
+            if let error = loadError {
+                Text(error.localizedDescription)
+            }
+        }
     }
 
     private func loadEvents() async {
         isLoading = true
+        loadError = nil
+
         let taskId = task.id
         let descriptor = FetchDescriptor<Event>(
             predicate: #Predicate<Event> { event in
@@ -559,6 +575,9 @@ struct TaskHistoryView: View {
         do {
             events = try modelContext.fetch(descriptor)
         } catch {
+            loadError = error
+            showLoadError = true
+            events = []
             ErrorReportingService.capture(error: error, context: ["view": "TaskHistoryView"])
         }
         isLoading = false

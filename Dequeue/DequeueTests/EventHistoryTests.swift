@@ -117,7 +117,7 @@ struct EventHistoryTests {
 
     @Test("fetchStackHistoryWithRelated returns events in reverse chronological order")
     @MainActor
-    func fetchStackHistoryReturnsEventsInReverseOrder() throws {
+    func fetchStackHistoryReturnsEventsInReverseOrder() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
 
@@ -132,7 +132,7 @@ struct EventHistoryTests {
         try context.save()
 
         // Small delay to ensure different timestamp
-        try? await Task.sleep(nanoseconds: 10_000_000)
+        try await Task.sleep(nanoseconds: 10_000_000)
 
         try eventService.recordStackUpdated(stack)
         try context.save()
