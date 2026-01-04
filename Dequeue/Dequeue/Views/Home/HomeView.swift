@@ -266,10 +266,11 @@ struct StackRowView: View {
 
                 Spacer()
 
-                if stack.sortOrder == 0 {
+                if stack.isActive {
                     Image(systemName: "star.fill")
                         .foregroundStyle(.yellow)
                         .font(.caption)
+                        .accessibilityLabel("Active stack")
                 }
             }
 
