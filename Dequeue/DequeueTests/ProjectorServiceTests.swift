@@ -436,9 +436,16 @@ struct ProjectorServiceTests {
 
         let stackId = CUID.generate()
 
-        // Step 1: Create the stack via an event (same pattern as other tests)
+        // Use explicit timestamps to ensure proper LWW ordering
+        // Each event must have a strictly greater timestamp than the previous
+        let baseTime = Date()
+        let createTime = baseTime
+        let deleteTime = baseTime.addingTimeInterval(1.0)
+        let activateTime = baseTime.addingTimeInterval(2.0)
+
+        // Step 1: Create the stack via an event
         let createPayload = try createStackPayload(id: stackId, title: "Test Stack", isActive: false)
-        let createEvent = Event(eventType: .stackCreated, payload: createPayload, entityId: stackId)
+        let createEvent = Event(eventType: .stackCreated, payload: createPayload, timestamp: createTime, entityId: stackId)
         context.insert(createEvent)
         try context.save()
         try applyEvents([createEvent], context: context)
@@ -451,10 +458,10 @@ struct ProjectorServiceTests {
         #expect(stacks.first?.isDeleted == false)
         #expect(stacks.first?.isActive == false)
 
-        // Step 2: Delete the stack via an event
+        // Step 2: Delete the stack via an event (with later timestamp)
         let deletePayloadDict: [String: Any] = ["id": stackId, "deleted": true]
         let deletePayloadData = try JSONSerialization.data(withJSONObject: deletePayloadDict)
-        let deleteEvent = Event(eventType: .stackDeleted, payload: deletePayloadData, entityId: stackId)
+        let deleteEvent = Event(eventType: .stackDeleted, payload: deletePayloadData, timestamp: deleteTime, entityId: stackId)
         context.insert(deleteEvent)
         try context.save()
         try applyEvents([deleteEvent], context: context)
@@ -465,9 +472,10 @@ struct ProjectorServiceTests {
         #expect(stacks.first?.isDeleted == true)
         #expect(stacks.first?.isActive == false)
 
-        // Step 3: Try to activate the deleted stack via event
+        // Step 3: Try to activate the deleted stack via event (with even later timestamp)
+        // Note: The guard in applyStackActivated should prevent activation of deleted stacks
         let activatePayloadData = try createEntityStatusPayload(id: stackId, status: "active")
-        let activateEvent = Event(eventType: .stackActivated, payload: activatePayloadData, entityId: stackId)
+        let activateEvent = Event(eventType: .stackActivated, payload: activatePayloadData, timestamp: activateTime, entityId: stackId)
         context.insert(activateEvent)
         try context.save()
         try applyEvents([activateEvent], context: context)
