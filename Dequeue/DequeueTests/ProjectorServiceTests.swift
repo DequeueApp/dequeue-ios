@@ -435,26 +435,38 @@ struct ProjectorServiceTests {
         let context = ModelContext(container)
 
         // Create a deleted stack
-        let stack = Stack(title: "Deleted Stack", isActive: false)
-        stack.isDeleted = true
+        let stackId = CUID.generate()
+        let stack = Stack(id: stackId, title: "Deleted Stack", isActive: false, isDeleted: true)
         context.insert(stack)
         try context.save()
 
+        // Verify initial state
         #expect(stack.isDeleted == true)
         #expect(stack.isActive == false)
 
         // Try to activate the deleted stack via event
-        let payloadData = try createEntityStatusPayload(id: stack.id, status: "active")
-        let event = Event(eventType: .stackActivated, payload: payloadData, entityId: stack.id)
+        let payloadData = try createEntityStatusPayload(id: stackId, status: "active")
+        let event = Event(eventType: .stackActivated, payload: payloadData, entityId: stackId)
         context.insert(event)
         try context.save()
 
         // Apply the activation event
         try applyEvents([event], context: context)
 
+        // Re-fetch the stack to verify persisted state
+        let predicate = #Predicate<Stack> { $0.id == stackId }
+        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
+        let fetchedStacks = try context.fetch(descriptor)
+
+        #expect(fetchedStacks.count == 1)
+        guard let fetchedStack = fetchedStacks.first else {
+            Issue.record("Failed to fetch stack")
+            return
+        }
+
         // Verify the deleted stack was NOT activated (guard should prevent it)
-        #expect(stack.isDeleted == true)
-        #expect(stack.isActive == false)
+        #expect(fetchedStack.isDeleted == true)
+        #expect(fetchedStack.isActive == false)
     }
 
     @Test("Stack deletion sets isActive to false")
