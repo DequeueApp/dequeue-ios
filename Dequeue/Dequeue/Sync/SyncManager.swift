@@ -811,7 +811,8 @@ actor SyncManager {
     /// Triggers an immediate push of pending events.
     /// Call this after recording events to sync them without waiting for the periodic interval.
     /// Errors are logged but not thrown to avoid disrupting the caller's flow.
-    func triggerImmediatePush() {
+    /// Marked nonisolated since it only spawns an actor-isolated Task internally.
+    nonisolated func triggerImmediatePush() {
         Task {
             do {
                 try await pushEvents()
