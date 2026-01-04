@@ -54,6 +54,8 @@ struct HomeView: View {
     @State private var selectedStack: Stack?
     @State private var selectedTask: QueueTask?
     @State private var showReminders = false
+    @State private var errorMessage: String?
+    @State private var showError = false
 
     /// Count of overdue reminders for badge display
     private var overdueCount: Int {
@@ -106,6 +108,15 @@ struct HomeView: View {
             .sheet(item: $selectedTask) { task in
                 NavigationStack {
                     TaskDetailView(task: task)
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK") {
+                    showError = false
+                }
+            } message: {
+                if let errorMessage {
+                    Text(errorMessage)
                 }
             }
         }
@@ -162,8 +173,9 @@ struct HomeView: View {
         do {
             try stackService.updateSortOrders(reorderedStacks)
         } catch {
-            // Log error but don't crash - changes are still in memory
             ErrorReportingService.capture(error: error, context: ["action": "moveStacks"])
+            errorMessage = "Failed to save stack reorder: \(error.localizedDescription)"
+            showError = true
         }
     }
 
@@ -173,8 +185,9 @@ struct HomeView: View {
             do {
                 try stackService.deleteStack(stacks[index])
             } catch {
-                // Log error but don't crash - changes are still in memory
                 ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
+                errorMessage = "Failed to delete stack: \(error.localizedDescription)"
+                showError = true
             }
         }
     }
