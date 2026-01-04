@@ -12,7 +12,6 @@ import Foundation
 
 @Suite("Device Model Tests")
 struct DeviceTests {
-
     @Test("Device initializes with required fields")
     func deviceInitializesWithRequiredFields() {
         let device = Device(

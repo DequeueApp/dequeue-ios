@@ -12,7 +12,6 @@ import Foundation
 
 @Suite("Dequeue Core Tests")
 struct DequeueTests {
-
     @Test("Models can be inserted into container")
     func modelsCanBeInserted() throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)

@@ -45,10 +45,21 @@ struct StackEditorView: View {
     // Create mode state
     @State var title: String = ""
     @State var stackDescription: String = ""
-    @State var firstTaskTitle: String = ""
+    @State var pendingTasks: [PendingTask] = []
     @State var draftStack: Stack?
     @State var isCreatingDraft = false
     @State var showDiscardAlert = false
+
+    // Pending task model for create mode
+    // NOTE: Pending tasks are stored in @State and are NOT persisted to draft Stack.
+    // If the app crashes or is backgrounded during creation, pending tasks will be lost
+    // even though the draft Stack itself is auto-saved. This is acceptable for v1 since
+    // Stack creation is typically a quick flow. Future improvement: persist to draft Stack.
+    struct PendingTask: Identifiable, Equatable {
+        let id = UUID()
+        var title: String
+        var description: String?
+    }
 
     // Edit mode state
     @State var isEditingDescription = false
