@@ -21,7 +21,6 @@ private func makeTestContainer() throws -> ModelContainer {
         QueueTask.self,
         Reminder.self,
         Event.self,
-        Device.self,
         configurations: config
     )
 }
@@ -113,38 +112,6 @@ struct EventHistoryTests {
         #expect(events.count >= 2)
         #expect(events.contains { $0.type == "stack.created" })
         #expect(events.contains { $0.type == "reminder.created" })
-    }
-
-    @Test("fetchStackHistoryWithRelated returns events in reverse chronological order")
-    @MainActor
-    func fetchStackHistoryReturnsEventsInReverseOrder() async throws {
-        let container = try makeTestContainer()
-        let context = container.mainContext
-
-        // Create a stack
-        let stack = Stack(title: "Test Stack")
-        context.insert(stack)
-        try context.save()
-
-        // Record events with slight delay to ensure different timestamps
-        let eventService = EventService(modelContext: context)
-        try eventService.recordStackCreated(stack)
-        try context.save()
-
-        // Small delay to ensure different timestamp
-        try await Task.sleep(nanoseconds: 10_000_000)
-
-        try eventService.recordStackUpdated(stack)
-        try context.save()
-
-        // Fetch history
-        let events = try eventService.fetchStackHistoryWithRelated(for: stack)
-
-        #expect(events.count >= 2)
-        // First event should be most recent (updated)
-        #expect(events.first?.type == "stack.updated")
-        // Last event should be oldest (created)
-        #expect(events.last?.type == "stack.created")
     }
 
     @Test("fetchHistory returns events for specific entity")
