@@ -11,7 +11,6 @@ import UserNotifications
 
 internal struct NotificationSettingsView: View {
     @Environment(\.modelContext) private var modelContext
-    @AppStorage("notificationSoundEnabled") private var soundEnabled = true
     @AppStorage("notificationBadgeEnabled") private var badgeEnabled = true
 
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
@@ -129,11 +128,6 @@ internal struct NotificationSettingsView: View {
     private var preferencesSection: some View {
         if authorizationStatus == .authorized || authorizationStatus == .provisional {
             Section {
-                Toggle(isOn: $soundEnabled) {
-                    Label("Sound", systemImage: "speaker.wave.2")
-                }
-                .accessibilityIdentifier("notificationSoundToggle")
-
                 Toggle(isOn: $badgeEnabled) {
                     Label("Badge", systemImage: "app.badge")
                 }
@@ -146,7 +140,7 @@ internal struct NotificationSettingsView: View {
             } header: {
                 Text("Preferences")
             } footer: {
-                Text("Control how notifications appear on your device.")
+                Text("Show overdue reminder count on the app icon.")
             }
         }
     }
