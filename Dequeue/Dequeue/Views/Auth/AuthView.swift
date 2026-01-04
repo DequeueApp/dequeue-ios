@@ -321,11 +321,20 @@ enum AuthMode {
 
 // MARK: - Environment Key
 
+/// Minimal nonisolated auth service for EnvironmentKey default value
+private final class DefaultAuthService: AuthServiceProtocol, @unchecked Sendable {
+    var isAuthenticated: Bool { false }
+    var isLoading: Bool { false }
+    var currentUserId: String? { nil }
+    func configure() async {}
+    func signOut() async throws {}
+    func getAuthToken() async throws -> String { throw AuthError.notAuthenticated }
+}
+
 private struct AuthServiceKey: EnvironmentKey {
-    // Note: @Observable types are MainActor-isolated, so we use a lazy computed property
-    // to initialize on first access (which will be on MainActor).
-    // Real authService is injected in DequeueApp.swift, this default is rarely used.
-    @MainActor static let defaultValue: any AuthServiceProtocol = MockAuthService()
+    // Note: DefaultAuthService is a simple nonisolated implementation used only as a fallback.
+    // Real authService (ClerkAuthService) is injected in DequeueApp.swift.
+    static let defaultValue: any AuthServiceProtocol = DefaultAuthService()
 }
 
 extension EnvironmentValues {
