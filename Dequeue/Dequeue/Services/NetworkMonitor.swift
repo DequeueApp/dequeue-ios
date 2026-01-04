@@ -9,11 +9,10 @@ import Foundation
 import Network
 import Observation
 
-@MainActor
 @Observable
 final class NetworkMonitor {
-    private(set) var isConnected: Bool = true
-    private(set) var connectionType: NWInterface.InterfaceType?
+    @MainActor private(set) var isConnected: Bool = true
+    @MainActor private(set) var connectionType: NWInterface.InterfaceType?
 
     private let monitor: NWPathMonitor
     private let queue = DispatchQueue(label: "com.dequeue.networkmonitor")
@@ -23,11 +22,19 @@ final class NetworkMonitor {
         startMonitoring()
     }
 
+    nonisolated deinit {
+        monitor.cancel()
+    }
+
     private func startMonitoring() {
         monitor.pathUpdateHandler = { [weak self] path in
-            Task { @MainActor [weak self] in
-                self?.isConnected = path.status == .satisfied
-                self?.connectionType = path.availableInterfaces.first?.type
+            let status = path.status
+            let interfaceType = path.availableInterfaces.first?.type
+
+            Task { @MainActor in
+                guard let self = self else { return }
+                self.isConnected = status == .satisfied
+                self.connectionType = interfaceType
             }
         }
         monitor.start(queue: queue)
@@ -41,5 +48,5 @@ final class NetworkMonitor {
     }
 
     /// Shared instance for app-wide network monitoring
-    static let shared = NetworkMonitor()
+    nonisolated(unsafe) static let shared = NetworkMonitor()
 }
