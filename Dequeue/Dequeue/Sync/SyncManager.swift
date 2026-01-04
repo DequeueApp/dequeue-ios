@@ -261,7 +261,13 @@ actor SyncManager {
         guard !pendingEvents.isEmpty else { return }
 
         // Use cached deviceId (falls back to fetching if not cached, e.g., during reconnect)
-        let eventDeviceId = deviceId ?? await DeviceService.shared.getDeviceId()
+        let eventDeviceId: String
+        if let cachedDeviceId = deviceId {
+            eventDeviceId = cachedDeviceId
+        } else {
+            eventDeviceId = await DeviceService.shared.getDeviceId()
+        }
+
         let syncEvents = pendingEvents.map { event -> [String: Any] in
             let payload: Any
             if let payloadDict = try? JSONSerialization.jsonObject(with: event.payload) {
