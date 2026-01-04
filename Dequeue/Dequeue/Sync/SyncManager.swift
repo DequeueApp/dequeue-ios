@@ -54,13 +54,16 @@ actor SyncManager {
     }()
 
     // Pre-compiled regex patterns for timestamp parsing (compiled once, reused)
-    private static let nanosecondsRegex: NSRegularExpression? = {
-        try? NSRegularExpression(pattern: #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d{3})\d*(Z|[+-]\d{2}:\d{2})"#)
+    // Force unwrap is safe here - patterns are hardcoded and valid
+    // swiftlint:disable force_try
+    private static let nanosecondsRegex: NSRegularExpression = {
+        try! NSRegularExpression(pattern: #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d{3})\d*(Z|[+-]\d{2}:\d{2})"#)
     }()
 
-    private static let fractionalSecondsRegex: NSRegularExpression? = {
-        try? NSRegularExpression(pattern: #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d+(Z|[+-]\d{2}:\d{2})"#)
+    private static let fractionalSecondsRegex: NSRegularExpression = {
+        try! NSRegularExpression(pattern: #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d+(Z|[+-]\d{2}:\d{2})"#)
     }()
+    // swiftlint:enable force_try
 
     /// Parses ISO8601 timestamp, handling Go's RFC3339Nano format with nanosecond precision.
     /// Go sends timestamps like "2024-01-15T10:30:45.123456789Z" but Swift's ISO8601DateFormatter
@@ -93,18 +96,16 @@ actor SyncManager {
     /// Input:  "2024-01-15T10:30:45.123456789Z"
     /// Output: "2024-01-15T10:30:45.123Z"
     private static func truncateNanosecondsToMilliseconds(_ string: String) -> String {
-        guard let regex = nanosecondsRegex else { return string }
         let range = NSRange(string.startIndex..., in: string)
-        return regex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1.$2$3")
+        return nanosecondsRegex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1.$2$3")
     }
 
     /// Removes fractional seconds entirely from ISO8601 timestamp
     /// Input:  "2024-01-15T10:30:45.123456789Z"
     /// Output: "2024-01-15T10:30:45Z"
     private static func removeFractionalSeconds(_ string: String) -> String {
-        guard let regex = fractionalSecondsRegex else { return string }
         let range = NSRange(string.startIndex..., in: string)
-        return regex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1$2")
+        return fractionalSecondsRegex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1$2")
     }
 
     /// Extracts the entity ID from an event payload for history queries.
