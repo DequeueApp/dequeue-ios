@@ -77,6 +77,15 @@ extension StackEditorView {
     }
 
     func updateDraft(_ draft: Stack, title: String, description: String) {
+        // Check if draft was published elsewhere before attempting update
+        guard draft.isDraft else {
+            logger.warning("Attempted to update non-draft stack - draft may have been published")
+            draftStack = nil
+            errorMessage = "This draft has been published. Changes were not saved."
+            showError = true
+            return
+        }
+
         do {
             try stackService.updateDraft(
                 draft,
@@ -85,13 +94,6 @@ extension StackEditorView {
             )
             logger.debug("Auto-updated draft: \(draft.id)")
             syncManager?.triggerImmediatePush()
-        } catch StackServiceError.cannotUpdateNonDraftStack {
-            // Draft was published or discarded while editing - refresh UI state
-            logger.warning("Attempted to update non-draft stack - draft may have been published")
-            // Clear the draft reference since it's no longer a draft
-            draftStack = nil
-            errorMessage = "This draft has been published. Changes were not saved."
-            showError = true
         } catch {
             logger.error("Failed to update draft: \(error.localizedDescription)")
         }

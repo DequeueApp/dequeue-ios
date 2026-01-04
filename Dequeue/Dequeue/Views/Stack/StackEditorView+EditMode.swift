@@ -253,15 +253,6 @@ extension StackEditorView {
         }
     }
 
-    func uncompleteTask(_ task: QueueTask) {
-        do {
-            try taskService.markAsUncompleted(task)
-            syncManager?.triggerImmediatePush()
-        } catch {
-            handleError(error)
-        }
-    }
-
     func setTaskActive(_ task: QueueTask) {
         do {
             try taskService.activateTask(task)
