@@ -45,10 +45,17 @@ struct StackEditorView: View {
     // Create mode state
     @State var title: String = ""
     @State var stackDescription: String = ""
-    @State var firstTaskTitle: String = ""
+    @State var pendingTasks: [PendingTask] = []
     @State var draftStack: Stack?
     @State var isCreatingDraft = false
     @State var showDiscardAlert = false
+
+    // Pending task model for create mode
+    struct PendingTask: Identifiable, Equatable {
+        let id = UUID()
+        var title: String
+        var description: String?
+    }
 
     // Edit mode state
     @State var isEditingDescription = false

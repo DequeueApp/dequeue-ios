@@ -27,15 +27,61 @@ extension StackEditorView {
                     }
             }
 
-            Section("First Task") {
-                TextField("Task title (optional)", text: $firstTaskTitle)
-            }
+            createModeTasksSection
 
             // Reminders section - only show when draft exists
             if draftStack != nil {
                 remindersSection
             }
         }
+    }
+
+    // MARK: - Create Mode Tasks Section
+
+    var createModeTasksSection: some View {
+        Section {
+            if pendingTasks.isEmpty {
+                HStack {
+                    Label("No tasks yet", systemImage: "checkmark.circle")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+            } else {
+                ForEach(pendingTasks) { task in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(task.title)
+                            if let description = task.description, !description.isEmpty {
+                                Text(description)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                    }
+                }
+                .onDelete(perform: deleteCreateModeTasks)
+            }
+        } header: {
+            HStack {
+                Text("Tasks")
+                Spacer()
+                Text("\(pendingTasks.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    showAddTask = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(.blue)
+                }
+                .accessibilityIdentifier("addTaskButton")
+            }
+        }
+    }
+
+    func deleteCreateModeTasks(at offsets: IndexSet) {
+        pendingTasks.remove(atOffsets: offsets)
     }
 
     // MARK: - Create Mode Actions
@@ -138,10 +184,11 @@ extension StackEditorView {
                 logger.info("Stack created: \(stack.id)")
             }
 
-            // Add first task if provided
-            if !firstTaskTitle.isEmpty {
+            // Create all pending tasks
+            for pendingTask in pendingTasks {
                 let task = try taskService.createTask(
-                    title: firstTaskTitle,
+                    title: pendingTask.title,
+                    description: pendingTask.description,
                     stack: stack
                 )
                 logger.info("Task created: \(task.id)")
