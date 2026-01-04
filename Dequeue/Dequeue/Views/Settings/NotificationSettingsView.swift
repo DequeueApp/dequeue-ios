@@ -17,18 +17,14 @@ private enum UserDefaultsKey {
 
 // MARK: - Main View
 
-internal struct NotificationSettingsView: View {
+struct NotificationSettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage(UserDefaultsKey.notificationBadgeEnabled) private var badgeEnabled = true
 
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @State private var showPermissionError = false
     @State private var permissionErrorMessage: String?
-
-    /// Computed property to create NotificationService with current model context
-    private var notificationService: NotificationService {
-        NotificationService(modelContext: modelContext)
-    }
+    @State private var notificationService: NotificationService?
 
     var body: some View {
         List {
@@ -48,7 +44,7 @@ internal struct NotificationSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .task {
-            await loadAuthorizationStatus()
+            await initializeAndLoadStatus()
         }
         .alert("Permission Error", isPresented: $showPermissionError) {
             Button("OK", role: .cancel) { }
@@ -59,13 +55,16 @@ internal struct NotificationSettingsView: View {
 
     // MARK: - Actions
 
-    private func loadAuthorizationStatus() async {
-        authorizationStatus = await notificationService.getAuthorizationStatus()
+    private func initializeAndLoadStatus() async {
+        let service = NotificationService(modelContext: modelContext)
+        notificationService = service
+        authorizationStatus = await service.getAuthorizationStatus()
     }
 
     private func requestPermission() async {
+        guard let service = notificationService else { return }
         do {
-            let granted = try await notificationService.requestPermissionWithError()
+            let granted = try await service.requestPermissionWithError()
             authorizationStatus = granted ? .authorized : .denied
         } catch {
             permissionErrorMessage = error.localizedDescription
@@ -74,15 +73,16 @@ internal struct NotificationSettingsView: View {
                 error: error,
                 context: ["action": "request_notification_permission"]
             )
-            authorizationStatus = await notificationService.getAuthorizationStatus()
+            authorizationStatus = await service.getAuthorizationStatus()
         }
     }
 
     private func handleBadgeToggle(enabled: Bool) async {
+        guard let service = notificationService else { return }
         if !enabled {
-            await notificationService.clearAppBadge()
+            await service.clearAppBadge()
         } else {
-            await notificationService.updateAppBadge()
+            await service.updateAppBadge()
         }
     }
 
@@ -231,6 +231,8 @@ private struct PreferencesSection: View {
                     }
                     .accessibilityIdentifier("notificationBadgeToggle")
                     .onChange(of: badgeEnabled) { _, newValue in
+                        // Task is safe here: toggle is only visible when view is active,
+                        // and badge operations are idempotent fire-and-forget updates
                         Task {
                             await onBadgeToggle(newValue)
                         }
