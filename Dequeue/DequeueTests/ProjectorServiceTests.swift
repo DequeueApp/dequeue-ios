@@ -428,4 +428,60 @@ struct ProjectorServiceTests {
         let activeCount = stacks.filter { $0.isActive }.count
         #expect(activeCount == 1)
     }
+
+    @Test("Deleted stack activation is ignored")
+    func deletedStackActivationIsIgnored() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create a deleted stack
+        let stack = Stack(title: "Deleted Stack", isActive: false)
+        stack.isDeleted = true
+        context.insert(stack)
+        try context.save()
+
+        #expect(stack.isDeleted == true)
+        #expect(stack.isActive == false)
+
+        // Try to activate the deleted stack via event
+        let payloadData = try createEntityStatusPayload(id: stack.id, status: "active")
+        let event = Event(eventType: .stackActivated, payload: payloadData, entityId: stack.id)
+        context.insert(event)
+        try context.save()
+
+        // Apply the activation event
+        try applyEvents([event], context: context)
+
+        // Verify the deleted stack was NOT activated (guard should prevent it)
+        #expect(stack.isDeleted == true)
+        #expect(stack.isActive == false)
+    }
+
+    @Test("Stack deletion sets isActive to false")
+    func stackDeletionSetsIsActiveFalse() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create an active stack
+        let stack = Stack(title: "Active Stack", isActive: true)
+        context.insert(stack)
+        try context.save()
+
+        #expect(stack.isActive == true)
+        #expect(stack.isDeleted == false)
+
+        // Create a stack.deleted event
+        let payloadDict: [String: Any] = ["id": stack.id, "deleted": true]
+        let payloadData = try JSONSerialization.data(withJSONObject: payloadDict)
+        let event = Event(eventType: .stackDeleted, payload: payloadData, entityId: stack.id)
+        context.insert(event)
+        try context.save()
+
+        // Apply the deletion event
+        try applyEvents([event], context: context)
+
+        // Verify the stack is now deleted and inactive
+        #expect(stack.isDeleted == true)
+        #expect(stack.isActive == false)
+    }
 }

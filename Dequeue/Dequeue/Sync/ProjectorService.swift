@@ -180,6 +180,7 @@ enum ProjectorService {
         ) else { return }
 
         stack.isDeleted = true
+        stack.isActive = false  // DEQ-136: Deleted stacks cannot be active
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
@@ -201,6 +202,7 @@ enum ProjectorService {
 
         // Discarded drafts are deleted
         stack.isDeleted = true
+        stack.isActive = false  // DEQ-136: Deleted stacks cannot be active
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
@@ -247,7 +249,10 @@ enum ProjectorService {
         ) else { return }
 
         // DEQ-136: Enforce single active stack constraint
-        // Deactivate all other stacks before activating this one to ensure invariant holds
+        // Deactivate all other stacks before activating this one to ensure invariant holds.
+        // Event ordering: The LWW check above (shouldApplyEvent) ensures we only apply events
+        // newer than current state, preventing out-of-order activation from corrupting state.
+        // Deactivated stacks don't get updatedAt changes as this is a side effect of this event.
         let stackId = payload.id
         let predicate = #Predicate<Stack> { $0.isActive == true && $0.id != stackId }
         let descriptor = FetchDescriptor<Stack>(predicate: predicate)
