@@ -63,13 +63,13 @@ struct HomeView: View {
     @State private var selectedStack: Stack?
     @State private var selectedTask: QueueTask?
     @State private var showReminders = false
+    @State private var offlineBannerDismissed = false
     @State private var syncError: Error?
     @State private var showingSyncError = false
     @State private var errorMessage: String?
     @State private var showError = false
-    @State private var offlineBannerDismissed = false
 
-    /// Network monitor for offline detection
+    /// Network monitor for offline detection - uses @Observable, no @State needed
     private let networkMonitor = NetworkMonitor.shared
 
     /// Stack service for operations - lightweight struct, safe to recreate each call
