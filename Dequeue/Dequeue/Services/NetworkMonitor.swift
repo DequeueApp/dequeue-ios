@@ -16,17 +16,21 @@ import os
 /// The shared instance runs for the app's lifetime - this is intentional as network
 /// monitoring should be continuous.
 ///
-/// This class is @MainActor isolated because:
-/// 1. Its sole purpose is to drive UI updates
-/// 2. All property reads happen from SwiftUI views (main thread)
-/// 3. The singleton pattern makes this isolation straightforward
+/// ## Design Notes
 ///
-/// The NWPathMonitor infrastructure uses nonisolated to operate off the main thread.
+/// This class applies @MainActor surgically - only to observable properties that
+/// drive UI updates. The NWPathMonitor infrastructure runs on a background queue.
 ///
-/// Note: Initial state is optimistic (isConnected = true) to avoid false offline
+/// The singleton pattern is intentional for network monitoring because:
+/// - Network state is global and device-wide
+/// - Multiple monitors would be wasteful and potentially inconsistent
+/// - The monitor runs for the app's entire lifetime
+///
+/// Initial state is optimistic (isConnected = true) to avoid false offline
 /// indicators during app launch. Actual state is updated within ~100ms.
 ///
-/// Usage:
+/// ## Usage
+///
 /// ```swift
 /// let monitor = NetworkMonitor.shared
 /// if monitor.isConnected {
@@ -34,23 +38,22 @@ import os
 /// }
 /// ```
 @Observable
-@MainActor
 final class NetworkMonitor {
-    /// Whether the device currently has network connectivity
+    /// Whether the device currently has network connectivity.
     /// Optimistic default: true (avoids false offline indicators during launch)
-    private(set) var isConnected: Bool = true
+    @MainActor private(set) var isConnected: Bool = true
 
     /// The type of network interface currently in use (WiFi, Cellular, etc.)
-    private(set) var connectionType: NWInterface.InterfaceType?
+    @MainActor private(set) var connectionType: NWInterface.InterfaceType?
 
-    nonisolated private let monitor: NWPathMonitor
-    nonisolated private let queue = DispatchQueue(label: "com.dequeue.networkmonitor")
-    nonisolated private static let logger = Logger(
+    private let monitor: NWPathMonitor
+    private let queue = DispatchQueue(label: "com.dequeue.networkmonitor")
+    private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.dequeue",
         category: "NetworkMonitor"
     )
 
-    nonisolated init() {
+    init() {
         monitor = NWPathMonitor()
         startMonitoring()
     }
@@ -61,7 +64,7 @@ final class NetworkMonitor {
         monitor.cancel()
     }
 
-    nonisolated private func startMonitoring() {
+    private func startMonitoring() {
         monitor.pathUpdateHandler = { [weak self] path in
             // Extract values before creating Task to avoid capturing path object
             let status = path.status
@@ -86,7 +89,7 @@ final class NetworkMonitor {
     ///
     /// For the shared singleton, this typically should not be called as it runs
     /// for the app's lifetime. Useful for testing cleanup or custom instances.
-    nonisolated func stopMonitoring() {
+    func stopMonitoring() {
         monitor.cancel()
         Self.logger.info("Network monitoring stopped")
     }
@@ -95,5 +98,5 @@ final class NetworkMonitor {
     ///
     /// This singleton intentionally runs for the app's entire lifetime.
     /// The NWPathMonitor is lightweight and designed for continuous monitoring.
-    static let shared = NetworkMonitor()
+    @MainActor static let shared = NetworkMonitor()
 }
