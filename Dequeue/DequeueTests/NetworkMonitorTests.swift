@@ -22,8 +22,8 @@ struct NetworkMonitorTests {
         // Should start with connected state (optimistic default)
         #expect(monitor.isConnected == true)
 
-        // Connection type may be nil initially before first path update
-        #expect(monitor.connectionType == nil || monitor.connectionType != nil)
+        // Connection type is nil initially, gets populated after first path update
+        #expect(monitor.connectionType == nil)
     }
 
     @Test("NetworkMonitor shared instance is consistent")
@@ -44,9 +44,9 @@ struct NetworkMonitorTests {
         let connected = monitor.isConnected
         let connectionType = monitor.connectionType
 
-        // Verify we can read both properties
-        #expect(connected == true || connected == false)
-        #expect(connectionType == nil || connectionType != nil)
+        // Verify initial state - connected true, connectionType nil
+        #expect(connected == true)
+        #expect(connectionType == nil)
     }
 
     @Test("NetworkMonitor can be stopped")

@@ -15,20 +15,25 @@ import Observation
 /// The shared instance runs for the app's lifetime - this is intentional as network
 /// monitoring should be continuous.
 ///
+/// This class is @MainActor isolated because:
+/// 1. Its sole purpose is to drive UI updates
+/// 2. All property reads should happen on the main thread for SwiftUI
+/// 3. The singleton pattern makes isolation straightforward
+///
 /// Usage:
 /// ```swift
-/// let networkMonitor = NetworkMonitor.shared
-/// if networkMonitor.isConnected {
+/// if await NetworkMonitor.shared.isConnected {
 ///     // Online
 /// }
 /// ```
+@MainActor
 @Observable
-final class NetworkMonitor: @unchecked Sendable {
+final class NetworkMonitor {
     /// Whether the device currently has network connectivity
-    @MainActor private(set) var isConnected: Bool = true
+    private(set) var isConnected: Bool = true
 
     /// The type of network interface currently in use (WiFi, Cellular, etc.)
-    @MainActor private(set) var connectionType: NWInterface.InterfaceType?
+    private(set) var connectionType: NWInterface.InterfaceType?
 
     private let monitor: NWPathMonitor
     private let queue = DispatchQueue(label: "com.dequeue.networkmonitor")
@@ -38,13 +43,20 @@ final class NetworkMonitor: @unchecked Sendable {
         startMonitoring()
     }
 
+    deinit {
+        // Cancel monitor to release network resources
+        // NWPathMonitor.cancel() is thread-safe
+        monitor.cancel()
+    }
+
     private func startMonitoring() {
         monitor.pathUpdateHandler = { [weak self] path in
-            // Extract values before creating Task to avoid capturing path
+            // Extract values before creating Task to avoid capturing path object
             let status = path.status
             let interfaceType = path.availableInterfaces.first?.type
 
-            Task { @MainActor [weak self] in
+            Task { @MainActor in
+                // Use weak self to allow cleanup if monitor is deallocated during async gap
                 guard let self = self else { return }
                 self.isConnected = status == .satisfied
                 self.connectionType = interfaceType
@@ -65,5 +77,5 @@ final class NetworkMonitor: @unchecked Sendable {
     ///
     /// This singleton intentionally runs for the app's entire lifetime.
     /// The NWPathMonitor is lightweight and designed for continuous monitoring.
-    nonisolated(unsafe) static let shared = NetworkMonitor()
+    static let shared = NetworkMonitor()
 }

@@ -69,8 +69,10 @@ struct HomeView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
-    /// Network monitor for offline detection - uses @Observable, no @State needed
-    private let networkMonitor = NetworkMonitor.shared
+    /// Network monitor for offline detection - computed property for singleton access
+    private var networkMonitor: NetworkMonitor {
+        NetworkMonitor.shared
+    }
 
     /// Stack service for operations - lightweight struct, safe to recreate each call
     private var stackService: StackService {
