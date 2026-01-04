@@ -56,6 +56,9 @@ internal struct SyncStatusIndicator: View {
             .frame(width: Constants.iconFrameSize, height: Constants.iconFrameSize)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Sync Status")
+        .accessibilityHint("Tap to view sync details")
+        .accessibilityValue(viewModel.statusMessage)
         .popover(isPresented: $showDetails) {
             detailsView
                 .padding()

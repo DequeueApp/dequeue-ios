@@ -68,6 +68,8 @@ internal final class SyncStatusViewModel {
     }
 
     private func startMonitoring() {
+        // Cancel any existing task to prevent accumulation if view appears/disappears rapidly
+        updateTask?.cancel()
         updateTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self = self else { break }
