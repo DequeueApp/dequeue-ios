@@ -246,6 +246,16 @@ enum ProjectorService {
             context: context
         ) else { return }
 
+        // DEQ-136: Enforce single active stack constraint
+        // Deactivate all other stacks before activating this one to ensure invariant holds
+        let stackId = payload.id
+        let predicate = #Predicate<Stack> { $0.isActive == true && $0.id != stackId }
+        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
+        let otherActiveStacks = try context.fetch(descriptor)
+        for otherStack in otherActiveStacks {
+            otherStack.isActive = false
+        }
+
         // Set as the active stack (isActive is the "active stack" indicator, not workflow status)
         stack.isActive = true
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp

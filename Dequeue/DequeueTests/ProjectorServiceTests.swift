@@ -332,4 +332,100 @@ struct ProjectorServiceTests {
         let activeCount = stacks.filter { $0.isActive }.count
         #expect(activeCount == 1)
     }
+
+    // MARK: - Constraint Enforcement Tests (DEQ-136)
+
+    @Test("applyStackActivated enforces single active constraint by deactivating others")
+    func applyStackActivatedEnforcesConstraint() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create two stacks, both initially active (simulating a corrupted state)
+        let stack1 = Stack(title: "Stack 1", isActive: true)
+        let stack2 = Stack(title: "Stack 2", isActive: true)
+        context.insert(stack1)
+        context.insert(stack2)
+        try context.save()
+
+        // Both are active (constraint violated)
+        #expect(stack1.isActive == true)
+        #expect(stack2.isActive == true)
+
+        // Activate stack2 via event - should deactivate stack1
+        let payloadData = try createEntityStatusPayload(id: stack2.id, status: "active")
+        let event = Event(eventType: .stackActivated, payload: payloadData, entityId: stack2.id)
+        context.insert(event)
+        try context.save()
+
+        // Apply the activation event
+        try applyEvents([event], context: context)
+
+        // Verify constraint is now enforced: only stack2 should be active
+        #expect(stack1.isActive == false)
+        #expect(stack2.isActive == true)
+
+        let descriptor = FetchDescriptor<Stack>()
+        let stacks = try context.fetch(descriptor)
+        let activeCount = stacks.filter { $0.isActive }.count
+        #expect(activeCount == 1)
+    }
+
+    @Test("Multiple rapid activation events result in only last activated stack being active")
+    func multipleActivationEventsLastWins() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let stack1Id = CUID.generate()
+        let stack2Id = CUID.generate()
+        let stack3Id = CUID.generate()
+
+        // Create three stacks with none active
+        let payload1 = try createStackPayload(id: stack1Id, title: "Stack 1", isActive: false)
+        let payload2 = try createStackPayload(id: stack2Id, title: "Stack 2", isActive: false)
+        let payload3 = try createStackPayload(id: stack3Id, title: "Stack 3", isActive: false)
+
+        let createEvent1 = Event(eventType: .stackCreated, payload: payload1, entityId: stack1Id)
+        let createEvent2 = Event(eventType: .stackCreated, payload: payload2, entityId: stack2Id)
+        let createEvent3 = Event(eventType: .stackCreated, payload: payload3, entityId: stack3Id)
+
+        // Three rapid activation events - without corresponding deactivation events
+        let activateData1 = try createEntityStatusPayload(id: stack1Id, status: "active")
+        let activateEvent1 = Event(eventType: .stackActivated, payload: activateData1, entityId: stack1Id)
+
+        let activateData2 = try createEntityStatusPayload(id: stack2Id, status: "active")
+        let activateEvent2 = Event(eventType: .stackActivated, payload: activateData2, entityId: stack2Id)
+
+        let activateData3 = try createEntityStatusPayload(id: stack3Id, status: "active")
+        let activateEvent3 = Event(eventType: .stackActivated, payload: activateData3, entityId: stack3Id)
+
+        // Insert all events
+        context.insert(createEvent1)
+        context.insert(createEvent2)
+        context.insert(createEvent3)
+        context.insert(activateEvent1)
+        context.insert(activateEvent2)
+        context.insert(activateEvent3)
+        try context.save()
+
+        // Apply all events in order (create then activate, last activation wins)
+        try applyEvents([
+            createEvent1, createEvent2, createEvent3,
+            activateEvent1, activateEvent2, activateEvent3
+        ], context: context)
+
+        // Verify only the last activated stack (stack3) is active
+        let descriptor = FetchDescriptor<Stack>()
+        let stacks = try context.fetch(descriptor)
+
+        let stack1 = stacks.first { $0.id == stack1Id }
+        let stack2 = stacks.first { $0.id == stack2Id }
+        let stack3 = stacks.first { $0.id == stack3Id }
+
+        #expect(stack1?.isActive == false)
+        #expect(stack2?.isActive == false)
+        #expect(stack3?.isActive == true)
+
+        let activeCount = stacks.filter { $0.isActive }.count
+        #expect(activeCount == 1)
+    }
 }
