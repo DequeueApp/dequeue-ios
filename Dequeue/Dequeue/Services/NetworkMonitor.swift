@@ -59,7 +59,8 @@ final class NetworkMonitor {
     }
 
     deinit {
-        // Cancel monitor to release network resources
+        // Note: The shared singleton never deallocates (intentional - runs for app lifetime)
+        // This deinit only fires for test instances or custom monitors
         // NWPathMonitor.cancel() is thread-safe
         monitor.cancel()
     }

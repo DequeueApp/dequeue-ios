@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct OfflineBanner: View {
+internal struct OfflineBanner: View {
     let pendingCount: Int
     @Binding var isDismissed: Bool
 
