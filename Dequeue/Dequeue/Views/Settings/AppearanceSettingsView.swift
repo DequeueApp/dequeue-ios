@@ -1,0 +1,200 @@
+//
+//  AppearanceSettingsView.swift
+//  Dequeue
+//
+//  Appearance and theme settings (DEQ-43)
+//
+
+import SwiftUI
+
+// MARK: - UserDefaults Keys
+
+private enum UserDefaultsKey {
+    static let appTheme = "appTheme"
+}
+
+// MARK: - Accessibility Identifiers
+
+private enum AccessibilityIdentifier {
+    static func themeButton(_ theme: AppTheme) -> String {
+        "theme\(theme.displayName)Button"
+    }
+}
+
+// MARK: - App Theme Enum
+
+/// Represents the app's theme preference for controlling light/dark appearance.
+///
+/// The theme is persisted to UserDefaults and applied app-wide using the
+/// `applyAppTheme()` view modifier.
+internal enum AppTheme: String, CaseIterable, Identifiable {
+    /// Follow the system's appearance settings (light or dark mode)
+    case system
+    /// Always use light appearance regardless of system settings
+    case light
+    /// Always use dark appearance regardless of system settings
+    case dark
+
+    var id: String { rawValue }
+
+    /// Human-readable name for display in the UI
+    var displayName: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+
+    /// SF Symbol name representing this theme option
+    var icon: String {
+        switch self {
+        case .system: return "circle.lefthalf.filled"
+        case .light: return "sun.max.fill"
+        case .dark: return "moon.fill"
+        }
+    }
+
+    /// The SwiftUI ColorScheme to apply, or nil to follow system
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
+// MARK: - Appearance Settings View
+
+internal struct AppearanceSettingsView: View {
+    @AppStorage(UserDefaultsKey.appTheme) private var selectedTheme: String = AppTheme.system.rawValue
+
+    private var theme: AppTheme {
+        AppTheme(rawValue: selectedTheme) ?? .system
+    }
+
+    var body: some View {
+        List {
+            themeSection
+            previewSection
+        }
+        .navigationTitle("Appearance")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+
+    // MARK: - Theme Section
+
+    private var themeSection: some View {
+        Section {
+            ForEach(AppTheme.allCases) { option in
+                themeRow(for: option)
+            }
+        } header: {
+            Text("Theme")
+        } footer: {
+            Text("Choose how Dequeue appears. System uses your device's appearance settings.")
+        }
+    }
+
+    private func themeRow(for option: AppTheme) -> some View {
+        Button {
+            selectedTheme = option.rawValue
+        } label: {
+            HStack {
+                Label(option.displayName, systemImage: option.icon)
+                    .foregroundStyle(.primary)
+                Spacer()
+                if theme == option {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.blue)
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .accessibilityIdentifier(AccessibilityIdentifier.themeButton(option))
+        .accessibilityLabel("\(option.displayName) theme")
+        .accessibilityHint(theme == option ? "Currently selected" : "Double tap to select \(option.displayName) theme")
+    }
+
+    // MARK: - Preview Section
+
+    private var previewSection: some View {
+        Section {
+            themePreview
+        } header: {
+            Text("Preview")
+        }
+    }
+
+    private var themePreview: some View {
+        HStack(spacing: 16) {
+            previewCard(title: "Stack", subtitle: "3 tasks", isActive: true)
+            previewCard(title: "Task", subtitle: "Pending", isActive: false)
+        }
+        .padding(.vertical, 8)
+        .listRowBackground(Color.clear)
+    }
+
+    private func previewCard(title: String, subtitle: String, isActive: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.headline)
+                if isActive {
+                    Text("Active")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.blue.opacity(0.15))
+                        .foregroundStyle(.blue)
+                        .clipShape(Capsule())
+                }
+            }
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        #if os(iOS)
+        .background(Color(.secondarySystemGroupedBackground))
+        #else
+        .background(Color(.windowBackgroundColor).opacity(0.5))
+        #endif
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+// MARK: - Theme Environment Modifier
+
+extension View {
+    /// Applies the user's selected theme preference to the view
+    func applyAppTheme() -> some View {
+        modifier(AppThemeModifier())
+    }
+}
+
+private struct AppThemeModifier: ViewModifier {
+    @AppStorage(UserDefaultsKey.appTheme) private var selectedTheme: String = AppTheme.system.rawValue
+
+    private var colorScheme: ColorScheme? {
+        (AppTheme(rawValue: selectedTheme) ?? .system).colorScheme
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .preferredColorScheme(colorScheme)
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    NavigationStack {
+        AppearanceSettingsView()
+    }
+}
