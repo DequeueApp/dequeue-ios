@@ -135,6 +135,7 @@ enum ProjectorService {
                 priority: payload.priority,
                 sortOrder: payload.sortOrder,
                 isDraft: payload.isDraft,
+                isActive: payload.isActive,
                 activeTaskId: payload.activeTaskId,
                 syncState: .synced,
                 lastSyncedAt: Date()
@@ -179,6 +180,7 @@ enum ProjectorService {
         ) else { return }
 
         stack.isDeleted = true
+        stack.isActive = false  // DEQ-136: Deleted stacks cannot be active
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
@@ -200,6 +202,7 @@ enum ProjectorService {
 
         // Discarded drafts are deleted
         stack.isDeleted = true
+        stack.isActive = false  // DEQ-136: Deleted stacks cannot be active
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
@@ -245,7 +248,23 @@ enum ProjectorService {
             context: context
         ) else { return }
 
-        stack.status = .active
+        // DEQ-136: Enforce single active stack constraint
+        // Deactivate all other stacks before activating this one to ensure invariant holds.
+        // Event ordering: The LWW check above (shouldApplyEvent) ensures we only apply events
+        // newer than current state, preventing out-of-order activation from corrupting state.
+        // We update updatedAt on implicitly-deactivated stacks to ensure proper LWW resolution
+        // across devices - they need to know when deactivation occurred for sync consistency.
+        let stackId = payload.id
+        let predicate = #Predicate<Stack> { $0.isActive == true && $0.id != stackId }
+        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
+        let otherActiveStacks = try context.fetch(descriptor)
+        for otherStack in otherActiveStacks {
+            otherStack.isActive = false
+            otherStack.updatedAt = event.timestamp  // LWW: Sync timestamp for implicit deactivation
+        }
+
+        // Set as the active stack (isActive is the "active stack" indicator, not workflow status)
+        stack.isActive = true
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
@@ -268,7 +287,8 @@ enum ProjectorService {
             context: context
         ) else { return }
 
-        stack.status = .archived
+        // Remove active stack designation (isActive is the "active stack" indicator, not workflow status)
+        stack.isActive = false
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
@@ -640,6 +660,7 @@ enum ProjectorService {
         stack.priority = payload.priority
         stack.sortOrder = payload.sortOrder
         stack.isDraft = payload.isDraft
+        stack.isActive = payload.isActive
         stack.activeTaskId = payload.activeTaskId
         stack.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         stack.syncState = .synced

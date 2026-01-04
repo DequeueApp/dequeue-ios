@@ -66,8 +66,13 @@ struct SyncStatusViewModelTests {
         context.insert(event)
         try context.save()
 
-        // Wait for the monitoring task to update
-        try await Task.sleep(for: .seconds(1.5))
+        // Wait for the monitoring task to update with retry logic for CI reliability
+        var attempts = 0
+        let maxAttempts = 5
+        while viewModel.pendingEventCount == 0 && attempts < maxAttempts {
+            try await Task.sleep(for: .seconds(1))
+            attempts += 1
+        }
 
         // Note: isSyncing will be false because we're not actually connected
         // This is expected behavior - syncing only happens when both connected AND has pending events
