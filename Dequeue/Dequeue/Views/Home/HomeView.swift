@@ -230,7 +230,7 @@ struct HomeView: View {
                             .tint(.orange)
                         }
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
                             deleteStack(stack)
                         } label: {

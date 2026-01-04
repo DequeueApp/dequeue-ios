@@ -258,6 +258,14 @@ final class StackService {
     // MARK: - Status Changes
 
     func markAsCompleted(_ stack: Stack, completeAllTasks: Bool = true) throws {
+        // If this was the active stack, deactivate it first
+        // A completed stack cannot be the "active" stack
+        let wasActive = stack.isActive
+        if wasActive {
+            try eventService.recordStackDeactivated(stack)
+            stack.isActive = false
+        }
+
         stack.status = .completed
         stack.updatedAt = Date()
         stack.syncState = .pending

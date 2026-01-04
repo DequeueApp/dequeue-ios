@@ -24,7 +24,7 @@ struct ReminderRowView: View {
             rowContent
         }
         .buttonStyle(.plain)
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if let onDelete {
                 Button(role: .destructive) {
                     onDelete()
