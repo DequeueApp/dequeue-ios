@@ -59,7 +59,7 @@ final class NetworkMonitor {
         startMonitoring()
     }
 
-    nonisolated deinit {
+    deinit {
         // Note: The shared singleton never deallocates (intentional - runs for app lifetime)
         // This deinit only fires for test instances or custom monitors
         // NWPathMonitor.cancel() is thread-safe
