@@ -83,4 +83,56 @@ struct AppThemeTests {
             #expect(theme.id == theme.rawValue)
         }
     }
+
+    // MARK: - Persistence Tests
+
+    @Test("AppTheme persists to UserDefaults correctly")
+    func appThemePersistsToUserDefaults() {
+        let key = "appTheme"
+        let defaults = UserDefaults.standard
+
+        // Clean up before test
+        defaults.removeObject(forKey: key)
+
+        // Test each theme persists correctly
+        for theme in AppTheme.allCases {
+            defaults.set(theme.rawValue, forKey: key)
+            let storedValue = defaults.string(forKey: key)
+            #expect(storedValue == theme.rawValue)
+
+            // Verify we can reconstruct the theme from stored value
+            let reconstructed = AppTheme(rawValue: storedValue ?? "")
+            #expect(reconstructed == theme)
+        }
+
+        // Clean up after test
+        defaults.removeObject(forKey: key)
+    }
+
+    @Test("AppTheme defaults to system when no value stored")
+    func appThemeDefaultsToSystem() {
+        let key = "appTheme"
+        let defaults = UserDefaults.standard
+
+        // Ensure no value is stored
+        defaults.removeObject(forKey: key)
+
+        // When no value exists, attempting to create from nil should fail
+        let storedValue = defaults.string(forKey: key)
+        #expect(storedValue == nil)
+
+        // Default behavior should use .system
+        let theme = AppTheme(rawValue: storedValue ?? "") ?? .system
+        #expect(theme == .system)
+    }
+
+    @Test("AppTheme colorScheme mapping is correct for persistence")
+    func appThemeColorSchemeMappingForPersistence() {
+        // Verify the complete flow: rawValue -> AppTheme -> ColorScheme
+        for theme in AppTheme.allCases {
+            let reconstructed = AppTheme(rawValue: theme.rawValue)
+            #expect(reconstructed != nil)
+            #expect(reconstructed?.colorScheme == theme.colorScheme)
+        }
+    }
 }

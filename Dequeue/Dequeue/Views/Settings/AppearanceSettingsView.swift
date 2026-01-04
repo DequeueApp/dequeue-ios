@@ -7,10 +7,18 @@
 
 import SwiftUI
 
-// MARK: - Constants
+// MARK: - UserDefaults Keys
 
-private enum AppearanceConstants {
-    static let themeStorageKey = "appTheme"
+private enum UserDefaultsKey {
+    static let appTheme = "appTheme"
+}
+
+// MARK: - Accessibility Identifiers
+
+private enum AccessibilityIdentifier {
+    static func themeButton(_ theme: AppTheme) -> String {
+        "theme\(theme.displayName)Button"
+    }
 }
 
 // MARK: - App Theme Enum
@@ -60,7 +68,7 @@ internal enum AppTheme: String, CaseIterable, Identifiable {
 // MARK: - Appearance Settings View
 
 internal struct AppearanceSettingsView: View {
-    @AppStorage(AppearanceConstants.themeStorageKey) private var selectedTheme: String = AppTheme.system.rawValue
+    @AppStorage(UserDefaultsKey.appTheme) private var selectedTheme: String = AppTheme.system.rawValue
 
     private var theme: AppTheme {
         AppTheme(rawValue: selectedTheme) ?? .system
@@ -106,7 +114,9 @@ internal struct AppearanceSettingsView: View {
                 }
             }
         }
-        .accessibilityIdentifier("theme\(option.displayName)Button")
+        .accessibilityIdentifier(AccessibilityIdentifier.themeButton(option))
+        .accessibilityLabel("\(option.displayName) theme")
+        .accessibilityHint(theme == option ? "Currently selected" : "Double tap to select \(option.displayName) theme")
     }
 
     // MARK: - Preview Section
@@ -169,7 +179,7 @@ extension View {
 }
 
 private struct AppThemeModifier: ViewModifier {
-    @AppStorage(AppearanceConstants.themeStorageKey) private var selectedTheme: String = AppTheme.system.rawValue
+    @AppStorage(UserDefaultsKey.appTheme) private var selectedTheme: String = AppTheme.system.rawValue
 
     private var colorScheme: ColorScheme? {
         (AppTheme(rawValue: selectedTheme) ?? .system).colorScheme
