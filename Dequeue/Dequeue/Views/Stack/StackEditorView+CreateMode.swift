@@ -201,9 +201,14 @@ extension StackEditorView {
                 }
             }
 
-            // Warn user if some tasks failed but stack was created
+            // Show error and don't dismiss if some tasks failed
             if !failedTasks.isEmpty {
                 logger.warning("Stack created but \(failedTasks.count) task(s) failed to create")
+                let taskList = failedTasks.prefix(3).joined(separator: ", ")
+                let suffix = failedTasks.count > 3 ? " and \(failedTasks.count - 3) more" : ""
+                errorMessage = "Stack created but \(failedTasks.count) task(s) failed: \(taskList)\(suffix)"
+                showError = true
+                return
             }
 
             syncManager?.triggerImmediatePush()
