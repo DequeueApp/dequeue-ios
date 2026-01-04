@@ -103,6 +103,15 @@ final class NotificationService: NSObject {
         }
     }
 
+    /// Requests notification authorization from the user with error propagation
+    /// - Returns: `true` if permission was granted, `false` otherwise
+    /// - Throws: Error if the authorization request fails
+    func requestPermissionWithError() async throws -> Bool {
+        try await notificationCenter.requestAuthorization(
+            options: [.alert, .sound, .badge]
+        )
+    }
+
     /// Checks if notifications are currently authorized
     /// - Returns: `true` if notifications can be scheduled
     func isAuthorized() async -> Bool {

@@ -41,9 +41,16 @@ final class DequeueUITests: XCTestCase {
     // - Showing Settings redirect when denied (.denied state)
     //
     // Key accessibility identifiers for manual/future testing:
+    //
+    // AddReminderSheet:
     // - "addReminderButton" - Button to add a reminder in TaskDetailView
     // - "enableNotificationsButton" - Button to request permissions in AddReminderSheet
     // - "openSettingsButton" - Button to open Settings when permission denied
     // - "saveReminderButton" - Button to save a reminder
     // - "reminderDatePicker" - Date picker for selecting reminder time
+    //
+    // NotificationSettingsView (Settings > Notifications):
+    // - "enableNotificationsButton" - Button to request permissions
+    // - "openSettingsButton" - Button to open system Settings when denied
+    // - "notificationBadgeToggle" - Toggle for app badge (shows overdue reminder count)
 }
