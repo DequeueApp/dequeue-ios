@@ -45,7 +45,10 @@ final class NetworkMonitor {
 
     nonisolated private let monitor: NWPathMonitor
     nonisolated private let queue = DispatchQueue(label: "com.dequeue.networkmonitor")
-    nonisolated private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.dequeue", category: "NetworkMonitor")
+    nonisolated private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.dequeue",
+        category: "NetworkMonitor"
+    )
 
     nonisolated init() {
         monitor = NWPathMonitor()
@@ -66,7 +69,8 @@ final class NetworkMonitor {
             let isConnected = status == .satisfied
 
             // Log state changes for debugging
-            Self.logger.debug("Network state changed: connected=\(isConnected), interface=\(String(describing: interfaceType))")
+            let ifaceStr = String(describing: interfaceType)
+            Self.logger.debug("Network: connected=\(isConnected), interface=\(ifaceStr)")
 
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
