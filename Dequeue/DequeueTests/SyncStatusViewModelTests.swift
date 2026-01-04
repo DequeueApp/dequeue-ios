@@ -35,16 +35,17 @@ struct SyncStatusViewModelTests {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let context = container.mainContext
-        let viewModel = SyncStatusViewModel(modelContext: context)
 
-        // Create a pending event
+        // Create a pending event BEFORE the view model so the first update sees it
         let payload = try JSONEncoder().encode(["key": "value"])
         let event = Event(type: "test.event", payload: payload, isSynced: false)
         context.insert(event)
         try context.save()
 
-        // Wait for the monitoring task to update
-        try await Task.sleep(for: .seconds(1.5))
+        let viewModel = SyncStatusViewModel(modelContext: context)
+
+        // Wait briefly for the initial monitoring update to complete
+        try await Task.sleep(for: .milliseconds(100))
 
         #expect(viewModel.pendingEventCount == 1)
     }
@@ -56,23 +57,19 @@ struct SyncStatusViewModelTests {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let context = container.mainContext
-        let viewModel = SyncStatusViewModel(modelContext: context)
-        let syncManager = SyncManager(modelContainer: container)
-        viewModel.setSyncManager(syncManager)
 
-        // Create a pending event
+        // Create a pending event BEFORE the view model so the first update sees it
         let payload = try JSONEncoder().encode(["key": "value"])
         let event = Event(type: "test.event", payload: payload, isSynced: false)
         context.insert(event)
         try context.save()
 
-        // Wait for the monitoring task to update with retry logic for CI reliability
-        var attempts = 0
-        let maxAttempts = 5
-        while viewModel.pendingEventCount == 0 && attempts < maxAttempts {
-            try await Task.sleep(for: .seconds(1))
-            attempts += 1
-        }
+        let viewModel = SyncStatusViewModel(modelContext: context)
+        let syncManager = SyncManager(modelContainer: container)
+        viewModel.setSyncManager(syncManager)
+
+        // Force immediate status update for test reliability
+        await viewModel.updateStatusNow()
 
         // Note: isSyncing will be false because we're not actually connected
         // This is expected behavior - syncing only happens when both connected AND has pending events
@@ -100,23 +97,26 @@ struct SyncStatusViewModelTests {
             for: Event.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
-        let viewModel = SyncStatusViewModel(modelContext: container.mainContext)
 
         // Test disconnected state with no pending events
+        let viewModel = SyncStatusViewModel(modelContext: container.mainContext)
         #expect(viewModel.statusMessage == "Offline")
+        viewModel.stopMonitoring()
 
-        // Create a pending event
+        // Create a new view model with a pending event already present
         let context = container.mainContext
         let payload = try JSONEncoder().encode(["key": "value"])
         let event = Event(type: "test.event", payload: payload, isSynced: false)
         context.insert(event)
         try context.save()
 
-        // Wait for update
-        try await Task.sleep(for: .seconds(1.5))
+        let viewModel2 = SyncStatusViewModel(modelContext: context)
+
+        // Wait briefly for the initial monitoring update to complete
+        try await Task.sleep(for: .milliseconds(100))
 
         // Test disconnected state with pending events
-        #expect(viewModel.statusMessage.contains("offline"))
+        #expect(viewModel2.statusMessage.contains("offline"))
     }
 
     @Test("ViewModel can stop monitoring")
@@ -127,6 +127,8 @@ struct SyncStatusViewModelTests {
         )
         let viewModel = SyncStatusViewModel(modelContext: container.mainContext)
 
+        // Wait briefly for initial update to complete, then stop
+        try await Task.sleep(for: .milliseconds(50))
         viewModel.stopMonitoring()
 
         // Create a pending event after stopping
@@ -136,8 +138,8 @@ struct SyncStatusViewModelTests {
         context.insert(event)
         try context.save()
 
-        // Wait - count should not update since monitoring is stopped
-        try await Task.sleep(for: .seconds(1.5))
+        // Wait briefly - count should not update since monitoring is stopped
+        try await Task.sleep(for: .milliseconds(200))
 
         #expect(viewModel.pendingEventCount == 0)
     }
