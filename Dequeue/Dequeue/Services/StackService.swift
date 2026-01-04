@@ -71,11 +71,21 @@ final class StackService {
         let existingActiveStacks = try getActiveStacks()
         let shouldBeActive = !isDraft && existingActiveStacks.isEmpty
 
+        // Determine sortOrder: active stack gets 0, inactive stacks get next available
+        let sortOrder: Int
+        if shouldBeActive {
+            sortOrder = 0
+        } else {
+            // Find the max sortOrder and add 1
+            let maxSortOrder = existingActiveStacks.map(\.sortOrder).max() ?? -1
+            sortOrder = maxSortOrder + 1
+        }
+
         let stack = Stack(
             title: title,
             stackDescription: description,
             status: .active,
-            sortOrder: 0,
+            sortOrder: sortOrder,
             isDraft: isDraft,
             isActive: shouldBeActive,
             syncState: .pending
