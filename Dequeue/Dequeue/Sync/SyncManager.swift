@@ -39,6 +39,11 @@ actor SyncManager {
     private let heartbeatIntervalSeconds: UInt64 = 30
 
     private let modelContainer: ModelContainer
+
+    /// Closure for refreshing authentication tokens when they expire.
+    /// Must be @Sendable to allow safe capture across actor boundaries.
+    /// Typically provided by AuthService and runs on MainActor.
+    /// See DequeueApp.swift:178 for usage example with @MainActor closure.
     private var getTokenFunction: (@Sendable () async throws -> String)?
 
     private var periodicSyncTask: Task<Void, Never>?

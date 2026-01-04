@@ -322,7 +322,10 @@ enum AuthMode {
 // MARK: - Environment Key
 
 private struct AuthServiceKey: EnvironmentKey {
-    static let defaultValue: any AuthServiceProtocol = ClerkAuthService()
+    // Note: @Observable types are MainActor-isolated, so we use a lazy computed property
+    // to initialize on first access (which will be on MainActor).
+    // Real authService is injected in DequeueApp.swift, this default is rarely used.
+    @MainActor static let defaultValue: any AuthServiceProtocol = MockAuthService()
 }
 
 extension EnvironmentValues {

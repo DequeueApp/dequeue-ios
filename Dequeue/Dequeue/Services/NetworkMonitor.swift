@@ -38,7 +38,7 @@ import os
 /// }
 /// ```
 @Observable
-final class NetworkMonitor {
+final class NetworkMonitor: @unchecked Sendable {
     /// Whether the device currently has network connectivity.
     /// Optimistic default: true (avoids false offline indicators during launch)
     @MainActor private(set) var isConnected: Bool = true

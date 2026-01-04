@@ -12,6 +12,8 @@ import UserNotifications
 // MARK: - Notification Constants
 
 /// Action and category identifiers for notification actions
+/// Note: nonisolated(unsafe) is required for static properties used in nonisolated delegate methods.
+/// These are String/TimeInterval constants (thread-safe, immutable), so unsafe is correct.
 enum NotificationConstants {
     nonisolated(unsafe) static let categoryIdentifier = "REMINDER_CATEGORY"
 
@@ -39,6 +41,8 @@ enum NotificationConstants {
 // MARK: - Notification Center Protocol
 
 /// Protocol abstracting UNUserNotificationCenter for testability
+/// Note: Does not conform to Sendable because UNUserNotificationCenter is not marked Sendable in SDK.
+/// This is safe because all methods are called from MainActor context via NotificationService.
 protocol NotificationCenterProtocol {
     func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
     func add(_ request: UNNotificationRequest) async throws
