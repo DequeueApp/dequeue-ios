@@ -22,7 +22,7 @@ final class NetworkMonitor {
         startMonitoring()
     }
 
-    nonisolated deinit {
+    deinit {
         monitor.cancel()
     }
 
