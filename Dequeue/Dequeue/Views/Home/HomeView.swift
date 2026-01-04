@@ -15,6 +15,7 @@ struct HomeView: View {
     @Query private var allStacks: [Stack]
     @Query private var tasks: [QueueTask]
     @Query private var reminders: [Reminder]
+    @Query private var pendingEvents: [Event]
 
     init() {
         // Filter for active stacks only (exclude completed, closed, and archived)
@@ -50,15 +51,26 @@ struct HomeView: View {
                 reminder.isDeleted == false
             }
         )
+
+        // Fetch pending events for offline banner
+        _pendingEvents = Query(
+            filter: #Predicate<Event> { event in
+                event.isSynced == false
+            }
+        )
     }
 
     @State private var selectedStack: Stack?
     @State private var selectedTask: QueueTask?
     @State private var showReminders = false
+    @State private var offlineBannerDismissed = false
     @State private var syncError: Error?
     @State private var showingSyncError = false
     @State private var errorMessage: String?
     @State private var showError = false
+
+    /// Network monitor for offline detection
+    private let networkMonitor = NetworkMonitor.shared
 
     /// Stack service for operations - lightweight struct, safe to recreate each call
     private var stackService: StackService {
@@ -72,11 +84,23 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if stacks.isEmpty {
-                    emptyState
-                } else {
-                    stackList
+            VStack(spacing: 0) {
+                // Offline banner at the top
+                if !networkMonitor.isConnected && !offlineBannerDismissed {
+                    OfflineBanner(
+                        pendingCount: pendingEvents.count,
+                        isDismissed: $offlineBannerDismissed
+                    )
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                }
+
+                Group {
+                    if stacks.isEmpty {
+                        emptyState
+                    } else {
+                        stackList
+                    }
                 }
             }
             .navigationTitle("Dequeue")
@@ -130,6 +154,12 @@ struct HomeView: View {
             } message: {
                 if let errorMessage {
                     Text(errorMessage)
+                }
+            }
+            .onChange(of: networkMonitor.isConnected) { _, isConnected in
+                // Reset banner dismissal when network changes
+                if !isConnected {
+                    offlineBannerDismissed = false
                 }
             }
         }
