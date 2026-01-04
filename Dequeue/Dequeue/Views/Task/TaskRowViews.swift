@@ -99,11 +99,12 @@ private struct ActiveBadge: View {
 
 struct CompletedTaskRowView: View {
     let task: QueueTask
-    var onUncomplete: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
-            leadingIcon
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title2)
+                .foregroundStyle(.green)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(task.title)
@@ -116,25 +117,5 @@ struct CompletedTaskRowView: View {
             }
         }
         .padding(.vertical, 4)
-    }
-
-    @ViewBuilder
-    private var leadingIcon: some View {
-        if let onUncomplete {
-            Button {
-                onUncomplete()
-            } label: {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.green)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Mark as incomplete")
-            .accessibilityHint("Moves task back to pending")
-        } else {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.green)
-        }
     }
 }

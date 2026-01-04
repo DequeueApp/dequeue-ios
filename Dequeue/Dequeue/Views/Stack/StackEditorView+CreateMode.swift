@@ -17,27 +17,13 @@ extension StackEditorView {
         Form {
             Section("Stack") {
                 TextField("Title", text: $title)
-                    .onSubmit {
-                        // Save draft on submit (pressing Enter)
-                        saveDraftIfNeeded()
-                    }
                     .onChange(of: title) { _, newValue in
-                        // Only create draft on first character, don't update on every keystroke
-                        if draftStack == nil && !newValue.isEmpty && !isCreatingDraft {
-                            createDraft(title: newValue)
-                        }
+                        handleTitleChange(newValue)
                     }
                 TextField("Description (optional)", text: $stackDescription, axis: .vertical)
                     .lineLimit(3...6)
-                    .onSubmit {
-                        // Save draft on submit
-                        saveDraftIfNeeded()
-                    }
                     .onChange(of: stackDescription) { _, newValue in
-                        // Create draft if user types description first (before title)
-                        if draftStack == nil && !newValue.isEmpty && !isCreatingDraft {
-                            createDraft(title: defaultDraftTitle)
-                        }
+                        handleDescriptionChange(newValue)
                     }
             }
 
@@ -49,48 +35,25 @@ extension StackEditorView {
             if draftStack != nil {
                 remindersSection
             }
-
-            // Event history section - show when draft exists (either new or editing existing)
-            if currentStack != nil {
-                draftEventHistorySection
-            }
-        }
-        .onDisappear {
-            // Save any pending changes when view disappears (blur equivalent)
-            saveDraftIfNeeded()
-        }
-    }
-
-    /// Event history section for drafts
-    private var draftEventHistorySection: some View {
-        Section {
-            if let draft = currentStack {
-                NavigationLink {
-                    StackHistoryView(stack: draft)
-                } label: {
-                    Label("Event History", systemImage: "clock.arrow.circlepath")
-                }
-            }
-        } footer: {
-            Text("View the complete history of changes to this draft")
-        }
-    }
-
-    /// Saves the draft if it exists and has changes
-    func saveDraftIfNeeded() {
-        // Use currentStack to handle both new drafts and editing existing drafts
-        guard let draft = currentStack, draft.isDraft else { return }
-
-        let currentTitle = title.orIfEmpty(defaultDraftTitle)
-        let currentDescription = stackDescription.nilIfEmpty
-
-        // Only save if there are actual changes
-        if draft.title != currentTitle || draft.stackDescription != currentDescription {
-            updateDraft(draft, title: currentTitle, description: currentDescription)
         }
     }
 
     // MARK: - Create Mode Actions
+
+    func handleTitleChange(_ newTitle: String) {
+        guard !isCreatingDraft else { return }
+
+        if draftStack == nil && !newTitle.isEmpty {
+            createDraft(title: newTitle)
+        } else if let draft = draftStack {
+            updateDraft(draft, title: newTitle, description: stackDescription)
+        }
+    }
+
+    func handleDescriptionChange(_ newDescription: String) {
+        guard let draft = draftStack else { return }
+        updateDraft(draft, title: title, description: newDescription)
+    }
 
     func createDraft(title: String) {
         isCreatingDraft = true
@@ -98,7 +61,7 @@ extension StackEditorView {
         do {
             let draft = try stackService.createStack(
                 title: title,
-                description: stackDescription.nilIfEmpty,
+                description: stackDescription.isEmpty ? nil : stackDescription,
                 isDraft: true
             )
             draftStack = draft
@@ -112,26 +75,16 @@ extension StackEditorView {
         isCreatingDraft = false
     }
 
-    func updateDraft(_ draft: Stack, title: String, description: String?) {
+    func updateDraft(_ draft: Stack, title: String, description: String) {
         do {
             try stackService.updateDraft(
                 draft,
-                title: title.orIfEmpty(defaultDraftTitle),
-                description: description
+                title: title.isEmpty ? "Untitled" : title,
+                description: description.isEmpty ? nil : description
             )
             logger.debug("Auto-updated draft: \(draft.id)")
-        } catch StackServiceError.cannotUpdateNonDraftStack {
-            // Draft was published or discarded while editing - refresh UI state
-            logger.warning("Attempted to update non-draft stack - draft may have been published")
-            // Clear the draft reference since it's no longer a draft
-            draftStack = nil
-            errorMessage = "This draft has been published. Changes were not saved."
-            showError = true
         } catch {
             logger.error("Failed to update draft: \(error.localizedDescription)")
-            // Show error to user - draft updates failing means potential data loss
-            errorMessage = "Failed to save changes. Please try again."
-            showError = true
         }
     }
 
@@ -161,14 +114,14 @@ extension StackEditorView {
 
             if let existingDraft = draftStack {
                 existingDraft.title = title
-                existingDraft.stackDescription = stackDescription.nilIfEmpty
+                existingDraft.stackDescription = stackDescription.isEmpty ? nil : stackDescription
                 try stackService.publishDraft(existingDraft)
                 stack = existingDraft
                 logger.info("Draft published as stack: \(stack.id)")
             } else {
                 stack = try stackService.createStack(
                     title: title,
-                    description: stackDescription.nilIfEmpty
+                    description: stackDescription.isEmpty ? nil : stackDescription
                 )
                 logger.info("Stack created: \(stack.id)")
             }

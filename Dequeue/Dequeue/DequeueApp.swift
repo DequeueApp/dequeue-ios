@@ -39,7 +39,8 @@ struct DequeueApp: App {
             QueueTask.self,
             Reminder.self,
             Event.self,
-            Device.self
+            Device.self,
+            SyncConflict.self
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
