@@ -48,7 +48,8 @@ final class NetworkMonitor {
 
     private let monitor: NWPathMonitor
     private let queue = DispatchQueue(label: "com.dequeue.networkmonitor")
-    nonisolated(unsafe) private static let logger = Logger(
+    // Logger conforms to Sendable in iOS 15.0+/macOS 12.0+
+    nonisolated private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.dequeue",
         category: "NetworkMonitor"
     )
