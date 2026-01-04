@@ -67,10 +67,10 @@ internal final class SyncStatusViewModel {
             let status = await syncManager.connectionStatus
 
             // Fetch pending event count - do this AFTER connection status to minimize race window
-            let eventService = EventService(modelContext: modelContext)
+            let eventService = await EventService(modelContext: modelContext)
             let currentCount: Int
             do {
-                let pendingEvents = try eventService.fetchPendingEvents()
+                let pendingEvents = try await eventService.fetchPendingEvents()
                 currentCount = pendingEvents.count
             } catch {
                 // Log error but don't crash - status indicator is non-critical
@@ -106,9 +106,9 @@ internal final class SyncStatusViewModel {
             }
         } else {
             // No sync manager - just update pending count
-            let eventService = EventService(modelContext: modelContext)
+            let eventService = await EventService(modelContext: modelContext)
             do {
-                let pendingEvents = try eventService.fetchPendingEvents()
+                let pendingEvents = try await eventService.fetchPendingEvents()
                 await MainActor.run {
                     pendingEventCount = pendingEvents.count
                 }
