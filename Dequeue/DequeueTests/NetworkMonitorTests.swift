@@ -80,13 +80,11 @@ struct NetworkMonitorTests {
     @Test("NetworkMonitor cleanup does not crash")
     func testCleanup() async {
         // Create and immediately stop multiple monitors
+        // If this loop completes without crashing, cleanup works correctly
         for _ in 0..<10 {
             let monitor = NetworkMonitor()
             monitor.stopMonitoring()
         }
-
-        // If we get here without crashing, the test passes
-        #expect(Bool(true))
     }
 
     // MARK: - Integration Test Notes
