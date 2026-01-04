@@ -16,9 +16,6 @@ struct HomeView: View {
     @Query private var tasks: [QueueTask]
     @Query private var reminders: [Reminder]
 
-    // Lazily initialized and cached stack service
-    @State private var _stackService: StackService?
-
     init() {
         // Filter for active stacks only (exclude completed, closed, and archived)
         // Note: SwiftData #Predicate doesn't support captured enum values,
@@ -63,13 +60,9 @@ struct HomeView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
-    /// Lazily initialized and cached stack service to avoid recreating on every operation
+    /// Stack service for operations - lightweight struct, safe to recreate each call
     private var stackService: StackService {
-        if let service = _stackService { return service }
-        let service = StackService(modelContext: modelContext)
-        // Note: Can't set _stackService here (computed property) so we accept the small overhead
-        // of recreating if _stackService is nil. In practice, SwiftUI will maintain state.
-        return service
+        StackService(modelContext: modelContext)
     }
 
     /// Count of overdue reminders for badge display
@@ -218,8 +211,9 @@ struct HomeView: View {
     }
 
     private func moveStacks(from source: IndexSet, to destination: Int) {
-        // Capture original sort orders before modifying in-memory state
-        // This allows reverting if the database save fails
+        // Capture original sort orders from the actual Stack model objects (via @Query).
+        // updateSortOrders() modifies these objects in-place before saving, so we need
+        // the original values to revert if the save fails.
         let originalSortOrders = stacks.map { ($0.id, $0.sortOrder) }
 
         var reorderedStacks = stacks
@@ -230,7 +224,9 @@ struct HomeView: View {
             // Trigger immediate sync after successful save
             syncManager?.triggerImmediatePush()
         } catch {
-            // Revert in-memory state on failure to prevent UI/database mismatch
+            // Revert in-memory state on failure. This works because `stacks` (from @Query)
+            // returns the actual SwiftData model objects, and we're restoring their
+            // sortOrder property to the original values captured before the failed save.
             for (id, originalOrder) in originalSortOrders {
                 if let stack = stacks.first(where: { $0.id == id }) {
                     stack.sortOrder = originalOrder

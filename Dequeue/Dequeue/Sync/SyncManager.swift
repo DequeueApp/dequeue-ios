@@ -23,6 +23,13 @@ actor SyncManager {
     private let maxReconnectAttempts = 10
     private let baseReconnectDelay: TimeInterval = 1.0
 
+    /// Fallback sync interval when immediate push is unavailable or fails.
+    /// Immediate push after each save handles the common case; this is a safety net.
+    private let periodicSyncIntervalSeconds: UInt64 = 5
+
+    /// Heartbeat interval for WebSocket keep-alive
+    private let heartbeatIntervalSeconds: UInt64 = 30
+
     private let modelContainer: ModelContainer
     private var getTokenFunction: (() async throws -> String)?
 
@@ -53,14 +60,19 @@ actor SyncManager {
         return formatter
     }()
 
-    // Pre-compiled regex patterns for timestamp parsing (compiled once, reused)
-    // Force unwrap is safe here - patterns are hardcoded and valid
+    // Pre-compiled regex patterns for timestamp parsing (compiled once, reused for performance)
+    // SAFETY: Force unwrap is safe because:
+    // 1. Patterns are compile-time constants (hardcoded string literals)
+    // 2. Patterns are valid regex syntax (verified by tests and manual inspection)
+    // 3. Compilation only happens once at static initialization, not at runtime
     // swiftlint:disable force_try
     private static let nanosecondsRegex: NSRegularExpression = {
+        // Matches ISO8601 timestamps with nanosecond precision, captures first 3 decimal places
         try! NSRegularExpression(pattern: #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d{3})\d*(Z|[+-]\d{2}:\d{2})"#)
     }()
 
     private static let fractionalSecondsRegex: NSRegularExpression = {
+        // Matches ISO8601 timestamps with any fractional seconds (for removal)
         try! NSRegularExpression(pattern: #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d+(Z|[+-]\d{2}:\d{2})"#)
     }()
     // swiftlint:enable force_try
@@ -684,7 +696,7 @@ actor SyncManager {
     private func startHeartbeat() {
         heartbeatTask = Task { [weak self] in
             while let self = self, await self.isConnected {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(self.heartbeatIntervalSeconds))
 
                 guard await self.isConnected,
                       let webSocketTask = await self.webSocketTask else { break }
@@ -753,7 +765,7 @@ actor SyncManager {
             while let self = self, await self.isConnected {
                 // Periodic sync as a fallback - immediate push is triggered by services
                 // after each save operation, so this mainly catches edge cases
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: .seconds(self.periodicSyncIntervalSeconds))
 
                 guard await self.isConnected else { break }
 
