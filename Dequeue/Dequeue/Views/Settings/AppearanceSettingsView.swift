@@ -15,13 +15,21 @@ private enum AppearanceConstants {
 
 // MARK: - App Theme Enum
 
+/// Represents the app's theme preference for controlling light/dark appearance.
+///
+/// The theme is persisted to UserDefaults and applied app-wide using the
+/// `applyAppTheme()` view modifier.
 internal enum AppTheme: String, CaseIterable, Identifiable {
+    /// Follow the system's appearance settings (light or dark mode)
     case system
+    /// Always use light appearance regardless of system settings
     case light
+    /// Always use dark appearance regardless of system settings
     case dark
 
     var id: String { rawValue }
 
+    /// Human-readable name for display in the UI
     var displayName: String {
         switch self {
         case .system: return "System"
@@ -30,6 +38,7 @@ internal enum AppTheme: String, CaseIterable, Identifiable {
         }
     }
 
+    /// SF Symbol name representing this theme option
     var icon: String {
         switch self {
         case .system: return "circle.lefthalf.filled"
@@ -38,6 +47,7 @@ internal enum AppTheme: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The SwiftUI ColorScheme to apply, or nil to follow system
     var colorScheme: ColorScheme? {
         switch self {
         case .system: return nil
