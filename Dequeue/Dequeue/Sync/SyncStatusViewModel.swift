@@ -9,9 +9,14 @@ import Foundation
 import SwiftData
 import Observation
 
+/// ViewModel that tracks sync status for UI display.
+/// Uses @MainActor isolation since it primarily works with SwiftData ModelContext.
+@MainActor
 @Observable
 internal final class SyncStatusViewModel {
-    // MARK: - Static
+    // MARK: - Constants
+
+    private static let statusUpdateInterval: Duration = .seconds(3)
 
     private static let dateTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -22,23 +27,26 @@ internal final class SyncStatusViewModel {
 
     // MARK: - Properties
 
-    @MainActor private(set) var pendingEventCount: Int = 0
-    @MainActor private(set) var isSyncing: Bool = false
-    @MainActor private(set) var lastSyncTime: Date?
-    @MainActor private(set) var connectionStatus: ConnectionStatus = .disconnected
+    private(set) var pendingEventCount: Int = 0
+    private(set) var isSyncing: Bool = false
+    private(set) var lastSyncTime: Date?
+    private(set) var connectionStatus: ConnectionStatus = .disconnected
 
     private let modelContext: ModelContext
+    private let eventService: EventService
     private var syncManager: SyncManager?
-    // nonisolated(unsafe) allows access from deinit for cleanup with @Observable
+    // nonisolated(unsafe) allows access from deinit for cleanup with @Observable.
+    // This is safe because updateTask is only written during init and deinit.
     nonisolated(unsafe) private var updateTask: Task<Void, Never>?
-    @MainActor private var previousPendingCount: Int = 0
+    private var previousPendingCount: Int = 0
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
+        self.eventService = EventService(modelContext: modelContext)
         startMonitoring()
     }
 
-    deinit {
+    nonisolated deinit {
         updateTask?.cancel()
     }
 
@@ -56,7 +64,7 @@ internal final class SyncStatusViewModel {
             while !Task.isCancelled {
                 guard let self = self else { break }
                 await self.updateStatus()
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: Self.statusUpdateInterval)
             }
         }
     }
@@ -66,52 +74,47 @@ internal final class SyncStatusViewModel {
         if let syncManager = syncManager {
             let status = await syncManager.connectionStatus
 
-            // Fetch pending event count - do this AFTER connection status to minimize race window
-            let eventService = await EventService(modelContext: modelContext)
+            // Fetch pending event count - do this AFTER connection status to minimize race window.
+            // Note: There's an inherent race between status and count fetches, but this is
+            // acceptable for a non-critical UI indicator that updates every few seconds.
             let currentCount: Int
             do {
-                let pendingEvents = try await eventService.fetchPendingEvents()
+                let pendingEvents = try eventService.fetchPendingEvents()
                 currentCount = pendingEvents.count
             } catch {
-                // Log error but don't crash - status indicator is non-critical
-                // Keep previous count instead of resetting to avoid misleading UI
+                // Log error but don't crash - status indicator is non-critical.
+                // Keep previous count instead of resetting to avoid misleading "Synced" UI
+                // when there's actually a database error.
                 ErrorReportingService.capture(
                     error: error,
                     context: ["source": "sync_status_fetch_pending"]
                 )
-                // Use Task to access MainActor property from background context
-                currentCount = await MainActor.run { pendingEventCount }
+                currentCount = pendingEventCount
             }
 
-            // Update all state atomically on MainActor to avoid races
-            await MainActor.run {
-                let previousCount = previousPendingCount
+            let previousCount = previousPendingCount
 
-                // Update connection status
-                connectionStatus = status
+            // Update connection status
+            connectionStatus = status
 
-                // Update pending count
-                pendingEventCount = currentCount
+            // Update pending count
+            pendingEventCount = currentCount
 
-                // Consider "syncing" when connected and has pending events
-                isSyncing = status == .connected && currentCount > 0
+            // Consider "syncing" when connected and has pending events
+            isSyncing = status == .connected && currentCount > 0
 
-                // Update last sync time only when transitioning from pending → synced
-                if previousCount > 0 && currentCount == 0 && status == .connected {
-                    lastSyncTime = Date()
-                }
-
-                // Track for next comparison
-                previousPendingCount = currentCount
+            // Update last sync time only when transitioning from pending → synced
+            if previousCount > 0 && currentCount == 0 && status == .connected {
+                lastSyncTime = Date()
             }
+
+            // Track for next comparison
+            previousPendingCount = currentCount
         } else {
             // No sync manager - just update pending count
-            let eventService = await EventService(modelContext: modelContext)
             do {
-                let pendingEvents = try await eventService.fetchPendingEvents()
-                await MainActor.run {
-                    pendingEventCount = pendingEvents.count
-                }
+                let pendingEvents = try eventService.fetchPendingEvents()
+                pendingEventCount = pendingEvents.count
             } catch {
                 ErrorReportingService.capture(
                     error: error,
@@ -122,7 +125,6 @@ internal final class SyncStatusViewModel {
     }
 
     /// Format last sync time for display
-    @MainActor
     var lastSyncTimeFormatted: String {
         guard let lastSyncTime = lastSyncTime else {
             return "Never"
@@ -145,7 +147,6 @@ internal final class SyncStatusViewModel {
     }
 
     /// Status message for display
-    @MainActor
     var statusMessage: String {
         switch connectionStatus {
         case .connected:

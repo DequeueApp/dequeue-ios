@@ -115,6 +115,10 @@ struct HomeView: View {
                     }
                 }
             }
+            .onDisappear {
+                // Stop monitoring to prevent background Task from running indefinitely
+                syncStatusViewModel?.stopMonitoring()
+            }
             .sheet(isPresented: $showReminders) {
                 RemindersListView(onGoToItem: handleGoToItem)
             }
