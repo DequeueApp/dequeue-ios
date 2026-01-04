@@ -57,6 +57,8 @@ struct HomeView: View {
     @State private var showReminders = false
     @State private var syncError: Error?
     @State private var showingSyncError = false
+    @State private var errorMessage: String?
+    @State private var showError = false
 
     /// Count of overdue reminders for badge display
     private var overdueCount: Int {
@@ -116,6 +118,13 @@ struct HomeView: View {
             } message: {
                 if let syncError = syncError {
                     Text(syncError.localizedDescription)
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                if let errorMessage {
+                    Text(errorMessage)
                 }
             }
         }
@@ -197,15 +206,26 @@ struct HomeView: View {
     }
 
     private func moveStacks(from source: IndexSet, to destination: Int) {
+        // Capture original sort orders before modifying in-memory state
+        let originalSortOrders = stacks.map { ($0.id, $0.sortOrder) }
+
         var reorderedStacks = stacks
         reorderedStacks.move(fromOffsets: source, toOffset: destination)
 
         let stackService = StackService(modelContext: modelContext)
         do {
             try stackService.updateSortOrders(reorderedStacks)
+            syncManager?.triggerImmediatePush()
         } catch {
-            // Log error but don't crash - changes are still in memory
+            // Revert in-memory state on failure
+            for (id, originalOrder) in originalSortOrders {
+                if let stack = stacks.first(where: { $0.id == id }) {
+                    stack.sortOrder = originalOrder
+                }
+            }
             ErrorReportingService.capture(error: error, context: ["action": "moveStacks"])
+            errorMessage = "Failed to save stack reorder: \(error.localizedDescription)"
+            showError = true
         }
     }
 
@@ -214,9 +234,11 @@ struct HomeView: View {
         for index in offsets {
             do {
                 try stackService.deleteStack(stacks[index])
+                syncManager?.triggerImmediatePush()
             } catch {
-                // Log error but don't crash - changes are still in memory
                 ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
+                errorMessage = "Failed to delete stack: \(error.localizedDescription)"
+                showError = true
             }
         }
     }
