@@ -14,6 +14,7 @@ import SwiftData
 struct TaskDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.syncManager) private var syncManager
 
     @Bindable var task: QueueTask
 
@@ -42,7 +43,7 @@ struct TaskDetailView: View {
     }
 
     private var reminderActionHandler: ReminderActionHandler {
-        ReminderActionHandler(modelContext: modelContext, onError: showError)
+        ReminderActionHandler(modelContext: modelContext, onError: showError, syncManager: syncManager)
     }
 
     var body: some View {
@@ -420,6 +421,7 @@ struct TaskDetailView: View {
         do {
             try taskService.updateTask(task, title: editedTitle, description: task.taskDescription)
             isEditingTitle = false
+            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -433,6 +435,7 @@ struct TaskDetailView: View {
                 description: editedDescription.isEmpty ? nil : editedDescription
             )
             isEditingDescription = false
+            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -441,6 +444,7 @@ struct TaskDetailView: View {
     private func completeTask() {
         do {
             try taskService.markAsCompleted(task)
+            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -449,6 +453,7 @@ struct TaskDetailView: View {
     private func blockTask() {
         do {
             try taskService.markAsBlocked(task, reason: nil)
+            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -457,6 +462,7 @@ struct TaskDetailView: View {
     private func unblockTask() {
         do {
             try taskService.unblock(task)
+            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -465,6 +471,7 @@ struct TaskDetailView: View {
     private func setTaskActive() {
         do {
             try taskService.activateTask(task)
+            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -473,6 +480,7 @@ struct TaskDetailView: View {
     private func closeTask() {
         do {
             try taskService.closeTask(task)
+            syncManager?.triggerImmediatePush()
             dismiss()
         } catch {
             showError(error)
@@ -482,6 +490,7 @@ struct TaskDetailView: View {
     private func deleteTask() {
         do {
             try taskService.deleteTask(task)
+            syncManager?.triggerImmediatePush()
             dismiss()
         } catch {
             showError(error)

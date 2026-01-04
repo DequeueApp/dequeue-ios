@@ -41,6 +41,7 @@ enum ReminderParent {
 struct AddReminderSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.syncManager) private var syncManager
 
     let parent: ReminderParent
     let notificationService: NotificationService
@@ -317,6 +318,8 @@ struct AddReminderSheet: View {
                     }
                     try await notificationService.scheduleNotification(for: reminder)
                 }
+                // Trigger immediate sync after save
+                syncManager?.triggerImmediatePush()
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription

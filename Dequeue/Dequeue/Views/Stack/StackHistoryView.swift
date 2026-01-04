@@ -12,6 +12,7 @@ struct StackHistoryView: View {
     let stack: Stack
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.syncManager) private var syncManager
     @State private var events: [Event] = []
     @State private var isLoading = true
     @State private var loadError: Error?
@@ -127,6 +128,8 @@ struct StackHistoryView: View {
         do {
             let stackService = StackService(modelContext: modelContext)
             try stackService.revertToHistoricalState(stack, from: event)
+            // Trigger immediate sync
+            syncManager?.triggerImmediatePush()
             // Refresh history to show the new revert event
             Task {
                 await loadHistory()

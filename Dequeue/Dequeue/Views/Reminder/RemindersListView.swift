@@ -11,6 +11,7 @@ import SwiftData
 struct RemindersListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.syncManager) private var syncManager
 
     @Query private var reminders: [Reminder]
     @Query private var stacks: [Stack]
@@ -43,7 +44,7 @@ struct RemindersListView: View {
     @State private var errorMessage = ""
 
     private var reminderActionHandler: ReminderActionHandler {
-        ReminderActionHandler(modelContext: modelContext, onError: showError)
+        ReminderActionHandler(modelContext: modelContext, onError: showError, syncManager: syncManager)
     }
 
     // MARK: - Filtered Reminders

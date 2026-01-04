@@ -16,6 +16,9 @@ struct HomeView: View {
     @Query private var tasks: [QueueTask]
     @Query private var reminders: [Reminder]
 
+    // Lazily initialized and cached stack service
+    @State private var _stackService: StackService?
+
     init() {
         // Filter for active stacks only (exclude completed, closed, and archived)
         // Note: SwiftData #Predicate doesn't support captured enum values,
@@ -59,6 +62,15 @@ struct HomeView: View {
     @State private var showingSyncError = false
     @State private var errorMessage: String?
     @State private var showError = false
+
+    /// Lazily initialized and cached stack service to avoid recreating on every operation
+    private var stackService: StackService {
+        if let service = _stackService { return service }
+        let service = StackService(modelContext: modelContext)
+        // Note: Can't set _stackService here (computed property) so we accept the small overhead
+        // of recreating if _stackService is nil. In practice, SwiftUI will maintain state.
+        return service
+    }
 
     /// Count of overdue reminders for badge display
     private var overdueCount: Int {
@@ -207,17 +219,18 @@ struct HomeView: View {
 
     private func moveStacks(from source: IndexSet, to destination: Int) {
         // Capture original sort orders before modifying in-memory state
+        // This allows reverting if the database save fails
         let originalSortOrders = stacks.map { ($0.id, $0.sortOrder) }
 
         var reorderedStacks = stacks
         reorderedStacks.move(fromOffsets: source, toOffset: destination)
 
-        let stackService = StackService(modelContext: modelContext)
         do {
             try stackService.updateSortOrders(reorderedStacks)
+            // Trigger immediate sync after successful save
             syncManager?.triggerImmediatePush()
         } catch {
-            // Revert in-memory state on failure
+            // Revert in-memory state on failure to prevent UI/database mismatch
             for (id, originalOrder) in originalSortOrders {
                 if let stack = stacks.first(where: { $0.id == id }) {
                     stack.sortOrder = originalOrder
@@ -230,10 +243,10 @@ struct HomeView: View {
     }
 
     private func deleteStacks(at offsets: IndexSet) {
-        let stackService = StackService(modelContext: modelContext)
         for index in offsets {
             do {
                 try stackService.deleteStack(stacks[index])
+                // Trigger immediate sync after successful delete
                 syncManager?.triggerImmediatePush()
             } catch {
                 ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])

@@ -751,9 +751,9 @@ actor SyncManager {
 
         periodicSyncTask = Task { [weak self] in
             while let self = self, await self.isConnected {
-                // Reduced from 10s to 3s for more responsive sync
-                // With immediate push triggered by services, this is mainly a fallback
-                try? await Task.sleep(for: .seconds(3))
+                // Periodic sync as a fallback - immediate push is triggered by services
+                // after each save operation, so this mainly catches edge cases
+                try? await Task.sleep(for: .seconds(5))
 
                 guard await self.isConnected else { break }
 
