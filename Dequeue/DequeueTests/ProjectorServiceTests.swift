@@ -434,11 +434,12 @@ struct ProjectorServiceTests {
         let container = try createTestContainer()
         let context = ModelContext(container)
 
-        // Create a deleted stack (set isDeleted after creation for SwiftData compatibility)
+        // Create a deleted stack (insert/save first, then mark deleted and save again for SwiftData)
         let stackId = CUID.generate()
         let stack = Stack(id: stackId, title: "Deleted Stack", isActive: false)
-        stack.isDeleted = true
         context.insert(stack)
+        try context.save()
+        stack.isDeleted = true
         try context.save()
 
         // Verify initial state
