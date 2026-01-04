@@ -70,6 +70,8 @@ struct HomeView: View {
     @State private var showingSyncError = false
     @State private var errorMessage: String?
     @State private var showError = false
+    @State private var stackToComplete: Stack?
+    @State private var showCompleteConfirmation = false
 
     /// Network monitor for offline detection
     private let networkMonitor = NetworkMonitor.shared
@@ -177,6 +179,18 @@ struct HomeView: View {
                     Text(errorMessage)
                 }
             }
+            .confirmationDialog(
+                "Complete Stack?",
+                isPresented: $showCompleteConfirmation,
+                presenting: stackToComplete
+            ) { stack in
+                Button("Complete Stack & All Tasks") {
+                    completeStack(stack)
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: { stack in
+                Text("This will mark \"\(stack.title)\" and all its pending tasks as completed.")
+            }
             .onChange(of: networkMonitor.isConnected) { _, isConnected in
                 // Reset banner dismissal when network changes
                 if !isConnected {
@@ -206,9 +220,33 @@ struct HomeView: View {
                     .onTapGesture {
                         selectedStack = stack
                     }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        if !stack.isActive {
+                            Button {
+                                setAsActive(stack)
+                            } label: {
+                                Label("Set Active", systemImage: "star.fill")
+                            }
+                            .tint(.orange)
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            deleteStack(stack)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+
+                        Button {
+                            stackToComplete = stack
+                            showCompleteConfirmation = true
+                        } label: {
+                            Label("Complete", systemImage: "checkmark.circle")
+                        }
+                        .tint(.green)
+                    }
             }
             .onMove(perform: moveStacks)
-            .onDelete(perform: deleteStacks)
         }
         .listStyle(.plain)
         .refreshable {
@@ -289,17 +327,36 @@ struct HomeView: View {
         }
     }
 
-    private func deleteStacks(at offsets: IndexSet) {
-        for index in offsets {
-            do {
-                try stackService.deleteStack(stacks[index])
-                // Trigger immediate sync after successful delete
-                syncManager?.triggerImmediatePush()
-            } catch {
-                ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
-                errorMessage = "Failed to delete stack: \(error.localizedDescription)"
-                showError = true
-            }
+    private func setAsActive(_ stack: Stack) {
+        do {
+            try stackService.setAsActive(stack)
+            syncManager?.triggerImmediatePush()
+        } catch {
+            ErrorReportingService.capture(error: error, context: ["action": "setAsActive"])
+            errorMessage = "Failed to set stack as active: \(error.localizedDescription)"
+            showError = true
+        }
+    }
+
+    private func completeStack(_ stack: Stack) {
+        do {
+            try stackService.markAsCompleted(stack, completeAllTasks: true)
+            syncManager?.triggerImmediatePush()
+        } catch {
+            ErrorReportingService.capture(error: error, context: ["action": "completeStack"])
+            errorMessage = "Failed to complete stack: \(error.localizedDescription)"
+            showError = true
+        }
+    }
+
+    private func deleteStack(_ stack: Stack) {
+        do {
+            try stackService.deleteStack(stack)
+            syncManager?.triggerImmediatePush()
+        } catch {
+            ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
+            errorMessage = "Failed to delete stack: \(error.localizedDescription)"
+            showError = true
         }
     }
 }
