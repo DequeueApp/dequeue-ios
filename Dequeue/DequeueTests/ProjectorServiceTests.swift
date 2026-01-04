@@ -16,6 +16,13 @@ struct ProjectorServiceTests {
 
     // MARK: - Test Helpers
 
+    /// Helper to apply multiple events in sequence
+    private func applyEvents(_ events: [Event], context: ModelContext) throws {
+        for event in events {
+            try ProjectorService.apply(event: event, context: context)
+        }
+    }
+
     private func createTestContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try ModelContainer(
@@ -77,7 +84,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try ProjectorService.applyEvents([event], context: context)
+        try applyEvents([event], context: context)
 
         // Verify isActive was restored
         #expect(stack.isActive == true)
@@ -98,7 +105,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try ProjectorService.applyEvents([event], context: context)
+        try applyEvents([event], context: context)
 
         // Verify the stack was created with isActive = true
         let predicate = #Predicate<Stack> { $0.id == stackId }
@@ -123,7 +130,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try ProjectorService.applyEvents([event], context: context)
+        try applyEvents([event], context: context)
 
         // Verify the stack was created with isActive = false
         let predicate = #Predicate<Stack> { $0.id == stackId }
@@ -155,7 +162,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try ProjectorService.applyEvents([event], context: context)
+        try applyEvents([event], context: context)
 
         // Verify isActive was set to true (not status changed)
         #expect(stack.isActive == true)
@@ -181,7 +188,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try ProjectorService.applyEvents([event], context: context)
+        try applyEvents([event], context: context)
 
         // Verify workflow status was NOT changed
         #expect(stack.status == .completed)
@@ -210,7 +217,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try ProjectorService.applyEvents([event], context: context)
+        try applyEvents([event], context: context)
 
         // Verify isActive was set to false (not status changed)
         #expect(stack.isActive == false)
@@ -236,7 +243,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try ProjectorService.applyEvents([event], context: context)
+        try applyEvents([event], context: context)
 
         // Verify workflow status was NOT changed
         #expect(stack.status == .active)
@@ -270,7 +277,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply events in order
-        try ProjectorService.applyEvents([event1, event2, event3], context: context)
+        try applyEvents([event1, event2, event3], context: context)
 
         // Verify only stack3 is active
         let descriptor = FetchDescriptor<Stack>()
@@ -310,7 +317,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply all events in order
-        try ProjectorService.applyEvents([createEvent1, createEvent2, deactivateEvent, activateEvent], context: context)
+        try applyEvents([createEvent1, createEvent2, deactivateEvent, activateEvent], context: context)
 
         // Verify only stack2 is active now
         let descriptor = FetchDescriptor<Stack>()
