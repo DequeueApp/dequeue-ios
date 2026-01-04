@@ -314,6 +314,103 @@ A unified view to browse all attachments and links across the entire app, making
 
 ---
 
+## 6. Idle Reminders & Active Task Check-ins
+
+### Overview
+Allow users to set automated reminders that check in on the currently Active Stack/Task when there's been no movement for a configurable period of time. This helps users stay on top of what they're actually working on, especially when multitasking or switching between tasks frequently.
+
+### Rationale: Why This Matters
+
+The core concept of Dequeue is that you're always working on **one and only one thing**—the Active item. But in reality, people multitask and context-switch constantly throughout the day. You might start on Task A, get pulled into a quick Task B, and forget to update Dequeue. An hour later, your Active item is stale and your time tracking is inaccurate.
+
+**The problem**: Most people don't remember to update their task manager when switching contexts. They get into flow on something new and only realize later that Dequeue still shows them working on something from this morning.
+
+**The solution**: Gentle, configurable reminders that ask "Are you still working on X?" after a period of inactivity. This turns Dequeue from a passive tracker into an active partner in maintaining accurate records of what you're doing.
+
+### Core Concept
+- **Idle detection**: If no Stack or Task activation/deactivation occurs for a configurable period (e.g., 20 minutes), trigger a reminder
+- **Check-in prompt**: "Are you still working on [Active Stack/Task]?"
+- **Quick actions from reminder**:
+  - "Yes, still on it" (dismisses reminder, resets timer)
+  - "No, switch to..." (opens quick picker to select new Active item)
+  - "Taking a break" (pauses/deactivates current Stack)
+- **Backdating**: When switching to a new Active item, optionally specify when you actually started it (e.g., "I started this 15 minutes ago") to keep records accurate
+
+### Stack Pause/Deactivate Feature
+For users who want thorough time tracking:
+- **Pause**: Temporarily deactivate the current Stack without completing it
+- **Break tracking**: Record breaks as distinct periods (lunch, coffee, meetings, etc.)
+- **Resume**: Quickly reactivate the paused Stack
+- **Use cases**:
+  - Stepping away for lunch
+  - Attending a meeting unrelated to current work
+  - Taking a mental break
+  - Switching to non-work activities during work hours
+
+### Working Hours Preferences
+Reminders should respect when you're actually working:
+- **Enable/disable during work hours only**: Only send reminders during configured working hours
+- **Configurable work schedule**: Set start and end times (e.g., 9 AM - 6 PM)
+- **Day selection**: Choose which days are work days (e.g., Monday-Friday)
+- **Time zone aware**: Respect user's local time zone
+- **Override options**:
+  - "Do not disturb" mode for focus time
+  - Quick toggle to pause reminders temporarily
+
+### Reminder Preferences
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Idle threshold | Minutes of inactivity before reminder | 20 min |
+| Working hours only | Only remind during work hours | On |
+| Work start time | When work hours begin | 9:00 AM |
+| Work end time | When work hours end | 6:00 PM |
+| Work days | Which days to send reminders | Mon-Fri |
+| Reminder sound | Audio notification | System default |
+| Reminder style | Banner, alert, or silent | Banner |
+
+### Technical Considerations
+
+1. **Idle Detection**
+   - Track timestamp of last activation/deactivation event
+   - Background timer to check idle state
+   - Must work reliably even when app is backgrounded
+   - iOS: Use background app refresh and local notifications
+   - macOS: More flexibility with background execution
+
+2. **Local Notifications**
+   - Schedule notifications based on idle threshold
+   - Reschedule when activity occurs
+   - Handle notification actions (quick responses)
+   - Respect system Do Not Disturb settings
+
+3. **Backdating Logic**
+   - When user says "I started this 15 minutes ago":
+     - Create activation event with past timestamp
+     - Create deactivation event for previous Stack at same timestamp
+     - Ensure event log remains consistent and chronological
+
+4. **State Management**
+   - New Stack state: "Paused" (in addition to Active/Completed)
+   - Track pause start/end times
+   - Distinguish between "nothing active" and "on a break"
+
+### Open Questions
+- Should reminders persist if you ignore them, or fade away?
+- How do we handle overlapping breaks (pause Stack A, start Stack B, pause Stack B)?
+- Should there be a "snooze" option that delays the reminder by X minutes?
+- Do we track break time separately in analytics/activity feed?
+- Should reminders be more/less aggressive based on how long something has been Active?
+- Integration with system-level Focus modes (iOS/macOS)?
+
+### Implementation Phases (suggested)
+1. **Phase 1**: Basic idle reminders with configurable threshold
+2. **Phase 2**: Working hours preferences
+3. **Phase 3**: Stack pause/resume functionality
+4. **Phase 4**: Backdating for activity corrections
+5. **Phase 5**: Break tracking and analytics
+
+---
+
 ## Future Ideas (Parking Lot)
 
 Brief notes on other ideas not yet developed:
