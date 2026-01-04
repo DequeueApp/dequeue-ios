@@ -252,13 +252,15 @@ enum ProjectorService {
         // Deactivate all other stacks before activating this one to ensure invariant holds.
         // Event ordering: The LWW check above (shouldApplyEvent) ensures we only apply events
         // newer than current state, preventing out-of-order activation from corrupting state.
-        // Deactivated stacks don't get updatedAt changes as this is a side effect of this event.
+        // We update updatedAt on implicitly-deactivated stacks to ensure proper LWW resolution
+        // across devices - they need to know when deactivation occurred for sync consistency.
         let stackId = payload.id
         let predicate = #Predicate<Stack> { $0.isActive == true && $0.id != stackId }
         let descriptor = FetchDescriptor<Stack>(predicate: predicate)
         let otherActiveStacks = try context.fetch(descriptor)
         for otherStack in otherActiveStacks {
             otherStack.isActive = false
+            otherStack.updatedAt = event.timestamp  // LWW: Sync timestamp for implicit deactivation
         }
 
         // Set as the active stack (isActive is the "active stack" indicator, not workflow status)
