@@ -135,6 +135,7 @@ enum ProjectorService {
                 priority: payload.priority,
                 sortOrder: payload.sortOrder,
                 isDraft: payload.isDraft,
+                isActive: payload.isActive,
                 activeTaskId: payload.activeTaskId,
                 syncState: .synced,
                 lastSyncedAt: Date()
@@ -245,7 +246,8 @@ enum ProjectorService {
             context: context
         ) else { return }
 
-        stack.status = .active
+        // Set as the active stack (isActive is the "active stack" indicator, not workflow status)
+        stack.isActive = true
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
@@ -268,7 +270,8 @@ enum ProjectorService {
             context: context
         ) else { return }
 
-        stack.status = .archived
+        // Remove active stack designation (isActive is the "active stack" indicator, not workflow status)
+        stack.isActive = false
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
@@ -640,6 +643,7 @@ enum ProjectorService {
         stack.priority = payload.priority
         stack.sortOrder = payload.sortOrder
         stack.isDraft = payload.isDraft
+        stack.isActive = payload.isActive
         stack.activeTaskId = payload.activeTaskId
         stack.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         stack.syncState = .synced
