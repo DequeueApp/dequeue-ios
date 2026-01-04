@@ -82,6 +82,7 @@ actor DeviceService {
         // Record the discovery event
         let eventService = EventService(modelContext: modelContext)
         try eventService.recordDeviceDiscovered(device)
+        try modelContext.save()
 
         logger.info("Device discovered and registered: \(deviceId) - \(device.name)")
     }

@@ -67,6 +67,11 @@ internal final class SyncStatusViewModel {
         self.syncManager = syncManager
     }
 
+    /// Forces an immediate status update. Useful for tests or when sync state changes.
+    func updateStatusNow() async {
+        await updateStatus()
+    }
+
     private func startMonitoring() {
         // Cancel any existing task to prevent accumulation if view appears/disappears rapidly
         updateTask?.cancel()
