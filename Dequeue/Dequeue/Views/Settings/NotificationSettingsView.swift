@@ -12,7 +12,6 @@ import UserNotifications
 // MARK: - UserDefaults Keys
 
 private enum UserDefaultsKey {
-    static let notificationSoundEnabled = "notificationSoundEnabled"
     static let notificationBadgeEnabled = "notificationBadgeEnabled"
 }
 
@@ -25,6 +24,11 @@ internal struct NotificationSettingsView: View {
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @State private var showPermissionError = false
     @State private var permissionErrorMessage: String?
+
+    /// Computed property to create NotificationService with current model context
+    private var notificationService: NotificationService {
+        NotificationService(modelContext: modelContext)
+    }
 
     var body: some View {
         List {
@@ -56,14 +60,12 @@ internal struct NotificationSettingsView: View {
     // MARK: - Actions
 
     private func loadAuthorizationStatus() async {
-        let service = NotificationService(modelContext: modelContext)
-        authorizationStatus = await service.getAuthorizationStatus()
+        authorizationStatus = await notificationService.getAuthorizationStatus()
     }
 
     private func requestPermission() async {
-        let service = NotificationService(modelContext: modelContext)
         do {
-            let granted = try await service.requestPermissionWithError()
+            let granted = try await notificationService.requestPermissionWithError()
             authorizationStatus = granted ? .authorized : .denied
         } catch {
             permissionErrorMessage = error.localizedDescription
@@ -72,16 +74,15 @@ internal struct NotificationSettingsView: View {
                 error: error,
                 context: ["action": "request_notification_permission"]
             )
-            authorizationStatus = await service.getAuthorizationStatus()
+            authorizationStatus = await notificationService.getAuthorizationStatus()
         }
     }
 
     private func handleBadgeToggle(enabled: Bool) async {
-        let service = NotificationService(modelContext: modelContext)
         if !enabled {
-            await service.clearAppBadge()
+            await notificationService.clearAppBadge()
         } else {
-            await service.updateAppBadge()
+            await notificationService.updateAppBadge()
         }
     }
 
