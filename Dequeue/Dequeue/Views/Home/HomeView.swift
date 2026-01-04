@@ -57,6 +57,13 @@ struct HomeView: View {
     @State private var showReminders = false
     @State private var syncError: Error?
     @State private var showingSyncError = false
+    @State private var errorMessage: String?
+    @State private var showError = false
+
+    /// Stack service for operations - lightweight struct, safe to recreate each call
+    private var stackService: StackService {
+        StackService(modelContext: modelContext)
+    }
 
     /// Count of overdue reminders for badge display
     private var overdueCount: Int {
@@ -116,6 +123,13 @@ struct HomeView: View {
             } message: {
                 if let syncError = syncError {
                     Text(syncError.localizedDescription)
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                if let errorMessage {
+                    Text(errorMessage)
                 }
             }
         }
@@ -197,21 +211,44 @@ struct HomeView: View {
     }
 
     private func moveStacks(from source: IndexSet, to destination: Int) {
+        // Capture original sort orders from the actual Stack model objects (via @Query).
+        // updateSortOrders() modifies these objects in-place before saving, so we need
+        // the original values to revert if the save fails.
+        let originalSortOrders = stacks.map { ($0.id, $0.sortOrder) }
+
         var reorderedStacks = stacks
         reorderedStacks.move(fromOffsets: source, toOffset: destination)
 
-        for (index, stack) in reorderedStacks.enumerated() {
-            stack.sortOrder = index
-            stack.updatedAt = Date()
-            stack.syncState = .pending
+        do {
+            try stackService.updateSortOrders(reorderedStacks)
+            // Trigger immediate sync after successful save
+            syncManager?.triggerImmediatePush()
+        } catch {
+            // Revert in-memory state on failure. This works because `stacks` (from @Query)
+            // returns the actual SwiftData model objects, and we're restoring their
+            // sortOrder property to the original values captured before the failed save.
+            for (id, originalOrder) in originalSortOrders {
+                if let stack = stacks.first(where: { $0.id == id }) {
+                    stack.sortOrder = originalOrder
+                }
+            }
+            ErrorReportingService.capture(error: error, context: ["action": "moveStacks"])
+            errorMessage = "Failed to save stack reorder: \(error.localizedDescription)"
+            showError = true
         }
     }
 
     private func deleteStacks(at offsets: IndexSet) {
         for index in offsets {
-            stacks[index].isDeleted = true
-            stacks[index].updatedAt = Date()
-            stacks[index].syncState = .pending
+            do {
+                try stackService.deleteStack(stacks[index])
+                // Trigger immediate sync after successful delete
+                syncManager?.triggerImmediatePush()
+            } catch {
+                ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
+                errorMessage = "Failed to delete stack: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 }

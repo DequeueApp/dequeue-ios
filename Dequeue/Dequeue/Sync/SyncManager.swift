@@ -17,10 +17,18 @@ actor SyncManager {
     private let session: URLSession
     private var token: String?
     private var userId: String?
+    private var deviceId: String?  // Cached at connection time to avoid actor hops
     private var isConnected = false
     private var reconnectAttempts = 0
     private let maxReconnectAttempts = 10
     private let baseReconnectDelay: TimeInterval = 1.0
+
+    /// Fallback sync interval when immediate push is unavailable or fails.
+    /// Immediate push after each save handles the common case; this is a safety net.
+    private let periodicSyncIntervalSeconds: UInt64 = 5
+
+    /// Heartbeat interval for WebSocket keep-alive
+    private let heartbeatIntervalSeconds: UInt64 = 30
 
     private let modelContainer: ModelContainer
     private var getTokenFunction: (() async throws -> String)?
@@ -51,6 +59,23 @@ actor SyncManager {
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
+
+    // Pre-compiled regex patterns for timestamp parsing (compiled once, reused for performance)
+    // SAFETY: Force unwrap is safe because:
+    // 1. Patterns are compile-time constants (hardcoded string literals)
+    // 2. Patterns are valid regex syntax (verified by tests and manual inspection)
+    // 3. Compilation only happens once at static initialization, not at runtime
+    // swiftlint:disable force_try
+    private static let nanosecondsRegex: NSRegularExpression = {
+        // Matches ISO8601 timestamps with nanosecond precision, captures first 3 decimal places
+        try! NSRegularExpression(pattern: #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d{3})\d*(Z|[+-]\d{2}:\d{2})"#)
+    }()
+
+    private static let fractionalSecondsRegex: NSRegularExpression = {
+        // Matches ISO8601 timestamps with any fractional seconds (for removal)
+        try! NSRegularExpression(pattern: #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d+(Z|[+-]\d{2}:\d{2})"#)
+    }()
+    // swiftlint:enable force_try
 
     /// Parses ISO8601 timestamp, handling Go's RFC3339Nano format with nanosecond precision.
     /// Go sends timestamps like "2024-01-15T10:30:45.123456789Z" but Swift's ISO8601DateFormatter
@@ -83,25 +108,16 @@ actor SyncManager {
     /// Input:  "2024-01-15T10:30:45.123456789Z"
     /// Output: "2024-01-15T10:30:45.123Z"
     private static func truncateNanosecondsToMilliseconds(_ string: String) -> String {
-        // Match pattern: digits after decimal point before Z or timezone
-        let pattern = #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d{3})\d*(Z|[+-]\d{2}:\d{2})"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return string
-        }
         let range = NSRange(string.startIndex..., in: string)
-        return regex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1.$2$3")
+        return nanosecondsRegex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1.$2$3")
     }
 
     /// Removes fractional seconds entirely from ISO8601 timestamp
     /// Input:  "2024-01-15T10:30:45.123456789Z"
     /// Output: "2024-01-15T10:30:45Z"
     private static func removeFractionalSeconds(_ string: String) -> String {
-        let pattern = #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d+(Z|[+-]\d{2}:\d{2})"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return string
-        }
         let range = NSRange(string.startIndex..., in: string)
-        return regex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1$2")
+        return fractionalSecondsRegex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1$2")
     }
 
     /// Extracts the entity ID from an event payload for history queries.
@@ -168,6 +184,8 @@ actor SyncManager {
         self.userId = userId
         self.token = token
         self.getTokenFunction = getToken
+        // Cache deviceId at connection time to avoid actor hops during push
+        self.deviceId = await DeviceService.shared.getDeviceId()
 
         try await connectWebSocket()
         startPeriodicSync()
@@ -254,7 +272,14 @@ actor SyncManager {
 
         guard !pendingEvents.isEmpty else { return }
 
-        let deviceId = await DeviceService.shared.getDeviceId()
+        // Use cached deviceId (falls back to fetching if not cached, e.g., during reconnect)
+        let eventDeviceId: String
+        if let cachedDeviceId = deviceId {
+            eventDeviceId = cachedDeviceId
+        } else {
+            eventDeviceId = await DeviceService.shared.getDeviceId()
+        }
+
         let syncEvents = pendingEvents.map { event -> [String: Any] in
             let payload: Any
             if let payloadDict = try? JSONSerialization.jsonObject(with: event.payload) {
@@ -265,8 +290,8 @@ actor SyncManager {
 
             return [
                 "id": event.id,
-                "device_id": deviceId,
-                "ts": ISO8601DateFormatter().string(from: event.timestamp),
+                "device_id": eventDeviceId,
+                "ts": SyncManager.iso8601WithFractionalSeconds.string(from: event.timestamp),
                 "type": event.type,
                 "payload": payload
             ]
@@ -671,7 +696,7 @@ actor SyncManager {
     private func startHeartbeat() {
         heartbeatTask = Task { [weak self] in
             while let self = self, await self.isConnected {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(self.heartbeatIntervalSeconds))
 
                 guard await self.isConnected,
                       let webSocketTask = await self.webSocketTask else { break }
@@ -738,7 +763,9 @@ actor SyncManager {
 
         periodicSyncTask = Task { [weak self] in
             while let self = self, await self.isConnected {
-                try? await Task.sleep(for: .seconds(10))
+                // Periodic sync as a fallback - immediate push is triggered by services
+                // after each save operation, so this mainly catches edge cases
+                try? await Task.sleep(for: .seconds(self.periodicSyncIntervalSeconds))
 
                 guard await self.isConnected else { break }
 
@@ -789,6 +816,23 @@ actor SyncManager {
     func resetCheckpoint() {
         UserDefaults.standard.removeObject(forKey: lastSyncCheckpointKey)
         os_log("[Sync] Checkpoint reset - next pull will fetch all events")
+    }
+
+    // MARK: - Immediate Sync
+
+    /// Triggers an immediate push of pending events.
+    /// Call this after recording events to sync them without waiting for the periodic interval.
+    /// Errors are logged but not thrown to avoid disrupting the caller's flow.
+    /// Marked nonisolated since it only spawns an actor-isolated Task internally.
+    nonisolated func triggerImmediatePush() {
+        Task {
+            do {
+                try await pushEvents()
+            } catch {
+                os_log("[Sync] Immediate push failed: \(error.localizedDescription)")
+                // Don't propagate error - periodic sync will retry
+            }
+        }
     }
 }
 

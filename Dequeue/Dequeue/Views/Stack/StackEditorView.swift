@@ -30,6 +30,7 @@ struct StackEditorView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) var dismiss
+    @Environment(\.syncManager) var syncManager
 
     let mode: Mode
     let isReadOnly: Bool
@@ -117,7 +118,7 @@ struct StackEditorView: View {
     }
 
     var reminderActionHandler: ReminderActionHandler {
-        ReminderActionHandler(modelContext: modelContext, onError: handleError)
+        ReminderActionHandler(modelContext: modelContext, onError: handleError, syncManager: syncManager)
     }
 
     // MARK: - Body

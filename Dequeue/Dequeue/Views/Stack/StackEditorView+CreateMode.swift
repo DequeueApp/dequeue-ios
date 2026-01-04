@@ -66,6 +66,7 @@ extension StackEditorView {
             )
             draftStack = draft
             logger.info("Auto-created draft: \(draft.id)")
+            syncManager?.triggerImmediatePush()
         } catch {
             logger.error("Failed to create draft: \(error.localizedDescription)")
             errorMessage = "Failed to save draft: \(error.localizedDescription)"
@@ -76,6 +77,15 @@ extension StackEditorView {
     }
 
     func updateDraft(_ draft: Stack, title: String, description: String) {
+        // Check if draft was published elsewhere before attempting update
+        guard draft.isDraft else {
+            logger.warning("Attempted to update non-draft stack - draft may have been published")
+            draftStack = nil
+            errorMessage = "This draft has been published. Changes were not saved."
+            showError = true
+            return
+        }
+
         do {
             try stackService.updateDraft(
                 draft,
@@ -83,6 +93,7 @@ extension StackEditorView {
                 description: description.isEmpty ? nil : description
             )
             logger.debug("Auto-updated draft: \(draft.id)")
+            syncManager?.triggerImmediatePush()
         } catch {
             logger.error("Failed to update draft: \(error.localizedDescription)")
         }
@@ -101,6 +112,7 @@ extension StackEditorView {
             do {
                 try stackService.discardDraft(draft)
                 logger.info("Draft discarded: \(draft.id)")
+                syncManager?.triggerImmediatePush()
             } catch {
                 logger.error("Failed to discard draft: \(error.localizedDescription)")
             }
@@ -135,6 +147,7 @@ extension StackEditorView {
                 logger.info("Task created: \(task.id)")
             }
 
+            syncManager?.triggerImmediatePush()
             dismiss()
         } catch {
             logger.error("Failed to create stack: \(error.localizedDescription)")

@@ -7,9 +7,13 @@
 
 import SwiftUI
 import SwiftData
+import os
+
+private let logger = Logger(subsystem: "com.dequeue", category: "DraftsView")
 
 struct DraftsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.syncManager) private var syncManager
     @Query(
         filter: #Predicate<Stack> { stack in
             stack.isDeleted == false && stack.isDraft == true
@@ -17,6 +21,13 @@ struct DraftsView: View {
         sort: \Stack.updatedAt,
         order: .reverse
     ) private var drafts: [Stack]
+
+    @State private var deleteErrorMessage: String?
+    @State private var showDeleteError = false
+
+    private var stackService: StackService {
+        StackService(modelContext: modelContext)
+    }
 
     var body: some View {
         NavigationStack {
@@ -28,6 +39,13 @@ struct DraftsView: View {
                 }
             }
             .navigationTitle("Drafts")
+            .alert("Error", isPresented: $showDeleteError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                if let deleteErrorMessage {
+                    Text(deleteErrorMessage)
+                }
+            }
         }
     }
 
@@ -60,7 +78,18 @@ struct DraftsView: View {
 
     private func deleteDrafts(at offsets: IndexSet) {
         for index in offsets {
-            drafts[index].isDeleted = true
+            let draft = drafts[index]
+            do {
+                // Use stackService.discardDraft to properly fire stack.discarded event
+                try stackService.discardDraft(draft)
+                logger.info("Draft discarded via swipe: \(draft.id)")
+                // Trigger immediate sync
+                syncManager?.triggerImmediatePush()
+            } catch {
+                logger.error("Failed to discard draft: \(error.localizedDescription)")
+                deleteErrorMessage = "Could not delete draft. Please try again."
+                showDeleteError = true
+            }
         }
     }
 }
