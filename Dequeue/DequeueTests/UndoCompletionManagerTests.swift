@@ -18,6 +18,7 @@ private func makeTestContainer() throws -> ModelContainer {
         QueueTask.self,
         Reminder.self,
         Event.self,
+        Device.self,
         configurations: config
     )
 }
@@ -27,6 +28,7 @@ struct UndoCompletionManagerTests {
     // MARK: - Initial State Tests
 
     @Test("Manager initializes with no pending completion")
+    @MainActor
     func managerInitializesEmpty() {
         let manager = UndoCompletionManager()
 
@@ -136,6 +138,7 @@ struct UndoCompletionManagerTests {
     }
 
     @Test("undoCompletion is safe to call with no pending completion")
+    @MainActor
     func undoCompletionSafeWhenNoPending() {
         let manager = UndoCompletionManager()
 
@@ -322,6 +325,7 @@ struct UndoCompletionManagerTests {
     }
 
     @Test("Grace period duration is 5 seconds")
+    @MainActor
     func gracePeriodDurationIsFiveSeconds() {
         #expect(UndoCompletionManager.gracePeriodDuration == 5.0)
     }

@@ -16,6 +16,7 @@ private let logger = Logger(subsystem: "com.dequeue", category: "UndoCompletionM
 /// When a stack with no pending tasks is completed, instead of immediately marking it
 /// as completed, this manager holds the stack and starts a countdown timer. The user
 /// can undo the completion within the grace period, or let it proceed automatically.
+@MainActor
 @Observable
 final class UndoCompletionManager {
     /// The stack pending completion, if any
@@ -64,13 +65,13 @@ final class UndoCompletionManager {
         startProgressAnimation()
 
         // Start completion timer
-        completionTask = Task { @MainActor in
+        completionTask = Task {
             do {
                 try await Task.sleep(for: .seconds(Self.gracePeriodDuration))
 
                 // If we weren't cancelled, complete the stack
-                if !Task.isCancelled && pendingStack?.id == stack.id {
-                    completeStack()
+                if !Task.isCancelled && self.pendingStack?.id == stack.id {
+                    self.completeStack()
                 }
             } catch {
                 // Task was cancelled - that's expected if user tapped undo
@@ -100,15 +101,15 @@ final class UndoCompletionManager {
     }
 
     private func startProgressAnimation() {
-        progressTask = Task { @MainActor in
+        progressTask = Task {
             let startTime = Date()
             let duration = Self.gracePeriodDuration
 
             while !Task.isCancelled {
                 let elapsed = Date().timeIntervalSince(startTime)
-                progress = min(elapsed / duration, 1.0)
+                self.progress = min(elapsed / duration, 1.0)
 
-                if progress >= 1.0 {
+                if self.progress >= 1.0 {
                     break
                 }
 
