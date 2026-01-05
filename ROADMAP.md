@@ -334,6 +334,7 @@ The core concept of Dequeue is that you're always working on **one and only one 
   - "Yes, still on it" (dismisses reminder, resets timer)
   - "No, switch to..." (opens quick picker to select new Active item)
   - "Taking a break" (pauses/deactivates current Stack)
+  - "Done for today" (ends work mode, deactivates current Stack, stops reminders until tomorrow)
 - **Backdating**: When switching to a new Active item, optionally specify when you actually started it (e.g., "I started this 15 minutes ago") to keep records accurate
 
 ### Stack Pause/Deactivate Feature
@@ -357,6 +358,17 @@ Reminders should respect when you're actually working:
   - "Do not disturb" mode for focus time
   - Quick toggle to pause reminders temporarily
 
+### Manual Work Mode Toggle
+In addition to scheduled working hours, users can manually control work mode:
+- **Quick toggle in main UI**: Prominent button to start/end work session
+- **"I'm starting work"**: Manually activate work mode and enable reminders
+- **"I'm done for today"**: End work mode, pause current Stack, disable reminders until next session
+- **Use case**: You may not remember to check the Active issue throughout the day, but you do remember "I'm starting work now!" and "I'm heading out"—those are natural bookends
+- **Interaction with schedule**: Manual toggle overrides the scheduled hours
+  - Turn on manually before scheduled start time → reminders begin immediately
+  - Turn off manually before scheduled end time → reminders stop until next day (or manual restart)
+- **Visual indicator**: Show current work mode status in the app (working / not working)
+
 ### Reminder Preferences
 | Setting | Description | Default |
 |---------|-------------|---------|
@@ -365,6 +377,8 @@ Reminders should respect when you're actually working:
 | Work start time | When work hours begin | 9:00 AM |
 | Work end time | When work hours end | 6:00 PM |
 | Work days | Which days to send reminders | Mon-Fri |
+| Auto-start work mode | Automatically enter work mode at start time | On |
+| Auto-end work mode | Automatically exit work mode at end time | Off |
 | Reminder sound | Audio notification | System default |
 | Reminder style | Banner, alert, or silent | Banner |
 
@@ -394,6 +408,12 @@ Reminders should respect when you're actually working:
    - Track pause start/end times
    - Distinguish between "nothing active" and "on a break"
 
+5. **Work Mode State**
+   - Track whether user is currently "at work" or not
+   - Persist work mode state across app launches
+   - Handle edge cases: app killed while in work mode, device restart, etc.
+   - Sync work mode state across devices (or keep it device-local?)
+
 ### Open Questions
 - Should reminders persist if you ignore them, or fade away?
 - How do we handle overlapping breaks (pause Stack A, start Stack B, pause Stack B)?
@@ -401,13 +421,16 @@ Reminders should respect when you're actually working:
 - Do we track break time separately in analytics/activity feed?
 - Should reminders be more/less aggressive based on how long something has been Active?
 - Integration with system-level Focus modes (iOS/macOS)?
+- Where should the work mode toggle live in the UI? Main tab bar? Home screen? Settings?
+- Should starting work mode prompt you to select what you're working on first?
 
 ### Implementation Phases (suggested)
 1. **Phase 1**: Basic idle reminders with configurable threshold
-2. **Phase 2**: Working hours preferences
-3. **Phase 3**: Stack pause/resume functionality
-4. **Phase 4**: Backdating for activity corrections
-5. **Phase 5**: Break tracking and analytics
+2. **Phase 2**: Working hours schedule preferences
+3. **Phase 3**: Manual work mode toggle (start/end work day)
+4. **Phase 4**: Stack pause/resume functionality
+5. **Phase 5**: Backdating for activity corrections
+6. **Phase 6**: Break tracking and analytics
 
 ---
 
