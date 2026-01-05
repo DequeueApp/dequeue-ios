@@ -393,4 +393,129 @@ struct ActiveStackConstraintTests {
             #expect(payload.fullState.isActive == true)
         }
     }
+
+    // MARK: - markAsCompleted Deactivation Tests (DEQ-131)
+
+    @Test("markAsCompleted deactivates active stack")
+    @MainActor
+    func markAsCompletedDeactivatesActiveStack() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context)
+
+        let stack = try service.createStack(title: "Active Stack")
+        #expect(stack.isActive == true)
+
+        try service.markAsCompleted(stack)
+
+        #expect(stack.isActive == false)
+        #expect(stack.status == .completed)
+    }
+
+    @Test("markAsCompleted emits deactivation event for active stack")
+    @MainActor
+    func markAsCompletedEmitsDeactivationEvent() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context)
+
+        let stack = try service.createStack(title: "Active Stack")
+        let stackId = stack.id
+
+        // Count deactivation events before
+        let eventDescriptor = FetchDescriptor<Event>()
+        let eventsBefore = try context.fetch(eventDescriptor)
+        let deactivationCountBefore = eventsBefore.filter { $0.eventType == .stackDeactivated }.count
+
+        try service.markAsCompleted(stack)
+
+        // Count deactivation events after
+        let eventsAfter = try context.fetch(eventDescriptor)
+        let deactivationCountAfter = eventsAfter.filter { $0.eventType == .stackDeactivated }.count
+
+        // Should have one new deactivation event
+        #expect(deactivationCountAfter == deactivationCountBefore + 1)
+
+        // Verify deactivation event is for the completed stack
+        let deactivationEvent = eventsAfter.first { event in
+            event.eventType == .stackDeactivated && event.entityId == stackId
+        }
+        #expect(deactivationEvent != nil)
+    }
+
+    @Test("markAsCompleted does not emit deactivation event for inactive stack")
+    @MainActor
+    func markAsCompletedNoDeactivationForInactiveStack() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context)
+
+        _ = try service.createStack(title: "First Stack")
+        let second = try service.createStack(title: "Second Stack")
+
+        // Second stack is not active
+        #expect(second.isActive == false)
+
+        // Count deactivation events before
+        let eventDescriptor = FetchDescriptor<Event>()
+        let eventsBefore = try context.fetch(eventDescriptor)
+        let deactivationCountBefore = eventsBefore.filter { $0.eventType == .stackDeactivated }.count
+
+        try service.markAsCompleted(second)
+
+        // Count deactivation events after
+        let eventsAfter = try context.fetch(eventDescriptor)
+        let deactivationCountAfter = eventsAfter.filter { $0.eventType == .stackDeactivated }.count
+
+        // No new deactivation event for inactive stack
+        #expect(deactivationCountAfter == deactivationCountBefore)
+    }
+
+    @Test("markAsCompleted with completeAllTasks completes pending tasks")
+    @MainActor
+    func markAsCompletedCompletesAllPendingTasks() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let stackService = StackService(modelContext: context)
+        let taskService = TaskService(modelContext: context)
+
+        let stack = try stackService.createStack(title: "Stack with Tasks")
+        let task1 = try taskService.createTask(title: "Task 1", stack: stack)
+        let task2 = try taskService.createTask(title: "Task 2", stack: stack)
+        let task3 = try taskService.createTask(title: "Task 3", stack: stack)
+
+        // Mark one task as already completed
+        try taskService.markAsCompleted(task2)
+
+        #expect(task1.status == .pending)
+        #expect(task2.status == .completed)
+        #expect(task3.status == .pending)
+
+        try stackService.markAsCompleted(stack, completeAllTasks: true)
+
+        // All tasks should now be completed
+        #expect(task1.status == .completed)
+        #expect(task2.status == .completed)
+        #expect(task3.status == .completed)
+    }
+
+    @Test("markAsCompleted without completeAllTasks leaves tasks unchanged")
+    @MainActor
+    func markAsCompletedLeavesTasksUnchanged() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let stackService = StackService(modelContext: context)
+        let taskService = TaskService(modelContext: context)
+
+        let stack = try stackService.createStack(title: "Stack with Tasks")
+        let task1 = try taskService.createTask(title: "Task 1", stack: stack)
+        let task2 = try taskService.createTask(title: "Task 2", stack: stack)
+
+        try stackService.markAsCompleted(stack, completeAllTasks: false)
+
+        // Tasks should remain pending
+        #expect(task1.status == .pending)
+        #expect(task2.status == .pending)
+        #expect(stack.status == .completed)
+    }
 }

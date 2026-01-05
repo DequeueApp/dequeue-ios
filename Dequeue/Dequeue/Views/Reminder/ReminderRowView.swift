@@ -32,6 +32,8 @@ struct ReminderRowView: View {
                     Label("Delete", systemImage: "trash")
                 }
             }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
             // Dismiss action for overdue reminders
             if let onDismiss, reminder.isPastDue {
                 Button {
@@ -40,15 +42,6 @@ struct ReminderRowView: View {
                     Label("Dismiss", systemImage: "checkmark.circle")
                 }
                 .tint(.green)
-            }
-            // Snooze also available on trailing for discoverability
-            if let onSnooze, reminder.status != .snoozed {
-                Button {
-                    onSnooze()
-                } label: {
-                    Label("Snooze", systemImage: "clock")
-                }
-                .tint(.orange)
             }
             // Go to parent item (Stack or Task)
             if let onGoToItem {
@@ -62,13 +55,12 @@ struct ReminderRowView: View {
                 }
                 .tint(.blue)
             }
-        }
-        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            // Snooze
             if let onSnooze, reminder.status != .snoozed {
                 Button {
                     onSnooze()
                 } label: {
-                    Label("Snooze", systemImage: "clock.badge.questionmark")
+                    Label("Snooze", systemImage: "clock")
                 }
                 .tint(.orange)
             }
@@ -255,15 +247,15 @@ struct ReminderRowView: View {
         if onTap != nil {
             hints.append("Double tap to edit")
         }
+        if onDismiss != nil && reminder.isPastDue {
+            hints.append("Swipe right to dismiss")
+        }
         if onGoToItem != nil {
             let itemType = reminder.parentType == .task ? "task" : "stack"
-            hints.append("Swipe left to go to \(itemType)")
+            hints.append("Swipe right to go to \(itemType)")
         }
         if onSnooze != nil && reminder.status != .snoozed {
             hints.append("Swipe right to snooze")
-        }
-        if onDismiss != nil && reminder.isPastDue {
-            hints.append("Swipe left to dismiss")
         }
         if onDelete != nil {
             hints.append("Swipe left to delete")
