@@ -52,7 +52,7 @@ enum StackServiceError: LocalizedError, Equatable {
 
 @MainActor
 final class StackService {
-    private let modelContext: ModelContext
+    let modelContext: ModelContext
     private let eventService: EventService
     private let userId: String
     private let deviceId: String
