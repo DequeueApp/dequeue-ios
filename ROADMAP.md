@@ -330,11 +330,11 @@ The core concept of Dequeue is that you're always working on **one and only one 
 ### Core Concept
 - **Idle detection**: If no Stack or Task activation/deactivation occurs for a configurable period (e.g., 20 minutes), trigger a reminder
 - **Check-in prompt**: "Are you still working on [Active Stack/Task]?"
-- **Quick actions from reminder**:
-  - "Yes, still on it" (dismisses reminder, resets timer)
-  - "No, switch to..." (opens quick picker to select new Active item)
-  - "Taking a break" (pauses/deactivates current Stack)
-  - "Done for today" (ends work mode, deactivates current Stack, stops reminders until tomorrow)
+- **Quick actions from reminder** (simplified for quick taps):
+  - "Still working on it" → dismisses reminder, resets idle timer
+  - "Switch tasks" → opens app to task switcher
+  - "Pause" → deactivates current Stack, nothing becomes Active
+  - (Optionally) "Done for today" → ends work mode, stops reminders until tomorrow
 - **Time corrections**: When switching to a new Active item, optionally specify when you actually started it (e.g., "I started this 15 minutes ago"). This creates correction events that adjust time tracking without falsifying the real-time event log.
 
 ### Time Corrections (Retroactive Events)
@@ -359,16 +359,29 @@ A key insight: users often realize they forgot to switch tasks *after the fact*.
 5. User enters "15 minutes ago" (or picks from suggestions like "30 min ago", "1 hour ago")
 6. System records both the real activation event AND the time correction
 
-### Stack Pause/Deactivate Feature
-For users who want thorough time tracking:
-- **Pause**: Temporarily deactivate the current Stack without completing it
-- **Break tracking**: Record breaks as distinct periods (lunch, coffee, meetings, etc.)
-- **Resume**: Quickly reactivate the paused Stack
-- **Use cases**:
-  - Stepping away for lunch
-  - Attending a meeting unrelated to current work
-  - Taking a mental break
-  - Switching to non-work activities during work hours
+### Pausing Work (Zero Active Stacks)
+This feature represents a small but meaningful shift from the original model:
+- **Previously**: Exactly one Stack was always Active
+- **New model**: Zero OR one Stacks can be Active
+
+**"Pause" means the human is pausing**, not the Stack. When you pause work:
+- The currently Active Stack is deactivated
+- No other Stack is activated
+- You (the human) are on a break from all tracked work
+
+This is different from switching to another task—it's saying "I'm not working on anything trackable right now."
+
+**Use cases**:
+- Stepping away for lunch
+- Bathroom break
+- Attending a meeting unrelated to any Stack
+- Taking a mental break
+- Context switch to something not in Dequeue (personal errand, etc.)
+
+**Resume**: When you come back, you can either:
+- Reactivate the Stack you were on before the break
+- Activate a different Stack
+- Stay in "nothing active" mode if you're not ready to start
 
 ### Working Hours Preferences
 Reminders should respect when you're actually working:
@@ -384,7 +397,7 @@ Reminders should respect when you're actually working:
 In addition to scheduled working hours, users can manually control work mode:
 - **Quick toggle in main UI**: Prominent button to start/end work session
 - **"I'm starting work"**: Manually activate work mode and enable reminders
-- **"I'm done for today"**: End work mode, pause current Stack, disable reminders until next session
+- **"I'm done for today"**: End work mode, deactivate current Stack, disable reminders until next session
 - **Use case**: You may not remember to check the Active issue throughout the day, but you do remember "I'm starting work now!" and "I'm heading out"—those are natural bookends
 - **Interaction with schedule**: Manual toggle overrides the scheduled hours
   - Turn on manually before scheduled start time → reminders begin immediately
@@ -446,10 +459,11 @@ In addition to scheduled working hours, users can manually control work mode:
    - Sync doesn't have to deal with out-of-order events
    - User gets accurate time records without "lying" to the system
 
-4. **State Management**
-   - New Stack state: "Paused" (in addition to Active/Completed)
-   - Track pause start/end times
-   - Distinguish between "nothing active" and "on a break"
+4. **Active Stack State**
+   - Model change: Zero OR one Stacks can be Active (previously always exactly one)
+   - No new "Paused" state on Stack entity—Stacks are just Active or not Active
+   - "Pausing work" = deactivating current Stack without activating another
+   - Track when user enters/exits "nothing active" state for break analytics
 
 5. **Work Mode State**
    - Track whether user is currently "at work" or not
@@ -475,7 +489,7 @@ In addition to scheduled working hours, users can manually control work mode:
 1. **Phase 1**: Basic idle reminders with configurable threshold
 2. **Phase 2**: Working hours schedule preferences
 3. **Phase 3**: Manual work mode toggle (start/end work day)
-4. **Phase 4**: Stack pause/resume functionality
+4. **Phase 4**: Pause work (zero active stacks support)
 5. **Phase 5**: Time corrections via retroactive events
 6. **Phase 6**: Break tracking and analytics
 
