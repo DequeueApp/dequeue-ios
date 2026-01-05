@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import UserNotifications
+import ClerkKit
 
 // MARK: - Notification Constants
 
@@ -377,9 +378,17 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             return
         }
 
+        // Fetch userId and deviceId for event tracking
+        let userId = Clerk.shared.user?.id ?? ""
+        let deviceId = await DeviceService.shared.getDeviceId()
+
         await MainActor.run {
             do {
-                let taskService = TaskService(modelContext: modelContext)
+                let taskService = TaskService(
+                    modelContext: modelContext,
+                    userId: userId,
+                    deviceId: deviceId
+                )
                 if let task = try fetchTask(id: parentId) {
                     try taskService.markAsCompleted(task)
                 }
@@ -401,9 +410,17 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             return
         }
 
+        // Fetch userId and deviceId for event tracking
+        let userId = Clerk.shared.user?.id ?? ""
+        let deviceId = await DeviceService.shared.getDeviceId()
+
         await MainActor.run {
             do {
-                let reminderService = ReminderService(modelContext: modelContext)
+                let reminderService = ReminderService(
+                    modelContext: modelContext,
+                    userId: userId,
+                    deviceId: deviceId
+                )
                 if let reminder = try fetchReminder(id: reminderId) {
                     let snoozeUntil = Date().addingTimeInterval(duration)
                     try reminderService.snoozeReminder(reminder, until: snoozeUntil)

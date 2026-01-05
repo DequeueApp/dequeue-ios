@@ -288,12 +288,19 @@ actor SyncManager {
                 payload = [:]
             }
 
+            // Use stored userId/deviceId from the event (captured at creation time)
+            // Fall back to cached values for backward compatibility
+            let eventUserId = !event.userId.isEmpty ? event.userId : (self.userId ?? "")
+            let eventDeviceIdToUse = !event.deviceId.isEmpty ? event.deviceId : eventDeviceId
+
             return [
                 "id": event.id,
-                "device_id": eventDeviceId,
+                "user_id": eventUserId,
+                "device_id": eventDeviceIdToUse,
                 "ts": SyncManager.iso8601WithFractionalSeconds.string(from: event.timestamp),
                 "type": event.type,
-                "payload": payload
+                "payload": payload,
+                "payload_version": event.payloadVersion
             ]
         }
 
@@ -460,14 +467,28 @@ actor SyncManager {
         let deviceId = await DeviceService.shared.getDeviceId()
         os_log("[Sync] Current device ID: \(deviceId)")
 
-        let filteredEvents = events.filter { event in
+        // Filter 1: Exclude events from current device (already applied locally)
+        let fromOtherDevices = events.filter { event in
             guard let eventDeviceId = event["device_id"] as? String else { return true }
             return eventDeviceId != deviceId
         }
 
-        let excluded = events.count - filteredEvents.count
+        // Filter 2: Exclude legacy events without payloadVersion or with version < 2
+        // Legacy events from old app versions don't have userId/deviceId and may have incompatible schemas
+        let filteredEvents = fromOtherDevices.filter { event in
+            // Events with payloadVersion >= 2 are always accepted
+            if let payloadVersion = event["payload_version"] as? Int {
+                return payloadVersion >= Event.currentPayloadVersion
+            }
+            // Events without payloadVersion are legacy (pre-DEQ-137) - skip them
+            os_log("[Sync] Skipping legacy event without payload_version: \(event["id"] as? String ?? "unknown")")
+            return false
+        }
+
+        let excludedSameDevice = events.count - fromOtherDevices.count
+        let excludedLegacy = fromOtherDevices.count - filteredEvents.count
         let msg = "Pull received \(events.count) events, \(filteredEvents.count) after filtering"
-        os_log("[Sync] \(msg) (excluded \(excluded) from current device)")
+        os_log("[Sync] \(msg) (excluded \(excludedSameDevice) from current device, \(excludedLegacy) legacy events)")
 
         // Log first few events for debugging
         for (index, event) in events.prefix(3).enumerated() {
@@ -552,12 +573,20 @@ actor SyncManager {
                 // Extract entityId from payload for history queries
                 let entityId = SyncManager.extractEntityId(from: payload, eventType: type)
 
+                // Extract userId, deviceId, and payloadVersion from incoming event
+                let eventUserId = eventData["user_id"] as? String ?? ""
+                let eventDeviceId = eventData["device_id"] as? String ?? ""
+                let payloadVersion = eventData["payload_version"] as? Int ?? Event.currentPayloadVersion
+
                 let event = Event(
                     id: eventId,
                     type: type,
                     payload: payloadData,
                     timestamp: eventTimestamp,
                     entityId: entityId,
+                    userId: eventUserId,
+                    deviceId: eventDeviceId,
+                    payloadVersion: payloadVersion,
                     isSynced: true,
                     syncedAt: Date()
                 )

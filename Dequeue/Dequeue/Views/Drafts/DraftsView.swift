@@ -14,6 +14,8 @@ private let logger = Logger(subsystem: "com.dequeue", category: "DraftsView")
 struct DraftsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
+    @State private var cachedDeviceId: String = ""
     @Query(
         filter: #Predicate<Stack> { stack in
             stack.isDeleted == false && stack.isDraft == true
@@ -26,7 +28,11 @@ struct DraftsView: View {
     @State private var showDeleteError = false
 
     private var stackService: StackService {
-        StackService(modelContext: modelContext)
+        StackService(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId
+        )
     }
 
     var body: some View {
@@ -39,6 +45,11 @@ struct DraftsView: View {
                 }
             }
             .navigationTitle("Drafts")
+            .task {
+                if cachedDeviceId.isEmpty {
+                    cachedDeviceId = await DeviceService.shared.getDeviceId()
+                }
+            }
             .alert("Error", isPresented: $showDeleteError) {
                 Button("OK", role: .cancel) { }
             } message: {

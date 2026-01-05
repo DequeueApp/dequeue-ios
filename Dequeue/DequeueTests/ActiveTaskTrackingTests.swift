@@ -146,7 +146,7 @@ struct ActiveTaskTrackingTests {
         let task2 = ctx.createTask(title: "Second Task", sortOrder: 1, stack: stack)
         try ctx.save()
 
-        let taskService = TaskService(modelContext: ctx.context)
+        let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
         try taskService.activateTask(task2)
 
         #expect(stack.activeTaskId == task2.id)
@@ -162,7 +162,7 @@ struct ActiveTaskTrackingTests {
         let task3 = ctx.createTask(title: "Third Task", sortOrder: 2, stack: stack)
         try ctx.save()
 
-        let taskService = TaskService(modelContext: ctx.context)
+        let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
         try taskService.activateTask(task3)
 
         #expect(task3.sortOrder == 0)
@@ -178,7 +178,7 @@ struct ActiveTaskTrackingTests {
         let task = ctx.createTask(title: "Test Task", sortOrder: 0, stack: stack)
         try ctx.save()
 
-        let taskService = TaskService(modelContext: ctx.context)
+        let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
         try taskService.activateTask(task)
 
         let eventDescriptor = FetchDescriptor<Event>()
@@ -202,7 +202,7 @@ struct ActiveTaskTrackingTests {
 
         #expect(stack.activeTaskId == nil)
 
-        let stackService = StackService(modelContext: ctx.context)
+        let stackService = StackService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
         try stackService.migrateActiveTaskId()
 
         #expect(stack.activeTaskId == task1.id)
@@ -216,7 +216,7 @@ struct ActiveTaskTrackingTests {
         _ = ctx.createTask(title: "Test Task", sortOrder: 0, stack: stack)
         try ctx.save()
 
-        let stackService = StackService(modelContext: ctx.context)
+        let stackService = StackService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
         try stackService.migrateActiveTaskId()
 
         #expect(stack.activeTaskId == "existing-task-id")
@@ -230,7 +230,7 @@ struct ActiveTaskTrackingTests {
         _ = ctx.createTask(title: "Completed Task", sortOrder: 0, stack: stack, status: .completed)
         try ctx.save()
 
-        let stackService = StackService(modelContext: ctx.context)
+        let stackService = StackService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
         try stackService.migrateActiveTaskId()
 
         #expect(stack.activeTaskId == nil)
@@ -247,7 +247,7 @@ struct ActiveTaskTrackingTests {
         let task2 = ctx.createTask(title: "Second Task", sortOrder: 1, stack: stack)
         try ctx.save()
 
-        let taskService = TaskService(modelContext: ctx.context)
+        let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
 
         try taskService.activateTask(task2)
         #expect(stack.activeTaskId == task2.id)
@@ -270,7 +270,7 @@ struct ActiveTaskTrackingTests {
 
         #expect(stack.activeTask?.id == task1.id)
 
-        let taskService = TaskService(modelContext: ctx.context)
+        let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
         try taskService.markAsCompleted(task1)
 
         #expect(stack.activeTask?.id == task2.id)
@@ -301,7 +301,7 @@ struct ActiveTaskTrackingTests {
 
         #expect(task.lastActiveTime == nil)
 
-        let taskService = TaskService(modelContext: ctx.context)
+        let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
         let beforeActivation = Date()
         try taskService.activateTask(task)
         let afterActivation = Date()

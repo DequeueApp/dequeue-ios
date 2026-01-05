@@ -54,10 +54,14 @@ enum StackServiceError: LocalizedError, Equatable {
 final class StackService {
     private let modelContext: ModelContext
     private let eventService: EventService
+    private let userId: String
+    private let deviceId: String
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, userId: String, deviceId: String) {
         self.modelContext = modelContext
-        self.eventService = EventService(modelContext: modelContext)
+        self.userId = userId
+        self.deviceId = deviceId
+        self.eventService = EventService(modelContext: modelContext, userId: userId, deviceId: deviceId)
     }
 
     // MARK: - Create
@@ -271,7 +275,11 @@ final class StackService {
         stack.syncState = .pending
 
         if completeAllTasks {
-            let taskService = TaskService(modelContext: modelContext)
+            let taskService = TaskService(
+                modelContext: modelContext,
+                userId: userId,
+                deviceId: deviceId
+            )
             for task in stack.tasks where task.status == .pending && !task.isDeleted {
                 try taskService.markAsCompleted(task)
             }

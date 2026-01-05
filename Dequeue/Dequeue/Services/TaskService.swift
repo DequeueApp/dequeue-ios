@@ -13,9 +13,9 @@ final class TaskService {
     private let modelContext: ModelContext
     private let eventService: EventService
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, userId: String, deviceId: String) {
         self.modelContext = modelContext
-        self.eventService = EventService(modelContext: modelContext)
+        self.eventService = EventService(modelContext: modelContext, userId: userId, deviceId: deviceId)
     }
 
     // MARK: - Create

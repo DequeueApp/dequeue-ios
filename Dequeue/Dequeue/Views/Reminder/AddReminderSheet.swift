@@ -42,12 +42,14 @@ struct AddReminderSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
 
     let parent: ReminderParent
     let notificationService: NotificationService
     /// When provided, the sheet operates in edit mode instead of create mode
     var existingReminder: Reminder?
 
+    @State private var cachedDeviceId: String = ""
     @State private var selectedDate = Date().addingTimeInterval(3_600) // 1 hour from now
     @State private var permissionState: PermissionState = .checking
     @State private var showError = false
@@ -57,7 +59,11 @@ struct AddReminderSheet: View {
     private var isEditMode: Bool { existingReminder != nil }
 
     private var reminderService: ReminderService {
-        ReminderService(modelContext: modelContext)
+        ReminderService(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId
+        )
     }
 
     var body: some View {
@@ -105,6 +111,9 @@ struct AddReminderSheet: View {
         }
         .presentationDetents([.medium, .large])
         .task {
+            if cachedDeviceId.isEmpty {
+                cachedDeviceId = await DeviceService.shared.getDeviceId()
+            }
             await checkPermissionState()
         }
         .onAppear {

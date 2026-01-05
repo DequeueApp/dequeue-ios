@@ -80,7 +80,7 @@ actor DeviceService {
         modelContext.insert(device)
 
         // Record the discovery event
-        let eventService = EventService(modelContext: modelContext)
+        let eventService = EventService(modelContext: modelContext, userId: userId, deviceId: deviceId)
         try eventService.recordDeviceDiscovered(device)
 
         logger.info("Device discovered and registered: \(deviceId) - \(device.name)")
@@ -136,7 +136,11 @@ actor DeviceService {
         device.syncState = .pending
 
         // Emit device.discovered event so other devices learn about the activity
-        let eventService = EventService(modelContext: modelContext)
+        let eventService = EventService(
+            modelContext: modelContext,
+            userId: device.userId ?? "",
+            deviceId: device.deviceId
+        )
         try eventService.recordDeviceDiscovered(device)
 
         try modelContext.save()

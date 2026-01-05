@@ -31,6 +31,8 @@ struct StackEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) var dismiss
     @Environment(\.syncManager) var syncManager
+    @Environment(\.authService) var authService
+    @State private var cachedDeviceId: String = ""
 
     let mode: Mode
     let isReadOnly: Bool
@@ -117,11 +119,19 @@ struct StackEditorView: View {
     // MARK: - Services
 
     var stackService: StackService {
-        StackService(modelContext: modelContext)
+        StackService(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId
+        )
     }
 
     var taskService: TaskService {
-        TaskService(modelContext: modelContext)
+        TaskService(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId
+        )
     }
 
     var notificationService: NotificationService {
@@ -129,7 +139,13 @@ struct StackEditorView: View {
     }
 
     var reminderActionHandler: ReminderActionHandler {
-        ReminderActionHandler(modelContext: modelContext, onError: handleError, syncManager: syncManager)
+        ReminderActionHandler(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId,
+            onError: handleError,
+            syncManager: syncManager
+        )
     }
 
     // MARK: - Body
@@ -151,6 +167,11 @@ struct StackEditorView: View {
             .navigationBarTitleDisplayMode(isCreateMode ? .inline : .large)
             #endif
             .toolbar { toolbarContent }
+            .task {
+                if cachedDeviceId.isEmpty {
+                    cachedDeviceId = await DeviceService.shared.getDeviceId()
+                }
+            }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
             } message: {

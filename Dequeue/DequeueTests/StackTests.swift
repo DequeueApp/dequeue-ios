@@ -138,8 +138,8 @@ struct StackTests {
         let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
 
-        let stackService = StackService(modelContext: context)
-        let taskService = TaskService(modelContext: context)
+        let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create stack
         let stack = try stackService.createStack(
@@ -189,7 +189,7 @@ struct StackTests {
         let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
 
-        let stackService = StackService(modelContext: context)
+        let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create stack without tasks
         let stack = try stackService.createStack(
@@ -212,8 +212,8 @@ struct StackTests {
         let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
 
-        let stackService = StackService(modelContext: context)
-        let taskService = TaskService(modelContext: context)
+        let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let stack = try stackService.createStack(title: "Test Stack")
 

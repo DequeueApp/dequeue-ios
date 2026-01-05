@@ -15,8 +15,10 @@ struct TaskDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
 
     @Bindable var task: QueueTask
+    @State private var cachedDeviceId: String = ""
 
     @State private var isEditingTitle = false
     @State private var editedTitle = ""
@@ -35,7 +37,11 @@ struct TaskDetailView: View {
     @State private var reminderToDelete: Reminder?
 
     private var taskService: TaskService {
-        TaskService(modelContext: modelContext)
+        TaskService(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId
+        )
     }
 
     private var notificationService: NotificationService {
@@ -43,7 +49,13 @@ struct TaskDetailView: View {
     }
 
     private var reminderActionHandler: ReminderActionHandler {
-        ReminderActionHandler(modelContext: modelContext, onError: showError, syncManager: syncManager)
+        ReminderActionHandler(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId,
+            onError: showError,
+            syncManager: syncManager
+        )
     }
 
     var body: some View {
@@ -67,6 +79,11 @@ struct TaskDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .task {
+            if cachedDeviceId.isEmpty {
+                cachedDeviceId = await DeviceService.shared.getDeviceId()
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 if task.status != .completed {

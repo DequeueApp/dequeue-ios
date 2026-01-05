@@ -12,6 +12,7 @@ import SwiftData
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
     @Query private var stacks: [Stack]
     @Query private var allStacks: [Stack]
     @Query private var tasks: [QueueTask]
@@ -19,6 +20,7 @@ struct HomeView: View {
     @Query private var pendingEvents: [Event]
 
     @State private var syncStatusViewModel: SyncStatusViewModel?
+    @State private var cachedDeviceId: String = ""
 
     init() {
         // Filter for active stacks only (exclude completed, closed, and archived)
@@ -79,7 +81,11 @@ struct HomeView: View {
 
     /// Stack service for operations - lightweight struct, safe to recreate each call
     private var stackService: StackService {
-        StackService(modelContext: modelContext)
+        StackService(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId
+        )
     }
 
     /// Count of overdue reminders for badge display
@@ -143,6 +149,11 @@ struct HomeView: View {
                 }
             }
             .task {
+                // Fetch device ID for service creation
+                if cachedDeviceId.isEmpty {
+                    cachedDeviceId = await DeviceService.shared.getDeviceId()
+                }
+
                 // Initialize sync status view model
                 if syncStatusViewModel == nil {
                     syncStatusViewModel = SyncStatusViewModel(modelContext: modelContext)

@@ -79,7 +79,7 @@ struct ProjectorServiceTests {
 
         // Create a stack.updated event with isActive = true
         let payload = try createStackPayload(id: stack.id, title: "Updated Title", isActive: true)
-        let event = Event(eventType: .stackUpdated, payload: payload, entityId: stack.id)
+        let event = Event(eventType: .stackUpdated, payload: payload, userId: "test-user", deviceId: "test-device", entityId: stack.id)
         context.insert(event)
         try context.save()
 
@@ -100,7 +100,7 @@ struct ProjectorServiceTests {
 
         // Create a stack.created event with isActive = true
         let payload = try createStackPayload(id: stackId, title: "New Active Stack", isActive: true)
-        let event = Event(eventType: .stackCreated, payload: payload, entityId: stackId)
+        let event = Event(eventType: .stackCreated, payload: payload, userId: "test-user", deviceId: "test-device", entityId: stackId)
         context.insert(event)
         try context.save()
 
@@ -125,7 +125,7 @@ struct ProjectorServiceTests {
 
         // Create a stack.created event with isActive = false
         let payload = try createStackPayload(id: stackId, title: "New Inactive Stack", isActive: false)
-        let event = Event(eventType: .stackCreated, payload: payload, entityId: stackId)
+        let event = Event(eventType: .stackCreated, payload: payload, userId: "test-user", deviceId: "test-device", entityId: stackId)
         context.insert(event)
         try context.save()
 
@@ -157,7 +157,7 @@ struct ProjectorServiceTests {
 
         // Create a stack.activated event
         let payloadData = try createEntityStatusPayload(id: stack.id, status: "active")
-        let event = Event(eventType: .stackActivated, payload: payloadData, entityId: stack.id)
+        let event = Event(eventType: .stackActivated, payload: payloadData, userId: "test-user", deviceId: "test-device", entityId: stack.id)
         context.insert(event)
         try context.save()
 
@@ -183,7 +183,7 @@ struct ProjectorServiceTests {
 
         // Create a stack.activated event
         let payloadData = try createEntityStatusPayload(id: stack.id, status: "active")
-        let event = Event(eventType: .stackActivated, payload: payloadData, entityId: stack.id)
+        let event = Event(eventType: .stackActivated, payload: payloadData, userId: "test-user", deviceId: "test-device", entityId: stack.id)
         context.insert(event)
         try context.save()
 
@@ -212,7 +212,7 @@ struct ProjectorServiceTests {
 
         // Create a stack.deactivated event
         let payloadData = try createEntityStatusPayload(id: stack.id, status: "archived")
-        let event = Event(eventType: .stackDeactivated, payload: payloadData, entityId: stack.id)
+        let event = Event(eventType: .stackDeactivated, payload: payloadData, userId: "test-user", deviceId: "test-device", entityId: stack.id)
         context.insert(event)
         try context.save()
 
@@ -238,7 +238,7 @@ struct ProjectorServiceTests {
 
         // Create a stack.deactivated event
         let payloadData = try createEntityStatusPayload(id: stack.id, status: "archived")
-        let event = Event(eventType: .stackDeactivated, payload: payloadData, entityId: stack.id)
+        let event = Event(eventType: .stackDeactivated, payload: payloadData, userId: "test-user", deviceId: "test-device", entityId: stack.id)
         context.insert(event)
         try context.save()
 
@@ -267,9 +267,9 @@ struct ProjectorServiceTests {
         let payload2 = try createStackPayload(id: stack2Id, title: "Stack 2", isActive: false)
         let payload3 = try createStackPayload(id: stack3Id, title: "Stack 3", isActive: true)
 
-        let event1 = Event(eventType: .stackCreated, payload: payload1, entityId: stack1Id)
-        let event2 = Event(eventType: .stackCreated, payload: payload2, entityId: stack2Id)
-        let event3 = Event(eventType: .stackCreated, payload: payload3, entityId: stack3Id)
+        let event1 = Event(eventType: .stackCreated, payload: payload1, userId: "test-user", deviceId: "test-device", entityId: stack1Id)
+        let event2 = Event(eventType: .stackCreated, payload: payload2, userId: "test-user", deviceId: "test-device", entityId: stack2Id)
+        let event3 = Event(eventType: .stackCreated, payload: payload3, userId: "test-user", deviceId: "test-device", entityId: stack3Id)
 
         context.insert(event1)
         context.insert(event2)
@@ -300,15 +300,15 @@ struct ProjectorServiceTests {
         let payload1 = try createStackPayload(id: stack1Id, title: "Stack 1", isActive: true)
         let payload2 = try createStackPayload(id: stack2Id, title: "Stack 2", isActive: false)
 
-        let createEvent1 = Event(eventType: .stackCreated, payload: payload1, entityId: stack1Id)
-        let createEvent2 = Event(eventType: .stackCreated, payload: payload2, entityId: stack2Id)
+        let createEvent1 = Event(eventType: .stackCreated, payload: payload1, userId: "test-user", deviceId: "test-device", entityId: stack1Id)
+        let createEvent2 = Event(eventType: .stackCreated, payload: payload2, userId: "test-user", deviceId: "test-device", entityId: stack2Id)
 
         // Deactivate stack1, activate stack2
         let deactivateData = try createEntityStatusPayload(id: stack1Id, status: "active")
-        let deactivateEvent = Event(eventType: .stackDeactivated, payload: deactivateData, entityId: stack1Id)
+        let deactivateEvent = Event(eventType: .stackDeactivated, payload: deactivateData, userId: "test-user", deviceId: "test-device", entityId: stack1Id)
 
         let activateData = try createEntityStatusPayload(id: stack2Id, status: "active")
-        let activateEvent = Event(eventType: .stackActivated, payload: activateData, entityId: stack2Id)
+        let activateEvent = Event(eventType: .stackActivated, payload: activateData, userId: "test-user", deviceId: "test-device", entityId: stack2Id)
 
         context.insert(createEvent1)
         context.insert(createEvent2)
@@ -353,7 +353,7 @@ struct ProjectorServiceTests {
 
         // Activate stack2 via event - should deactivate stack1
         let payloadData = try createEntityStatusPayload(id: stack2.id, status: "active")
-        let event = Event(eventType: .stackActivated, payload: payloadData, entityId: stack2.id)
+        let event = Event(eventType: .stackActivated, payload: payloadData, userId: "test-user", deviceId: "test-device", entityId: stack2.id)
         context.insert(event)
         try context.save()
 
@@ -384,19 +384,19 @@ struct ProjectorServiceTests {
         let payload2 = try createStackPayload(id: stack2Id, title: "Stack 2", isActive: false)
         let payload3 = try createStackPayload(id: stack3Id, title: "Stack 3", isActive: false)
 
-        let createEvent1 = Event(eventType: .stackCreated, payload: payload1, entityId: stack1Id)
-        let createEvent2 = Event(eventType: .stackCreated, payload: payload2, entityId: stack2Id)
-        let createEvent3 = Event(eventType: .stackCreated, payload: payload3, entityId: stack3Id)
+        let createEvent1 = Event(eventType: .stackCreated, payload: payload1, userId: "test-user", deviceId: "test-device", entityId: stack1Id)
+        let createEvent2 = Event(eventType: .stackCreated, payload: payload2, userId: "test-user", deviceId: "test-device", entityId: stack2Id)
+        let createEvent3 = Event(eventType: .stackCreated, payload: payload3, userId: "test-user", deviceId: "test-device", entityId: stack3Id)
 
         // Three rapid activation events - without corresponding deactivation events
         let activateData1 = try createEntityStatusPayload(id: stack1Id, status: "active")
-        let activateEvent1 = Event(eventType: .stackActivated, payload: activateData1, entityId: stack1Id)
+        let activateEvent1 = Event(eventType: .stackActivated, payload: activateData1, userId: "test-user", deviceId: "test-device", entityId: stack1Id)
 
         let activateData2 = try createEntityStatusPayload(id: stack2Id, status: "active")
-        let activateEvent2 = Event(eventType: .stackActivated, payload: activateData2, entityId: stack2Id)
+        let activateEvent2 = Event(eventType: .stackActivated, payload: activateData2, userId: "test-user", deviceId: "test-device", entityId: stack2Id)
 
         let activateData3 = try createEntityStatusPayload(id: stack3Id, status: "active")
-        let activateEvent3 = Event(eventType: .stackActivated, payload: activateData3, entityId: stack3Id)
+        let activateEvent3 = Event(eventType: .stackActivated, payload: activateData3, userId: "test-user", deviceId: "test-device", entityId: stack3Id)
 
         // Insert all events
         context.insert(createEvent1)
@@ -448,7 +448,7 @@ struct ProjectorServiceTests {
 
         // Step 1: Create the stack via an event
         let createPayload = try createStackPayload(id: stackId, title: "Test Stack", isActive: false)
-        let createEvent = Event(eventType: .stackCreated, payload: createPayload, timestamp: createTime, entityId: stackId)
+        let createEvent = Event(eventType: .stackCreated, payload: createPayload, userId: "test-user", deviceId: "test-device", timestamp: createTime, entityId: stackId)
         context.insert(createEvent)
         try context.save()
         try applyEvents([createEvent], context: context)
@@ -464,7 +464,7 @@ struct ProjectorServiceTests {
         // Step 2: Delete the stack via an event (with later timestamp)
         let deletePayloadDict: [String: Any] = ["id": stackId, "deleted": true]
         let deletePayloadData = try JSONSerialization.data(withJSONObject: deletePayloadDict)
-        let deleteEvent = Event(eventType: .stackDeleted, payload: deletePayloadData, timestamp: deleteTime, entityId: stackId)
+        let deleteEvent = Event(eventType: .stackDeleted, payload: deletePayloadData, userId: "test-user", deviceId: "test-device", timestamp: deleteTime, entityId: stackId)
         context.insert(deleteEvent)
         try context.save()
         try applyEvents([deleteEvent], context: context)
@@ -478,7 +478,7 @@ struct ProjectorServiceTests {
         // Step 3: Try to activate the deleted stack via event (with even later timestamp)
         // Note: The guard in applyStackActivated should prevent activation of deleted stacks
         let activatePayloadData = try createEntityStatusPayload(id: stackId, status: "active")
-        let activateEvent = Event(eventType: .stackActivated, payload: activatePayloadData, timestamp: activateTime, entityId: stackId)
+        let activateEvent = Event(eventType: .stackActivated, payload: activatePayloadData, userId: "test-user", deviceId: "test-device", timestamp: activateTime, entityId: stackId)
         context.insert(activateEvent)
         try context.save()
         try applyEvents([activateEvent], context: context)
@@ -511,7 +511,7 @@ struct ProjectorServiceTests {
         // Create a stack.deleted event
         let payloadDict: [String: Any] = ["id": stack.id, "deleted": true]
         let payloadData = try JSONSerialization.data(withJSONObject: payloadDict)
-        let event = Event(eventType: .stackDeleted, payload: payloadData, entityId: stack.id)
+        let event = Event(eventType: .stackDeleted, payload: payloadData, userId: "test-user", deviceId: "test-device", entityId: stack.id)
         context.insert(event)
         try context.save()
 
@@ -577,7 +577,7 @@ struct ProjectorServiceTests {
             stackId: stack.id,
             status: TaskStatus.completed.rawValue
         )
-        let event = Event(eventType: .taskCompleted, payload: payloadData, entityId: task.id)
+        let event = Event(eventType: .taskCompleted, payload: payloadData, userId: "test-user", deviceId: "test-device", entityId: task.id)
         context.insert(event)
         try context.save()
 
@@ -620,16 +620,22 @@ struct ProjectorServiceTests {
         let event1 = Event(
             eventType: .taskCompleted,
             payload: try createTaskStatusPayload(taskId: task1.id, stackId: stack.id, status: "completed"),
+            userId: "test-user",
+            deviceId: "test-device",
             entityId: task1.id
         )
         let event2 = Event(
             eventType: .taskCompleted,
             payload: try createTaskStatusPayload(taskId: task2.id, stackId: stack.id, status: "completed"),
+            userId: "test-user",
+            deviceId: "test-device",
             entityId: task2.id
         )
         let event3 = Event(
             eventType: .taskCompleted,
             payload: try createTaskStatusPayload(taskId: task3.id, stackId: stack.id, status: "completed"),
+            userId: "test-user",
+            deviceId: "test-device",
             entityId: task3.id
         )
 
