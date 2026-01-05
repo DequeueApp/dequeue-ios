@@ -42,7 +42,7 @@ enum Configuration {
     /// Base URL for the sync service (without app path)
     private static let syncServiceBaseURL: URL = {
         // swiftlint:disable:next force_unwrapping
-        return URL(string: "https://stacks-sync.fly.dev")!
+        return URL(string: "https://sync.ardonos.com")!
     }()
 
     /// Base URL for the sync API (includes /apps/{appId} prefix)

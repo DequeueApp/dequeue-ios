@@ -223,5 +223,5 @@ If the Linear MCP server is not available (e.g., in Claude Code Cloud or other r
 
 ## Related Projects
 
-- **stacks-sync** - Backend sync service (https://stacks-sync.fly.dev)
+- **stacks-sync** - Backend sync service (https://sync.ardonos.com)
 - **stacks** - Legacy React Native app (deprecated)
