@@ -70,7 +70,8 @@ extension UNUserNotificationCenter: NotificationCenterProtocol {
 @MainActor
 final class NotificationService: NSObject {
     private let modelContext: ModelContext
-    private let notificationCenter: NotificationCenterProtocol
+    // UNUserNotificationCenter is thread-safe and can be accessed from any isolation domain
+    nonisolated(unsafe) private let notificationCenter: NotificationCenterProtocol
 
     init(
         modelContext: ModelContext,
