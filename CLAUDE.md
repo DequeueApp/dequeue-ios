@@ -148,6 +148,27 @@ do {
 - Always rebase onto main before marking PR ready for review
 - Link PRs to their Linear issue
 
+## CI Checks
+
+### Act on Failures Immediately - Don't Wait!
+**NEVER wait for all CI checks to complete before acting on failures.**
+
+If there are 7 CI checks running and 1 fails while others are still in progress:
+- **Start fixing the failed check immediately** - don't sleep/poll waiting for the other 6
+- You already have actionable information - use it
+- Waiting for all checks to finish when you could be fixing known failures is wasteful
+
+### Iterative CI Response
+- Monitor checks as they complete, not just when all finish
+- Act on the **first failure** rather than waiting for complete results
+- If multiple checks fail, you can address them in parallel if they're independent
+- Only wait for all checks when everything is passing and you need final confirmation
+
+### Why This Matters
+- CI checks have varying durations - some take seconds, others take minutes
+- A fast-failing linter check shouldn't wait for a slow integration test
+- Every minute spent sleeping on known failures is wasted time
+
 ## Communication Protocol
 
 ### Progress Updates:
