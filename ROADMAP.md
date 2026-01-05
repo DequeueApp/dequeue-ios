@@ -314,6 +314,201 @@ A unified view to browse all attachments and links across the entire app, making
 
 ---
 
+## 6. Idle Reminders & Active Task Check-ins
+
+### Overview
+Allow users to set automated reminders that check in on the currently Active Stack/Task when there's been no movement for a configurable period of time. This helps users stay on top of what they're actually working on, especially when multitasking or switching between tasks frequently.
+
+### Rationale: Why This Matters
+
+The core concept of Dequeue is that you're always working on **one and only one thing**—the Active item. But in reality, people multitask and context-switch constantly throughout the day. You might start on Task A, get pulled into a quick Task B, and forget to update Dequeue. An hour later, your Active item is stale and your time tracking is inaccurate.
+
+**The problem**: Most people don't remember to update their task manager when switching contexts. They get into flow on something new and only realize later that Dequeue still shows them working on something from this morning.
+
+**The solution**: Gentle, configurable reminders that ask "Are you still working on X?" after a period of inactivity. This turns Dequeue from a passive tracker into an active partner in maintaining accurate records of what you're doing.
+
+### Core Concept
+- **Idle detection**: If no Stack or Task activation/deactivation occurs for a configurable period (e.g., 20 minutes), trigger a reminder
+- **Check-in prompt**: "Are you still working on [Active Stack/Task]?"
+- **Quick actions from reminder** (simplified for quick taps):
+  - "Still working on it" → dismisses reminder, resets idle timer
+  - "Switch tasks" → opens app to task switcher
+  - "Pause" → deactivates current Stack, nothing becomes Active
+- **Time corrections**: When switching to a new Active item, optionally specify when you actually started it (e.g., "I started this 15 minutes ago"). This creates correction events that adjust time tracking without falsifying the real-time event log.
+
+### Time Corrections (Retroactive Events)
+A key insight: users often realize they forgot to switch tasks *after the fact*. The naive solution is to backdate events, but this corrupts the integrity of the real-time event log. Instead, we use a **dual-layer approach**:
+
+1. **Real-time layer**: Events are always recorded when they actually happen. If you click "activate Stack B" at 10:20 AM, that's when the event is timestamped. Period.
+
+2. **Correction layer**: A separate event type (`time_correction`) that says "for time tracking purposes, treat Stack B as having started at 10:05 AM."
+
+**Why this matters**:
+- The event log remains a truthful record of user actions
+- Sync works cleanly (no out-of-order events to reconcile)
+- Analytics/time tracking can compute "effective" durations using corrections
+- Users can see both: "You clicked at 10:20, but we're counting from 10:05"
+- No one is "lying" to the system
+
+**User flow**:
+1. Reminder pops up: "Are you still working on Stack A?"
+2. User taps "No, switch to..."
+3. User selects Stack B
+4. Optional prompt: "When did you actually start working on this?"
+5. User enters "15 minutes ago" (or picks from suggestions like "30 min ago", "1 hour ago")
+6. System records both the real activation event AND the time correction
+
+### Pausing Work (Zero Active Stacks)
+This feature represents a small but meaningful shift from the original model:
+- **Previously**: Exactly one Stack was always Active
+- **New model**: Zero OR one Stacks can be Active
+
+**"Pause" means the human is pausing**, not the Stack. When you pause work:
+- The currently Active Stack is deactivated
+- No other Stack is activated
+- You (the human) are on a break from all tracked work
+
+This is different from switching to another task—it's saying "I'm not working on anything trackable right now."
+
+**Use cases**:
+- Stepping away for lunch
+- Bathroom break
+- Attending a meeting unrelated to any Stack
+- Taking a mental break
+- Context switch to something not in Dequeue (personal errand, etc.)
+
+**Resume**: When you come back, you can either:
+- Reactivate the Stack you were on before the break
+- Activate a different Stack
+- Stay in "nothing active" mode if you're not ready to start
+
+### Working Hours Preferences
+Reminders should respect when you're actually working:
+- **Enable/disable during work hours only**: Only send reminders during configured working hours
+- **Configurable work schedule**: Set start and end times (e.g., 9 AM - 6 PM)
+- **Day selection**: Choose which days are work days (e.g., Monday-Friday)
+- **Time zone aware**: Respect user's local time zone
+- **Override options**:
+  - "Do not disturb" mode for focus time
+  - Quick toggle to pause reminders temporarily
+
+### Manual Work Mode Toggle
+In addition to scheduled working hours, users can manually control work mode:
+- **Optional feature**: Work mode is opt-in. When enabled, the toggle appears on the home screen (above the Stack list)
+- **"I'm starting work"**: Manually activate work mode and enable reminders
+  - If a Stack is already Active: prompt "Is this what you're starting with?" with option to confirm or switch
+  - If no Stack is Active: prompt to select what you're working on
+- **"I'm done for today"**: End work mode, deactivate current Stack, disable reminders until next session
+- **Use case**: You may not remember to check the Active issue throughout the day, but you do remember "I'm starting work now!" and "I'm heading out"—those are natural bookends
+- **Interaction with schedule**: Manual toggle overrides the scheduled hours
+  - Turn on manually before scheduled start time → reminders begin immediately
+  - Turn off manually before scheduled end time → reminders stop until next day (or manual restart)
+- **Visual indicator**: Show current work mode status in the app (working / not working)
+
+### Reminder Preferences
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Idle threshold | Minutes of inactivity before reminder | 20 min |
+| Working hours only | Only remind during work hours | On |
+| Work start time | When work hours begin | 9:00 AM |
+| Work end time | When work hours end | 6:00 PM |
+| Work days | Which days to send reminders | Mon-Fri |
+| Auto-start work mode | Automatically enter work mode at start time | On |
+| Auto-end work mode | Automatically exit work mode at end time | Off |
+| Reminder sound | Audio notification | System default |
+| Reminder style | Banner, alert, or silent | Banner |
+
+### Technical Considerations
+
+1. **Idle Detection**
+   - Track timestamp of last activation/deactivation event
+   - Background timer to check idle state
+   - Must work reliably even when app is backgrounded
+   - iOS: Use background app refresh and local notifications
+   - macOS: More flexibility with background execution
+   - **Multi-device sync**: Idle state is automatically synced via the event stream (local + remote events). No separate idle tracking needed per device.
+   - **Background refresh required**: If iOS background refresh is disabled for this app, show a warning that reminders may be inaccurate across devices
+
+2. **Local Notifications**
+   - Schedule notifications based on idle threshold
+   - Reschedule when activity occurs
+   - Handle notification actions (quick responses)
+   - Respect system Do Not Disturb settings
+   - **Privacy**: Notification text may show sensitive task names on lock screen
+     - Consider configurable text (generic "Still working?" vs. showing task name)
+     - Respect iOS notification preview settings (show when unlocked only)
+   - **Time-sensitive notifications**: Allow users to enable this in-app so reminders aren't batched/delayed
+   - **Notification permissions**: Request permissions when user first enables reminders (not on first launch)
+   - **Focus Mode awareness**: Ideally detect if a Focus Mode is blocking notifications and show a dismissible in-app banner alerting the user (if possible via iOS APIs)
+
+3. **Time Corrections via Retroactive Events**
+
+   **The problem**: User forgot to switch from Stack A to Stack B 20 minutes ago. If we backdate the activation event, we're lying about when the user actually clicked. The event log should reflect real-time actions.
+
+   **The solution**: Keep the real-time event log pristine, but add a separate "correction" or "retroactive" event type that records the user's intended timeline.
+
+   When user says "I started this 15 minutes ago":
+   - Write the **actual event**: `stack.activated` at current time (10:20 AM) — this is when they clicked
+   - Write a **correction event**: `time_correction` that says "Stack B's effective start time should be 10:05 AM, and Stack A's effective end time should be 10:05 AM"
+
+   **Event log stays honest**:
+   ```
+   10:00 AM - stack.activated (Stack A)     ← real click
+   10:20 AM - stack.activated (Stack B)     ← real click
+   10:20 AM - time_correction               ← user's correction
+              { corrected_start: Stack B @ 10:05 AM,
+                corrected_end: Stack A @ 10:05 AM,
+                reason: "user_reported" }
+   ```
+
+   **Benefits**:
+   - Real-time event log is never falsified
+   - Time tracking/analytics can use corrected times for accuracy
+   - Audit trail shows both what happened and what user intended
+   - Sync doesn't have to deal with out-of-order events
+   - User gets accurate time records without "lying" to the system
+
+4. **Active Stack State**
+   - Model change: Zero OR one Stacks can be Active (previously always exactly one)
+   - No new "Paused" state on Stack entity—Stacks are just Active or not Active
+   - "Pausing work" = deactivating current Stack without activating another
+   - Track when user enters/exits "nothing active" state for break analytics
+
+5. **Work Mode State**
+   - Track whether user is currently "at work" or not
+   - Persist work mode state across app launches
+   - Handle edge cases: app killed while in work mode, device restart, etc.
+   - **Syncs across all devices** (like everything else in Dequeue—this is core to how the app works)
+   - Use server settings infrastructure for work mode preferences
+
+### Open Questions
+- Should reminders persist if you ignore them, or fade away? (Leaning toward: same reminder repeats at the same interval, no escalation)
+- How do we handle overlapping breaks (pause Stack A, start Stack B, pause Stack B)?
+- Should there be a "snooze" option that delays the reminder by X minutes?
+- Do we track break time separately in analytics/activity feed?
+- **Notification privacy**: Should notification text be configurable (generic "Still working?" vs. showing task name)?
+- **Time corrections**: How far back should users be allowed to correct? 1 hour? 1 day? Unlimited?
+- **Time corrections**: Should we show "raw" vs "corrected" time in the activity feed? Or just use corrected silently?
+- **Time corrections**: Can users edit/delete corrections after the fact?
+- **Time corrections**: Should we auto-suggest correction times based on patterns? ("You usually switch around 10 AM")
+
+### Resolved Questions
+- **Work mode toggle location**: Home screen, above the Stack list (when feature is enabled)
+- **Starting work mode prompt**: Yes—if a Stack is already Active, ask "Is this what you're starting with?"; if not, prompt to select one
+- **Reminder escalation**: No escalation. Same reminder repeats at the configured interval.
+- **Focus modes**: iOS handles this at the OS level. We just need to support time-sensitive notifications (user opt-in) and ideally detect/warn if Focus Mode is blocking notifications.
+- **Work mode sync**: Yes, syncs across all devices (core to how the app works)
+
+### Implementation Phases (suggested)
+1. **Phase 1**: Basic idle reminders with configurable threshold
+2. **Phase 2**: Working hours schedule preferences
+3. **Phase 3**: Manual work mode toggle (start/end work day)
+4. **Phase 4**: Pause work (zero active stacks support)
+5. **Phase 5**: Time corrections via retroactive events
+6. **Phase 6**: Break tracking and analytics
+
+---
+
 ## Future Ideas (Parking Lot)
 
 Brief notes on other ideas not yet developed:
