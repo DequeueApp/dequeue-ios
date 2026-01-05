@@ -14,14 +14,13 @@ import XCTest
 final class DequeueUITestsLaunchTests: XCTestCase {
     var app: XCUIApplication!
 
-    @MainActor
-    override func setUpWithError() throws {
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
     }
 
-    @MainActor
     func testLaunchScreenshot() throws {
         app.launch()
 

@@ -11,8 +11,8 @@ import XCTest
 final class DequeueUITests: XCTestCase {
     var app: XCUIApplication!
 
-    @MainActor
-    override func setUpWithError() throws {
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
@@ -20,7 +20,6 @@ final class DequeueUITests: XCTestCase {
 
     // MARK: - Launch Tests
 
-    @MainActor
     func testAppLaunches() throws {
         app.launch()
         XCTAssertTrue(app.exists)
