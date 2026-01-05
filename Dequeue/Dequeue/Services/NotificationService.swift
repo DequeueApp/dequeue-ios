@@ -384,7 +384,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         }
 
         // Fetch userId and deviceId for event tracking
-        let userId = Clerk.shared.user?.id ?? ""
+        let userId = await MainActor.run { Clerk.shared.user?.id ?? "" }
         let deviceId = await DeviceService.shared.getDeviceId()
 
         await MainActor.run {
@@ -416,7 +416,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         }
 
         // Fetch userId and deviceId for event tracking
-        let userId = Clerk.shared.user?.id ?? ""
+        let userId = await MainActor.run { Clerk.shared.user?.id ?? "" }
         let deviceId = await DeviceService.shared.getDeviceId()
 
         await MainActor.run {
