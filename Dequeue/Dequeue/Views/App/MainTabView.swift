@@ -9,11 +9,15 @@ import SwiftUI
 import SwiftData
 
 struct MainTabView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.syncManager) private var syncManager
+
     @State private var selectedTab = 0
     @State private var previousTab = 0
     @State private var showAddSheet = false
     @State private var showStackPicker = false
     @State private var activeStackForDetail: Stack?
+    @State private var undoCompletionManager = UndoCompletionManager()
 
     var body: some View {
         #if os(macOS)
@@ -84,13 +88,39 @@ struct MainTabView: View {
         }
         .overlay(alignment: .bottom) {
             GeometryReader { geometry in
-                activeStackBanner
-                    .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
-                    .padding(.horizontal)
-                    .padding(.top, 0)
-                    .padding(.bottom, geometry.safeAreaInsets.bottom + 24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                VStack(spacing: 12) {
+                    // Undo completion banner (appears above active stack banner)
+                    if undoCompletionManager.hasPendingCompletion,
+                       let stack = undoCompletionManager.pendingStack {
+                        UndoCompletionBanner(
+                            stackTitle: stack.title,
+                            progress: undoCompletionManager.progress,
+                            onUndo: {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    undoCompletionManager.undoCompletion()
+                                }
+                            }
+                        )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .opacity
+                        ))
+                    }
+
+                    activeStackBanner
+                }
+                .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
+                .padding(.horizontal)
+                .padding(.top, 0)
+                .padding(.bottom, geometry.safeAreaInsets.bottom + 24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
             }
+        }
+        .environment(\.undoCompletionManager, undoCompletionManager)
+        .task {
+            // Configure the undo completion manager with required dependencies
+            undoCompletionManager.configure(modelContext: modelContext, syncManager: syncManager)
         }
         #else
         EmptyView()
@@ -131,9 +161,30 @@ struct MainTabView: View {
                 detailContent
                     .frame(maxHeight: .infinity, alignment: .top)
 
-                activeStackBanner
-                    .padding(.horizontal)
-                    .padding(.bottom, 16)
+                VStack(spacing: 12) {
+                    // Undo completion banner (appears above active stack banner)
+                    if undoCompletionManager.hasPendingCompletion,
+                       let stack = undoCompletionManager.pendingStack {
+                        UndoCompletionBanner(
+                            stackTitle: stack.title,
+                            progress: undoCompletionManager.progress,
+                            onUndo: {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    undoCompletionManager.undoCompletion()
+                                }
+                            }
+                        )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .opacity
+                        ))
+                    }
+
+                    activeStackBanner
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 16)
+                .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
             }
         }
         .sheet(isPresented: $showAddSheet) {
@@ -144,6 +195,11 @@ struct MainTabView: View {
         }
         .sheet(item: $activeStackForDetail) { stack in
             StackEditorView(mode: .edit(stack))
+        }
+        .environment(\.undoCompletionManager, undoCompletionManager)
+        .task {
+            // Configure the undo completion manager with required dependencies
+            undoCompletionManager.configure(modelContext: modelContext, syncManager: syncManager)
         }
     }
 

@@ -13,6 +13,7 @@ struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.syncManager) private var syncManager
     @Environment(\.authService) private var authService
+    @Environment(\.undoCompletionManager) private var undoCompletionManager
     @Query private var stacks: [Stack]
     @Query private var allStacks: [Stack]
     @Query private var tasks: [QueueTask]
@@ -258,8 +259,7 @@ struct HomeView: View {
                         }
 
                         Button {
-                            stackToComplete = stack
-                            showCompleteConfirmation = true
+                            handleCompleteButtonTapped(for: stack)
                         } label: {
                             Label("Complete", systemImage: "checkmark.circle")
                         }
@@ -287,8 +287,7 @@ struct HomeView: View {
                         }
 
                         Button {
-                            stackToComplete = stack
-                            showCompleteConfirmation = true
+                            handleCompleteButtonTapped(for: stack)
                         } label: {
                             Label("Complete", systemImage: "checkmark.circle")
                         }
@@ -398,6 +397,25 @@ struct HomeView: View {
             ErrorReportingService.capture(error: error, context: ["action": "deactivateStack"])
             errorMessage = "Failed to deactivate stack: \(error.localizedDescription)"
             showError = true
+        }
+    }
+
+    /// Handles the Complete button tap with conditional behavior based on pending tasks.
+    /// - If stack has pending tasks: show confirmation dialog
+    /// - If stack has no pending tasks: use delayed completion with undo
+    private func handleCompleteButtonTapped(for stack: Stack) {
+        if stack.pendingTasks.isEmpty {
+            // No pending tasks - use delayed completion with undo banner
+            if let manager = undoCompletionManager {
+                manager.startDelayedCompletion(for: stack)
+            } else {
+                // Fallback: complete immediately if manager not available
+                completeStack(stack)
+            }
+        } else {
+            // Has pending tasks - show confirmation dialog
+            stackToComplete = stack
+            showCompleteConfirmation = true
         }
     }
 
