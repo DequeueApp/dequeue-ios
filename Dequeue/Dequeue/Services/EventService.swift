@@ -747,10 +747,12 @@ struct EntityStatusPayload: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         // Try different id field names
-        if let stackId = try? container.decode(String.self, forKey: .stackId) {
-            id = stackId
-        } else if let taskId = try? container.decode(String.self, forKey: .taskId) {
+        // IMPORTANT: Check taskId BEFORE stackId because task events contain both,
+        // and we need the task's ID, not the parent stack's ID (DEQ-139)
+        if let taskId = try? container.decode(String.self, forKey: .taskId) {
             id = taskId
+        } else if let stackId = try? container.decode(String.self, forKey: .stackId) {
+            id = stackId
         } else {
             id = try container.decode(String.self, forKey: .id)
         }
