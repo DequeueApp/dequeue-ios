@@ -50,7 +50,7 @@ internal final class SyncStatusViewModel {
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.eventService = EventService(modelContext: modelContext)
+        self.eventService = EventService.readOnly(modelContext: modelContext)
         startMonitoring()
     }
 

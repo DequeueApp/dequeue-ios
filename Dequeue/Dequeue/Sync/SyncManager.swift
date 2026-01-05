@@ -285,7 +285,7 @@ actor SyncManager {
 
         let pendingEventData = try await MainActor.run {
             let context = ModelContext(modelContainer)
-            let eventService = EventService(modelContext: context)
+            let eventService = EventService.readOnly(modelContext: context)
             let events = try eventService.fetchPendingEvents()
             return events.map { event in
                 EventData(
@@ -382,7 +382,7 @@ actor SyncManager {
 
         try await MainActor.run {
             let context = ModelContext(modelContainer)
-            let eventService = EventService(modelContext: context)
+            let eventService = EventService.readOnly(modelContext: context)
             let syncedEvents = try eventService.fetchEventsByIds(syncedEventIds)
             try eventService.markEventsSynced(syncedEvents)
         }
