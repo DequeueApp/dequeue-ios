@@ -522,4 +522,174 @@ struct ProjectorServiceTests {
         #expect(stack.isDeleted == true)
         #expect(stack.isActive == false)
     }
+
+    // MARK: - Task Completion Rehydration Tests (DEQ-139)
+
+    /// Creates a task status payload matching TaskStatusPayload structure
+    /// This is the format used when recording task.completed events
+    private func createTaskStatusPayload(
+        taskId: String,
+        stackId: String,
+        status: String
+    ) throws -> Data {
+        // This matches the TaskStatusPayload structure which includes both taskId and stackId
+        let payload: [String: Any] = [
+            "taskId": taskId,
+            "stackId": stackId,
+            "status": status,
+            "fullState": [
+                "id": taskId,
+                "stackId": stackId,
+                "title": "Test Task",
+                "description": NSNull(),
+                "status": status,
+                "priority": NSNull(),
+                "sortOrder": 0,
+                "lastActiveTime": NSNull(),
+                "createdAt": Int64(Date().timeIntervalSince1970 * 1_000),
+                "updatedAt": Int64(Date().timeIntervalSince1970 * 1_000),
+                "deleted": false
+            ]
+        ]
+        return try JSONSerialization.data(withJSONObject: payload)
+    }
+
+    @Test("applyTaskCompleted uses taskId not stackId from payload (DEQ-139)")
+    func applyTaskCompletedUsesTaskId() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create a stack and a task
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        let task = QueueTask(title: "Test Task", status: .pending)
+        task.stack = stack
+        stack.tasks.append(task)
+        context.insert(task)
+        try context.save()
+
+        #expect(task.status == .pending)
+
+        // Create a task.completed event with BOTH taskId and stackId in the payload
+        // This matches the real-world scenario where TaskStatusPayload is used
+        let payloadData = try createTaskStatusPayload(
+            taskId: task.id,
+            stackId: stack.id,
+            status: TaskStatus.completed.rawValue
+        )
+        let event = Event(eventType: .taskCompleted, payload: payloadData, entityId: task.id)
+        context.insert(event)
+        try context.save()
+
+        // Apply the event
+        try applyEvents([event], context: context)
+
+        // Verify the task status was updated to completed
+        // Before DEQ-139 fix, this would fail because EntityStatusPayload
+        // would incorrectly use stackId instead of taskId
+        #expect(task.status == .completed)
+    }
+
+    @Test("Task completion event from another device is properly rehydrated (DEQ-139)")
+    func taskCompletionFromRemoteDeviceRehydrates() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create a stack with 3 pending tasks (simulating tasks created on device A)
+        let stack = Stack(title: "My Stack")
+        context.insert(stack)
+
+        let task1 = QueueTask(title: "Task 1", status: .pending)
+        let task2 = QueueTask(title: "Task 2", status: .pending)
+        let task3 = QueueTask(title: "Task 3", status: .pending)
+
+        for task in [task1, task2, task3] {
+            task.stack = stack
+            stack.tasks.append(task)
+            context.insert(task)
+        }
+        try context.save()
+
+        // Verify all tasks are pending
+        #expect(task1.status == .pending)
+        #expect(task2.status == .pending)
+        #expect(task3.status == .pending)
+
+        // Simulate receiving completion events from device B (another device)
+        // These events come through sync with both taskId and stackId
+        let event1 = Event(
+            eventType: .taskCompleted,
+            payload: try createTaskStatusPayload(taskId: task1.id, stackId: stack.id, status: "completed"),
+            entityId: task1.id
+        )
+        let event2 = Event(
+            eventType: .taskCompleted,
+            payload: try createTaskStatusPayload(taskId: task2.id, stackId: stack.id, status: "completed"),
+            entityId: task2.id
+        )
+        let event3 = Event(
+            eventType: .taskCompleted,
+            payload: try createTaskStatusPayload(taskId: task3.id, stackId: stack.id, status: "completed"),
+            entityId: task3.id
+        )
+
+        context.insert(event1)
+        context.insert(event2)
+        context.insert(event3)
+        try context.save()
+
+        // Apply the events (simulating rehydration on device B)
+        try applyEvents([event1, event2, event3], context: context)
+
+        // Verify all 3 tasks are now completed
+        // This was the bug in DEQ-139: tasks remained pending after sync
+        #expect(task1.status == .completed)
+        #expect(task2.status == .completed)
+        #expect(task3.status == .completed)
+
+        // Count completed tasks in the stack
+        let completedTasks = stack.tasks.filter { $0.status == .completed }
+        #expect(completedTasks.count == 3)
+    }
+
+    @Test("EntityStatusPayload correctly decodes taskId when both taskId and stackId present")
+    func entityStatusPayloadDecodesTaskIdFirst() async throws {
+        // This tests the decoder directly to ensure taskId takes precedence
+        let taskId = CUID.generate()
+        let stackId = CUID.generate()
+
+        // Create payload with both taskId and stackId
+        let payloadDict: [String: Any] = [
+            "taskId": taskId,
+            "stackId": stackId,
+            "status": "completed"
+        ]
+        let payloadData = try JSONSerialization.data(withJSONObject: payloadDict)
+
+        // Decode using EntityStatusPayload
+        let payload = try JSONDecoder().decode(EntityStatusPayload.self, from: payloadData)
+
+        // The id should be the taskId, NOT the stackId
+        #expect(payload.id == taskId)
+        #expect(payload.id != stackId)
+    }
+
+    @Test("EntityStatusPayload falls back to stackId when taskId not present")
+    func entityStatusPayloadFallsBackToStackId() async throws {
+        // This tests that stack events still work correctly
+        let stackId = CUID.generate()
+
+        // Create payload with only stackId (like StackStatusPayload)
+        let payloadDict: [String: Any] = [
+            "stackId": stackId,
+            "status": "completed"
+        ]
+        let payloadData = try JSONSerialization.data(withJSONObject: payloadDict)
+
+        // Decode using EntityStatusPayload
+        let payload = try JSONDecoder().decode(EntityStatusPayload.self, from: payloadData)
+
+        // The id should be the stackId since taskId is not present
+        #expect(payload.id == stackId)
+    }
 }
