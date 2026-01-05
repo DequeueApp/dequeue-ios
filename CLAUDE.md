@@ -164,13 +164,21 @@ Would you like me to [specific improvement]?"
 ## Linear Integration & Workflow
 
 - **Issue Tracker**: Linear (project key: DEQ)
-- **Always use Linear MCP** to fetch issue details when given a ticket ID (e.g., DEQ-10)
 - Issues follow format: DEQ-XX
+- **Always check for Linear MCP availability first** - try to use it to fetch issue details when given a ticket ID (e.g., DEQ-10)
 
 ### Every Task Needs a Linear Issue
-- **Before starting ANY work**, ensure there is a Linear issue for it
-- If no issue exists, create one in Linear first using the appropriate team and project
-- Never start coding without a Linear issue to track the work
+- **Before starting ANY work**, check if there is a Linear issue for it
+- If no issue exists and Linear MCP is available, create one first using the appropriate team and project
+- Prefer not to start coding without a Linear issue to track the work
+
+### When Linear MCP is Unavailable
+If the Linear MCP server is not available (e.g., in Claude Code Cloud or other restricted environments):
+- **You can still proceed with work** - don't let unavailability block progress
+- Note in your response that you couldn't access Linear and recommend the user create/update the issue
+- Use descriptive branch names even without an issue ID: `feature/<description>` or `fix/<description>`
+- Document decisions and context in commit messages and PR descriptions instead
+- When Linear becomes available again, update the relevant issue with what was done
 
 ### Linear as System of Record
 - Write the implementation plan to the Linear issue description or as a comment before starting work
@@ -185,12 +193,12 @@ Would you like me to [specific improvement]?"
 
 ### Workflow Summary
 1. Receive task/request
-2. Find or create Linear issue
-3. Write implementation plan to the issue
-4. Create branch using issue ID: `git checkout -b <issue-id>/description`
-5. Do the work, updating Linear with key decisions
+2. Check for Linear MCP availability
+3. If available: find or create Linear issue, write implementation plan to the issue
+4. Create branch using issue ID: `git checkout -b <issue-id>/description` (or `feature/description` if no issue)
+5. Do the work, updating Linear with key decisions (if available)
 6. Rebase onto main before PR
-7. Ensure Linear issue is updated with final context
+7. Ensure Linear issue is updated with final context (or recommend user updates it)
 
 ## Related Projects
 
