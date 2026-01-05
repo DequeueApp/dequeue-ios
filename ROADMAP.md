@@ -335,7 +335,29 @@ The core concept of Dequeue is that you're always working on **one and only one 
   - "No, switch to..." (opens quick picker to select new Active item)
   - "Taking a break" (pauses/deactivates current Stack)
   - "Done for today" (ends work mode, deactivates current Stack, stops reminders until tomorrow)
-- **Backdating**: When switching to a new Active item, optionally specify when you actually started it (e.g., "I started this 15 minutes ago") to keep records accurate
+- **Time corrections**: When switching to a new Active item, optionally specify when you actually started it (e.g., "I started this 15 minutes ago"). This creates correction events that adjust time tracking without falsifying the real-time event log.
+
+### Time Corrections (Retroactive Events)
+A key insight: users often realize they forgot to switch tasks *after the fact*. The naive solution is to backdate events, but this corrupts the integrity of the real-time event log. Instead, we use a **dual-layer approach**:
+
+1. **Real-time layer**: Events are always recorded when they actually happen. If you click "activate Stack B" at 10:20 AM, that's when the event is timestamped. Period.
+
+2. **Correction layer**: A separate event type (`time_correction`) that says "for time tracking purposes, treat Stack B as having started at 10:05 AM."
+
+**Why this matters**:
+- The event log remains a truthful record of user actions
+- Sync works cleanly (no out-of-order events to reconcile)
+- Analytics/time tracking can compute "effective" durations using corrections
+- Users can see both: "You clicked at 10:20, but we're counting from 10:05"
+- No one is "lying" to the system
+
+**User flow**:
+1. Reminder pops up: "Are you still working on Stack A?"
+2. User taps "No, switch to..."
+3. User selects Stack B
+4. Optional prompt: "When did you actually start working on this?"
+5. User enters "15 minutes ago" (or picks from suggestions like "30 min ago", "1 hour ago")
+6. System records both the real activation event AND the time correction
 
 ### Stack Pause/Deactivate Feature
 For users who want thorough time tracking:
@@ -397,11 +419,32 @@ In addition to scheduled working hours, users can manually control work mode:
    - Handle notification actions (quick responses)
    - Respect system Do Not Disturb settings
 
-3. **Backdating Logic**
-   - When user says "I started this 15 minutes ago":
-     - Create activation event with past timestamp
-     - Create deactivation event for previous Stack at same timestamp
-     - Ensure event log remains consistent and chronological
+3. **Time Corrections via Retroactive Events**
+
+   **The problem**: User forgot to switch from Stack A to Stack B 20 minutes ago. If we backdate the activation event, we're lying about when the user actually clicked. The event log should reflect real-time actions.
+
+   **The solution**: Keep the real-time event log pristine, but add a separate "correction" or "retroactive" event type that records the user's intended timeline.
+
+   When user says "I started this 15 minutes ago":
+   - Write the **actual event**: `stack.activated` at current time (10:20 AM) — this is when they clicked
+   - Write a **correction event**: `time_correction` that says "Stack B's effective start time should be 10:05 AM, and Stack A's effective end time should be 10:05 AM"
+
+   **Event log stays honest**:
+   ```
+   10:00 AM - stack.activated (Stack A)     ← real click
+   10:20 AM - stack.activated (Stack B)     ← real click
+   10:20 AM - time_correction               ← user's correction
+              { corrected_start: Stack B @ 10:05 AM,
+                corrected_end: Stack A @ 10:05 AM,
+                reason: "user_reported" }
+   ```
+
+   **Benefits**:
+   - Real-time event log is never falsified
+   - Time tracking/analytics can use corrected times for accuracy
+   - Audit trail shows both what happened and what user intended
+   - Sync doesn't have to deal with out-of-order events
+   - User gets accurate time records without "lying" to the system
 
 4. **State Management**
    - New Stack state: "Paused" (in addition to Active/Completed)
@@ -423,13 +466,17 @@ In addition to scheduled working hours, users can manually control work mode:
 - Integration with system-level Focus modes (iOS/macOS)?
 - Where should the work mode toggle live in the UI? Main tab bar? Home screen? Settings?
 - Should starting work mode prompt you to select what you're working on first?
+- **Time corrections**: How far back should users be allowed to correct? 1 hour? 1 day? Unlimited?
+- **Time corrections**: Should we show "raw" vs "corrected" time in the activity feed? Or just use corrected silently?
+- **Time corrections**: Can users edit/delete corrections after the fact?
+- **Time corrections**: Should we auto-suggest correction times based on patterns? ("You usually switch around 10 AM")
 
 ### Implementation Phases (suggested)
 1. **Phase 1**: Basic idle reminders with configurable threshold
 2. **Phase 2**: Working hours schedule preferences
 3. **Phase 3**: Manual work mode toggle (start/end work day)
 4. **Phase 4**: Stack pause/resume functionality
-5. **Phase 5**: Backdating for activity corrections
+5. **Phase 5**: Time corrections via retroactive events
 6. **Phase 6**: Break tracking and analytics
 
 ---
