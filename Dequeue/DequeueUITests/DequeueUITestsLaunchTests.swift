@@ -10,8 +10,9 @@
 
 import XCTest
 
+@MainActor
 final class DequeueUITestsLaunchTests: XCTestCase {
-    nonisolated(unsafe) var app: XCUIApplication!
+    var app: XCUIApplication!
 
     override func setUpWithError() throws {
         continueAfterFailure = false
