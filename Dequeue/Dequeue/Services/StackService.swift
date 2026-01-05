@@ -350,6 +350,20 @@ final class StackService {
         try validateAndFixSingleActiveConstraint(keeping: stack.id)
     }
 
+    /// Deactivates the currently active stack, leaving no stack active.
+    /// This allows the user to have zero active stacks.
+    func deactivateStack(_ stack: Stack) throws {
+        guard stack.isActive else { return }
+
+        try eventService.recordStackDeactivated(stack)
+        stack.isActive = false
+        stack.updatedAt = Date()
+        stack.syncState = .pending
+
+        try modelContext.save()
+        syncManager?.triggerImmediatePush()
+    }
+
     func closeStack(_ stack: Stack, reason: String? = nil) throws {
         stack.status = .closed
         stack.updatedAt = Date()

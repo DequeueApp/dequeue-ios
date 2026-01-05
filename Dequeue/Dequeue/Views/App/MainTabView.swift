@@ -12,6 +12,7 @@ struct MainTabView: View {
     @State private var selectedTab = 0
     @State private var previousTab = 0
     @State private var showAddSheet = false
+    @State private var showStackPicker = false
     @State private var activeStackForDetail: Stack?
 
     var body: some View {
@@ -75,6 +76,9 @@ struct MainTabView: View {
         .sheet(isPresented: $showAddSheet) {
             StackEditorView(mode: .create)
         }
+        .sheet(isPresented: $showStackPicker) {
+            StackPickerSheet()
+        }
         .sheet(item: $activeStackForDetail) { stack in
             StackEditorView(mode: .edit(stack))
         }
@@ -135,6 +139,9 @@ struct MainTabView: View {
         .sheet(isPresented: $showAddSheet) {
             StackEditorView(mode: .create)
         }
+        .sheet(isPresented: $showStackPicker) {
+            StackPickerSheet()
+        }
         .sheet(item: $activeStackForDetail) { stack in
             StackEditorView(mode: .edit(stack))
         }
@@ -165,7 +172,7 @@ struct MainTabView: View {
                 activeStackForDetail = stack
             },
             onEmptyTapped: {
-                selectedTab = 0 // Navigate to Home tab
+                showStackPicker = true
             }
         )
     }

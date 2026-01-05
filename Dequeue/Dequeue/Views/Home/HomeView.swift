@@ -234,7 +234,14 @@ struct HomeView: View {
                         selectedStack = stack
                     }
                     .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        if !stack.isActive {
+                        if stack.isActive {
+                            Button {
+                                deactivateStack(stack)
+                            } label: {
+                                Label("Deactivate", systemImage: "star.slash")
+                            }
+                            .tint(.gray)
+                        } else {
                             Button {
                                 setAsActive(stack)
                             } label: {
@@ -265,7 +272,13 @@ struct HomeView: View {
                             Label("Edit", systemImage: "pencil")
                         }
 
-                        if !stack.isActive {
+                        if stack.isActive {
+                            Button {
+                                deactivateStack(stack)
+                            } label: {
+                                Label("Deactivate", systemImage: "star.slash")
+                            }
+                        } else {
                             Button {
                                 setAsActive(stack)
                             } label: {
@@ -374,6 +387,16 @@ struct HomeView: View {
         } catch {
             ErrorReportingService.capture(error: error, context: ["action": "setAsActive"])
             errorMessage = "Failed to set stack as active: \(error.localizedDescription)"
+            showError = true
+        }
+    }
+
+    private func deactivateStack(_ stack: Stack) {
+        do {
+            try stackService.deactivateStack(stack)
+        } catch {
+            ErrorReportingService.capture(error: error, context: ["action": "deactivateStack"])
+            errorMessage = "Failed to deactivate stack: \(error.localizedDescription)"
             showError = true
         }
     }
