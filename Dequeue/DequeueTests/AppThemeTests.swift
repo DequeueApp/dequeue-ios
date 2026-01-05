@@ -114,6 +114,9 @@ struct AppThemeTests {
         let key = "appTheme"
         let defaults = Self.makeTestDefaults()
 
+        // Clean up any previous test data for this specific key
+        defaults.removeObject(forKey: key)
+
         // When no value exists, attempting to create from nil should fail
         let storedValue = defaults.string(forKey: key)
         #expect(storedValue == nil)
