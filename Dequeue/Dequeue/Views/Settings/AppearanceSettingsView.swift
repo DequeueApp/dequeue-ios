@@ -35,10 +35,10 @@ internal enum AppTheme: String, CaseIterable, Identifiable {
     /// Always use dark appearance regardless of system settings
     case dark
 
-    var id: String { rawValue }
+    nonisolated var id: String { rawValue }
 
     /// Human-readable name for display in the UI
-    var displayName: String {
+    nonisolated var displayName: String {
         switch self {
         case .system: return "System"
         case .light: return "Light"
@@ -47,7 +47,7 @@ internal enum AppTheme: String, CaseIterable, Identifiable {
     }
 
     /// SF Symbol name representing this theme option
-    var icon: String {
+    nonisolated var icon: String {
         switch self {
         case .system: return "circle.lefthalf.filled"
         case .light: return "sun.max.fill"
@@ -56,7 +56,7 @@ internal enum AppTheme: String, CaseIterable, Identifiable {
     }
 
     /// The SwiftUI ColorScheme to apply, or nil to follow system
-    var colorScheme: ColorScheme? {
+    nonisolated var colorScheme: ColorScheme? {
         switch self {
         case .system: return nil
         case .light: return .light

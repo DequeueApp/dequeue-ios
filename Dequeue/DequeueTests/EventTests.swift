@@ -19,7 +19,8 @@ struct EventTests {
             type: "stack.created",
             payload: payload,
             userId: "test-user",
-            deviceId: "test-device"
+            deviceId: "test-device",
+            appId: "test-app"
         )
 
         #expect(event.type == "stack.created")
@@ -27,6 +28,7 @@ struct EventTests {
         #expect(event.isSynced == false)
         #expect(event.userId == "test-user")
         #expect(event.deviceId == "test-device")
+        #expect(event.appId == "test-app")
         #expect(event.payloadVersion == Event.currentPayloadVersion)
     }
 
@@ -37,13 +39,15 @@ struct EventTests {
             eventType: .stackCreated,
             payload: payload,
             userId: "test-user",
-            deviceId: "test-device"
+            deviceId: "test-device",
+            appId: "test-app"
         )
 
         #expect(event.type == "stack.created")
         #expect(event.eventType == .stackCreated)
         #expect(event.userId == "test-user")
         #expect(event.deviceId == "test-device")
+        #expect(event.appId == "test-app")
     }
 
     @Test("Event decodes payload correctly")
@@ -59,7 +63,8 @@ struct EventTests {
             eventType: .stackCreated,
             payload: payload,
             userId: "test-user",
-            deviceId: "test-device"
+            deviceId: "test-device",
+            appId: "test-app"
         )
 
         let decoded = try event.decodePayload(TestPayload.self)
@@ -77,7 +82,8 @@ struct EventTests {
             eventType: .stackCreated,
             payload: payload,
             userId: "test-user",
-            deviceId: "test-device"
+            deviceId: "test-device",
+            appId: "test-app"
         )
         context.insert(event)
 
@@ -90,6 +96,7 @@ struct EventTests {
         #expect(events.first?.eventType == .stackCreated)
         #expect(events.first?.userId == "test-user")
         #expect(events.first?.deviceId == "test-device")
+        #expect(events.first?.appId == "test-app")
     }
 
     @Test("encodePayload helper works")

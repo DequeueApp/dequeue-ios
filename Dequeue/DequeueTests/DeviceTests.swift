@@ -81,6 +81,7 @@ struct DeviceTests {
     }
 
     @Test("createCurrentDevice returns valid device")
+    @MainActor
     func createCurrentDeviceReturnsValidDevice() {
         let device = Device.createCurrentDevice()
 

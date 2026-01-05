@@ -14,18 +14,21 @@ import SwiftData
 // MARK: - Event Context
 
 /// Context required for creating events, capturing who/what created the event.
-/// This ensures every event is properly attributed to a user and device.
+/// This ensures every event is properly attributed to a user, device, and app.
 struct EventContext {
     let userId: String
     let deviceId: String
+    let appId: String
 
     /// Creates context from the current authenticated user and device.
     /// - Parameters:
     ///   - userId: The authenticated user's ID (from AuthService.currentUserId)
     ///   - deviceId: The current device's ID (from DeviceService.getDeviceId())
-    init(userId: String, deviceId: String) {
+    ///   - appId: The app bundle identifier (defaults to current app's bundle ID)
+    init(userId: String, deviceId: String, appId: String = Bundle.main.bundleIdentifier ?? "com.dequeue.app") {
         self.userId = userId
         self.deviceId = deviceId
+        self.appId = appId
     }
 }
 
@@ -236,6 +239,14 @@ final class EventService {
         return try modelContext.fetch(descriptor)
     }
 
+    func fetchEventsByIds(_ ids: [String]) throws -> [Event] {
+        let predicate = #Predicate<Event> { event in
+            ids.contains(event.id)
+        }
+        let descriptor = FetchDescriptor<Event>(predicate: predicate)
+        return try modelContext.fetch(descriptor)
+    }
+
     func markEventsSynced(_ events: [Event]) throws {
         let now = Date()
         for event in events {
@@ -309,7 +320,8 @@ final class EventService {
             payload: payloadData,
             entityId: entityId,
             userId: context.userId,
-            deviceId: context.deviceId
+            deviceId: context.deviceId,
+            appId: context.appId
         )
         modelContext.insert(event)
         // Note: Caller must call modelContext.save() to persist changes.

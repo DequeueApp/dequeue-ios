@@ -38,7 +38,7 @@ import os
 /// }
 /// ```
 @Observable
-final class NetworkMonitor {
+final class NetworkMonitor: @unchecked Sendable {
     /// Whether the device currently has network connectivity.
     /// Optimistic default: true (avoids false offline indicators during launch)
     @MainActor private(set) var isConnected: Bool = true
@@ -48,7 +48,8 @@ final class NetworkMonitor {
 
     private let monitor: NWPathMonitor
     private let queue = DispatchQueue(label: "com.dequeue.networkmonitor")
-    private static let logger = Logger(
+    // Logger conforms to Sendable in iOS 15.0+/macOS 12.0+
+    nonisolated private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "com.dequeue",
         category: "NetworkMonitor"
     )

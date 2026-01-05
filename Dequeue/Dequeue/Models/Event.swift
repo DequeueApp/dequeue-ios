@@ -28,6 +28,10 @@ final class Event {
     /// Required for all events created after the DEQ-137 migration.
     var deviceId: String
 
+    /// The app that created this event (bundle identifier).
+    /// Required for all events created after the DEQ-137 migration.
+    var appId: String
+
     /// Schema version for the event payload structure.
     /// Version 1: Legacy events (pre-DEQ-137, no userId/deviceId)
     /// Version 2: Current format with userId/deviceId (DEQ-137+)
@@ -48,6 +52,7 @@ final class Event {
         entityId: String? = nil,
         userId: String,
         deviceId: String,
+        appId: String,
         payloadVersion: Int = Event.currentPayloadVersion,
         isSynced: Bool = false,
         syncedAt: Date? = nil
@@ -60,6 +65,7 @@ final class Event {
         self.entityId = entityId
         self.userId = userId
         self.deviceId = deviceId
+        self.appId = appId
         self.payloadVersion = payloadVersion
         self.isSynced = isSynced
         self.syncedAt = syncedAt
@@ -74,6 +80,7 @@ final class Event {
         entityId: String? = nil,
         userId: String,
         deviceId: String,
+        appId: String,
         payloadVersion: Int = Event.currentPayloadVersion
     ) {
         self.init(
@@ -85,6 +92,7 @@ final class Event {
             entityId: entityId,
             userId: userId,
             deviceId: deviceId,
+            appId: appId,
             payloadVersion: payloadVersion
         )
     }
