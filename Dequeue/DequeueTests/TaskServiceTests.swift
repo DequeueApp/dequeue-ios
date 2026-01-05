@@ -37,7 +37,7 @@ struct TaskServiceTests {
         context.insert(stack)
         try context.save()
 
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let task = try taskService.createTask(title: "New Task", stack: stack)
 
         #expect(task.title == "New Task")
@@ -55,7 +55,7 @@ struct TaskServiceTests {
         context.insert(stack)
         try context.save()
 
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let task = try taskService.createTask(
             title: "Task with Description",
             description: "This is a test description",
@@ -76,7 +76,7 @@ struct TaskServiceTests {
         context.insert(stack)
         try context.save()
 
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let task1 = try taskService.createTask(title: "First Task", stack: stack)
         let task2 = try taskService.createTask(title: "Second Task", stack: stack)
         let task3 = try taskService.createTask(title: "Third Task", stack: stack)
@@ -95,7 +95,7 @@ struct TaskServiceTests {
         context.insert(stack)
         try context.save()
 
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let task = try taskService.createTask(title: "Custom Order Task", stack: stack, sortOrder: 5)
 
         #expect(task.sortOrder == 5)
@@ -110,7 +110,7 @@ struct TaskServiceTests {
         context.insert(stack)
         try context.save()
 
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let task = try taskService.createTask(title: "New Task", stack: stack)
 
         #expect(task.syncState == .pending)
@@ -125,7 +125,7 @@ struct TaskServiceTests {
         context.insert(stack)
         try context.save()
 
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
         _ = try taskService.createTask(title: "New Task", stack: stack)
 
         #expect(stack.pendingTasks.count == 1)
@@ -146,7 +146,7 @@ struct TaskServiceTests {
         stack.tasks.append(task)
         try context.save()
 
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
         try taskService.markAsCompleted(task)
 
         #expect(task.status == .completed)
@@ -167,7 +167,7 @@ struct TaskServiceTests {
         #expect(stack.pendingTasks.count == 1)
         #expect(stack.completedTasks.isEmpty)
 
-        let taskService = TaskService(modelContext: context)
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
         try taskService.markAsCompleted(task)
 
         #expect(stack.pendingTasks.isEmpty)

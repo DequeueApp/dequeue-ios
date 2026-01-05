@@ -38,19 +38,28 @@ struct EventServiceTests {
             id: "event-1",
             type: "stack.created",
             payload: try JSONEncoder().encode(["stackId": "123"]),
-            timestamp: Date()
+            timestamp: Date(),
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
         )
         let event2 = Event(
             id: "event-2",
             type: "task.created",
             payload: try JSONEncoder().encode(["taskId": "456"]),
-            timestamp: Date()
+            timestamp: Date(),
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
         )
         let event3 = Event(
             id: "event-3",
             type: "stack.updated",
             payload: try JSONEncoder().encode(["stackId": "123"]),
-            timestamp: Date()
+            timestamp: Date(),
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
         )
 
         context.insert(event1)
@@ -58,7 +67,7 @@ struct EventServiceTests {
         context.insert(event3)
         try context.save()
 
-        let eventService = EventService(modelContext: context)
+        let eventService = EventService.readOnly(modelContext: context)
 
         // Fetch events by specific IDs
         let requestedIds = ["event-1", "event-3"]
@@ -82,12 +91,15 @@ struct EventServiceTests {
             id: "event-1",
             type: "stack.created",
             payload: try JSONEncoder().encode(["stackId": "123"]),
-            timestamp: Date()
+            timestamp: Date(),
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
         )
         context.insert(event)
         try context.save()
 
-        let eventService = EventService(modelContext: context)
+        let eventService = EventService.readOnly(modelContext: context)
 
         // Try to fetch non-existent events
         let fetchedEvents = try eventService.fetchEventsByIds(["non-existent-1", "non-existent-2"])
@@ -107,13 +119,16 @@ struct EventServiceTests {
                 id: "event-\(index)",
                 type: "stack.created",
                 payload: try JSONEncoder().encode(["index": index]),
-                timestamp: Date()
+                timestamp: Date(),
+                userId: "test-user",
+                deviceId: "test-device",
+                appId: "test-app"
             )
             context.insert(event)
         }
         try context.save()
 
-        let eventService = EventService(modelContext: context)
+        let eventService = EventService.readOnly(modelContext: context)
 
         // Fetch specific subset
         let requestedIds = (1...10).map { "event-\($0)" }

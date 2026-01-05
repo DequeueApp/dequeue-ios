@@ -20,6 +20,25 @@ final class Event {
     /// Used for efficient history queries.
     var entityId: String?
 
+    /// The user who created this event.
+    /// Required for all events created after the DEQ-137 migration.
+    var userId: String
+
+    /// The device that created this event.
+    /// Required for all events created after the DEQ-137 migration.
+    var deviceId: String
+
+    /// The app that created this event (bundle identifier).
+    /// Required for all events created after the DEQ-137 migration.
+    var appId: String
+
+    /// Schema version for the event payload structure.
+    /// Version 1: Legacy events (pre-DEQ-137, no userId/deviceId)
+    /// Version 2: Current format with userId/deviceId (DEQ-137+)
+    /// Events with payloadVersion < 2 are ignored during sync pull.
+    static let currentPayloadVersion: Int = 2
+    var payloadVersion: Int
+
     // Sync tracking
     var isSynced: Bool
     var syncedAt: Date?
@@ -31,6 +50,10 @@ final class Event {
         timestamp: Date = Date(),
         metadata: Data? = nil,
         entityId: String? = nil,
+        userId: String,
+        deviceId: String,
+        appId: String,
+        payloadVersion: Int = Event.currentPayloadVersion,
         isSynced: Bool = false,
         syncedAt: Date? = nil
     ) {
@@ -40,6 +63,10 @@ final class Event {
         self.timestamp = timestamp
         self.metadata = metadata
         self.entityId = entityId
+        self.userId = userId
+        self.deviceId = deviceId
+        self.appId = appId
+        self.payloadVersion = payloadVersion
         self.isSynced = isSynced
         self.syncedAt = syncedAt
     }
@@ -50,7 +77,11 @@ final class Event {
         payload: Data,
         timestamp: Date = Date(),
         metadata: Data? = nil,
-        entityId: String? = nil
+        entityId: String? = nil,
+        userId: String,
+        deviceId: String,
+        appId: String,
+        payloadVersion: Int = Event.currentPayloadVersion
     ) {
         self.init(
             id: id,
@@ -58,7 +89,11 @@ final class Event {
             payload: payload,
             timestamp: timestamp,
             metadata: metadata,
-            entityId: entityId
+            entityId: entityId,
+            userId: userId,
+            deviceId: deviceId,
+            appId: appId,
+            payloadVersion: payloadVersion
         )
     }
 }

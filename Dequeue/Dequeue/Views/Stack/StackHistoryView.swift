@@ -13,6 +13,8 @@ struct StackHistoryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
+    @State private var cachedDeviceId: String = ""
     @State private var events: [Event] = []
     @State private var isLoading = true
     @State private var loadError: Error?
@@ -46,6 +48,10 @@ struct StackHistoryView: View {
         // 1. Load reliably on both iOS and macOS (onAppear is unreliable on macOS in sheets)
         // 2. Automatically refresh when the stack is modified elsewhere
         .task(id: stack.updatedAt) {
+            // Fetch device ID for service creation
+            if cachedDeviceId.isEmpty {
+                cachedDeviceId = await DeviceService.shared.getDeviceId()
+            }
             await loadHistory()
         }
         .confirmationDialog(
@@ -104,7 +110,7 @@ struct StackHistoryView: View {
         isLoading = true
         loadError = nil
 
-        let service = EventService(modelContext: modelContext)
+        let service = EventService.readOnly(modelContext: modelContext)
         do {
             events = try service.fetchStackHistoryWithRelated(for: stack)
         } catch {
@@ -131,7 +137,12 @@ struct StackHistoryView: View {
         guard let event = eventToRevert else { return }
 
         do {
-            let stackService = StackService(modelContext: modelContext, syncManager: syncManager)
+            let stackService = StackService(
+                modelContext: modelContext,
+                userId: authService.currentUserId ?? "",
+                deviceId: cachedDeviceId,
+                syncManager: syncManager
+            )
             try stackService.revertToHistoricalState(stack, from: event)
             // Refresh history to show the new revert event
             Task {

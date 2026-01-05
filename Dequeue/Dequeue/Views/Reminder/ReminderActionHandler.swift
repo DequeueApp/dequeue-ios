@@ -13,11 +13,18 @@ import SwiftData
 @MainActor
 struct ReminderActionHandler {
     let modelContext: ModelContext
+    let userId: String
+    let deviceId: String
     let onError: (Error) -> Void
     var syncManager: SyncManager?
 
     private var reminderService: ReminderService {
-        ReminderService(modelContext: modelContext, syncManager: syncManager)
+        ReminderService(
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
     }
 
     private var notificationService: NotificationService {

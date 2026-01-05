@@ -11,12 +11,52 @@
 import Foundation
 import SwiftData
 
+// MARK: - Event Context
+
+/// Context required for creating events, capturing who/what created the event.
+/// This ensures every event is properly attributed to a user, device, and app.
+struct EventContext {
+    let userId: String
+    let deviceId: String
+    let appId: String
+
+    /// Creates context from the current authenticated user and device.
+    /// - Parameters:
+    ///   - userId: The authenticated user's ID (from AuthService.currentUserId)
+    ///   - deviceId: The current device's ID (from DeviceService.getDeviceId())
+    ///   - appId: The app bundle identifier (defaults to current app's bundle ID)
+    init(userId: String, deviceId: String, appId: String = Bundle.main.bundleIdentifier ?? "com.dequeue.app") {
+        self.userId = userId
+        self.deviceId = deviceId
+        self.appId = appId
+    }
+}
+
 @MainActor
 final class EventService {
     private let modelContext: ModelContext
+    private let context: EventContext
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, context: EventContext) {
         self.modelContext = modelContext
+        self.context = context
+    }
+
+    /// Convenience initializer that fetches context from shared services.
+    /// Requires user to be authenticated (will use empty string if not).
+    init(modelContext: ModelContext, userId: String, deviceId: String) {
+        self.modelContext = modelContext
+        self.context = EventContext(userId: userId, deviceId: deviceId)
+    }
+
+    /// Read-only initializer for query operations that don't create new events.
+    /// Use this for fetching history, pending events, etc.
+    /// - Important: Do NOT use this initializer if you intend to record new events.
+    static func readOnly(modelContext: ModelContext) -> EventService {
+        EventService(
+            modelContext: modelContext,
+            context: EventContext(userId: "", deviceId: "")
+        )
     }
 
     // MARK: - Stack Events
@@ -275,7 +315,14 @@ final class EventService {
     /// This improves performance by avoiding multiple disk writes per operation.
     private func recordEvent<T: Encodable>(type: EventType, payload: T, entityId: String? = nil) throws {
         let payloadData = try JSONEncoder().encode(payload)
-        let event = Event(eventType: type, payload: payloadData, entityId: entityId)
+        let event = Event(
+            eventType: type,
+            payload: payloadData,
+            entityId: entityId,
+            userId: context.userId,
+            deviceId: context.deviceId,
+            appId: context.appId
+        )
         modelContext.insert(event)
         // Note: Caller must call modelContext.save() to persist changes.
         // This allows batching multiple events into a single disk write.

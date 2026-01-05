@@ -15,20 +15,39 @@ struct EventTests {
     @Test("Event initializes with type string")
     func eventInitializesWithTypeString() {
         let payload = try! JSONEncoder().encode(["key": "value"])
-        let event = Event(type: "stack.created", payload: payload)
+        let event = Event(
+            type: "stack.created",
+            payload: payload,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
 
         #expect(event.type == "stack.created")
         #expect(event.eventType == .stackCreated)
         #expect(event.isSynced == false)
+        #expect(event.userId == "test-user")
+        #expect(event.deviceId == "test-device")
+        #expect(event.appId == "test-app")
+        #expect(event.payloadVersion == Event.currentPayloadVersion)
     }
 
     @Test("Event initializes with EventType enum")
     func eventInitializesWithEventType() {
         let payload = try! JSONEncoder().encode(["stackId": "123"])
-        let event = Event(eventType: .stackCreated, payload: payload)
+        let event = Event(
+            eventType: .stackCreated,
+            payload: payload,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
 
         #expect(event.type == "stack.created")
         #expect(event.eventType == .stackCreated)
+        #expect(event.userId == "test-user")
+        #expect(event.deviceId == "test-device")
+        #expect(event.appId == "test-app")
     }
 
     @Test("Event decodes payload correctly")
@@ -40,7 +59,13 @@ struct EventTests {
 
         let original = TestPayload(stackId: "123", title: "Test")
         let payload = try JSONEncoder().encode(original)
-        let event = Event(eventType: .stackCreated, payload: payload)
+        let event = Event(
+            eventType: .stackCreated,
+            payload: payload,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
 
         let decoded = try event.decodePayload(TestPayload.self)
         #expect(decoded == original)
@@ -53,7 +78,13 @@ struct EventTests {
         let context = ModelContext(container)
 
         let payload = try JSONEncoder().encode(["test": "data"])
-        let event = Event(eventType: .stackCreated, payload: payload)
+        let event = Event(
+            eventType: .stackCreated,
+            payload: payload,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
         context.insert(event)
 
         try context.save()
@@ -63,6 +94,9 @@ struct EventTests {
 
         #expect(events.count == 1)
         #expect(events.first?.eventType == .stackCreated)
+        #expect(events.first?.userId == "test-user")
+        #expect(events.first?.deviceId == "test-device")
+        #expect(events.first?.appId == "test-app")
     }
 
     @Test("encodePayload helper works")

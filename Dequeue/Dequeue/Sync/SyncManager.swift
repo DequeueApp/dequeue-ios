@@ -17,6 +17,10 @@ private struct EventData: Sendable {
     let timestamp: Date
     let type: String
     let payload: Data
+    let userId: String
+    let deviceId: String
+    let appId: String
+    let payloadVersion: Int
 }
 
 // swiftlint:disable:next type_body_length
@@ -281,14 +285,18 @@ actor SyncManager {
 
         let pendingEventData = try await MainActor.run {
             let context = ModelContext(modelContainer)
-            let eventService = EventService(modelContext: context)
+            let eventService = EventService.readOnly(modelContext: context)
             let events = try eventService.fetchPendingEvents()
             return events.map { event in
                 EventData(
                     id: event.id,
                     timestamp: event.timestamp,
                     type: event.type,
-                    payload: event.payload
+                    payload: event.payload,
+                    userId: event.userId,
+                    deviceId: event.deviceId,
+                    appId: event.appId,
+                    payloadVersion: event.payloadVersion
                 )
             }
         }
@@ -311,12 +319,20 @@ actor SyncManager {
                 payload = [:]
             }
 
+            // Use stored userId/deviceId/appId from the event (captured at creation time)
+            // Fall back to cached values for backward compatibility
+            let eventUserId = !eventData.userId.isEmpty ? eventData.userId : (self.userId ?? "")
+            let eventDeviceIdToUse = !eventData.deviceId.isEmpty ? eventData.deviceId : eventDeviceId
+
             return [
                 "id": eventData.id,
-                "device_id": eventDeviceId,
+                "user_id": eventUserId,
+                "device_id": eventDeviceIdToUse,
+                "app_id": eventData.appId,
                 "ts": SyncManager.iso8601WithFractionalSeconds.string(from: eventData.timestamp),
                 "type": eventData.type,
-                "payload": payload
+                "payload": payload,
+                "payload_version": eventData.payloadVersion
             ]
         }
 
@@ -366,7 +382,7 @@ actor SyncManager {
 
         try await MainActor.run {
             let context = ModelContext(modelContainer)
-            let eventService = EventService(modelContext: context)
+            let eventService = EventService.readOnly(modelContext: context)
             let syncedEvents = try eventService.fetchEventsByIds(syncedEventIds)
             try eventService.markEventsSynced(syncedEvents)
         }
@@ -488,14 +504,28 @@ actor SyncManager {
         let deviceId = await DeviceService.shared.getDeviceId()
         os_log("[Sync] Current device ID: \(deviceId)")
 
-        let filteredEvents = events.filter { event in
+        // Filter 1: Exclude events from current device (already applied locally)
+        let fromOtherDevices = events.filter { event in
             guard let eventDeviceId = event["device_id"] as? String else { return true }
             return eventDeviceId != deviceId
         }
 
-        let excluded = events.count - filteredEvents.count
+        // Filter 2: Exclude legacy events without payloadVersion or with version < 2
+        // Legacy events from old app versions don't have userId/deviceId and may have incompatible schemas
+        let filteredEvents = fromOtherDevices.filter { event in
+            // Events with payloadVersion >= 2 are always accepted
+            if let payloadVersion = event["payload_version"] as? Int {
+                return payloadVersion >= Event.currentPayloadVersion
+            }
+            // Events without payloadVersion are legacy (pre-DEQ-137) - skip them
+            os_log("[Sync] Skipping legacy event without payload_version: \(event["id"] as? String ?? "unknown")")
+            return false
+        }
+
+        let excludedSameDevice = events.count - fromOtherDevices.count
+        let excludedLegacy = fromOtherDevices.count - filteredEvents.count
         let msg = "Pull received \(events.count) events, \(filteredEvents.count) after filtering"
-        os_log("[Sync] \(msg) (excluded \(excluded) from current device)")
+        os_log("[Sync] \(msg) (excluded \(excludedSameDevice) from current device, \(excludedLegacy) legacy events)")
 
         // Log first few events for debugging
         for (index, event) in events.prefix(3).enumerated() {
@@ -583,7 +613,7 @@ actor SyncManager {
             return
         }
 
-        let event = try createEvent(id: id, type: type, timestamp: timestamp, payload: payload)
+        let event = try createEvent(id: id, type: type, timestamp: timestamp, payload: payload, eventData: eventData)
 
         if try applyAndInsertEvent(event, context: context) {
             stats.processed += 1
@@ -610,7 +640,8 @@ actor SyncManager {
         id: String,
         type: String,
         timestamp: String,
-        payload: [String: Any]
+        payload: [String: Any],
+        eventData: [String: Any]
     ) throws -> Event {
         let payloadData = try JSONSerialization.data(withJSONObject: payload)
         let eventTimestamp: Date
@@ -623,12 +654,22 @@ actor SyncManager {
 
         let entityId = SyncManager.extractEntityId(from: payload, eventType: type)
 
+        // Extract userId, deviceId, appId, and payloadVersion from incoming event
+        let eventUserId = eventData["user_id"] as? String ?? ""
+        let eventDeviceId = eventData["device_id"] as? String ?? ""
+        let eventAppId = eventData["app_id"] as? String ?? ""
+        let payloadVersion = eventData["payload_version"] as? Int ?? Event.currentPayloadVersion
+
         return Event(
             id: id,
             type: type,
             payload: payloadData,
             timestamp: eventTimestamp,
             entityId: entityId,
+            userId: eventUserId,
+            deviceId: eventDeviceId,
+            appId: eventAppId,
+            payloadVersion: payloadVersion,
             isSynced: true,
             syncedAt: Date()
         )

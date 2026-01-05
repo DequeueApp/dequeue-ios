@@ -38,7 +38,7 @@ struct SyncStatusViewModelTests {
 
         // Create a pending event BEFORE the view model so the first update sees it
         let payload = try JSONEncoder().encode(["key": "value"])
-        let event = Event(type: "test.event", payload: payload, isSynced: false)
+        let event = Event(type: "test.event", payload: payload, userId: "test-user", deviceId: "test-device", appId: "test-app", isSynced: false)
         context.insert(event)
         try context.save()
 
@@ -60,7 +60,7 @@ struct SyncStatusViewModelTests {
 
         // Create a pending event BEFORE the view model so the first update sees it
         let payload = try JSONEncoder().encode(["key": "value"])
-        let event = Event(type: "test.event", payload: payload, isSynced: false)
+        let event = Event(type: "test.event", payload: payload, userId: "test-user", deviceId: "test-device", appId: "test-app", isSynced: false)
         context.insert(event)
         try context.save()
 
@@ -106,7 +106,7 @@ struct SyncStatusViewModelTests {
         // Create a new view model with a pending event already present
         let context = container.mainContext
         let payload = try JSONEncoder().encode(["key": "value"])
-        let event = Event(type: "test.event", payload: payload, isSynced: false)
+        let event = Event(type: "test.event", payload: payload, userId: "test-user", deviceId: "test-device", appId: "test-app", isSynced: false)
         context.insert(event)
         try context.save()
 
@@ -134,7 +134,7 @@ struct SyncStatusViewModelTests {
         // Create a pending event after stopping
         let context = container.mainContext
         let payload = try JSONEncoder().encode(["key": "value"])
-        let event = Event(type: "test.event", payload: payload, isSynced: false)
+        let event = Event(type: "test.event", payload: payload, userId: "test-user", deviceId: "test-device", appId: "test-app", isSynced: false)
         context.insert(event)
         try context.save()
 

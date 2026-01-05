@@ -43,7 +43,7 @@ struct ActiveStackConstraintTests {
     func firstStackBecomesActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let stack = try service.createStack(title: "First Stack")
 
@@ -55,7 +55,7 @@ struct ActiveStackConstraintTests {
     func draftStacksNotActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let draft = try service.createStack(title: "Draft Stack", isDraft: true)
 
@@ -67,7 +67,7 @@ struct ActiveStackConstraintTests {
     func secondStackNotActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let first = try service.createStack(title: "First Stack")
         let second = try service.createStack(title: "Second Stack")
@@ -83,7 +83,7 @@ struct ActiveStackConstraintTests {
     func setAsActiveActivatesTarget() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let first = try service.createStack(title: "First Stack")
         let second = try service.createStack(title: "Second Stack")
@@ -102,7 +102,7 @@ struct ActiveStackConstraintTests {
     func setAsActiveDeactivatesOthers() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let first = try service.createStack(title: "First Stack")
         let second = try service.createStack(title: "Second Stack")
@@ -126,7 +126,7 @@ struct ActiveStackConstraintTests {
     func onlyOneActiveAfterMultipleCalls() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let first = try service.createStack(title: "First Stack")
         let second = try service.createStack(title: "Second Stack")
@@ -149,7 +149,7 @@ struct ActiveStackConstraintTests {
     func getCurrentActiveStackReturnsActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let first = try service.createStack(title: "First Stack")
         _ = try service.createStack(title: "Second Stack")
@@ -163,7 +163,7 @@ struct ActiveStackConstraintTests {
     func getCurrentActiveStackReturnsNilWhenNone() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create only drafts
         _ = try service.createStack(title: "Draft 1", isDraft: true)
@@ -191,7 +191,7 @@ struct ActiveStackConstraintTests {
         context.insert(stack3)
         try context.save()
 
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
         try service.migrateActiveStackState()
 
         // Stack with sortOrder 0 should become active
@@ -213,7 +213,7 @@ struct ActiveStackConstraintTests {
         context.insert(stack2)
         try context.save()
 
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
         try service.migrateActiveStackState()
 
         #expect(stack1.isActive == false)
@@ -235,7 +235,7 @@ struct ActiveStackConstraintTests {
         context.insert(stack3)
         try context.save()
 
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
         try service.migrateActiveStackState()
 
         // Only stack with lowest sortOrder should remain active
@@ -251,7 +251,7 @@ struct ActiveStackConstraintTests {
     func isActiveStatePersists() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let stack = try service.createStack(title: "Test Stack")
         let stackId = stack.id
@@ -273,7 +273,7 @@ struct ActiveStackConstraintTests {
     func setAsActiveEmitsDeactivatedEvent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let first = try service.createStack(title: "First Stack")
         let second = try service.createStack(title: "Second Stack")
@@ -308,7 +308,7 @@ struct ActiveStackConstraintTests {
     func deactivatedEventBeforeActivatedEvent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         _ = try service.createStack(title: "First Stack")
         let second = try service.createStack(title: "Second Stack")
@@ -341,7 +341,7 @@ struct ActiveStackConstraintTests {
     func noDeactivationEventForSameStack() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let first = try service.createStack(title: "First Stack")
         _ = try service.createStack(title: "Second Stack")
@@ -367,7 +367,7 @@ struct ActiveStackConstraintTests {
     func deactivationEventCapturesActiveState() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let first = try service.createStack(title: "First Stack")
         let second = try service.createStack(title: "Second Stack")
@@ -401,7 +401,7 @@ struct ActiveStackConstraintTests {
     func markAsCompletedDeactivatesActiveStack() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let stack = try service.createStack(title: "Active Stack")
         #expect(stack.isActive == true)
@@ -417,7 +417,7 @@ struct ActiveStackConstraintTests {
     func markAsCompletedEmitsDeactivationEvent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let stack = try service.createStack(title: "Active Stack")
         let stackId = stack.id
@@ -448,7 +448,7 @@ struct ActiveStackConstraintTests {
     func markAsCompletedNoDeactivationForInactiveStack() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let service = StackService(modelContext: context)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         _ = try service.createStack(title: "First Stack")
         let second = try service.createStack(title: "Second Stack")
@@ -476,8 +476,8 @@ struct ActiveStackConstraintTests {
     func markAsCompletedCompletesAllPendingTasks() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let stackService = StackService(modelContext: context)
-        let taskService = TaskService(modelContext: context)
+        let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let stack = try stackService.createStack(title: "Stack with Tasks")
         let task1 = try taskService.createTask(title: "Task 1", stack: stack)
@@ -504,8 +504,8 @@ struct ActiveStackConstraintTests {
     func markAsCompletedLeavesTasksUnchanged() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
-        let stackService = StackService(modelContext: context)
-        let taskService = TaskService(modelContext: context)
+        let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+        let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let stack = try stackService.createStack(title: "Stack with Tasks")
         let task1 = try taskService.createTask(title: "Task 1", stack: stack)

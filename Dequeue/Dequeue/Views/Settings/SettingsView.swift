@@ -96,6 +96,11 @@ struct SettingsView: View {
                             Label("Sync Debug", systemImage: "arrow.triangle.2.circlepath")
                         }
 
+                        Button("Delete All Data & Restart") {
+                            showDeleteDataConfirmation = true
+                        }
+                        .foregroundStyle(.red)
+
                         #if DEBUG
                         Button("Test Sentry Error") {
                             ErrorReportingService.capture(message: "Test error from Settings", level: .error)
@@ -103,11 +108,6 @@ struct SettingsView: View {
 
                         Button("Test Sentry Crash") {
                             fatalError("Test crash from Settings")
-                        }
-                        .foregroundStyle(.red)
-
-                        Button("Delete All Data & Restart") {
-                            showDeleteDataConfirmation = true
                         }
                         .foregroundStyle(.red)
                         #endif
