@@ -137,6 +137,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         updateAuthState()
     }
 
+    @MainActor
     func signUp(email: String, password: String) async throws {
         currentSignUp = try await SignUp.create(
             strategy: .standard(emailAddress: email, password: password)
