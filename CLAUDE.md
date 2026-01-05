@@ -124,12 +124,29 @@ do {
 - Mock dependencies using protocols
 - Test on both iOS and macOS
 
-## Git and Commit Guidelines
+## Git Workflow
 
-- Create feature branches off main (`feat/`, `fix/`, `refactor/`)
+### Branching Strategy
+- We follow **trunk-based development** with short-lived feature branches
+- Branch names MUST include the Linear issue ID
+- Format: `<issue-id>/<short-description>` (e.g., `DEQ-123/add-user-auth`)
+- The issue ID should be lowercase in branch names
+
+### Updating Feature Branches
+- **NEVER use `git merge main`** to update feature branches
+- Always use `git rebase origin/main` to update a feature branch with changes from main
+- After rebasing, use `git push --force-with-lease` (never bare `--force`)
+
+### Commits
 - Keep commits atomic and well-described
 - Squash before merging if many small commits
 - Never force push to main
+
+## Pull Requests
+
+- Keep PRs small and focused
+- Always rebase onto main before marking PR ready for review
+- Link PRs to their Linear issue
 
 ## Communication Protocol
 
@@ -144,11 +161,44 @@ do {
 "The current approach works, but I notice [observation].
 Would you like me to [specific improvement]?"
 
-## Project Management
+## Linear Integration & Workflow
 
 - **Issue Tracker**: Linear (project key: DEQ)
-- **Always use Linear MCP** to fetch issue details when given a ticket ID (e.g., DEQ-10)
 - Issues follow format: DEQ-XX
+- **Always check for Linear MCP availability first** - try to use it to fetch issue details when given a ticket ID (e.g., DEQ-10)
+
+### Every Task Needs a Linear Issue
+- **Before starting ANY work**, check if there is a Linear issue for it
+- If no issue exists and Linear MCP is available, create one first using the appropriate team and project
+- Prefer not to start coding without a Linear issue to track the work
+
+### When Linear MCP is Unavailable
+If the Linear MCP server is not available (e.g., in Claude Code Cloud or other restricted environments):
+- **You can still proceed with work** - don't let unavailability block progress
+- Note in your response that you couldn't access Linear and recommend the user create/update the issue
+- Use descriptive branch names even without an issue ID: `feature/<description>` or `fix/<description>`
+- Document decisions and context in commit messages and PR descriptions instead
+- When Linear becomes available again, update the relevant issue with what was done
+
+### Linear as System of Record
+- Write the implementation plan to the Linear issue description or as a comment before starting work
+- Update the issue with important decisions, trade-offs, and context as you go
+- When work is complete, ensure the issue documents what was done and why
+- Link related PRs to the Linear issue
+
+### Subtasks and Related Issues
+- If a task is complex, break it into subtasks in Linear
+- If you discover related work that needs to be done, create separate Linear issues for it
+- Link related issues together in Linear
+
+### Workflow Summary
+1. Receive task/request
+2. Check for Linear MCP availability
+3. If available: find or create Linear issue, write implementation plan to the issue
+4. Create branch using issue ID: `git checkout -b <issue-id>/description` (or `feature/description` if no issue)
+5. Do the work, updating Linear with key decisions (if available)
+6. Rebase onto main before PR
+7. Ensure Linear issue is updated with final context (or recommend user updates it)
 
 ## Related Projects
 
