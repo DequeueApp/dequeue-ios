@@ -13,8 +13,6 @@ internal struct SyncStatusIndicator: View {
 
     private enum Constants {
         static let iconFrameSize: CGFloat = 32
-        static let rotationAnimationDuration: TimeInterval = 2.0
-        static let fullRotation = Angle.degrees(360)
         static let popoverMinWidth: CGFloat = 200
         static let badgeOffset = CGSize(width: 6, height: -6)
     }
@@ -32,13 +30,6 @@ internal struct SyncStatusIndicator: View {
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(iconColor, .primary)
                     .font(.body)
-                    .rotationEffect(viewModel.isSyncing ? Constants.fullRotation : .zero)
-                    .animation(
-                        viewModel.isSyncing ?
-                            .linear(duration: Constants.rotationAnimationDuration).repeatForever(autoreverses: false) :
-                            .default,
-                        value: viewModel.isSyncing
-                    )
 
                 // Badge for pending event count
                 if viewModel.pendingEventCount > 0 {
