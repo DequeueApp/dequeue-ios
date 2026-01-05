@@ -124,12 +124,29 @@ do {
 - Mock dependencies using protocols
 - Test on both iOS and macOS
 
-## Git and Commit Guidelines
+## Git Workflow
 
-- Create feature branches off main (`feat/`, `fix/`, `refactor/`)
+### Branching Strategy
+- We follow **trunk-based development** with short-lived feature branches
+- Branch names MUST include the Linear issue ID
+- Format: `<issue-id>/<short-description>` (e.g., `DEQ-123/add-user-auth`)
+- The issue ID should be lowercase in branch names
+
+### Updating Feature Branches
+- **NEVER use `git merge main`** to update feature branches
+- Always use `git rebase origin/main` to update a feature branch with changes from main
+- After rebasing, use `git push --force-with-lease` (never bare `--force`)
+
+### Commits
 - Keep commits atomic and well-described
 - Squash before merging if many small commits
 - Never force push to main
+
+## Pull Requests
+
+- Keep PRs small and focused
+- Always rebase onto main before marking PR ready for review
+- Link PRs to their Linear issue
 
 ## Communication Protocol
 
@@ -144,11 +161,36 @@ do {
 "The current approach works, but I notice [observation].
 Would you like me to [specific improvement]?"
 
-## Project Management
+## Linear Integration & Workflow
 
 - **Issue Tracker**: Linear (project key: DEQ)
 - **Always use Linear MCP** to fetch issue details when given a ticket ID (e.g., DEQ-10)
 - Issues follow format: DEQ-XX
+
+### Every Task Needs a Linear Issue
+- **Before starting ANY work**, ensure there is a Linear issue for it
+- If no issue exists, create one in Linear first using the appropriate team and project
+- Never start coding without a Linear issue to track the work
+
+### Linear as System of Record
+- Write the implementation plan to the Linear issue description or as a comment before starting work
+- Update the issue with important decisions, trade-offs, and context as you go
+- When work is complete, ensure the issue documents what was done and why
+- Link related PRs to the Linear issue
+
+### Subtasks and Related Issues
+- If a task is complex, break it into subtasks in Linear
+- If you discover related work that needs to be done, create separate Linear issues for it
+- Link related issues together in Linear
+
+### Workflow Summary
+1. Receive task/request
+2. Find or create Linear issue
+3. Write implementation plan to the issue
+4. Create branch using issue ID: `git checkout -b <issue-id>/description`
+5. Do the work, updating Linear with key decisions
+6. Rebase onto main before PR
+7. Ensure Linear issue is updated with final context
 
 ## Related Projects
 
