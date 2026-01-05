@@ -108,6 +108,7 @@ extension StackEditorView {
     /// Creates a draft if this is the first time content was entered,
     /// or updates the draft if the title changed.
     func handleTitleBlur() {
+        guard isCreateMode else { return }
         guard !isCreatingDraft else { return }
         guard !title.isEmpty else { return }
 
@@ -123,24 +124,26 @@ extension StackEditorView {
     /// Called when the description field loses focus.
     /// Saves any pending description changes that weren't saved by word completion.
     func handleDescriptionBlur() {
+        guard isCreateMode else { return }
         guard let draft = draftStack else { return }
         guard draft.stackDescription != stackDescription else { return }
         updateDraft(draft, title: title, description: stackDescription)
     }
 
     /// Handles description text changes to detect word completion.
-    /// Fires a save event when a space or newline is typed, providing crash recovery
+    /// Fires a save event when a space or newline is added, providing crash recovery
     /// without the overhead of per-keystroke events.
     func handleDescriptionChange(oldValue: String, newValue: String) {
         guard let draft = draftStack else { return }
 
-        // Only fire on word completion (space or newline added)
-        // This preserves content frequently enough for crash recovery
-        // without generating per-keystroke events
-        if newValue.count > oldValue.count {
-            if let addedChar = newValue.last, addedChar == " " || addedChar == "\n" {
-                updateDraft(draft, title: title, description: newValue)
-            }
+        // Detect word completion: new text ends with word boundary when old didn't.
+        // This handles both typing and pasting text ending with space/newline.
+        // The blur handler catches any remaining unsaved content.
+        let newEndsWithWordBoundary = newValue.last == " " || newValue.last == "\n"
+        let oldEndsWithWordBoundary = oldValue.last == " " || oldValue.last == "\n"
+
+        if newEndsWithWordBoundary && !oldEndsWithWordBoundary {
+            updateDraft(draft, title: title, description: newValue)
         }
     }
 
@@ -195,8 +198,8 @@ extension StackEditorView {
             return
         }
 
-        // Case 2: No draft but title has content - prompt to save draft
-        if !title.isEmpty {
+        // Case 2: No draft but has content - prompt to save draft
+        if !title.isEmpty || !stackDescription.isEmpty {
             showSaveDraftPrompt = true
             return
         }
@@ -277,6 +280,7 @@ extension StackEditorView {
     /// This ensures content is preserved if the user switches apps or phone dies.
     func saveOnBackground() {
         guard isCreateMode else { return }
+        guard !isCreatingDraft else { return }
 
         if draftStack == nil && !title.isEmpty {
             // Create draft with current content
@@ -315,23 +319,10 @@ extension StackEditorView {
     /// Creates a draft from unsaved content and dismisses the sheet.
     /// Called when user chooses "Save Draft" from the save draft prompt.
     func createDraftAndDismiss() {
-        guard draftStack == nil, !title.isEmpty else {
-            dismiss()
-            return
+        // Only create draft if we don't have one and there's content to save
+        if draftStack == nil && !title.isEmpty {
+            createDraft(title: title)
         }
-
-        do {
-            let draft = try stackService.createStack(
-                title: title,
-                description: stackDescription.isEmpty ? nil : stackDescription,
-                isDraft: true
-            )
-            logger.info("Created draft on dismiss: \(draft.id)")
-            syncManager?.triggerImmediatePush()
-        } catch {
-            logger.error("Failed to create draft on dismiss: \(error.localizedDescription)")
-        }
-
         dismiss()
     }
 }

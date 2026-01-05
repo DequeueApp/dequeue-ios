@@ -28,9 +28,12 @@ struct StackEditorView: View {
         }
     }
 
-    /// Fields that can receive focus in create mode
+    /// Fields that can receive focus in create mode.
+    /// Used with @FocusState to detect blur events and trigger auto-save.
     enum EditorField: Hashable {
+        /// The stack title text field
         case title
+        /// The stack description text field
         case description
     }
 
