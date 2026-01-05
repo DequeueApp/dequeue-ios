@@ -12,10 +12,13 @@ struct RemindersListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.syncManager) private var syncManager
+    @Environment(AuthService.self) private var authService
 
     @Query private var reminders: [Reminder]
     @Query private var stacks: [Stack]
     @Query private var tasks: [QueueTask]
+
+    @State private var cachedDeviceId: String = ""
 
     /// Callback when user wants to navigate to a Stack or Task
     /// Parameters: parentId, parentType
@@ -44,7 +47,13 @@ struct RemindersListView: View {
     @State private var errorMessage = ""
 
     private var reminderActionHandler: ReminderActionHandler {
-        ReminderActionHandler(modelContext: modelContext, onError: showError, syncManager: syncManager)
+        ReminderActionHandler(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId,
+            onError: showError,
+            syncManager: syncManager
+        )
     }
 
     // MARK: - Filtered Reminders
@@ -134,6 +143,11 @@ struct RemindersListView: View {
                 }
             } message: {
                 Text("Are you sure you want to delete this reminder?")
+            }
+            .task {
+                if cachedDeviceId.isEmpty {
+                    cachedDeviceId = await DeviceService.shared.getDeviceId()
+                }
             }
         }
     }
