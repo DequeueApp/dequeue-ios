@@ -11,6 +11,7 @@ import Clerk
 
 // MARK: - Auth Service Protocol
 
+@MainActor
 protocol AuthServiceProtocol {
     /// Whether the user is currently authenticated with a valid session
     var isAuthenticated: Bool { get }
