@@ -11,6 +11,7 @@ import XCTest
 final class DequeueUITests: XCTestCase {
     var app: XCUIApplication!
 
+    @MainActor
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
