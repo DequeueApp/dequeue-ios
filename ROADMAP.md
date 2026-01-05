@@ -334,7 +334,6 @@ The core concept of Dequeue is that you're always working on **one and only one 
   - "Still working on it" → dismisses reminder, resets idle timer
   - "Switch tasks" → opens app to task switcher
   - "Pause" → deactivates current Stack, nothing becomes Active
-  - (Optionally) "Done for today" → ends work mode, stops reminders until tomorrow
 - **Time corrections**: When switching to a new Active item, optionally specify when you actually started it (e.g., "I started this 15 minutes ago"). This creates correction events that adjust time tracking without falsifying the real-time event log.
 
 ### Time Corrections (Retroactive Events)
@@ -395,8 +394,10 @@ Reminders should respect when you're actually working:
 
 ### Manual Work Mode Toggle
 In addition to scheduled working hours, users can manually control work mode:
-- **Quick toggle in main UI**: Prominent button to start/end work session
+- **Optional feature**: Work mode is opt-in. When enabled, the toggle appears on the home screen (above the Stack list)
 - **"I'm starting work"**: Manually activate work mode and enable reminders
+  - If a Stack is already Active: prompt "Is this what you're starting with?" with option to confirm or switch
+  - If no Stack is Active: prompt to select what you're working on
 - **"I'm done for today"**: End work mode, deactivate current Stack, disable reminders until next session
 - **Use case**: You may not remember to check the Active issue throughout the day, but you do remember "I'm starting work now!" and "I'm heading out"—those are natural bookends
 - **Interaction with schedule**: Manual toggle overrides the scheduled hours
@@ -425,12 +426,20 @@ In addition to scheduled working hours, users can manually control work mode:
    - Must work reliably even when app is backgrounded
    - iOS: Use background app refresh and local notifications
    - macOS: More flexibility with background execution
+   - **Multi-device sync**: Idle state is automatically synced via the event stream (local + remote events). No separate idle tracking needed per device.
+   - **Background refresh required**: If iOS background refresh is disabled for this app, show a warning that reminders may be inaccurate across devices
 
 2. **Local Notifications**
    - Schedule notifications based on idle threshold
    - Reschedule when activity occurs
    - Handle notification actions (quick responses)
    - Respect system Do Not Disturb settings
+   - **Privacy**: Notification text may show sensitive task names on lock screen
+     - Consider configurable text (generic "Still working?" vs. showing task name)
+     - Respect iOS notification preview settings (show when unlocked only)
+   - **Time-sensitive notifications**: Allow users to enable this in-app so reminders aren't batched/delayed
+   - **Notification permissions**: Request permissions when user first enables reminders (not on first launch)
+   - **Focus Mode awareness**: Ideally detect if a Focus Mode is blocking notifications and show a dismissible in-app banner alerting the user (if possible via iOS APIs)
 
 3. **Time Corrections via Retroactive Events**
 
@@ -469,21 +478,26 @@ In addition to scheduled working hours, users can manually control work mode:
    - Track whether user is currently "at work" or not
    - Persist work mode state across app launches
    - Handle edge cases: app killed while in work mode, device restart, etc.
-   - Sync work mode state across devices (or keep it device-local?)
+   - **Syncs across all devices** (like everything else in Dequeue—this is core to how the app works)
+   - Use server settings infrastructure for work mode preferences
 
 ### Open Questions
-- Should reminders persist if you ignore them, or fade away?
+- Should reminders persist if you ignore them, or fade away? (Leaning toward: same reminder repeats at the same interval, no escalation)
 - How do we handle overlapping breaks (pause Stack A, start Stack B, pause Stack B)?
 - Should there be a "snooze" option that delays the reminder by X minutes?
 - Do we track break time separately in analytics/activity feed?
-- Should reminders be more/less aggressive based on how long something has been Active?
-- Integration with system-level Focus modes (iOS/macOS)?
-- Where should the work mode toggle live in the UI? Main tab bar? Home screen? Settings?
-- Should starting work mode prompt you to select what you're working on first?
+- **Notification privacy**: Should notification text be configurable (generic "Still working?" vs. showing task name)?
 - **Time corrections**: How far back should users be allowed to correct? 1 hour? 1 day? Unlimited?
 - **Time corrections**: Should we show "raw" vs "corrected" time in the activity feed? Or just use corrected silently?
 - **Time corrections**: Can users edit/delete corrections after the fact?
 - **Time corrections**: Should we auto-suggest correction times based on patterns? ("You usually switch around 10 AM")
+
+### Resolved Questions
+- **Work mode toggle location**: Home screen, above the Stack list (when feature is enabled)
+- **Starting work mode prompt**: Yes—if a Stack is already Active, ask "Is this what you're starting with?"; if not, prompt to select one
+- **Reminder escalation**: No escalation. Same reminder repeats at the configured interval.
+- **Focus modes**: iOS handles this at the OS level. We just need to support time-sensitive notifications (user opt-in) and ideally detect/warn if Focus Mode is blocking notifications.
+- **Work mode sync**: Yes, syncs across all devices (core to how the app works)
 
 ### Implementation Phases (suggested)
 1. **Phase 1**: Basic idle reminders with configurable threshold
