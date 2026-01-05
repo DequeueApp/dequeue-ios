@@ -11,6 +11,14 @@ import Foundation
 import SwiftData
 import os.log
 
+/// Sendable representation of Event data for cross-actor communication
+private struct EventData: Sendable {
+    let id: String
+    let timestamp: Date
+    let type: String
+    let payload: Data
+}
+
 // swiftlint:disable:next type_body_length
 actor SyncManager {
     private var webSocketTask: URLSessionWebSocketTask?
@@ -31,7 +39,12 @@ actor SyncManager {
     private let heartbeatIntervalSeconds: UInt64 = 30
 
     private let modelContainer: ModelContainer
-    private var getTokenFunction: (() async throws -> String)?
+
+    /// Closure for refreshing authentication tokens when they expire.
+    /// Must be @Sendable to allow safe capture across actor boundaries.
+    /// Typically provided by AuthService and runs on MainActor.
+    /// See DequeueApp.swift:178 for usage example with @MainActor closure.
+    private var getTokenFunction: (@Sendable () async throws -> String)?
 
     private var periodicSyncTask: Task<Void, Never>?
     private var heartbeatTask: Task<Void, Never>?
@@ -47,14 +60,16 @@ actor SyncManager {
     private let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
 
     // ISO8601 formatter that supports fractional seconds (Go's RFC3339Nano format)
-    private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+    // Note: ISO8601DateFormatter is thread-safe but not marked Sendable in current SDK
+    nonisolated(unsafe) private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
 
     // Standard ISO8601 formatter without fractional seconds
-    private static let iso8601Standard: ISO8601DateFormatter = {
+    // Note: ISO8601DateFormatter is thread-safe but not marked Sendable in current SDK
+    nonisolated(unsafe) private static let iso8601Standard: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
@@ -180,7 +195,7 @@ actor SyncManager {
 
     // MARK: - Connection
 
-    func connect(userId: String, token: String, getToken: @escaping () async throws -> String) async throws {
+    func connect(userId: String, token: String, getToken: @escaping @Sendable () async throws -> String) async throws {
         self.userId = userId
         self.token = token
         self.getTokenFunction = getToken
@@ -264,13 +279,21 @@ actor SyncManager {
             throw SyncError.notAuthenticated
         }
 
-        let pendingEvents = try await MainActor.run {
+        let pendingEventData = try await MainActor.run {
             let context = ModelContext(modelContainer)
             let eventService = EventService(modelContext: context)
-            return try eventService.fetchPendingEvents()
+            let events = try eventService.fetchPendingEvents()
+            return events.map { event in
+                EventData(
+                    id: event.id,
+                    timestamp: event.timestamp,
+                    type: event.type,
+                    payload: event.payload
+                )
+            }
         }
 
-        guard !pendingEvents.isEmpty else { return }
+        guard !pendingEventData.isEmpty else { return }
 
         // Use cached deviceId (falls back to fetching if not cached, e.g., during reconnect)
         let eventDeviceId: String
@@ -280,19 +303,19 @@ actor SyncManager {
             eventDeviceId = await DeviceService.shared.getDeviceId()
         }
 
-        let syncEvents = pendingEvents.map { event -> [String: Any] in
+        let syncEvents = pendingEventData.map { eventData -> [String: Any] in
             let payload: Any
-            if let payloadDict = try? JSONSerialization.jsonObject(with: event.payload) {
+            if let payloadDict = try? JSONSerialization.jsonObject(with: eventData.payload) {
                 payload = payloadDict
             } else {
                 payload = [:]
             }
 
             return [
-                "id": event.id,
+                "id": eventData.id,
                 "device_id": eventDeviceId,
-                "ts": SyncManager.iso8601WithFractionalSeconds.string(from: event.timestamp),
-                "type": event.type,
+                "ts": SyncManager.iso8601WithFractionalSeconds.string(from: eventData.timestamp),
+                "type": eventData.type,
                 "payload": payload
             ]
         }
@@ -323,35 +346,40 @@ actor SyncManager {
                 throw SyncError.pushFailed
             }
 
-            try await processPushResponse(retryData, events: pendingEvents)
+            try await processPushResponse(retryData, eventIds: pendingEventData.map { $0.id })
         } else if httpResponse.statusCode == 200 {
-            try await processPushResponse(data, events: pendingEvents)
+            try await processPushResponse(data, eventIds: pendingEventData.map { $0.id })
         } else {
             throw SyncError.pushFailed
         }
     }
 
-    private func processPushResponse(_ data: Data, events: [Event]) async throws {
+    private func processPushResponse(_ data: Data, eventIds: [String]) async throws {
         guard let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let acknowledged = response["acknowledged"] as? [String] else {
             return
         }
 
-        let syncedEvents = events.filter { acknowledged.contains($0.id) }
+        // Convert to Set for O(1) lookup instead of O(n)
+        let acknowledgedSet = Set(acknowledged)
+        let syncedEventIds = eventIds.filter { acknowledgedSet.contains($0) }
 
         try await MainActor.run {
             let context = ModelContext(modelContainer)
             let eventService = EventService(modelContext: context)
+            let syncedEvents = try eventService.fetchEventsByIds(syncedEventIds)
             try eventService.markEventsSynced(syncedEvents)
         }
 
         // Handle rejected events
         if let rejected = response["rejected"] as? [String],
            let errors = response["errors"] as? [String] {
-            let rejectedEvents = events.filter { rejected.contains($0.id) }
-            for (index, event) in rejectedEvents.enumerated() {
+            // Convert to Set for O(1) lookup instead of O(n)
+            let rejectedSet = Set(rejected)
+            let rejectedEventIds = eventIds.filter { rejectedSet.contains($0) }
+            for (index, eventId) in rejectedEventIds.enumerated() {
                 let errorMessage = index < errors.count ? errors[index] : "Unknown error"
-                os_log("[Sync] Event \(event.id) rejected: \(errorMessage)")
+                os_log("[Sync] Event \(eventId) rejected: \(errorMessage)")
             }
 
             await MainActor.run {
@@ -366,8 +394,8 @@ actor SyncManager {
         await MainActor.run {
             ErrorReportingService.addBreadcrumb(
                 category: "sync",
-                message: "Pushed \(syncedEvents.count) events",
-                data: ["total": events.count, "synced": syncedEvents.count]
+                message: "Pushed \(syncedEventIds.count) events",
+                data: ["total": eventIds.count, "synced": syncedEventIds.count]
             )
         }
     }
@@ -480,6 +508,10 @@ actor SyncManager {
             os_log("[Sync] ... and \(events.count - 3) more events")
         }
 
+        // Extract counts before crossing actor boundary
+        let totalCount = events.count
+        let processedCount = filteredEvents.count
+
         if !filteredEvents.isEmpty {
             try await processIncomingEvents(filteredEvents)
         }
@@ -493,8 +525,8 @@ actor SyncManager {
         await MainActor.run {
             ErrorReportingService.addBreadcrumb(
                 category: "sync",
-                message: "Pulled \(filteredEvents.count) events",
-                data: ["total": events.count, "processed": filteredEvents.count]
+                message: "Pulled \(processedCount) events",
+                data: ["total": totalCount, "processed": processedCount]
             )
         }
     }
@@ -505,100 +537,127 @@ actor SyncManager {
 
     // MARK: - Process Incoming Events
 
-    // swiftlint:disable:next function_body_length
-    private func processIncomingEvents(_ events: [[String: Any]]) async throws {
-        os_log("[Sync] Processing \(events.count) incoming events")
+    private struct EventProcessingStats {
         var processed = 0
         var skipped = 0
         var incompatible = 0
         var hasReminderEvents = false
+    }
 
-        try await MainActor.run {
-            let context = ModelContext(modelContainer)
+    @MainActor
+    private func processIncomingEvents(_ events: [[String: Any]]) async throws {
+        os_log("[Sync] Processing \(events.count) incoming events")
+        var stats = EventProcessingStats()
+        let context = ModelContext(modelContainer)
 
-            for eventData in events {
-                guard let id = eventData["id"] as? String,
-                      let type = eventData["type"] as? String,
-                      let timestamp = eventData["ts"] as? String,
-                      let payload = eventData["payload"] as? [String: Any] else {
-                    os_log("[Sync] Skipping event - missing required fields")
-                    incompatible += 1
-                    continue
-                }
+        for eventData in events {
+            try await processEvent(eventData, context: context, stats: &stats)
+        }
 
-                // Check if event already exists (using String ID directly to handle both UUID and CUID formats)
-                let eventId = id
-                let predicate = #Predicate<Event> { event in
-                    event.id == eventId
-                }
-                let descriptor = FetchDescriptor<Event>(predicate: predicate)
-                let existingEvents = try context.fetch(descriptor)
+        try context.save()
+        let summary = "processed: \(stats.processed), dupes: \(stats.skipped), incompatible: \(stats.incompatible)"
+        os_log("[Sync] Saved context - \(summary)")
 
-                if !existingEvents.isEmpty {
-                    skipped += 1
-                    continue // Already have this event
-                }
+        if stats.hasReminderEvents {
+            await rescheduleNotifications(context: context)
+        }
+    }
 
-                // Create event in local database
-                let payloadData = try JSONSerialization.data(withJSONObject: payload)
-                let eventTimestamp: Date
-                if let parsed = SyncManager.parseISO8601(timestamp) {
-                    eventTimestamp = parsed
-                } else {
-                    os_log("[Sync] WARNING: Failed to parse ts '\(timestamp)' for \(id)")
-                    eventTimestamp = Date()
-                }
+    @MainActor
+    private func processEvent(
+        _ eventData: [String: Any],
+        context: ModelContext,
+        stats: inout EventProcessingStats
+    ) async throws {
+        guard let id = eventData["id"] as? String,
+              let type = eventData["type"] as? String,
+              let timestamp = eventData["ts"] as? String,
+              let payload = eventData["payload"] as? [String: Any] else {
+            os_log("[Sync] Skipping event - missing required fields")
+            stats.incompatible += 1
+            return
+        }
 
-                // Extract entityId from payload for history queries
-                let entityId = SyncManager.extractEntityId(from: payload, eventType: type)
+        if try await isDuplicateEvent(id, context: context) {
+            stats.skipped += 1
+            return
+        }
 
-                let event = Event(
-                    id: eventId,
-                    type: type,
-                    payload: payloadData,
-                    timestamp: eventTimestamp,
-                    entityId: entityId,
-                    isSynced: true,
-                    syncedAt: Date()
-                )
+        let event = try createEvent(id: id, type: type, timestamp: timestamp, payload: payload)
 
-                // Try to apply event BEFORE inserting - skip incompatible legacy events
-                do {
-                    try ProjectorService.apply(event: event, context: context)
-                    // Only insert if application succeeded
-                    context.insert(event)
-                    processed += 1
-
-                    // Track if any reminder events were processed for notification scheduling
-                    if type.hasPrefix("reminder.") {
-                        hasReminderEvents = true
-                    }
-                } catch {
-                    // Incompatible schema from legacy app - skip this event entirely
-                    // Log the payload for debugging
-                    if let payloadString = String(data: payloadData, encoding: .utf8) {
-                        let preview = String(payloadString.prefix(200))
-                        os_log("[Sync] Skipping incompatible event \(id) (\(type)): \(error.localizedDescription)")
-                        os_log("[Sync] Payload preview: \(preview)")
-                    } else {
-                        os_log("[Sync] Skipping incompatible event \(id) (\(type)): \(error.localizedDescription)")
-                    }
-                    incompatible += 1
-                }
+        if try applyAndInsertEvent(event, context: context) {
+            stats.processed += 1
+            if type.hasPrefix("reminder.") {
+                stats.hasReminderEvents = true
             }
+        } else {
+            stats.incompatible += 1
+        }
+    }
 
-            try context.save()
-            let stats = "processed: \(processed), dupes: \(skipped), incompatible: \(incompatible)"
-            os_log("[Sync] Saved context - \(stats)")
+    @MainActor
+    private func isDuplicateEvent(_ eventId: String, context: ModelContext) async throws -> Bool {
+        let predicate = #Predicate<Event> { event in
+            event.id == eventId
+        }
+        let descriptor = FetchDescriptor<Event>(predicate: predicate)
+        let existingEvents = try context.fetch(descriptor)
+        return !existingEvents.isEmpty
+    }
 
-            // Reschedule notifications for any synced reminders
-            if hasReminderEvents {
-                os_log("[Sync] Reminder events detected, rescheduling notifications")
-                let notificationService = NotificationService(modelContext: context)
-                Task {
-                    await notificationService.rescheduleAllNotifications()
-                }
+    @MainActor
+    private func createEvent(
+        id: String,
+        type: String,
+        timestamp: String,
+        payload: [String: Any]
+    ) throws -> Event {
+        let payloadData = try JSONSerialization.data(withJSONObject: payload)
+        let eventTimestamp: Date
+        if let parsed = SyncManager.parseISO8601(timestamp) {
+            eventTimestamp = parsed
+        } else {
+            os_log("[Sync] WARNING: Failed to parse ts '\(timestamp)' for \(id)")
+            eventTimestamp = Date()
+        }
+
+        let entityId = SyncManager.extractEntityId(from: payload, eventType: type)
+
+        return Event(
+            id: id,
+            type: type,
+            payload: payloadData,
+            timestamp: eventTimestamp,
+            entityId: entityId,
+            isSynced: true,
+            syncedAt: Date()
+        )
+    }
+
+    @MainActor
+    private func applyAndInsertEvent(_ event: Event, context: ModelContext) throws -> Bool {
+        do {
+            try ProjectorService.apply(event: event, context: context)
+            context.insert(event)
+            return true
+        } catch {
+            if let payloadString = String(data: event.payload, encoding: .utf8) {
+                let preview = String(payloadString.prefix(200))
+                os_log("[Sync] Skipping incompatible event \(event.id) (\(event.type)): \(error.localizedDescription)")
+                os_log("[Sync] Payload preview: \(preview)")
+            } else {
+                os_log("[Sync] Skipping incompatible event \(event.id) (\(event.type)): \(error.localizedDescription)")
             }
+            return false
+        }
+    }
+
+    @MainActor
+    private func rescheduleNotifications(context: ModelContext) async {
+        os_log("[Sync] Reminder events detected, rescheduling notifications")
+        let notificationService = NotificationService(modelContext: context)
+        Task {
+            await notificationService.rescheduleAllNotifications()
         }
     }
 

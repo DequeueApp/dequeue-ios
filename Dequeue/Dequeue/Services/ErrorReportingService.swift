@@ -11,7 +11,8 @@ import Sentry
 enum ErrorReportingService {
     // MARK: - Configuration
 
-    private static var isConfigured = false
+    // Note: Only set once during app initialization, read-only afterwards
+    nonisolated(unsafe) private static var isConfigured = false
 
     /// Returns true if Sentry should be skipped (test/CI environments)
     private static var shouldSkipConfiguration: Bool {

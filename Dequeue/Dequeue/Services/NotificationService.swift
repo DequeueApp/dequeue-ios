@@ -12,34 +12,38 @@ import UserNotifications
 // MARK: - Notification Constants
 
 /// Action and category identifiers for notification actions
+/// Note: nonisolated(unsafe) is required for static properties used in nonisolated delegate methods.
+/// These are String/TimeInterval constants (thread-safe, immutable), so unsafe is correct.
 enum NotificationConstants {
-    static let categoryIdentifier = "REMINDER_CATEGORY"
+    nonisolated(unsafe) static let categoryIdentifier = "REMINDER_CATEGORY"
 
     enum Action {
-        static let complete = "COMPLETE_ACTION"
-        static let snooze5Min = "SNOOZE_5_MIN_ACTION"
-        static let snooze15Min = "SNOOZE_15_MIN_ACTION"
-        static let snooze1Hour = "SNOOZE_1_HOUR_ACTION"
+        nonisolated(unsafe) static let complete = "COMPLETE_ACTION"
+        nonisolated(unsafe) static let snooze5Min = "SNOOZE_5_MIN_ACTION"
+        nonisolated(unsafe) static let snooze15Min = "SNOOZE_15_MIN_ACTION"
+        nonisolated(unsafe) static let snooze1Hour = "SNOOZE_1_HOUR_ACTION"
     }
 
     enum UserInfoKey {
-        static let reminderId = "reminderId"
-        static let parentType = "parentType"
-        static let parentId = "parentId"
+        nonisolated(unsafe) static let reminderId = "reminderId"
+        nonisolated(unsafe) static let parentType = "parentType"
+        nonisolated(unsafe) static let parentId = "parentId"
     }
 
     /// Snooze durations in seconds
     enum SnoozeDuration {
-        static let fiveMinutes: TimeInterval = 5 * 60
-        static let fifteenMinutes: TimeInterval = 15 * 60
-        static let oneHour: TimeInterval = 60 * 60
+        nonisolated(unsafe) static let fiveMinutes: TimeInterval = 5 * 60
+        nonisolated(unsafe) static let fifteenMinutes: TimeInterval = 15 * 60
+        nonisolated(unsafe) static let oneHour: TimeInterval = 60 * 60
     }
 }
 
 // MARK: - Notification Center Protocol
 
 /// Protocol abstracting UNUserNotificationCenter for testability
-protocol NotificationCenterProtocol: Sendable {
+/// Note: Does not conform to Sendable because UNUserNotificationCenter is not marked Sendable in SDK.
+/// This is safe because all methods are called from MainActor context via NotificationService.
+protocol NotificationCenterProtocol {
     func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
     func add(_ request: UNNotificationRequest) async throws
     func removePendingNotificationRequests(withIdentifiers identifiers: [String])
@@ -66,7 +70,8 @@ extension UNUserNotificationCenter: NotificationCenterProtocol {
 @MainActor
 final class NotificationService: NSObject {
     private let modelContext: ModelContext
-    private let notificationCenter: NotificationCenterProtocol
+    // UNUserNotificationCenter is thread-safe and can be accessed from any isolation domain
+    nonisolated(unsafe) private let notificationCenter: NotificationCenterProtocol
 
     init(
         modelContext: ModelContext,

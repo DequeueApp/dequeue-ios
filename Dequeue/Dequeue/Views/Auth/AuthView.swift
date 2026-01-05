@@ -321,8 +321,21 @@ enum AuthMode {
 
 // MARK: - Environment Key
 
+/// Minimal nonisolated auth service for EnvironmentKey default value
+private final class DefaultAuthService: AuthServiceProtocol, @unchecked Sendable {
+    var isAuthenticated: Bool { false }
+    var isLoading: Bool { false }
+    var currentUserId: String? { nil }
+    func configure() async {}
+    func signOut() async throws {}
+    func getAuthToken() async throws -> String { throw AuthError.notAuthenticated }
+}
+
 private struct AuthServiceKey: EnvironmentKey {
-    static let defaultValue: any AuthServiceProtocol = ClerkAuthService()
+    // Note: DefaultAuthService is a simple nonisolated implementation used only as a fallback.
+    // Real authService (ClerkAuthService) is injected in DequeueApp.swift.
+    // nonisolated(unsafe) is safe here because DefaultAuthService is immutable and Sendable.
+    nonisolated(unsafe) static let defaultValue: any AuthServiceProtocol = DefaultAuthService()
 }
 
 extension EnvironmentValues {

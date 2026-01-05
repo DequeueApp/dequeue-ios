@@ -11,6 +11,7 @@ import Clerk
 
 // MARK: - Auth Service Protocol
 
+@MainActor
 protocol AuthServiceProtocol {
     /// Whether the user is currently authenticated with a valid session
     var isAuthenticated: Bool { get }
@@ -37,12 +38,13 @@ final class ClerkAuthService: AuthServiceProtocol {
     private(set) var isLoading: Bool = true
     private(set) var currentUserId: String?
 
+    @MainActor
     func configure() async {
         await Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
         try? await Clerk.shared.load()
 
-        await updateAuthState()
-        await MainActor.run { isLoading = false }
+        updateAuthState()
+        isLoading = false
     }
 
     @MainActor
@@ -58,6 +60,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         }
     }
 
+    @MainActor
     func signOut() async throws {
         try await Clerk.shared.signOut()
         isAuthenticated = false
@@ -65,6 +68,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         ErrorReportingService.clearUser()
     }
 
+    @MainActor
     func getAuthToken() async throws -> String {
         let session = await MainActor.run { Clerk.shared.session }
         guard let session else {
@@ -78,13 +82,14 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     // MARK: - Sign In/Up
 
+    @MainActor
     func signIn(email: String, password: String) async throws {
         currentSignIn = try await SignIn.create(strategy: .identifier(email, password: password))
 
         // Check if sign-in is complete
         if let sessionId = currentSignIn?.createdSessionId {
             try await Clerk.shared.setActive(sessionId: sessionId)
-            await updateAuthState()
+            updateAuthState()
             currentSignIn = nil
             return
         }
@@ -118,6 +123,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         }
     }
 
+    @MainActor
     func verify2FACode(code: String) async throws {
         guard let signIn = currentSignIn else {
             throw AuthError.verificationFailed
@@ -131,9 +137,10 @@ final class ClerkAuthService: AuthServiceProtocol {
 
         try await Clerk.shared.setActive(sessionId: sessionId)
         currentSignIn = nil
-        await updateAuthState()
+        updateAuthState()
     }
 
+    @MainActor
     func signUp(email: String, password: String) async throws {
         currentSignUp = try await SignUp.create(
             strategy: .standard(emailAddress: email, password: password)
@@ -141,6 +148,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         try await currentSignUp?.prepareVerification(strategy: .emailCode)
     }
 
+    @MainActor
     func verifyEmail(code: String) async throws {
         guard let signUp = currentSignUp else {
             throw AuthError.verificationFailed
@@ -150,7 +158,7 @@ final class ClerkAuthService: AuthServiceProtocol {
             try await Clerk.shared.setActive(sessionId: sessionId)
         }
         currentSignUp = nil
-        await updateAuthState()
+        updateAuthState()
     }
 }
 

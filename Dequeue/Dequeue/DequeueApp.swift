@@ -175,7 +175,7 @@ struct RootView: View {
                 try await syncManager.connect(
                     userId: userId,
                     token: token,
-                    getToken: { try await authService.getAuthToken() }
+                    getToken: { @MainActor in try await authService.getAuthToken() }
                 )
                 ErrorReportingService.addBreadcrumb(
                     category: "sync",

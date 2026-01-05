@@ -10,16 +10,18 @@
 
 import XCTest
 
+@MainActor
 final class DequeueUITestsLaunchTests: XCTestCase {
     var app: XCUIApplication!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
+        // Note: super.setUp() intentionally not called - XCTestCase.setUp() does nothing
+        // and calling it breaks Swift 6 actor isolation (region isolation error)
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"]
     }
 
-    @MainActor
     func testLaunchScreenshot() throws {
         app.launch()
 
