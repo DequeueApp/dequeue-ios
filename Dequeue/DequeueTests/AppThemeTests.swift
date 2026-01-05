@@ -86,13 +86,16 @@ struct AppThemeTests {
 
     // MARK: - Persistence Tests
 
+    /// Creates a test-isolated UserDefaults suite to avoid state contamination between parallel tests
+    private static func makeTestDefaults() -> UserDefaults {
+        // Use a UUID-based suite name to ensure complete isolation between test runs
+        UserDefaults(suiteName: "AppThemeTests-\(UUID().uuidString)")!
+    }
+
     @Test("AppTheme persists to UserDefaults correctly")
     func appThemePersistsToUserDefaults() {
         let key = "appTheme"
-        let defaults = UserDefaults.standard
-
-        // Clean up before test
-        defaults.removeObject(forKey: key)
+        let defaults = Self.makeTestDefaults()
 
         // Test each theme persists correctly
         for theme in AppTheme.allCases {
@@ -104,18 +107,12 @@ struct AppThemeTests {
             let reconstructed = AppTheme(rawValue: storedValue ?? "")
             #expect(reconstructed == theme)
         }
-
-        // Clean up after test
-        defaults.removeObject(forKey: key)
     }
 
     @Test("AppTheme defaults to system when no value stored")
     func appThemeDefaultsToSystem() {
         let key = "appTheme"
-        let defaults = UserDefaults.standard
-
-        // Ensure no value is stored
-        defaults.removeObject(forKey: key)
+        let defaults = Self.makeTestDefaults()
 
         // When no value exists, attempting to create from nil should fail
         let storedValue = defaults.string(forKey: key)
