@@ -1,5 +1,7 @@
 # Performance Issues Analysis
 
+> **Note:** This document is now historical. All outstanding performance issues have been migrated to Linear (DEQ-140 through DEQ-146). Linear is the single source of truth for active work items.
+
 This document catalogs performance issues identified in the dequeue-ios codebase, prioritized by impact and difficulty to fix.
 
 ---
@@ -385,21 +387,27 @@ While this only happens once per view, it can cause a noticeable hitch when typi
 
 ## Summary Table
 
-| # | Issue | Impact | Difficulty | File:Line | Status |
-|---|-------|--------|------------|-----------|--------|
-| 1 | No immediate push | Critical | Medium | SyncManager.swift:694 | ✅ FIXED |
-| 2 | WebSocket receive-only | Critical | High | SyncManager.swift:601 | Open |
-| 3 | Multiple saves per event | Critical | Easy | EventService.swift:280 | ✅ FIXED |
-| 4 | Services @MainActor | Critical | Medium | StackService.swift:59 | Open |
-| 5 | Regex compiled per event | High | Easy | SyncManager.swift:79 | ✅ FIXED |
-| 6 | 4 queries in HomeView | High | Medium | HomeView.swift:13 | Open |
-| 7 | N+1 queries in Projector | High | Medium | ProjectorService.swift:495 | Open |
-| 8 | moveStacks no save | Medium | Easy | HomeView.swift:157 | ✅ FIXED |
-| 9 | DeviceId actor hop | Low-Med | Easy | SyncManager.swift:244 | ✅ FIXED |
-| 10 | Multiple fetches setAsActive | Low-Med | Easy | StackService.swift:275 | Open |
-| 11 | Event history fetch all | Low | Medium | EventService.swift:262 | Open |
-| 12 | DateFormatter per push | Low | Easy | SyncManager.swift:256 | ✅ FIXED |
-| 13 | onChange database call | Low | Easy | StackEditorView+CreateMode.swift:24 | Open |
+| # | Issue | Impact | Difficulty | File:Line | Status | Linear Issue |
+|---|-------|--------|------------|-----------|--------|--------------|
+| 1 | No immediate push | Critical | Medium | SyncManager.swift:694 | ✅ COMPLETED | N/A |
+| 2 | WebSocket receive-only | Critical | High | SyncManager.swift:601 | 🔴 Open | [DEQ-140](https://linear.app/dequeue/issue/DEQ-140) |
+| 3 | Multiple saves per event | Critical | Easy | EventService.swift:280 | ✅ COMPLETED | N/A |
+| 4 | Services @MainActor | Critical | Medium | StackService.swift:59 | 🔴 Open | [DEQ-141](https://linear.app/dequeue/issue/DEQ-141) |
+| 5 | Regex compiled per event | High | Easy | SyncManager.swift:79 | ✅ COMPLETED | N/A |
+| 6 | 4 queries in HomeView | High | Medium | HomeView.swift:13 | 🟡 Open | [DEQ-142](https://linear.app/dequeue/issue/DEQ-142) |
+| 7 | N+1 queries in Projector | High | Medium | ProjectorService.swift:495 | 🟡 Open | [DEQ-143](https://linear.app/dequeue/issue/DEQ-143) |
+| 8 | moveStacks no save | Medium | Easy | HomeView.swift:157 | ✅ COMPLETED | N/A |
+| 9 | DeviceId actor hop | Low-Med | Easy | SyncManager.swift:244 | ✅ COMPLETED | N/A |
+| 10 | Multiple fetches setAsActive | Low-Med | Easy | StackService.swift:275 | 🟢 Open | [DEQ-144](https://linear.app/dequeue/issue/DEQ-144) |
+| 11 | Event history fetch all | Low | Medium | EventService.swift:262 | 🟢 Open | [DEQ-145](https://linear.app/dequeue/issue/DEQ-145) |
+| 12 | DateFormatter per push | Low | Easy | SyncManager.swift:256 | ✅ COMPLETED | N/A |
+| 13 | onChange database call | Low | Easy | StackEditorView+CreateMode.swift:24 | 🟢 Open | [DEQ-146](https://linear.app/dequeue/issue/DEQ-146) |
+
+**Legend:**
+- ✅ COMPLETED - Issue has been resolved
+- 🔴 Open (Critical) - High priority, needs immediate attention
+- 🟡 Open (High) - Important, should be addressed soon
+- 🟢 Open (Low/Medium) - Can be addressed later
 
 ---
 
