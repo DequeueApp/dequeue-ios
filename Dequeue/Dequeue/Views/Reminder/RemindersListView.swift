@@ -12,7 +12,7 @@ struct RemindersListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.syncManager) private var syncManager
-    @Environment(AuthService.self) private var authService
+    @Environment(\.authService) private var authService
 
     @Query private var reminders: [Reminder]
     @Query private var stacks: [Stack]
