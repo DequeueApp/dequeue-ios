@@ -11,8 +11,11 @@ import SwiftData
 struct StackPickerSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
     @Environment(\.dismiss) private var dismiss
     @Query private var stacks: [Stack]
+
+    @State private var cachedDeviceId: String = ""
 
     init() {
         // Query for stacks that can be set as active:
@@ -31,7 +34,12 @@ struct StackPickerSheet: View {
     }
 
     private var stackService: StackService {
-        StackService(modelContext: modelContext, syncManager: syncManager)
+        StackService(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId,
+            syncManager: syncManager
+        )
     }
 
     @State private var errorMessage: String?
@@ -62,6 +70,11 @@ struct StackPickerSheet: View {
             } message: {
                 if let errorMessage {
                     Text(errorMessage)
+                }
+            }
+            .task {
+                if cachedDeviceId.isEmpty {
+                    cachedDeviceId = await DeviceService.shared.getDeviceId()
                 }
             }
         }
