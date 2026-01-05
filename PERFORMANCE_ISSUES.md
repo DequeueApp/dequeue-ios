@@ -390,7 +390,7 @@ While this only happens once per view, it can cause a noticeable hitch when typi
 | # | Issue | Impact | Difficulty | File:Line | Status | Linear Issue |
 |---|-------|--------|------------|-----------|--------|--------------|
 | 1 | No immediate push | Critical | Medium | SyncManager.swift:694 | ✅ COMPLETED | N/A |
-| 2 | WebSocket receive-only | Critical | High | SyncManager.swift:601 | 🔴 Open | [DEQ-140](https://linear.app/dequeue/issue/DEQ-140) |
+| 2 | WebSocket receive-only | High | High | SyncManager.swift:601 | 🟡 Open | [DEQ-140](https://linear.app/dequeue/issue/DEQ-140) |
 | 3 | Multiple saves per event | Critical | Easy | EventService.swift:280 | ✅ COMPLETED | N/A |
 | 4 | Services @MainActor | Critical | Medium | StackService.swift:59 | 🔴 Open | [DEQ-141](https://linear.app/dequeue/issue/DEQ-141) |
 | 5 | Regex compiled per event | High | Easy | SyncManager.swift:79 | ✅ COMPLETED | N/A |
