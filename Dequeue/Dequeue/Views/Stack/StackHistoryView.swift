@@ -37,6 +37,11 @@ struct StackHistoryView: View {
             }
         }
         .navigationTitle("Event History")
+        #if os(macOS)
+        // macOS sheets and navigation destinations need explicit frame sizing
+        // to render correctly within NavigationStack contexts
+        .frame(minWidth: 500, minHeight: 400)
+        #endif
         // Use .task(id:) with updatedAt to:
         // 1. Load reliably on both iOS and macOS (onAppear is unreliable on macOS in sheets)
         // 2. Automatically refresh when the stack is modified elsewhere

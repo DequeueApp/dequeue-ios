@@ -513,6 +513,8 @@ struct TaskHistoryView: View {
 
     @State private var events: [Event] = []
     @State private var isLoading = true
+    @State private var loadError: Error?
+    @State private var showLoadError = false
 
     var body: some View {
         Group {
@@ -533,16 +535,35 @@ struct TaskHistoryView: View {
             }
         }
         .navigationTitle("Event History")
-        .onAppear {
-            // Use onAppear instead of .task for better macOS compatibility
-            // in nested navigation contexts (e.g., NavigationLink inside a sheet)
-            if events.isEmpty && isLoading {
-                loadEvents()
+        #if os(macOS)
+        // macOS sheets and navigation destinations need explicit frame sizing
+        // to render correctly within NavigationStack contexts
+        .frame(minWidth: 500, minHeight: 400)
+        #endif
+        // Use .task(id:) with updatedAt to:
+        // 1. Load reliably on both iOS and macOS (onAppear is unreliable on macOS in sheets)
+        // 2. Automatically refresh when the task is modified elsewhere
+        .task(id: task.updatedAt) {
+            await loadEvents()
+        }
+        .alert("Failed to Load History", isPresented: $showLoadError) {
+            Button("Retry") {
+                Task {
+                    await loadEvents()
+                }
+            }
+            Button("OK", role: .cancel) { }
+        } message: {
+            if let error = loadError {
+                Text(error.localizedDescription)
             }
         }
     }
 
-    private func loadEvents() {
+    private func loadEvents() async {
+        isLoading = true
+        loadError = nil
+
         let taskId = task.id
         let descriptor = FetchDescriptor<Event>(
             predicate: #Predicate<Event> { event in
@@ -554,6 +575,9 @@ struct TaskHistoryView: View {
         do {
             events = try modelContext.fetch(descriptor)
         } catch {
+            loadError = error
+            showLoadError = true
+            events = []
             ErrorReportingService.capture(error: error, context: ["view": "TaskHistoryView"])
         }
         isLoading = false
