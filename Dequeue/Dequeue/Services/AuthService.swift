@@ -59,6 +59,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         }
     }
 
+    @MainActor
     func signOut() async throws {
         try await Clerk.shared.signOut()
         isAuthenticated = false
@@ -66,6 +67,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         ErrorReportingService.clearUser()
     }
 
+    @MainActor
     func getAuthToken() async throws -> String {
         let session = await MainActor.run { Clerk.shared.session }
         guard let session else {
