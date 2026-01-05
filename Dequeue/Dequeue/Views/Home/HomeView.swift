@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 
+// swiftlint:disable:next type_body_length
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.syncManager) private var syncManager
