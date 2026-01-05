@@ -131,10 +131,8 @@ struct StackHistoryView: View {
         guard let event = eventToRevert else { return }
 
         do {
-            let stackService = StackService(modelContext: modelContext)
+            let stackService = StackService(modelContext: modelContext, syncManager: syncManager)
             try stackService.revertToHistoricalState(stack, from: event)
-            // Trigger immediate sync
-            syncManager?.triggerImmediatePush()
             // Refresh history to show the new revert event
             Task {
                 await loadHistory()

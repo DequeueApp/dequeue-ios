@@ -17,7 +17,7 @@ struct ReminderActionHandler {
     var syncManager: SyncManager?
 
     private var reminderService: ReminderService {
-        ReminderService(modelContext: modelContext)
+        ReminderService(modelContext: modelContext, syncManager: syncManager)
     }
 
     private var notificationService: NotificationService {
@@ -35,9 +35,6 @@ struct ReminderActionHandler {
 
             // Snooze the reminder
             try reminderService.snoozeReminder(reminder, until: date)
-
-            // Trigger immediate sync
-            syncManager?.triggerImmediatePush()
 
             // Schedule new notification and update badge
             Task {
@@ -59,9 +56,6 @@ struct ReminderActionHandler {
 
             try reminderService.deleteReminder(reminder)
 
-            // Trigger immediate sync
-            syncManager?.triggerImmediatePush()
-
             // Update app badge
             Task {
                 await notificationService.updateAppBadge()
@@ -81,9 +75,6 @@ struct ReminderActionHandler {
             }
 
             try reminderService.dismissReminder(reminder)
-
-            // Trigger immediate sync
-            syncManager?.triggerImmediatePush()
 
             // Update app badge
             Task {

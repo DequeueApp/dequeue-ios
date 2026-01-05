@@ -117,11 +117,11 @@ struct StackEditorView: View {
     // MARK: - Services
 
     var stackService: StackService {
-        StackService(modelContext: modelContext)
+        StackService(modelContext: modelContext, syncManager: syncManager)
     }
 
     var taskService: TaskService {
-        TaskService(modelContext: modelContext)
+        TaskService(modelContext: modelContext, syncManager: syncManager)
     }
 
     var notificationService: NotificationService {

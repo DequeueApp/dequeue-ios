@@ -57,7 +57,7 @@ struct AddReminderSheet: View {
     private var isEditMode: Bool { existingReminder != nil }
 
     private var reminderService: ReminderService {
-        ReminderService(modelContext: modelContext)
+        ReminderService(modelContext: modelContext, syncManager: syncManager)
     }
 
     var body: some View {
@@ -318,8 +318,6 @@ struct AddReminderSheet: View {
                     }
                     try await notificationService.scheduleNotification(for: reminder)
                 }
-                // Trigger immediate sync after save
-                syncManager?.triggerImmediatePush()
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription

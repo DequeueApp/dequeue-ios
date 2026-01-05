@@ -12,10 +12,12 @@ import SwiftData
 final class ReminderService {
     private let modelContext: ModelContext
     private let eventService: EventService
+    private let syncManager: SyncManager?
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, syncManager: SyncManager? = nil) {
         self.modelContext = modelContext
         self.eventService = EventService(modelContext: modelContext)
+        self.syncManager = syncManager
     }
 
     // MARK: - Create
@@ -31,6 +33,7 @@ final class ReminderService {
         task.reminders.append(reminder)
         try eventService.recordReminderCreated(reminder)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
 
         return reminder
     }
@@ -46,6 +49,7 @@ final class ReminderService {
         stack.reminders.append(reminder)
         try eventService.recordReminderCreated(reminder)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
 
         return reminder
     }
@@ -59,6 +63,7 @@ final class ReminderService {
 
         try eventService.recordReminderUpdated(reminder)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Snooze
@@ -72,6 +77,7 @@ final class ReminderService {
 
         try eventService.recordReminderSnoozed(reminder)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Dismiss
@@ -85,6 +91,7 @@ final class ReminderService {
 
         try eventService.recordReminderUpdated(reminder)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Delete
@@ -96,6 +103,7 @@ final class ReminderService {
 
         try eventService.recordReminderDeleted(reminder)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Queries
