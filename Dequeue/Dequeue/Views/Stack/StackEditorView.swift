@@ -122,7 +122,8 @@ struct StackEditorView: View {
         StackService(
             modelContext: modelContext,
             userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId
+            deviceId: cachedDeviceId,
+            syncManager: syncManager
         )
     }
 
@@ -130,7 +131,8 @@ struct StackEditorView: View {
         TaskService(
             modelContext: modelContext,
             userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId
+            deviceId: cachedDeviceId,
+            syncManager: syncManager
         )
     }
 

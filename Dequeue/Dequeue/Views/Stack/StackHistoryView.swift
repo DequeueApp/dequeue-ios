@@ -140,11 +140,10 @@ struct StackHistoryView: View {
             let stackService = StackService(
                 modelContext: modelContext,
                 userId: authService.currentUserId ?? "",
-                deviceId: cachedDeviceId
+                deviceId: cachedDeviceId,
+                syncManager: syncManager
             )
             try stackService.revertToHistoricalState(stack, from: event)
-            // Trigger immediate sync
-            syncManager?.triggerImmediatePush()
             // Refresh history to show the new revert event
             Task {
                 await loadHistory()

@@ -12,10 +12,12 @@ import SwiftData
 final class TaskService {
     private let modelContext: ModelContext
     private let eventService: EventService
+    private let syncManager: SyncManager?
 
-    init(modelContext: ModelContext, userId: String, deviceId: String) {
+    init(modelContext: ModelContext, userId: String, deviceId: String, syncManager: SyncManager? = nil) {
         self.modelContext = modelContext
         self.eventService = EventService(modelContext: modelContext, userId: userId, deviceId: deviceId)
+        self.syncManager = syncManager
     }
 
     // MARK: - Create
@@ -41,6 +43,7 @@ final class TaskService {
 
         try eventService.recordTaskCreated(task)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
 
         return task
     }
@@ -55,6 +58,7 @@ final class TaskService {
 
         try eventService.recordTaskUpdated(task)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Status Changes
@@ -66,6 +70,7 @@ final class TaskService {
 
         try eventService.recordTaskCompleted(task)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     func markAsBlocked(_ task: QueueTask, reason: String?) throws {
@@ -76,6 +81,7 @@ final class TaskService {
 
         try eventService.recordTaskUpdated(task)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     func unblock(_ task: QueueTask) throws {
@@ -86,6 +92,7 @@ final class TaskService {
 
         try eventService.recordTaskUpdated(task)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     func closeTask(_ task: QueueTask) throws {
@@ -95,6 +102,7 @@ final class TaskService {
 
         try eventService.recordTaskUpdated(task)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Delete
@@ -106,6 +114,7 @@ final class TaskService {
 
         try eventService.recordTaskDeleted(task)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Reorder
@@ -119,6 +128,7 @@ final class TaskService {
 
         try eventService.recordTaskReordered(tasks)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Activate (move to top)
@@ -149,5 +159,6 @@ final class TaskService {
         try eventService.recordTaskActivated(task)
         try eventService.recordTaskReordered(reorderedTasks)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 }

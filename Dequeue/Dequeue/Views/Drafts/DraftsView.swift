@@ -31,7 +31,8 @@ struct DraftsView: View {
         StackService(
             modelContext: modelContext,
             userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId
+            deviceId: cachedDeviceId,
+            syncManager: syncManager
         )
     }
 
@@ -94,8 +95,6 @@ struct DraftsView: View {
                 // Use stackService.discardDraft to properly fire stack.discarded event
                 try stackService.discardDraft(draft)
                 logger.info("Draft discarded via swipe: \(draft.id)")
-                // Trigger immediate sync
-                syncManager?.triggerImmediatePush()
             } catch {
                 logger.error("Failed to discard draft: \(error.localizedDescription)")
                 deleteErrorMessage = "Could not delete draft. Please try again."

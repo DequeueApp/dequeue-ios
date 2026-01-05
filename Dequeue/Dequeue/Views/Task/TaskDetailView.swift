@@ -40,7 +40,8 @@ struct TaskDetailView: View {
         TaskService(
             modelContext: modelContext,
             userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId
+            deviceId: cachedDeviceId,
+            syncManager: syncManager
         )
     }
 
@@ -438,7 +439,6 @@ struct TaskDetailView: View {
         do {
             try taskService.updateTask(task, title: editedTitle, description: task.taskDescription)
             isEditingTitle = false
-            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -452,7 +452,6 @@ struct TaskDetailView: View {
                 description: editedDescription.isEmpty ? nil : editedDescription
             )
             isEditingDescription = false
-            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -461,7 +460,6 @@ struct TaskDetailView: View {
     private func completeTask() {
         do {
             try taskService.markAsCompleted(task)
-            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -470,7 +468,6 @@ struct TaskDetailView: View {
     private func blockTask() {
         do {
             try taskService.markAsBlocked(task, reason: nil)
-            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -479,7 +476,6 @@ struct TaskDetailView: View {
     private func unblockTask() {
         do {
             try taskService.unblock(task)
-            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -488,7 +484,6 @@ struct TaskDetailView: View {
     private func setTaskActive() {
         do {
             try taskService.activateTask(task)
-            syncManager?.triggerImmediatePush()
         } catch {
             showError(error)
         }
@@ -497,7 +492,6 @@ struct TaskDetailView: View {
     private func closeTask() {
         do {
             try taskService.closeTask(task)
-            syncManager?.triggerImmediatePush()
             dismiss()
         } catch {
             showError(error)
@@ -507,7 +501,6 @@ struct TaskDetailView: View {
     private func deleteTask() {
         do {
             try taskService.deleteTask(task)
-            syncManager?.triggerImmediatePush()
             dismiss()
         } catch {
             showError(error)

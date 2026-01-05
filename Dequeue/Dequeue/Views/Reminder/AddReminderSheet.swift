@@ -62,7 +62,8 @@ struct AddReminderSheet: View {
         ReminderService(
             modelContext: modelContext,
             userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId
+            deviceId: cachedDeviceId,
+            syncManager: syncManager
         )
     }
 
@@ -327,8 +328,6 @@ struct AddReminderSheet: View {
                     }
                     try await notificationService.scheduleNotification(for: reminder)
                 }
-                // Trigger immediate sync after save
-                syncManager?.triggerImmediatePush()
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription
