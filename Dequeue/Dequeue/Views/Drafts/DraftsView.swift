@@ -26,7 +26,7 @@ struct DraftsView: View {
     @State private var showDeleteError = false
 
     private var stackService: StackService {
-        StackService(modelContext: modelContext)
+        StackService(modelContext: modelContext, syncManager: syncManager)
     }
 
     var body: some View {
@@ -83,8 +83,6 @@ struct DraftsView: View {
                 // Use stackService.discardDraft to properly fire stack.discarded event
                 try stackService.discardDraft(draft)
                 logger.info("Draft discarded via swipe: \(draft.id)")
-                // Trigger immediate sync
-                syncManager?.triggerImmediatePush()
             } catch {
                 logger.error("Failed to discard draft: \(error.localizedDescription)")
                 deleteErrorMessage = "Could not delete draft. Please try again."

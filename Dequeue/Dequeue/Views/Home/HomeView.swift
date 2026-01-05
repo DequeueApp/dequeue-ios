@@ -79,7 +79,7 @@ struct HomeView: View {
 
     /// Stack service for operations - lightweight struct, safe to recreate each call
     private var stackService: StackService {
-        StackService(modelContext: modelContext)
+        StackService(modelContext: modelContext, syncManager: syncManager)
     }
 
     /// Count of overdue reminders for badge display
@@ -341,7 +341,6 @@ struct HomeView: View {
 
         do {
             try stackService.updateSortOrders(reorderedStacks)
-            triggerSyncIfAvailable(action: "moveStacks")
         } catch {
             // Revert in-memory state on failure. This works because `stacks` (from @Query)
             // returns the actual SwiftData model objects, and we're restoring their
@@ -360,7 +359,6 @@ struct HomeView: View {
     private func setAsActive(_ stack: Stack) {
         do {
             try stackService.setAsActive(stack)
-            triggerSyncIfAvailable(action: "setAsActive")
         } catch {
             ErrorReportingService.capture(error: error, context: ["action": "setAsActive"])
             errorMessage = "Failed to set stack as active: \(error.localizedDescription)"
@@ -371,7 +369,6 @@ struct HomeView: View {
     private func completeStack(_ stack: Stack) {
         do {
             try stackService.markAsCompleted(stack, completeAllTasks: true)
-            triggerSyncIfAvailable(action: "completeStack")
         } catch {
             ErrorReportingService.capture(error: error, context: ["action": "completeStack"])
             errorMessage = "Failed to complete stack: \(error.localizedDescription)"
@@ -382,23 +379,10 @@ struct HomeView: View {
     private func deleteStack(_ stack: Stack) {
         do {
             try stackService.deleteStack(stack)
-            triggerSyncIfAvailable(action: "deleteStack")
         } catch {
             ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
             errorMessage = "Failed to delete stack: \(error.localizedDescription)"
             showError = true
-        }
-    }
-
-    /// Triggers immediate sync if syncManager is available, logs breadcrumb if not
-    private func triggerSyncIfAvailable(action: String) {
-        if let syncManager = syncManager {
-            syncManager.triggerImmediatePush()
-        } else {
-            ErrorReportingService.addBreadcrumb(
-                category: "sync",
-                message: "Sync skipped for \(action): syncManager not available"
-            )
         }
     }
 }

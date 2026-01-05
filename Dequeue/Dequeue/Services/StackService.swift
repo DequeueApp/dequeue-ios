@@ -54,10 +54,12 @@ enum StackServiceError: LocalizedError, Equatable {
 final class StackService {
     private let modelContext: ModelContext
     private let eventService: EventService
+    private let syncManager: SyncManager?
 
-    init(modelContext: ModelContext) {
+    init(modelContext: ModelContext, syncManager: SyncManager? = nil) {
         self.modelContext = modelContext
         self.eventService = EventService(modelContext: modelContext)
+        self.syncManager = syncManager
     }
 
     // MARK: - Create
@@ -103,6 +105,7 @@ final class StackService {
         }
 
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
         return stack
     }
 
@@ -117,6 +120,7 @@ final class StackService {
 
         try eventService.recordStackUpdated(stack)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     /// Discards a draft stack - fires stack.discarded event
@@ -129,6 +133,7 @@ final class StackService {
 
         try eventService.recordStackDiscarded(stack)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Read
@@ -242,6 +247,7 @@ final class StackService {
 
         try eventService.recordStackUpdated(stack)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     func publishDraft(_ stack: Stack) throws {
@@ -253,6 +259,7 @@ final class StackService {
 
         try eventService.recordStackCreated(stack)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Status Changes
@@ -279,6 +286,7 @@ final class StackService {
 
         try eventService.recordStackCompleted(stack)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     func setAsActive(_ stack: Stack) throws {
@@ -328,6 +336,7 @@ final class StackService {
         try eventService.recordStackActivated(stack)
         try eventService.recordStackReordered(activeStacks)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
 
         // MARK: Post-condition validation (fix rather than throw)
         try validateAndFixSingleActiveConstraint(keeping: stack.id)
@@ -340,6 +349,7 @@ final class StackService {
 
         try eventService.recordStackUpdated(stack)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Delete
@@ -351,6 +361,7 @@ final class StackService {
 
         try eventService.recordStackDeleted(stack)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Reorder
@@ -364,6 +375,7 @@ final class StackService {
 
         try eventService.recordStackReordered(stacks)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - History Revert
@@ -400,6 +412,7 @@ final class StackService {
         // Record as a NEW update event (preserves immutable history)
         try eventService.recordStackUpdated(stack)
         try modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Migration
