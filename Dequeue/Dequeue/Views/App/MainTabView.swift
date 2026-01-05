@@ -10,7 +10,6 @@ import SwiftData
 
 struct MainTabView: View {
     @State private var selectedTab = 0
-    @State private var previousTab = 0
     @State private var showAddSheet = false
     @State private var activeStackForDetail: Stack?
 
@@ -32,61 +31,52 @@ struct MainTabView: View {
 
     private var iOSLayout: some View {
         #if os(iOS)
-        TabView(selection: $selectedTab) {
-            HomeView()
-                .tabItem {
-                    Label("Home", systemImage: "house")
-                }
-                .tag(0)
+        ZStack(alignment: .bottom) {
+            // Main content area with TabView (hidden tab bar)
+            TabView(selection: $selectedTab) {
+                HomeView()
+                    .tag(0)
 
-            DraftsView()
-                .tabItem {
-                    Label("Drafts", systemImage: "doc")
-                }
-                .tag(1)
+                DraftsView()
+                    .tag(1)
 
-            // Placeholder for Add tab - actual view presented as sheet
-            Color.clear
-                .tabItem {
-                    Label("Add", systemImage: "plus.circle")
-                }
-                .tag(2)
+                CompletedStacksView()
+                    .tag(2)
 
-            CompletedStacksView()
-                .tabItem {
-                    Label("Completed", systemImage: "checkmark.circle")
-                }
-                .tag(3)
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
-                .tag(4)
-        }
-        .onChange(of: selectedTab) { oldValue, newValue in
-            if newValue == 2 {
-                // Add tab selected - show sheet and return to previous tab
-                selectedTab = oldValue
-                showAddSheet = true
+                SettingsView()
+                    .tag(3)
             }
-            previousTab = oldValue
+            .toolbar(.hidden, for: .tabBar)
+
+            // Bottom area: Active Stack Banner + Custom Tab Bar
+            VStack(spacing: 12) {
+                // Active Stack Banner (above tab bar)
+                activeStackBanner
+                    .frame(maxWidth: isIPad ? 400 : .infinity)
+                    .padding(.horizontal, 16)
+
+                // Custom Tab Bar
+                CustomTabBar(
+                    selectedTab: $selectedTab,
+                    onAddTapped: { showAddSheet = true }
+                )
+                .padding(.bottom, 8)
+            }
+            .background(
+                // Subtle gradient background for the bottom area
+                LinearGradient(
+                    colors: [.clear, Color(.systemBackground).opacity(0.95)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea(edges: .bottom)
+            )
         }
         .sheet(isPresented: $showAddSheet) {
             StackEditorView(mode: .create)
         }
         .sheet(item: $activeStackForDetail) { stack in
             StackEditorView(mode: .edit(stack))
-        }
-        .overlay(alignment: .bottom) {
-            GeometryReader { geometry in
-                activeStackBanner
-                    .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
-                    .padding(.horizontal)
-                    .padding(.top, 0)
-                    .padding(.bottom, geometry.safeAreaInsets.bottom + 24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            }
         }
         #else
         EmptyView()
@@ -105,10 +95,10 @@ struct MainTabView: View {
                 NavigationLink(value: 1) {
                     Label("Drafts", systemImage: "doc")
                 }
-                NavigationLink(value: 3) {
+                NavigationLink(value: 2) {
                     Label("Completed", systemImage: "checkmark.circle")
                 }
-                NavigationLink(value: 4) {
+                NavigationLink(value: 3) {
                     Label("Settings", systemImage: "gear")
                 }
             }
@@ -147,9 +137,9 @@ struct MainTabView: View {
             HomeView()
         case 1:
             DraftsView()
-        case 3:
+        case 2:
             CompletedStacksView()
-        case 4:
+        case 3:
             SettingsView()
         default:
             HomeView()
