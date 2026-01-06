@@ -33,9 +33,13 @@ struct AttachmentTests {
         #expect(attachment.thumbnailData == nil)
         #expect(attachment.previewUrl == nil)
         #expect(attachment.isDeleted == false)
+        #expect(attachment.userId == nil)
+        #expect(attachment.deviceId == nil)
         #expect(attachment.syncState == .pending)
         #expect(attachment.uploadState == .pending)
         #expect(attachment.lastSyncedAt == nil)
+        #expect(attachment.serverId == nil)
+        #expect(attachment.revision == 1)
     }
 
     @Test("Attachment initializes with custom values")
@@ -58,9 +62,13 @@ struct AttachmentTests {
             createdAt: now,
             updatedAt: now,
             isDeleted: false,
+            userId: "user-123",
+            deviceId: "device-456",
             syncState: .synced,
             uploadState: .completed,
-            lastSyncedAt: now
+            lastSyncedAt: now,
+            serverId: "server-789",
+            revision: 3
         )
 
         #expect(attachment.id == id)
@@ -73,9 +81,13 @@ struct AttachmentTests {
         #expect(attachment.localPath == "/Documents/Attachments/att-123/photo.jpg")
         #expect(attachment.thumbnailData == thumbnailData)
         #expect(attachment.previewUrl == "https://r2.example.com/previews/photo_thumb.jpg")
+        #expect(attachment.userId == "user-123")
+        #expect(attachment.deviceId == "device-456")
         #expect(attachment.syncState == .synced)
         #expect(attachment.uploadState == .completed)
         #expect(attachment.lastSyncedAt == now)
+        #expect(attachment.serverId == "server-789")
+        #expect(attachment.revision == 3)
     }
 
     // MARK: - Convenience Properties

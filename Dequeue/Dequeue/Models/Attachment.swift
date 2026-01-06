@@ -4,6 +4,13 @@
 //
 //  File attachment for Stacks and Tasks
 //
+//  Note: Uses parentId/parentType instead of SwiftData @Relationship because:
+//  1. An attachment can belong to either a Stack OR a Task (polymorphic)
+//  2. Matches the backend event-first architecture where events use IDs
+//  3. Allows flexible querying without complex relationship navigation
+//  The existing Stack.attachments: [String] and QueueTask.attachments: [String]
+//  will be deprecated once the Attachment model is fully integrated.
+//
 
 import Foundation
 import SwiftData
@@ -11,7 +18,11 @@ import SwiftData
 @Model
 final class Attachment {
     @Attribute(.unique) var id: String
+
+    /// The ID of the parent Stack or Task
     var parentId: String
+
+    /// Whether this attachment belongs to a Stack or Task
     var parentType: ParentType
 
     // File metadata
@@ -19,6 +30,8 @@ final class Attachment {
     var mimeType: String
     var sizeBytes: Int64
     var remoteUrl: String?
+
+    /// Absolute path to the locally cached file in Documents/Attachments/
     var localPath: String?
 
     // Preview
@@ -31,9 +44,13 @@ final class Attachment {
     var isDeleted: Bool
 
     // Sync fields
+    var userId: String?
+    var deviceId: String?
     var syncState: SyncState
     var uploadState: UploadState
     var lastSyncedAt: Date?
+    var serverId: String?
+    var revision: Int
 
     init(
         id: String = CUID.generate(),
@@ -49,9 +66,13 @@ final class Attachment {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         isDeleted: Bool = false,
+        userId: String? = nil,
+        deviceId: String? = nil,
         syncState: SyncState = .pending,
         uploadState: UploadState = .pending,
-        lastSyncedAt: Date? = nil
+        lastSyncedAt: Date? = nil,
+        serverId: String? = nil,
+        revision: Int = 1
     ) {
         self.id = id
         self.parentId = parentId
@@ -66,9 +87,13 @@ final class Attachment {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isDeleted = isDeleted
+        self.userId = userId
+        self.deviceId = deviceId
         self.syncState = syncState
         self.uploadState = uploadState
         self.lastSyncedAt = lastSyncedAt
+        self.serverId = serverId
+        self.revision = revision
     }
 }
 
