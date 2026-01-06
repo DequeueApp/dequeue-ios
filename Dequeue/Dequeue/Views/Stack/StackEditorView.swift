@@ -41,6 +41,7 @@ struct StackEditorView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.syncManager) var syncManager
     @Environment(\.authService) var authService
+    @Environment(\.undoCompletionManager) var undoCompletionManager
     @State private var cachedDeviceId: String = ""
 
     let mode: Mode
@@ -314,7 +315,7 @@ extension StackEditorView {
             }
             if !isReadOnly {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Complete") { showCompleteConfirmation = true }
+                    Button("Complete") { handleCompleteButtonTapped() }
                         .fontWeight(.semibold)
                 }
             }
@@ -379,6 +380,30 @@ extension StackEditorView {
         errorMessage = error.localizedDescription
         showError = true
         ErrorReportingService.capture(error: error, context: ["view": "StackEditorView"])
+    }
+
+    // MARK: - Completion Handling
+
+    /// Handles the Complete button tap with conditional behavior based on pending tasks.
+    /// - If stack has pending tasks: show confirmation dialog (choose to complete tasks or not)
+    /// - If stack has no pending tasks: immediately dismiss and start delayed completion with undo
+    func handleCompleteButtonTapped() {
+        guard case .edit(let stack) = mode else { return }
+
+        if stack.pendingTasks.isEmpty {
+            // No pending tasks - use delayed completion with undo banner
+            if let manager = undoCompletionManager {
+                manager.startDelayedCompletion(for: stack)
+            } else {
+                // Fallback: complete immediately if manager not available
+                completeStack(completeAllTasks: true)
+                return
+            }
+            dismiss()
+        } else {
+            // Has pending tasks - show confirmation dialog
+            showCompleteConfirmation = true
+        }
     }
 }
 
