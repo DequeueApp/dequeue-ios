@@ -38,6 +38,13 @@ enum SyncState: String, Codable, CaseIterable {
     case failed
 }
 
+enum UploadState: String, Codable, CaseIterable {
+    case pending
+    case uploading
+    case completed
+    case failed
+}
+
 enum EventType: String, Codable, CaseIterable {
     // Stack events
     case stackCreated = "stack.created"

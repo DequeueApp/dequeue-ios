@@ -1,0 +1,311 @@
+//
+//  AttachmentTests.swift
+//  DequeueTests
+//
+//  Tests for Attachment model
+//
+
+import Testing
+import SwiftData
+import Foundation
+@testable import Dequeue
+
+@Suite("Attachment Model Tests")
+struct AttachmentTests {
+    @Test("Attachment initializes with default values")
+    func attachmentInitializesWithDefaults() {
+        let attachment = Attachment(
+            parentId: "stack-123",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024
+        )
+
+        #expect(!attachment.id.isEmpty)
+        #expect(attachment.parentId == "stack-123")
+        #expect(attachment.parentType == .stack)
+        #expect(attachment.filename == "document.pdf")
+        #expect(attachment.mimeType == "application/pdf")
+        #expect(attachment.sizeBytes == 1024)
+        #expect(attachment.remoteUrl == nil)
+        #expect(attachment.localPath == nil)
+        #expect(attachment.thumbnailData == nil)
+        #expect(attachment.previewUrl == nil)
+        #expect(attachment.isDeleted == false)
+        #expect(attachment.syncState == .pending)
+        #expect(attachment.uploadState == .pending)
+        #expect(attachment.lastSyncedAt == nil)
+    }
+
+    @Test("Attachment initializes with custom values")
+    func attachmentInitializesWithCustomValues() {
+        let id = "att-custom-123"
+        let now = Date()
+        let thumbnailData = Data([0x89, 0x50, 0x4E, 0x47])
+
+        let attachment = Attachment(
+            id: id,
+            parentId: "task-456",
+            parentType: .task,
+            filename: "photo.jpg",
+            mimeType: "image/jpeg",
+            sizeBytes: 2_048_576,
+            remoteUrl: "https://r2.example.com/attachments/photo.jpg",
+            localPath: "/Documents/Attachments/att-123/photo.jpg",
+            thumbnailData: thumbnailData,
+            previewUrl: "https://r2.example.com/previews/photo_thumb.jpg",
+            createdAt: now,
+            updatedAt: now,
+            isDeleted: false,
+            syncState: .synced,
+            uploadState: .completed,
+            lastSyncedAt: now
+        )
+
+        #expect(attachment.id == id)
+        #expect(attachment.parentId == "task-456")
+        #expect(attachment.parentType == .task)
+        #expect(attachment.filename == "photo.jpg")
+        #expect(attachment.mimeType == "image/jpeg")
+        #expect(attachment.sizeBytes == 2_048_576)
+        #expect(attachment.remoteUrl == "https://r2.example.com/attachments/photo.jpg")
+        #expect(attachment.localPath == "/Documents/Attachments/att-123/photo.jpg")
+        #expect(attachment.thumbnailData == thumbnailData)
+        #expect(attachment.previewUrl == "https://r2.example.com/previews/photo_thumb.jpg")
+        #expect(attachment.syncState == .synced)
+        #expect(attachment.uploadState == .completed)
+        #expect(attachment.lastSyncedAt == now)
+    }
+
+    // MARK: - Convenience Properties
+
+    @Test("formattedSize returns human-readable sizes")
+    func formattedSizeReturnsReadableSizes() {
+        let smallFile = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "tiny.txt",
+            mimeType: "text/plain",
+            sizeBytes: 512
+        )
+        #expect(smallFile.formattedSize.contains("KB") || smallFile.formattedSize.contains("bytes"))
+
+        let mediumFile = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "medium.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 2_500_000
+        )
+        #expect(mediumFile.formattedSize.contains("MB"))
+
+        let largeFile = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "large.zip",
+            mimeType: "application/zip",
+            sizeBytes: 1_500_000_000
+        )
+        #expect(largeFile.formattedSize.contains("GB"))
+    }
+
+    @Test("isImage correctly identifies image MIME types")
+    func isImageIdentifiesImageTypes() {
+        let jpeg = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "photo.jpg",
+            mimeType: "image/jpeg",
+            sizeBytes: 1024
+        )
+        #expect(jpeg.isImage == true)
+
+        let png = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "screenshot.png",
+            mimeType: "image/png",
+            sizeBytes: 1024
+        )
+        #expect(png.isImage == true)
+
+        let pdf = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024
+        )
+        #expect(pdf.isImage == false)
+    }
+
+    @Test("isPDF correctly identifies PDF files")
+    func isPDFIdentifiesPDFFiles() {
+        let pdf = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024
+        )
+        #expect(pdf.isPDF == true)
+
+        let jpeg = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "photo.jpg",
+            mimeType: "image/jpeg",
+            sizeBytes: 1024
+        )
+        #expect(jpeg.isPDF == false)
+    }
+
+    @Test("fileExtension extracts extension correctly")
+    func fileExtensionExtractsCorrectly() {
+        let pdf = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024
+        )
+        #expect(pdf.fileExtension == "pdf")
+
+        let jpeg = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "My Photo.JPEG",
+            mimeType: "image/jpeg",
+            sizeBytes: 1024
+        )
+        #expect(jpeg.fileExtension == "jpeg")
+
+        let noExtension = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "README",
+            mimeType: "text/plain",
+            sizeBytes: 1024
+        )
+        #expect(noExtension.fileExtension == nil)
+    }
+
+    @Test("isUploaded returns correct state")
+    func isUploadedReturnsCorrectState() {
+        let pending = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "file.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            uploadState: .pending
+        )
+        #expect(pending.isUploaded == false)
+
+        let uploading = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "file.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            uploadState: .uploading
+        )
+        #expect(uploading.isUploaded == false)
+
+        let completedNoUrl = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "file.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            uploadState: .completed
+        )
+        #expect(completedNoUrl.isUploaded == false)
+
+        let completedWithUrl = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "file.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            remoteUrl: "https://r2.example.com/file.pdf",
+            uploadState: .completed
+        )
+        #expect(completedWithUrl.isUploaded == true)
+    }
+
+    // MARK: - SwiftData Integration
+
+    @Test("Attachment persists in SwiftData")
+    func attachmentPersistsInSwiftData() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Attachment.self, configurations: config)
+        let context = ModelContext(container)
+
+        let attachment = Attachment(
+            parentId: "stack-123",
+            parentType: .stack,
+            filename: "test.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 5000
+        )
+        let attachmentId = attachment.id
+
+        context.insert(attachment)
+        try context.save()
+
+        let descriptor = FetchDescriptor<Attachment>(
+            predicate: #Predicate { $0.id == attachmentId }
+        )
+        let fetched = try context.fetch(descriptor)
+
+        #expect(fetched.count == 1)
+        #expect(fetched.first?.filename == "test.pdf")
+        #expect(fetched.first?.parentId == "stack-123")
+        #expect(fetched.first?.parentType == .stack)
+    }
+
+    @Test("Multiple attachments can be fetched by parentId")
+    func multipleAttachmentsCanBeFetchedByParentId() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Attachment.self, configurations: config)
+        let context = ModelContext(container)
+
+        let stackId = "stack-456"
+
+        let attachment1 = Attachment(
+            parentId: stackId,
+            parentType: .stack,
+            filename: "file1.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1000
+        )
+        let attachment2 = Attachment(
+            parentId: stackId,
+            parentType: .stack,
+            filename: "file2.jpg",
+            mimeType: "image/jpeg",
+            sizeBytes: 2000
+        )
+        let attachment3 = Attachment(
+            parentId: "other-stack",
+            parentType: .stack,
+            filename: "file3.png",
+            mimeType: "image/png",
+            sizeBytes: 3000
+        )
+
+        context.insert(attachment1)
+        context.insert(attachment2)
+        context.insert(attachment3)
+        try context.save()
+
+        let descriptor = FetchDescriptor<Attachment>(
+            predicate: #Predicate { $0.parentId == stackId && !$0.isDeleted }
+        )
+        let fetched = try context.fetch(descriptor)
+
+        #expect(fetched.count == 2)
+    }
+}
