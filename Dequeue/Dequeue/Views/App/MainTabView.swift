@@ -31,23 +31,21 @@ struct MainTabView: View {
 
     private var iOSLayout: some View {
         #if os(iOS)
-        ZStack(alignment: .bottom) {
-            // Main content area with TabView (hidden tab bar)
-            TabView(selection: $selectedTab) {
-                HomeView()
-                    .tag(0)
+        TabView(selection: $selectedTab) {
+            HomeView()
+                .tag(0)
 
-                DraftsView()
-                    .tag(1)
+            DraftsView()
+                .tag(1)
 
-                CompletedStacksView()
-                    .tag(2)
+            CompletedStacksView()
+                .tag(2)
 
-                SettingsView()
-                    .tag(3)
-            }
-            .toolbar(.hidden, for: .tabBar)
-
+            SettingsView()
+                .tag(3)
+        }
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom) {
             // Bottom area: Active Stack Banner + Custom Tab Bar
             VStack(spacing: 12) {
                 // Active Stack Banner (above tab bar)
@@ -60,10 +58,10 @@ struct MainTabView: View {
                     selectedTab: $selectedTab,
                     onAddTapped: { showAddSheet = true }
                 )
-                .padding(.bottom, 8)
             }
+            .padding(.bottom, 8)
             .background(
-                // Subtle gradient background for the bottom area
+                // Gradient background that extends into safe area
                 LinearGradient(
                     colors: [.clear, Color(.systemBackground).opacity(0.95)],
                     startPoint: .top,
