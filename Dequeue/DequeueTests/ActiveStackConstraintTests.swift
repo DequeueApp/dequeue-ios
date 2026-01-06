@@ -595,7 +595,7 @@ struct ActiveStackConstraintTests {
         #expect(afterCount == beforeCount + 1)
 
         // Verify the event type
-        let deactivatedEvent = stackEvents.first { $0.eventType == "stack.deactivated" }
+        let deactivatedEvent = stackEvents.first { $0.eventType == .stackDeactivated }
         #expect(deactivatedEvent != nil)
     }
 
