@@ -290,8 +290,10 @@ struct UndoCompletionManagerTests {
 
         manager.startDelayedCompletion(for: stack)
 
-        // Wait for completion
-        try await Task.sleep(for: .seconds(UndoCompletionManager.gracePeriodDuration + 0.5))
+        // Wait for completion (keep manager alive by referencing it)
+        while manager.hasPendingCompletion {
+            try await Task.sleep(for: .milliseconds(100))
+        }
 
         // Should still complete successfully
         #expect(stack.status == .completed)
@@ -359,8 +361,10 @@ struct UndoCompletionManagerTaskTests {
 
         manager.startDelayedCompletion(for: stack)
 
-        // Wait for completion
-        try await Task.sleep(for: .seconds(UndoCompletionManager.gracePeriodDuration + 0.5))
+        // Wait for completion (keep manager alive by referencing it)
+        while manager.hasPendingCompletion {
+            try await Task.sleep(for: .milliseconds(100))
+        }
 
         // All tasks should be completed
         #expect(task1.status == .completed)
@@ -390,8 +394,10 @@ struct UndoCompletionManagerTaskTests {
 
         manager.startDelayedCompletion(for: stack)
 
-        // Wait for completion
-        try await Task.sleep(for: .seconds(UndoCompletionManager.gracePeriodDuration + 0.5))
+        // Wait for completion (keep manager alive by referencing it)
+        while manager.hasPendingCompletion {
+            try await Task.sleep(for: .milliseconds(100))
+        }
 
         // Both should be completed
         #expect(pendingTask.status == .completed)
