@@ -28,6 +28,15 @@ struct StackEditorView: View {
         }
     }
 
+    /// Fields that can receive focus in create mode.
+    /// Used with @FocusState to detect blur events and trigger auto-save.
+    enum EditorField: Hashable {
+        /// The stack title text field
+        case title
+        /// The stack description text field
+        case description
+    }
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) var dismiss
     @Environment(\.syncManager) var syncManager
@@ -51,6 +60,8 @@ struct StackEditorView: View {
     @State var draftStack: Stack?
     @State var isCreatingDraft = false
     @State var showDiscardAlert = false
+    @State var showSaveDraftPrompt = false
+    @FocusState var focusedField: EditorField?
 
     // Pending task model for create mode
     // NOTE: Pending tasks are stored in @State and are NOT persisted to draft Stack.
@@ -114,6 +125,11 @@ struct StackEditorView: View {
         case .edit(let stack):
             return stack.title
         }
+    }
+
+    /// Whether there's unsaved content that should prevent accidental dismissal
+    private var hasUnsavedContent: Bool {
+        isCreateMode && (!title.isEmpty || !stackDescription.isEmpty || draftStack != nil)
     }
 
     // MARK: - Services
@@ -187,6 +203,15 @@ struct StackEditorView: View {
             } message: {
                 Text("Your draft has been auto-saved. Would you like to keep it or discard it?")
             }
+            .alert("Save Draft?", isPresented: $showSaveDraftPrompt) {
+                Button("Save Draft") {
+                    createDraftAndDismiss()
+                }
+                Button("Discard", role: .destructive) { dismiss() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("You have unsaved content. Would you like to save it as a draft?")
+            }
             .confirmationDialog("Complete Stack", isPresented: $showCompleteConfirmation, titleVisibility: .visible) {
                 Button("Complete All Tasks & Stack") { completeStack(completeAllTasks: true) }
                 Button("Complete Stack Only") { completeStack(completeAllTasks: false) }
@@ -244,11 +269,27 @@ struct StackEditorView: View {
             } message: {
                 Text("Are you sure you want to delete this reminder?")
             }
+            // Prevent swipe-to-dismiss when there's unsaved content
+            .interactiveDismissDisabled(hasUnsavedContent)
+            #if os(iOS)
+            // Save pending changes when app enters background
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                saveOnBackground()
+            }
+            #elseif os(macOS)
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in
+                saveOnBackground()
+            }
+            #endif
         }
     }
+}
 
+// MARK: - Toolbar & Shared Sections
+
+extension StackEditorView {
     @ViewBuilder
-    private var completeStackMessage: some View {
+    var completeStackMessage: some View {
         if case .edit(let stack) = mode, !stack.pendingTasks.isEmpty {
             let taskCount = stack.pendingTasks.count
             Text("This stack has \(taskCount) pending task(s). Would you like to complete them as well?")
@@ -257,10 +298,8 @@ struct StackEditorView: View {
         }
     }
 
-    // MARK: - Toolbar
-
     @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
+    var toolbarContent: some ToolbarContent {
         if isCreateMode {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { handleCreateCancel() }
@@ -281,8 +320,6 @@ struct StackEditorView: View {
             }
         }
     }
-
-    // MARK: - Shared Sections
 
     var remindersSection: some View {
         Section {
@@ -313,7 +350,7 @@ struct StackEditorView: View {
     }
 
     @ViewBuilder
-    private var remindersList: some View {
+    var remindersList: some View {
         if let stack = currentStack {
             ForEach(stack.activeReminders) { reminder in
                 ReminderRowView(
@@ -337,8 +374,6 @@ struct StackEditorView: View {
             }
         }
     }
-
-    // MARK: - Error Handling
 
     func handleError(_ error: Error) {
         errorMessage = error.localizedDescription

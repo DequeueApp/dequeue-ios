@@ -17,14 +17,16 @@ extension StackEditorView {
         Form {
             Section("Stack") {
                 TextField("Title", text: $title)
-                    .onChange(of: title) { _, newValue in
-                        handleTitleChange(newValue)
-                    }
+                    .focused($focusedField, equals: .title)
                 TextField("Description (optional)", text: $stackDescription, axis: .vertical)
                     .lineLimit(3...6)
-                    .onChange(of: stackDescription) { _, newValue in
-                        handleDescriptionChange(newValue)
+                    .focused($focusedField, equals: .description)
+                    .onChange(of: stackDescription) { oldValue, newValue in
+                        handleDescriptionChange(oldValue: oldValue, newValue: newValue)
                     }
+            }
+            .onChange(of: focusedField) { oldValue, newValue in
+                handleFocusChange(from: oldValue, to: newValue)
             }
 
             createModeTasksSection
@@ -87,19 +89,62 @@ extension StackEditorView {
 
     // MARK: - Create Mode Actions
 
-    func handleTitleChange(_ newTitle: String) {
-        guard !isCreatingDraft else { return }
+    /// Handles focus changes between fields to trigger saves at appropriate times.
+    /// - Title blur: Creates draft if title has content, or updates draft if changed
+    /// - Description blur: Saves any pending description changes
+    func handleFocusChange(from oldField: EditorField?, to newField: EditorField?) {
+        // Title field lost focus
+        if oldField == .title {
+            handleTitleBlur()
+        }
 
-        if draftStack == nil && !newTitle.isEmpty {
-            createDraft(title: newTitle)
-        } else if let draft = draftStack {
-            updateDraft(draft, title: newTitle, description: stackDescription)
+        // Description field lost focus
+        if oldField == .description {
+            handleDescriptionBlur()
         }
     }
 
-    func handleDescriptionChange(_ newDescription: String) {
+    /// Called when the title field loses focus.
+    /// Creates a draft if this is the first time content was entered,
+    /// or updates the draft if the title changed.
+    func handleTitleBlur() {
+        guard isCreateMode else { return }
+        guard !isCreatingDraft else { return }
+        guard !title.isEmpty else { return }
+
+        if draftStack == nil {
+            // First time user entered a title and left the field - create draft
+            createDraft(title: title)
+        } else if let draft = draftStack, draft.title != title {
+            // Title changed - update draft
+            updateDraft(draft, title: title, description: stackDescription)
+        }
+    }
+
+    /// Called when the description field loses focus.
+    /// Saves any pending description changes that weren't saved by word completion.
+    func handleDescriptionBlur() {
+        guard isCreateMode else { return }
         guard let draft = draftStack else { return }
-        updateDraft(draft, title: title, description: newDescription)
+        guard draft.stackDescription != stackDescription else { return }
+        updateDraft(draft, title: title, description: stackDescription)
+    }
+
+    /// Handles description text changes to detect word completion.
+    /// Fires a save event when a space or newline is added, providing crash recovery
+    /// without the overhead of per-keystroke events.
+    func handleDescriptionChange(oldValue: String, newValue: String) {
+        guard let draft = draftStack else { return }
+
+        // Detect word completion: new text ends with word boundary when old didn't.
+        // This handles both typing and pasting text ending with space/newline.
+        // The blur handler catches any remaining unsaved content.
+        let newEndsWithWordBoundary = newValue.last == " " || newValue.last == "\n"
+        let oldEndsWithWordBoundary = oldValue.last == " " || oldValue.last == "\n"
+
+        if newEndsWithWordBoundary && !oldEndsWithWordBoundary {
+            updateDraft(draft, title: title, description: newValue)
+        }
     }
 
     func createDraft(title: String) {
@@ -147,11 +192,20 @@ extension StackEditorView {
     }
 
     func handleCreateCancel() {
+        // Case 1: Draft exists - show discard dialog
         if draftStack != nil {
             showDiscardAlert = true
-        } else {
-            dismiss()
+            return
         }
+
+        // Case 2: No draft but has content - prompt to save draft
+        if !title.isEmpty || !stackDescription.isEmpty {
+            showSaveDraftPrompt = true
+            return
+        }
+
+        // Case 3: No content at all - just dismiss
+        dismiss()
     }
 
     func discardDraftAndDismiss() {
@@ -218,5 +272,57 @@ extension StackEditorView {
             errorMessage = "Failed to create stack: \(error.localizedDescription)"
             showError = true
         }
+    }
+
+    // MARK: - Background Save
+
+    /// Saves any pending changes when the app enters background.
+    /// This ensures content is preserved if the user switches apps or phone dies.
+    func saveOnBackground() {
+        guard isCreateMode else { return }
+        guard !isCreatingDraft else { return }
+
+        if draftStack == nil && !title.isEmpty {
+            // Create draft with current content
+            do {
+                let draft = try stackService.createStack(
+                    title: title,
+                    description: stackDescription.isEmpty ? nil : stackDescription,
+                    isDraft: true
+                )
+                draftStack = draft
+                logger.info("Background save: created draft \(draft.id)")
+                syncManager?.triggerImmediatePush()
+            } catch {
+                logger.error("Background save failed to create draft: \(error.localizedDescription)")
+            }
+        } else if let draft = draftStack {
+            // Update draft if there are pending changes
+            let titleChanged = draft.title != title
+            let descriptionChanged = draft.stackDescription != stackDescription
+            if titleChanged || descriptionChanged {
+                do {
+                    try stackService.updateDraft(
+                        draft,
+                        title: title.isEmpty ? "Untitled" : title,
+                        description: stackDescription.isEmpty ? nil : stackDescription
+                    )
+                    logger.info("Background save: updated draft \(draft.id)")
+                    syncManager?.triggerImmediatePush()
+                } catch {
+                    logger.error("Background save failed to update draft: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Creates a draft from unsaved content and dismisses the sheet.
+    /// Called when user chooses "Save Draft" from the save draft prompt.
+    func createDraftAndDismiss() {
+        // Only create draft if we don't have one and there's content to save
+        if draftStack == nil && !title.isEmpty {
+            createDraft(title: title)
+        }
+        dismiss()
     }
 }
