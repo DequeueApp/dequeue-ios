@@ -11,13 +11,19 @@ import SwiftData
 extension StackService {
     // MARK: - Migration
 
-    /// Migrates existing data to ensure exactly one stack has isActive = true.
+    /// Migrates legacy data from before the explicit `isActive` field was added.
     /// Call this on app startup to handle the schema migration from sortOrder-based
     /// active tracking to explicit isActive field.
     ///
+    /// **Important:** As of DEQ-148, the app supports zero active stacks. This migration
+    /// is for users upgrading from older versions that used sortOrder=0 to indicate
+    /// the active stack. New installs and users who have already migrated don't need this.
+    ///
     /// Migration logic:
-    /// 1. If no stack has isActive = true, set the stack with sortOrder = 0 as active
-    /// 2. If multiple stacks have isActive = true, keep only the one with lowest sortOrder
+    /// 1. If no stacks exist with status == .active, no migration is needed
+    /// 2. If no stack has isActive = true but stacks exist, activate the one with sortOrder = 0
+    ///    (this matches the legacy behavior before explicit isActive field)
+    /// 3. If multiple stacks have isActive = true (data corruption), keep only lowest sortOrder
     func migrateActiveStackState() throws {
         let activeStacks = try getActiveStacks()
         guard !activeStacks.isEmpty else { return }
