@@ -182,11 +182,19 @@ extension StackEditorView {
     var actionsSection: some View {
         if !isReadOnly && !isCreateMode {
             Section {
-                if case .edit(let stack) = mode, !stack.isActive {
-                    Button {
-                        setStackActive()
-                    } label: {
-                        Label("Set as Active Stack", systemImage: "star.fill")
+                if case .edit(let stack) = mode {
+                    if stack.isActive {
+                        Button {
+                            deactivateStack()
+                        } label: {
+                            Label("Deactivate Stack", systemImage: "star.slash")
+                        }
+                    } else {
+                        Button {
+                            setStackActive()
+                        } label: {
+                            Label("Set as Active Stack", systemImage: "star.fill")
+                        }
                     }
                 }
 
@@ -204,6 +212,18 @@ extension StackEditorView {
 
         do {
             try stackService.setAsActive(stack)
+            syncManager?.triggerImmediatePush()
+            dismiss()
+        } catch {
+            handleError(error)
+        }
+    }
+
+    func deactivateStack() {
+        guard case .edit(let stack) = mode else { return }
+
+        do {
+            try stackService.deactivateStack(stack)
             syncManager?.triggerImmediatePush()
             dismiss()
         } catch {

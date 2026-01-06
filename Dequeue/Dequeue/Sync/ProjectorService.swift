@@ -226,6 +226,9 @@ enum ProjectorService {
         ) else { return }
 
         stack.status = .completed
+        // A completed stack cannot be active - ensure this invariant holds even if
+        // the stackDeactivated event was rejected by LWW due to timestamp ordering
+        stack.isActive = false
         stack.updatedAt = event.timestamp  // LWW: Use event timestamp
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
