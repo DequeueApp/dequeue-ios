@@ -54,6 +54,8 @@ struct UndoCompletionBanner: View {
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Undo completion")
+                .accessibilityHint("Tap to restore the stack and cancel completion")
             }
             .padding()
         }
@@ -61,6 +63,8 @@ struct UndoCompletionBanner: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
         .transition(.move(edge: .top).combined(with: .opacity))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Stack completed: \(stackTitle). Tap Undo to restore.")
     }
 }
 

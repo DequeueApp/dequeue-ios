@@ -39,13 +39,17 @@ final class UndoCompletionManager {
     private var progressTask: Task<Void, Never>?
     private var modelContext: ModelContext?
     private var syncManager: SyncManager?
+    private var userId: String = ""
+    private var deviceId: String = ""
 
     // MARK: - Configuration
 
     /// Configure the manager with the required context for completing stacks
-    func configure(modelContext: ModelContext, syncManager: SyncManager?) {
+    func configure(modelContext: ModelContext, syncManager: SyncManager?, userId: String, deviceId: String) {
         self.modelContext = modelContext
         self.syncManager = syncManager
+        self.userId = userId
+        self.deviceId = deviceId
     }
 
     // MARK: - Public Methods
@@ -65,14 +69,15 @@ final class UndoCompletionManager {
         startProgressAnimation()
 
         // Start completion timer
-        completionTask = Task {
+        completionTask = Task { [weak self] in
             do {
                 try await Task.sleep(for: .seconds(Self.gracePeriodDuration))
 
                 // If we weren't cancelled, complete the stack
-                if !Task.isCancelled && self.pendingStack?.id == stack.id {
-                    self.completeStack()
+                guard let self, !Task.isCancelled, self.pendingStack?.id == stack.id else {
+                    return
                 }
+                self.completeStack()
             } catch {
                 // Task was cancelled - that's expected if user tapped undo
                 logger.debug("Completion timer cancelled")
@@ -101,11 +106,13 @@ final class UndoCompletionManager {
     }
 
     private func startProgressAnimation() {
-        progressTask = Task {
+        progressTask = Task { [weak self] in
             let startTime = Date()
             let duration = Self.gracePeriodDuration
 
             while !Task.isCancelled {
+                guard let self else { return }
+
                 let elapsed = Date().timeIntervalSince(startTime)
                 self.progress = min(elapsed / duration, 1.0)
 
@@ -113,8 +120,8 @@ final class UndoCompletionManager {
                     break
                 }
 
-                // Update at ~60fps
-                try? await Task.sleep(for: .milliseconds(16))
+                // Update at ~10fps (100ms) for efficiency - still smooth visually
+                try? await Task.sleep(for: .milliseconds(100))
             }
         }
     }
@@ -129,7 +136,12 @@ final class UndoCompletionManager {
         logger.info("Completing stack after grace period: \(stack.title)")
 
         do {
-            let stackService = StackService(modelContext: modelContext, syncManager: syncManager)
+            let stackService = StackService(
+                modelContext: modelContext,
+                userId: userId,
+                deviceId: deviceId,
+                syncManager: syncManager
+            )
             try stackService.markAsCompleted(stack, completeAllTasks: true)
             syncManager?.triggerImmediatePush()
         } catch {

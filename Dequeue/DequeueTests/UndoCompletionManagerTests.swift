@@ -45,7 +45,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -63,7 +63,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -80,7 +80,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack1 = Stack(title: "First Stack", status: .active, sortOrder: 0)
         let stack2 = Stack(title: "Second Stack", status: .active, sortOrder: 1)
@@ -104,7 +104,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -125,7 +125,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -155,7 +155,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -176,7 +176,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -199,7 +199,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -226,7 +226,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -254,7 +254,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -282,7 +282,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -305,7 +305,7 @@ struct UndoCompletionManagerTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -341,7 +341,7 @@ struct UndoCompletionManagerTaskTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)
@@ -374,7 +374,7 @@ struct UndoCompletionManagerTaskTests {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
-        manager.configure(modelContext: context, syncManager: nil)
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
 
         let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
         context.insert(stack)

@@ -11,8 +11,10 @@ import SwiftData
 struct MainTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
 
     @State private var selectedTab = 0
+    @State private var cachedDeviceId: String = ""
     @State private var previousTab = 0
     @State private var showAddSheet = false
     @State private var showStackPicker = false
@@ -119,8 +121,17 @@ struct MainTabView: View {
         }
         .environment(\.undoCompletionManager, undoCompletionManager)
         .task {
+            // Fetch device ID if not cached
+            if cachedDeviceId.isEmpty {
+                cachedDeviceId = await DeviceService.shared.getDeviceId()
+            }
             // Configure the undo completion manager with required dependencies
-            undoCompletionManager.configure(modelContext: modelContext, syncManager: syncManager)
+            undoCompletionManager.configure(
+                modelContext: modelContext,
+                syncManager: syncManager,
+                userId: authService.currentUserId ?? "",
+                deviceId: cachedDeviceId
+            )
         }
         #else
         EmptyView()
@@ -198,8 +209,17 @@ struct MainTabView: View {
         }
         .environment(\.undoCompletionManager, undoCompletionManager)
         .task {
+            // Fetch device ID if not cached
+            if cachedDeviceId.isEmpty {
+                cachedDeviceId = await DeviceService.shared.getDeviceId()
+            }
             // Configure the undo completion manager with required dependencies
-            undoCompletionManager.configure(modelContext: modelContext, syncManager: syncManager)
+            undoCompletionManager.configure(
+                modelContext: modelContext,
+                syncManager: syncManager,
+                userId: authService.currentUserId ?? "",
+                deviceId: cachedDeviceId
+            )
         }
     }
 
