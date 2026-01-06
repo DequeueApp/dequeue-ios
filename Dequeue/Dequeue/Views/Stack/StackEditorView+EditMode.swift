@@ -212,7 +212,6 @@ extension StackEditorView {
 
         do {
             try stackService.setAsActive(stack)
-            syncManager?.triggerImmediatePush()
             dismiss()
         } catch {
             handleError(error)
@@ -224,7 +223,6 @@ extension StackEditorView {
 
         do {
             try stackService.deactivateStack(stack)
-            syncManager?.triggerImmediatePush()
             dismiss()
         } catch {
             handleError(error)
@@ -257,7 +255,6 @@ extension StackEditorView {
                 description: editedDescription.isEmpty ? nil : editedDescription
             )
             isEditingDescription = false
-            syncManager?.triggerImmediatePush()
         } catch {
             handleError(error)
         }
@@ -267,7 +264,6 @@ extension StackEditorView {
         do {
             if task.status != .completed {
                 try taskService.markAsCompleted(task)
-                syncManager?.triggerImmediatePush()
             }
         } catch {
             handleError(error)
@@ -277,7 +273,6 @@ extension StackEditorView {
     func setTaskActive(_ task: QueueTask) {
         do {
             try taskService.activateTask(task)
-            syncManager?.triggerImmediatePush()
         } catch {
             handleError(error)
         }
@@ -291,7 +286,6 @@ extension StackEditorView {
 
         do {
             try taskService.updateSortOrders(tasks)
-            syncManager?.triggerImmediatePush()
         } catch {
             handleError(error)
         }
@@ -302,7 +296,6 @@ extension StackEditorView {
 
         do {
             try stackService.markAsCompleted(stack, completeAllTasks: completeAllTasks)
-            syncManager?.triggerImmediatePush()
             dismiss()
         } catch {
             handleError(error)
@@ -314,7 +307,6 @@ extension StackEditorView {
 
         do {
             try stackService.closeStack(stack)
-            syncManager?.triggerImmediatePush()
             dismiss()
         } catch {
             handleError(error)
@@ -349,7 +341,6 @@ extension StackEditorView {
             newTaskTitle = ""
             newTaskDescription = ""
             showAddTask = false
-            syncManager?.triggerImmediatePush()
         } catch {
             handleError(error)
         }

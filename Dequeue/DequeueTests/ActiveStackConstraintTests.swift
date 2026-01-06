@@ -518,4 +518,124 @@ struct ActiveStackConstraintTests {
         #expect(task2.status == .pending)
         #expect(stack.status == .completed)
     }
+
+    // MARK: - StackService.deactivateStack Tests (DEQ-148)
+
+    @Test("deactivateStack sets isActive to false")
+    @MainActor
+    func deactivateStackSetsIsActiveFalse() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+
+        let stack = try service.createStack(title: "Active Stack")
+        #expect(stack.isActive == true)
+
+        try service.deactivateStack(stack)
+
+        #expect(stack.isActive == false)
+    }
+
+    @Test("deactivateStack is idempotent - calling on non-active stack is safe")
+    @MainActor
+    func deactivateStackIsIdempotent() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+
+        // Create two stacks - first is active, second is not
+        let first = try service.createStack(title: "First Stack")
+        let second = try service.createStack(title: "Second Stack")
+
+        #expect(first.isActive == true)
+        #expect(second.isActive == false)
+
+        // Deactivating already non-active stack should be a no-op
+        try service.deactivateStack(second)
+
+        #expect(second.isActive == false)
+        #expect(first.isActive == true) // First should remain active
+    }
+
+    @Test("After deactivation, getCurrentActiveStack returns nil")
+    @MainActor
+    func afterDeactivationNoActiveStack() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+
+        let stack = try service.createStack(title: "Only Stack")
+        #expect(try service.getCurrentActiveStack() != nil)
+
+        try service.deactivateStack(stack)
+
+        #expect(try service.getCurrentActiveStack() == nil)
+    }
+
+    @Test("deactivateStack creates a stack.deactivated event")
+    @MainActor
+    func deactivateStackCreatesEvent() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+
+        let stack = try service.createStack(title: "Stack to Deactivate")
+
+        // Get event count before deactivation
+        let eventsBefore = try context.fetch(FetchDescriptor<Event>())
+        let beforeCount = eventsBefore.filter { $0.entityId == stack.id }.count
+
+        try service.deactivateStack(stack)
+
+        // Check for new event
+        let eventsAfter = try context.fetch(FetchDescriptor<Event>())
+        let stackEvents = eventsAfter.filter { $0.entityId == stack.id }
+        let afterCount = stackEvents.count
+
+        #expect(afterCount == beforeCount + 1)
+
+        // Verify the event type
+        let deactivatedEvent = stackEvents.first { $0.eventType == "stack.deactivated" }
+        #expect(deactivatedEvent != nil)
+    }
+
+    @Test("Can deactivate and then reactivate a stack")
+    @MainActor
+    func canDeactivateAndReactivate() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+
+        let stack = try service.createStack(title: "Toggle Stack")
+        #expect(stack.isActive == true)
+
+        try service.deactivateStack(stack)
+        #expect(stack.isActive == false)
+
+        try service.setAsActive(stack)
+        #expect(stack.isActive == true)
+    }
+
+    @Test("Deactivating the only active stack leaves zero active stacks")
+    @MainActor
+    func deactivatingOnlyStackLeavesZeroActive() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+        let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+
+        // Create multiple stacks - only first should be active
+        let first = try service.createStack(title: "First")
+        _ = try service.createStack(title: "Second")
+        _ = try service.createStack(title: "Third")
+
+        #expect(first.isActive == true)
+
+        // Deactivate the only active stack
+        try service.deactivateStack(first)
+
+        // Should now have zero active stacks
+        #expect(try service.getCurrentActiveStack() == nil)
+        let allActiveStacks = try service.getAllStacksWithIsActiveTrue()
+        #expect(allActiveStacks.isEmpty)
+    }
 }

@@ -141,9 +141,16 @@ struct StackPickerSheet: View {
     // MARK: - Actions
 
     private func selectStack(_ stack: Stack) {
+        // Guard against edge case where deviceId hasn't loaded yet
+        guard !cachedDeviceId.isEmpty else {
+            errorMessage = "Initializing... please try again"
+            showError = true
+            return
+        }
+
         do {
             try stackService.setAsActive(stack)
-            syncManager?.triggerImmediatePush()
+            // Note: syncManager?.triggerImmediatePush() is called internally by setAsActive()
             dismiss()
         } catch {
             errorMessage = "Failed to set stack as active: \(error.localizedDescription)"
