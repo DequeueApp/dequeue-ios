@@ -61,9 +61,6 @@ actor SyncManager {
     /// This can be disabled via remote config if issues arise.
     private var webSocketPushEnabled = true
 
-    /// Track if a push operation is in progress to prevent concurrent pushes
-    private var isPushInProgress = false
-
     // Health monitoring
     private var consecutiveHeartbeatFailures = 0
     private let maxConsecutiveHeartbeatFailures = 3
@@ -348,14 +345,17 @@ actor SyncManager {
         // Send via WebSocket for immediate delivery to other devices (fire-and-forget optimization).
         // This runs concurrently with HTTP push - WebSocket provides low-latency broadcast while
         // HTTP remains authoritative for acknowledgment. Backend deduplicates by event ID.
+        // Uses utility priority since this is a background optimization, not critical path.
         if webSocketPushEnabled && isConnected {
-            Task { [syncEvents] in
+            let eventCount = syncEvents.count
+            Task(priority: .utility) { [weak self, syncEvents] in
+                guard let self = self else { return }
                 do {
-                    try await sendViaWebSocket(events: syncEvents)
-                    os_log("[Sync] Sent \(syncEvents.count) events via WebSocket (optimistic)")
+                    try await self.sendViaWebSocket(events: syncEvents)
+                    os_log("[Sync] Sent \(eventCount) events via WebSocket (optimistic)")
                 } catch {
                     // Fire-and-forget: log but don't fail - HTTP will handle it
-                    os_log("[Sync] WebSocket send failed (HTTP will handle): \(error.localizedDescription)")
+                    os_log("[Sync] WebSocket send failed for \(eventCount) events (HTTP will handle): \(error)")
                 }
             }
         }
