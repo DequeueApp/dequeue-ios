@@ -230,7 +230,7 @@ final class EventService {
 
     func fetchPendingEvents() throws -> [Event] {
         let predicate = #Predicate<Event> { event in
-            event.isSynced == false
+            event.isSynced == false && event.payloadVersion >= 2
         }
         let descriptor = FetchDescriptor<Event>(
             predicate: predicate,
