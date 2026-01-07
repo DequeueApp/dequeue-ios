@@ -9,9 +9,16 @@ import SwiftUI
 import SwiftData
 
 struct MainTabView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
+
     @State private var selectedTab = 0
+    @State private var cachedDeviceId: String = ""
     @State private var showAddSheet = false
+    @State private var showStackPicker = false
     @State private var activeStackForDetail: Stack?
+    @State private var undoCompletionManager = UndoCompletionManager()
 
     var body: some View {
         #if os(macOS)
@@ -46,8 +53,28 @@ struct MainTabView: View {
         }
         .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom) {
-            // Bottom area: Active Stack Banner + Custom Tab Bar
+            // Bottom area: Undo Banner + Active Stack Banner + Custom Tab Bar
             VStack(spacing: 12) {
+                // Undo completion banner (appears above active stack banner)
+                if undoCompletionManager.hasPendingCompletion,
+                   let stack = undoCompletionManager.pendingStack {
+                    UndoCompletionBanner(
+                        stackTitle: stack.title,
+                        progress: undoCompletionManager.progress,
+                        onUndo: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                undoCompletionManager.undoCompletion()
+                            }
+                        }
+                    )
+                    .frame(maxWidth: isIPad ? 400 : .infinity)
+                    .padding(.horizontal, 16)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .opacity
+                    ))
+                }
+
                 // Active Stack Banner (above tab bar)
                 activeStackBanner
                     .frame(maxWidth: isIPad ? 400 : .infinity)
@@ -69,12 +96,30 @@ struct MainTabView: View {
                 )
                 .ignoresSafeArea(edges: .bottom)
             )
+            .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
         }
         .sheet(isPresented: $showAddSheet) {
             StackEditorView(mode: .create)
         }
+        .sheet(isPresented: $showStackPicker) {
+            StackPickerSheet()
+        }
         .sheet(item: $activeStackForDetail) { stack in
             StackEditorView(mode: .edit(stack))
+        }
+        .environment(\.undoCompletionManager, undoCompletionManager)
+        .task {
+            // Fetch device ID if not cached
+            if cachedDeviceId.isEmpty {
+                cachedDeviceId = await DeviceService.shared.getDeviceId()
+            }
+            // Configure the undo completion manager with required dependencies
+            undoCompletionManager.configure(
+                modelContext: modelContext,
+                syncManager: syncManager,
+                userId: authService.currentUserId ?? "",
+                deviceId: cachedDeviceId
+            )
         }
         #else
         EmptyView()
@@ -115,16 +160,54 @@ struct MainTabView: View {
                 detailContent
                     .frame(maxHeight: .infinity, alignment: .top)
 
-                activeStackBanner
-                    .padding(.horizontal)
-                    .padding(.bottom, 16)
+                VStack(spacing: 12) {
+                    // Undo completion banner (appears above active stack banner)
+                    if undoCompletionManager.hasPendingCompletion,
+                       let stack = undoCompletionManager.pendingStack {
+                        UndoCompletionBanner(
+                            stackTitle: stack.title,
+                            progress: undoCompletionManager.progress,
+                            onUndo: {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    undoCompletionManager.undoCompletion()
+                                }
+                            }
+                        )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .opacity
+                        ))
+                    }
+
+                    activeStackBanner
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 16)
+                .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
             }
         }
         .sheet(isPresented: $showAddSheet) {
             StackEditorView(mode: .create)
         }
+        .sheet(isPresented: $showStackPicker) {
+            StackPickerSheet()
+        }
         .sheet(item: $activeStackForDetail) { stack in
             StackEditorView(mode: .edit(stack))
+        }
+        .environment(\.undoCompletionManager, undoCompletionManager)
+        .task {
+            // Fetch device ID if not cached
+            if cachedDeviceId.isEmpty {
+                cachedDeviceId = await DeviceService.shared.getDeviceId()
+            }
+            // Configure the undo completion manager with required dependencies
+            undoCompletionManager.configure(
+                modelContext: modelContext,
+                syncManager: syncManager,
+                userId: authService.currentUserId ?? "",
+                deviceId: cachedDeviceId
+            )
         }
     }
 
@@ -153,7 +236,7 @@ struct MainTabView: View {
                 activeStackForDetail = stack
             },
             onEmptyTapped: {
-                selectedTab = 0 // Navigate to Home tab
+                showStackPicker = true
             }
         )
     }
