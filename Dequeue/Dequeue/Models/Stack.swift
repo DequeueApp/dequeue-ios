@@ -52,10 +52,18 @@ final class Stack {
     @Relationship(deleteRule: .cascade)
     var reminders: [Reminder] = []
 
+    @Relationship(deleteRule: .nullify)
+    var tagObjects: [Tag] = []
+
     /// Computed property for type-safe status access
     var status: StackStatus {
         get { StackStatus(rawValue: statusRawValue) ?? .active }
         set { statusRawValue = newValue.rawValue }
+    }
+
+    /// Convenience computed property for tag names
+    var tagNames: [String] {
+        tagObjects.filter { !$0.isDeleted }.map { $0.name }
     }
 
     init(
