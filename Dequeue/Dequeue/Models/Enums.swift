@@ -38,6 +38,24 @@ enum SyncState: String, Codable, CaseIterable {
     case failed
 }
 
+/// Tracks the upload state of file attachments to remote storage.
+///
+/// State transitions:
+/// - `pending` → `uploading`: When upload begins
+/// - `uploading` → `completed`: When upload succeeds
+/// - `uploading` → `failed`: When upload fails (can retry: `failed` → `uploading`)
+/// - `pending` → `completed`: When file already exists on server (skip upload)
+enum UploadState: String, Codable, CaseIterable {
+    /// File has not been uploaded yet and is waiting to be processed
+    case pending
+    /// File is currently being uploaded to remote storage
+    case uploading
+    /// File has been successfully uploaded and remoteUrl is available
+    case completed
+    /// Upload failed; can be retried by transitioning back to uploading
+    case failed
+}
+
 enum EventType: String, Codable, CaseIterable {
     // Stack events
     case stackCreated = "stack.created"
