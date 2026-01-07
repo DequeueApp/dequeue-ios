@@ -141,6 +141,7 @@ private struct AddButton: View {
     }
 }
 
+#if os(iOS)
 #Preview {
     VStack {
         Spacer()
@@ -151,3 +152,4 @@ private struct AddButton: View {
     }
     .background(Color(.systemGroupedBackground))
 }
+#endif
