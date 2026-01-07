@@ -119,8 +119,7 @@ struct SyncManagerWebSocketPushTests {
     func testEventIdFormat() {
         // Events use CUID v2 format for unique IDs
         // Backend deduplicates by event ID, so duplicate sends are safe
-        let cuidPattern = #"^c[a-z0-9]{24}$"#  // CUID v2 format
-        let sampleId = "cm5test123456789012345"
+        let sampleId = "cm5test123456789012345678"  // 25 characters - CUID v2 format
 
         // CUID IDs are 25 characters starting with 'c'
         #expect(sampleId.count >= 24)
