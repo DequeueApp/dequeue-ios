@@ -83,6 +83,11 @@ enum EventType: String, Codable, CaseIterable {
     case reminderDeleted = "reminder.deleted"
     case reminderSnoozed = "reminder.snoozed"
 
+    // Tag events
+    case tagCreated = "tag.created"
+    case tagUpdated = "tag.updated"
+    case tagDeleted = "tag.deleted"
+
     // Device events
     case deviceDiscovered = "device.discovered"
 }

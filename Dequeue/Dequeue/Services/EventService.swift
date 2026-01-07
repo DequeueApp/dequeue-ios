@@ -216,6 +216,30 @@ final class EventService {
         try recordEvent(type: .reminderSnoozed, payload: payload, entityId: reminder.id)
     }
 
+    // MARK: - Tag Events
+
+    func recordTagCreated(_ tag: Tag) throws {
+        let payload = TagCreatedPayload(
+            tagId: tag.id,
+            state: TagState.from(tag)
+        )
+        try recordEvent(type: .tagCreated, payload: payload, entityId: tag.id)
+    }
+
+    func recordTagUpdated(_ tag: Tag, changes: [String: Any] = [:]) throws {
+        let payload = TagUpdatedPayload(
+            tagId: tag.id,
+            changes: changes,
+            fullState: TagState.from(tag)
+        )
+        try recordEvent(type: .tagUpdated, payload: payload, entityId: tag.id)
+    }
+
+    func recordTagDeleted(_ tag: Tag) throws {
+        let payload = TagDeletedPayload(tagId: tag.id)
+        try recordEvent(type: .tagDeleted, payload: payload, entityId: tag.id)
+    }
+
     // MARK: - Device Events
 
     func recordDeviceDiscovered(_ device: Device) throws {
@@ -449,6 +473,29 @@ struct DeviceState: Codable {
     }
 }
 
+/// Full tag state snapshot - matches React Native TagState interface
+struct TagState: Codable {
+    let id: String
+    let name: String
+    let normalizedName: String
+    let colorHex: String?
+    let createdAt: Int64  // Unix timestamp in milliseconds
+    let updatedAt: Int64
+    let deleted: Bool
+
+    static func from(_ tag: Tag) -> TagState {
+        TagState(
+            id: tag.id,
+            name: tag.name,
+            normalizedName: tag.normalizedName,
+            colorHex: tag.colorHex,
+            createdAt: Int64(tag.createdAt.timeIntervalSince1970 * 1_000),
+            updatedAt: Int64(tag.updatedAt.timeIntervalSince1970 * 1_000),
+            deleted: tag.isDeleted
+        )
+    }
+}
+
 // MARK: - Event Payloads (match React Native EventService payload interfaces)
 
 // Stack payloads
@@ -569,6 +616,35 @@ struct ReminderSnoozedPayload: Codable {
 struct DeviceDiscoveredPayload: Codable {
     let deviceId: String
     let state: DeviceState
+}
+
+// Tag payloads
+struct TagCreatedPayload: Codable {
+    let tagId: String
+    let state: TagState
+}
+
+struct TagUpdatedPayload: Encodable {
+    let tagId: String
+    let changes: [String: Any]
+    let fullState: TagState
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(tagId, forKey: .tagId)
+        try container.encode(fullState, forKey: .fullState)
+        let changesData = try JSONSerialization.data(withJSONObject: changes)
+        let changesDict = try JSONDecoder().decode([String: AnyCodable].self, from: changesData)
+        try container.encode(changesDict, forKey: .changes)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case tagId, changes, fullState
+    }
+}
+
+struct TagDeletedPayload: Codable {
+    let tagId: String
 }
 
 // MARK: - Reading Payloads (for ProjectorService to decode incoming events)
@@ -757,6 +833,38 @@ struct ReminderEventPayload: Codable {
     }
 }
 
+/// Payload for reading tag events - extracts data from state object
+struct TagEventPayload: Codable {
+    let id: String
+    let name: String
+    let normalizedName: String
+    let colorHex: String?
+    let deleted: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, normalizedName, colorHex, deleted
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        normalizedName = try container.decodeIfPresent(String.self, forKey: .normalizedName)
+            ?? name.lowercased().trimmingCharacters(in: .whitespaces)
+        colorHex = try container.decodeIfPresent(String.self, forKey: .colorHex)
+        deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(normalizedName, forKey: .normalizedName)
+        try container.encodeIfPresent(colorHex, forKey: .colorHex)
+        try container.encode(deleted, forKey: .deleted)
+    }
+}
+
 /// Payload for entity deletion events
 struct EntityDeletedPayload: Codable {
     let id: String
@@ -766,6 +874,7 @@ struct EntityDeletedPayload: Codable {
         case stackId  // For stack.deleted
         case taskId   // For task.deleted
         case reminderId  // For reminder.deleted
+        case tagId  // For tag.deleted
     }
 
     init(from decoder: Decoder) throws {
@@ -777,6 +886,8 @@ struct EntityDeletedPayload: Codable {
             id = taskId
         } else if let reminderId = try? container.decode(String.self, forKey: .reminderId) {
             id = reminderId
+        } else if let tagId = try? container.decode(String.self, forKey: .tagId) {
+            id = tagId
         } else {
             id = try container.decode(String.self, forKey: .id)
         }
