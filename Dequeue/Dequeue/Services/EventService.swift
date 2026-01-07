@@ -229,8 +229,12 @@ final class EventService {
     // MARK: - Query
 
     func fetchPendingEvents() throws -> [Event] {
+        // Filter for unsynced events with current payload version (>= 2).
+        // Legacy events (payloadVersion < 2) are pre-DEQ-137 format and should not be synced.
+        // They lack userId/deviceId in payload and would cause server constraint violations.
+        let minVersion = Event.currentPayloadVersion
         let predicate = #Predicate<Event> { event in
-            event.isSynced == false
+            event.isSynced == false && event.payloadVersion >= minVersion
         }
         let descriptor = FetchDescriptor<Event>(
             predicate: predicate,
