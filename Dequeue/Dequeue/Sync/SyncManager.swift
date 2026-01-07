@@ -55,6 +55,15 @@ actor SyncManager {
     private var listenTask: Task<Void, Never>?
     private var networkMonitorTask: Task<Void, Never>?
 
+    /// Flag to enable/disable WebSocket push optimization.
+    /// When enabled, events are sent via WebSocket for immediate delivery to other devices,
+    /// in addition to HTTP which remains authoritative for acknowledgment.
+    /// This can be disabled via remote config if issues arise.
+    private var webSocketPushEnabled = true
+
+    /// Track if a push operation is in progress to prevent concurrent pushes
+    private var isPushInProgress = false
+
     // Health monitoring
     private var consecutiveHeartbeatFailures = 0
     private let maxConsecutiveHeartbeatFailures = 3
@@ -336,6 +345,22 @@ actor SyncManager {
             ]
         }
 
+        // Send via WebSocket for immediate delivery to other devices (fire-and-forget optimization).
+        // This runs concurrently with HTTP push - WebSocket provides low-latency broadcast while
+        // HTTP remains authoritative for acknowledgment. Backend deduplicates by event ID.
+        if webSocketPushEnabled && isConnected {
+            Task { [syncEvents] in
+                do {
+                    try await sendViaWebSocket(events: syncEvents)
+                    os_log("[Sync] Sent \(syncEvents.count) events via WebSocket (optimistic)")
+                } catch {
+                    // Fire-and-forget: log but don't fail - HTTP will handle it
+                    os_log("[Sync] WebSocket send failed (HTTP will handle): \(error.localizedDescription)")
+                }
+            }
+        }
+
+        // Always send via HTTP for authoritative acknowledgment and sync state management
         let pushURL = await MainActor.run { Configuration.syncAPIBaseURL.appendingPathComponent("sync/push") }
         var request = URLRequest(url: pushURL)
         request.httpMethod = "POST"
@@ -414,6 +439,22 @@ actor SyncManager {
                 data: ["total": eventIds.count, "synced": syncedEventIds.count]
             )
         }
+    }
+
+    // MARK: - WebSocket Push
+
+    /// Sends events via WebSocket for immediate delivery to other devices.
+    /// This is a fire-and-forget optimization - HTTP push remains authoritative for acknowledgment.
+    /// Events sent here will also be sent via HTTP to confirm delivery and mark as synced.
+    private func sendViaWebSocket(events: [[String: Any]]) async throws {
+        guard isConnected, let wsTask = webSocketTask else {
+            throw SyncError.connectionLost
+        }
+
+        let payload: [String: Any] = ["events": events]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+
+        try await wsTask.send(.data(data))
     }
 
     // MARK: - Pull Events
@@ -916,6 +957,19 @@ actor SyncManager {
     func resetCheckpoint() {
         UserDefaults.standard.removeObject(forKey: lastSyncCheckpointKey)
         os_log("[Sync] Checkpoint reset - next pull will fetch all events")
+    }
+
+    /// Enable or disable WebSocket push optimization (for debugging/kill switch)
+    /// When disabled, events are only sent via HTTP. When enabled (default),
+    /// events are sent via both WebSocket (for low latency) and HTTP (for acknowledgment).
+    func setWebSocketPushEnabled(_ enabled: Bool) {
+        webSocketPushEnabled = enabled
+        os_log("[Sync] WebSocket push \(enabled ? "enabled" : "disabled")")
+    }
+
+    /// Returns whether WebSocket push optimization is currently enabled
+    var isWebSocketPushEnabled: Bool {
+        webSocketPushEnabled
     }
 
     // MARK: - Immediate Sync
