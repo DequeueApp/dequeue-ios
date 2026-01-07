@@ -17,8 +17,8 @@ import SwiftData
 
 @Model
 final class Attachment {
-    // Index for efficient parent lookups
-    static let parentIdIndex = #Index<Attachment>([\.parentId])
+    // Note: parentId index can be added when targeting iOS 18+ via #Index macro
+    // For now, SwiftData will optimize queries automatically
 
     @Attribute(.unique) var id: String
 
