@@ -103,14 +103,6 @@ final class Attachment {
 // MARK: - Convenience
 
 extension Attachment {
-    /// Static formatter for performance (formatters are expensive to create)
-    private static let sizeFormatter: ByteCountFormatter = {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        formatter.countStyle = .file
-        return formatter
-    }()
-
     /// Returns the expected Attachments directory path
     private static var attachmentsDirectory: String? {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
@@ -120,7 +112,10 @@ extension Attachment {
 
     /// Returns a human-readable file size string
     var formattedSize: String {
-        Self.sizeFormatter.string(fromByteCount: sizeBytes)
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: sizeBytes)
     }
 
     /// Returns true if the file is available locally and within the expected directory
