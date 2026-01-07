@@ -346,16 +346,20 @@ actor SyncManager {
         // This runs concurrently with HTTP push - WebSocket provides low-latency broadcast while
         // HTTP remains authoritative for acknowledgment. Backend deduplicates by event ID.
         // Uses utility priority since this is a background optimization, not critical path.
+        // Note: We serialize to Data here (before Task) because Data is Sendable, while [[String: Any]] is not.
         if webSocketPushEnabled && isConnected {
             let eventCount = syncEvents.count
-            Task(priority: .utility) { [weak self, syncEvents] in
-                guard let self = self else { return }
-                do {
-                    try await self.sendViaWebSocket(events: syncEvents)
-                    os_log("[Sync] Sent \(eventCount) events via WebSocket (optimistic)")
-                } catch {
-                    // Fire-and-forget: log but don't fail - HTTP will handle it
-                    os_log("[Sync] WebSocket send failed for \(eventCount) events (HTTP will handle): \(error)")
+            // Serialize before Task to avoid data race - Data is Sendable, [[String: Any]] is not
+            if let wsPayloadData = try? JSONSerialization.data(withJSONObject: ["events": syncEvents]) {
+                Task(priority: .utility) { [weak self, wsPayloadData] in
+                    guard let self = self else { return }
+                    do {
+                        try await self.sendViaWebSocket(data: wsPayloadData)
+                        os_log("[Sync] Sent \(eventCount) events via WebSocket (optimistic)")
+                    } catch {
+                        // Fire-and-forget: log but don't fail - HTTP will handle it
+                        os_log("[Sync] WebSocket send failed for \(eventCount) events (HTTP will handle): \(error)")
+                    }
                 }
             }
         }
@@ -443,16 +447,13 @@ actor SyncManager {
 
     // MARK: - WebSocket Push
 
-    /// Sends events via WebSocket for immediate delivery to other devices.
+    /// Sends pre-serialized event data via WebSocket for immediate delivery to other devices.
     /// This is a fire-and-forget optimization - HTTP push remains authoritative for acknowledgment.
-    /// Events sent here will also be sent via HTTP to confirm delivery and mark as synced.
-    private func sendViaWebSocket(events: [[String: Any]]) async throws {
+    /// - Parameter data: JSON-encoded payload with "events" array, pre-serialized to ensure Sendable compliance.
+    private func sendViaWebSocket(data: Data) async throws {
         guard isConnected, let wsTask = webSocketTask else {
             throw SyncError.connectionLost
         }
-
-        let payload: [String: Any] = ["events": events]
-        let data = try JSONSerialization.data(withJSONObject: payload)
 
         try await wsTask.send(.data(data))
     }
