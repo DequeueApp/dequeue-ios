@@ -10,6 +10,12 @@ import SwiftData
 import Foundation
 @testable import Dequeue
 
+/// Simple error type for test assertions
+private struct TestError: Error {
+    let message: String
+    init(_ message: String) { self.message = message }
+}
+
 @Suite("Attachment Model Tests")
 struct AttachmentTests {
     @Test("Attachment initializes with default values")
@@ -201,6 +207,98 @@ struct AttachmentTests {
             sizeBytes: 1024
         )
         #expect(noExtension.fileExtension == nil)
+    }
+
+    @Test("isAvailableLocally returns false when localPath is nil")
+    func isAvailableLocallyReturnsFalseWhenNil() {
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "file.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024
+        )
+        #expect(attachment.isAvailableLocally == false)
+    }
+
+    @Test("isAvailableLocally returns false for paths outside Attachments directory")
+    func isAvailableLocallyRejectsUnsafePaths() {
+        // Security: Path traversal should be rejected
+        let maliciousPath = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "file.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "/etc/passwd"
+        )
+        #expect(maliciousPath.isAvailableLocally == false)
+
+        // Relative path (not starting with expected prefix)
+        let relativePath = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "file.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "Documents/Attachments/file.pdf"
+        )
+        #expect(relativePath.isAvailableLocally == false)
+    }
+
+    @Test("isAvailableLocally returns true for valid existing file")
+    func isAvailableLocallyReturnsTrueForExistingFile() throws {
+        let fileManager = FileManager.default
+
+        // Create the Attachments directory in Documents
+        guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            throw TestError("Could not get documents directory")
+        }
+
+        let attachmentsDir = documentsDir.appendingPathComponent("Attachments")
+        let testDir = attachmentsDir.appendingPathComponent("test-attachment")
+
+        try fileManager.createDirectory(at: testDir, withIntermediateDirectories: true)
+
+        let testFile = testDir.appendingPathComponent("test-file.pdf")
+        try Data("test content".utf8).write(to: testFile)
+
+        defer {
+            try? fileManager.removeItem(at: testDir)
+        }
+
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "test-file.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: testFile.path
+        )
+        #expect(attachment.isAvailableLocally == true)
+    }
+
+    @Test("isAvailableLocally returns false for non-existent file in valid path")
+    func isAvailableLocallyReturnsFalseForMissingFile() {
+        guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+
+        let fakePath = documentsDir
+            .appendingPathComponent("Attachments")
+            .appendingPathComponent("non-existent")
+            .appendingPathComponent("missing.pdf")
+            .path
+
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "missing.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: fakePath
+        )
+        #expect(attachment.isAvailableLocally == false)
     }
 
     @Test("isUploaded returns correct state")

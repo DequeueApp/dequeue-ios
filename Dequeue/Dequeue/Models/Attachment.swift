@@ -17,6 +17,9 @@ import SwiftData
 
 @Model
 final class Attachment {
+    // Index for efficient parent lookups
+    static let parentIdIndex = #Index<Attachment>([\.parentId])
+
     @Attribute(.unique) var id: String
 
     /// The ID of the parent Stack or Task
@@ -100,17 +103,37 @@ final class Attachment {
 // MARK: - Convenience
 
 extension Attachment {
-    /// Returns a human-readable file size string
-    var formattedSize: String {
+    /// Static formatter for performance (formatters are expensive to create)
+    private static let sizeFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         formatter.countStyle = .file
-        return formatter.string(fromByteCount: sizeBytes)
+        return formatter
+    }()
+
+    /// Returns the expected Attachments directory path
+    private static var attachmentsDirectory: String? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("Attachments")
+            .path
     }
 
-    /// Returns true if the file is available locally
+    /// Returns a human-readable file size string
+    var formattedSize: String {
+        Self.sizeFormatter.string(fromByteCount: sizeBytes)
+    }
+
+    /// Returns true if the file is available locally and within the expected directory
+    /// - Note: Path must be an absolute path within Documents/Attachments/
     var isAvailableLocally: Bool {
         guard let localPath else { return false }
+
+        // Security: Validate path is within expected Attachments directory
+        guard let expectedPrefix = Self.attachmentsDirectory,
+              localPath.hasPrefix(expectedPrefix) else {
+            return false
+        }
+
         return FileManager.default.fileExists(atPath: localPath)
     }
 
