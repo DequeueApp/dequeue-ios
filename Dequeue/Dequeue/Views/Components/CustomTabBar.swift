@@ -127,9 +127,9 @@ private struct AddButton: View {
                 )
                 .background(
                     Circle()
-                        .fill(.accent)
+                        .fill(Color.accentColor)
                         .shadow(
-                            color: .accent.opacity(TabBarMetrics.addButtonShadowOpacity),
+                            color: Color.accentColor.opacity(TabBarMetrics.addButtonShadowOpacity),
                             radius: TabBarMetrics.addButtonShadowRadius,
                             x: 0,
                             y: TabBarMetrics.addButtonShadowY
