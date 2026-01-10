@@ -509,17 +509,280 @@ In addition to scheduled working hours, users can manually control work mode:
 
 ---
 
+## 7. Global Search
+
+### Overview
+Allow users to search across all Stacks and Tasks to quickly find what they're looking for, especially as data accumulates over time.
+
+### Rationale: Why This Matters
+Without search, users must scroll through lists or remember which stack contains a specific task. As users accumulate hundreds of stacks and thousands of tasks over months/years, finding things becomes painful. Search is table-stakes for any productivity app.
+
+### Core Concept
+- **Unified search**: Single search bar that queries across Stacks, Tasks, and (future) attachments
+- **Instant results**: Local SwiftData queries for sub-100ms response times
+- **Smart ranking**: Recent items, active items, and exact matches ranked higher
+- **Scope options**: Filter to "Active only", "Completed", "All", or specific tags
+
+### Search Scope
+| Entity | Searchable Fields |
+|--------|-------------------|
+| Stack | title, description, tags |
+| Task | title, description, blockedReason |
+| (Future) Attachment | filename, extracted text |
+| (Future) Link | title, URL, description |
+
+### UI Considerations
+- Search bar at top of Stacks tab (or dedicated search tab)
+- Recent searches preserved
+- Results grouped by entity type
+- Tap result to navigate directly to Stack/Task detail
+- Support keyboard shortcut on macOS: ⌘F
+
+### Technical Considerations
+- Use SwiftData `#Predicate` with `localizedStandardContains` for case-insensitive search
+- Consider full-text search index if performance becomes an issue at scale
+- Search should work fully offline (local data only)
+- Debounce input to avoid excessive queries
+
+### Open Questions
+- Should search include completed/archived stacks by default or require explicit toggle?
+- Do we want fuzzy matching or exact substring only?
+- Should search sync across devices (search history)?
+
+---
+
+## 8. iOS Widgets
+
+### Overview
+Provide home screen and lock screen widgets showing the user's active Stack and Task at a glance.
+
+### Rationale: Why This Matters
+Task management apps live and die by widgets. Users check their active task dozens of times per day—forcing them to open the app each time creates friction. A widget showing "You're working on: API Integration" keeps focus visible without app switching.
+
+### Widget Types
+
+**Small Widget (2x2)**
+- Shows active Stack title
+- Shows active Task title (if exists)
+- Tap opens app to Stack detail
+
+**Medium Widget (4x2)**
+- Active Stack with active Task
+- Next 2-3 pending tasks in the stack
+- Quick-tap to complete active task (interactive widget, iOS 17+)
+
+**Lock Screen Widget (circular/rectangular)**
+- Active Stack title only (space constrained)
+- Tap opens app
+
+**StandBy Mode (iOS 17+)**
+- Larger display of active Stack/Task
+- Visible during charging
+
+### Technical Considerations
+- Use `WidgetKit` framework
+- Share data via App Groups (SwiftData in shared container)
+- Timeline updates when Stack/Task changes
+- Background refresh to keep widget current
+- Handle "no active stack" state gracefully
+
+### Privacy Considerations
+- Task titles visible on lock screen—respect system settings
+- Consider option to show generic "1 active task" instead of title
+
+### Implementation Phases
+1. **Phase 1**: Small widget with active Stack/Task display
+2. **Phase 2**: Medium widget with task list
+3. **Phase 3**: Interactive widgets (complete task from widget)
+4. **Phase 4**: Lock screen and StandBy widgets
+
+---
+
+## 9. Data Privacy & Export
+
+### Overview
+Give users control over their data: export everything, delete their account, and optionally protect the app with biometrics.
+
+### Rationale: Why This Matters
+- **GDPR compliance**: Right to data portability (export) and right to erasure (delete account)
+- **User trust**: Users are more willing to invest in an app when they know they can leave
+- **Privacy**: Some users track sensitive tasks and want biometric protection
+
+### Core Features
+
+#### 9.1 Data Export
+- Export all user data as JSON or CSV
+- Include: Stacks, Tasks, Reminders, Events (optional), Tags, Attachments metadata
+- Attachments exported as zip with files + manifest
+- Triggered from Settings > Privacy > Export My Data
+- Generate in background, notify when ready, share via share sheet
+
+#### 9.2 Account & Data Deletion
+- Self-service "Delete My Account" in Settings
+- Clear explanation of what will be deleted
+- Confirmation flow (type "DELETE" to confirm)
+- Deletes: All local data, all server data, all attachments in R2
+- Signs out and resets app to fresh state
+- Backend endpoint: `DELETE /users/me`
+
+#### 9.3 Biometric Lock (Optional)
+- Setting to require Face ID / Touch ID to open app
+- Uses `LocalAuthentication` framework (`LAContext`)
+- Configurable: Every launch, after 1 min background, after 5 min background
+- Fallback to device passcode
+- Does NOT encrypt data at rest (relies on iOS device encryption)
+
+### Technical Considerations
+- Export can be large—generate in background with progress indicator
+- Deletion must cascade through backend (events, attachments, user record)
+- Biometric auth should gate the UI, not the data (data is always locally available to the app)
+- Consider "Export before delete" prompt
+
+### Privacy Policy Updates
+- Document what data is collected
+- Document data retention policies
+- Document how to request deletion if self-service fails
+
+### Open Questions
+- Should export include the full event history? (Could be very large)
+- What format for export? JSON (complete) vs CSV (human-readable)?
+- How long to retain data after deletion request? (Immediate vs 30-day grace period)
+
+---
+
+## 10. Platform Integration (Siri, Shortcuts, Share Extension)
+
+### Overview
+Integrate with iOS platform features to enable voice control, automation, and quick capture from other apps.
+
+### Rationale: Why This Matters
+Power users expect to automate their workflows. Voice capture ("Hey Siri, add buy milk to my errands stack") reduces friction dramatically. Share extensions enable capturing URLs, notes, and ideas from anywhere.
+
+### Features
+
+#### 10.1 Siri & App Intents
+Using the `AppIntents` framework (iOS 16+):
+
+**Voice Commands**:
+- "What's my active task?" → Speaks active Stack and Task
+- "Add [task] to [stack]" → Creates task in specified stack
+- "Complete my current task" → Marks active task as complete
+- "Switch to [stack]" → Activates the named stack
+- "Start working" / "Stop working" → Toggle work mode (ties into Idle Reminders feature)
+
+**Shortcuts App Integration**:
+- All intents available as Shortcuts actions
+- Enable automation: "When I arrive at office, activate Work stack"
+- Enable widgets in Shortcuts app
+
+#### 10.2 Share Extension
+- "Add to Dequeue" option in system share sheet
+- Accepts: URLs, text, images, files
+- Quick UI to select target Stack (or create new)
+- Creates Task with shared content as title/attachment/link
+- Works offline (queues for sync)
+
+#### 10.3 Quick Actions (3D Touch / Long Press)
+Home screen quick actions when long-pressing app icon:
+- "New Stack"
+- "New Task in Active Stack"
+- "View Active Task"
+
+### Technical Considerations
+- App Intents require iOS 16+ (already our minimum)
+- Share Extension runs in separate process—needs App Groups for data sharing
+- Shortcuts integration requires defining `AppShortcutsProvider`
+- Entity resolution for stack names ("my work stack" → which Stack?)
+
+### Implementation Phases
+1. **Phase 1**: Basic App Intents (what's active, complete task)
+2. **Phase 2**: Share Extension for URLs and text
+3. **Phase 3**: Full Shortcuts integration with all actions
+4. **Phase 4**: Quick Actions on app icon
+
+---
+
+## 11. Onboarding & First-Run Experience
+
+### Overview
+Guide new users through Dequeue's unique model and get them to their first "aha moment" quickly.
+
+### Rationale: Why This Matters
+Dequeue's "one active stack, one active task" model is different from typical todo apps. Without explanation, users may be confused by:
+- Why can't I work on multiple things at once?
+- What does "active" mean?
+- Where did my completed stacks go?
+
+A good onboarding flow prevents early churn and builds understanding.
+
+### Core Flow
+
+**Screen 1: Welcome**
+- "Welcome to Dequeue"
+- Brief value prop: "Focus on one thing at a time"
+
+**Screen 2: The Stack Concept**
+- Explain Stacks as projects/contexts
+- Visual: Stack with tasks inside
+
+**Screen 3: One Active Stack**
+- "You work on one Stack at a time"
+- "This keeps you focused and honest about what you're actually doing"
+
+**Screen 4: Create Your First Stack**
+- Interactive: User creates their first Stack
+- Suggest common examples: "Work", "Personal", "Side Project"
+
+**Screen 5: Add a Task**
+- Interactive: User adds a task to their Stack
+- Explain this becomes the "active task"
+
+**Screen 6: You're Ready**
+- Show the home screen with their created Stack
+- Point out key UI elements (active star, reminders bell)
+- "Tap your stack to see your tasks"
+
+### Additional Elements
+- **Tooltips**: First-time hints on key UI elements (dismissible)
+- **Empty state education**: When no stacks exist, show explanation + CTA
+- **Help section**: In-app help articles for reference (or link to docs)
+- **Skip option**: Power users can skip onboarding
+
+### Technical Considerations
+- Track onboarding completion in UserDefaults
+- Don't show onboarding on subsequent devices (check if user has existing data after auth)
+- Consider A/B testing different onboarding flows
+
+### Open Questions
+- How many screens is too many? (Aim for 4-6 max)
+- Should we show onboarding before or after sign-in?
+- Do we want sample data or have user create real data during onboarding?
+
+---
+
 ## Future Ideas (Parking Lot)
 
 Brief notes on other ideas not yet developed:
 
 - **Email Integration**: Connect email accounts to include sent/received emails in activity feed
-- **Calendar Integration**: Show meetings in activity timeline
+- **Calendar Integration**: Show meetings in activity timeline; sync due dates to calendar
 - **Slack Integration**: Track messages in key channels
 - **Templates**: Create Stack/Task templates for recurring workflows
 - **Recurring Tasks**: Tasks that automatically recreate on a schedule
 - **Team Features**: Share Stacks with others, assign Tasks
 - **Analytics Dashboard**: Insights on productivity patterns over time
+- **Apple Watch App**: Glanceable active task, quick complete from wrist
+- **macOS Keyboard Shortcuts**: ⌘N (new stack), ⌘T (new task), ⌘F (search), etc.
+- **Parent Task Relationships**: Subtasks that roll up to parent tasks (per PROJECT.md)
+- **Location-Based Reminders**: Trigger reminders when arriving at/leaving locations (geofencing)
+- **Natural Language Input**: "Call mom tomorrow at 3pm" parsed into task + reminder
+- **Bulk Operations**: Multi-select stacks/tasks for batch complete, delete, move
+- **Undo/Redo**: Full undo support for destructive actions (delete, complete)
+- **Deep Links / URL Schemes**: `dequeue://stack/abc123` for sharing specific items
+- **Import from Other Apps**: Migration from Apple Reminders, Things, Todoist, etc.
+- **In-App Feedback**: TestFlight users can report issues without leaving the app
+- **Conflict Visibility**: Show users when LWW conflict resolution occurred, what was overwritten
+- **Event Archiving**: Strategy for pruning old events to manage data growth at scale
 
 ---
 
@@ -539,4 +802,4 @@ When an idea is ready for implementation:
 
 ---
 
-*Last updated: January 2026*
+*Last updated: January 10, 2026*
