@@ -43,7 +43,11 @@ struct AddTaskSheet: View {
                 }
             }
         }
+        #if os(iOS)
         .presentationDetents([.medium])
+        #else
+        .frame(minWidth: 400, minHeight: 200)
+        #endif
     }
 }
 

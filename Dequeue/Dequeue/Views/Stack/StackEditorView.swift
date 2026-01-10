@@ -344,6 +344,7 @@ extension StackEditorView {
                         Image(systemName: "plus.circle.fill")
                             .foregroundStyle(.blue)
                     }
+                    .buttonStyle(.borderless)
                     .accessibilityIdentifier("addStackReminderButton")
                 }
             }
