@@ -21,6 +21,7 @@ extension StackEditorView {
 
             remindersSection
             actionsSection
+            detailsSection
             eventHistorySection
         }
     }
@@ -226,6 +227,15 @@ extension StackEditorView {
             dismiss()
         } catch {
             handleError(error)
+        }
+    }
+
+    @ViewBuilder
+    var detailsSection: some View {
+        if case .edit(let stack) = mode {
+            Section {
+                LabeledContent("Created", value: stack.createdAt.smartFormatted())
+            }
         }
     }
 

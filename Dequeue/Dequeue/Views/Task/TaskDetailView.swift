@@ -71,6 +71,8 @@ struct TaskDetailView: View {
 
             actionsSection
 
+            detailsSection
+
             eventHistorySection
         }
         #if os(macOS)
@@ -414,6 +416,12 @@ struct TaskDetailView: View {
             } label: {
                 Label("Delete Task", systemImage: "trash")
             }
+        }
+    }
+
+    private var detailsSection: some View {
+        Section {
+            LabeledContent("Created", value: task.createdAt.smartFormatted())
         }
     }
 
