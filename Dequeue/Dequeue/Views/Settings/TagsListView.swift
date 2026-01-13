@@ -83,30 +83,42 @@ private struct TagRow: View {
 // MARK: - Previews
 
 #Preview("With Tags") {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Tag.self, Stack.self, configurations: config)
+    @Previewable @State var container: ModelContainer? = {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        guard let container = try? ModelContainer(for: Tag.self, Stack.self, configurations: config) else {
+            return nil
+        }
+        let workTag = Tag(name: "Work", colorHex: "#007AFF")
+        let personalTag = Tag(name: "Personal", colorHex: "#FF9500")
+        let urgentTag = Tag(name: "Urgent", colorHex: "#FF3B30")
+        container.mainContext.insert(workTag)
+        container.mainContext.insert(personalTag)
+        container.mainContext.insert(urgentTag)
+        return container
+    }()
 
-    // Create sample tags
-    let workTag = Tag(name: "Work", colorHex: "#007AFF")
-    let personalTag = Tag(name: "Personal", colorHex: "#FF9500")
-    let urgentTag = Tag(name: "Urgent", colorHex: "#FF3B30")
-
-    container.mainContext.insert(workTag)
-    container.mainContext.insert(personalTag)
-    container.mainContext.insert(urgentTag)
-
-    return NavigationStack {
-        TagsListView()
+    if let container {
+        NavigationStack {
+            TagsListView()
+        }
+        .modelContainer(container)
+    } else {
+        Text("Failed to create preview container")
     }
-    .modelContainer(container)
 }
 
 #Preview("Empty State") {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Tag.self, Stack.self, configurations: config)
+    @Previewable @State var container: ModelContainer? = {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        return try? ModelContainer(for: Tag.self, Stack.self, configurations: config)
+    }()
 
-    return NavigationStack {
-        TagsListView()
+    if let container {
+        NavigationStack {
+            TagsListView()
+        }
+        .modelContainer(container)
+    } else {
+        Text("Failed to create preview container")
     }
-    .modelContainer(container)
 }

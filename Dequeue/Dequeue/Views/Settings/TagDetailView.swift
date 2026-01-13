@@ -195,35 +195,49 @@ struct TagDetailView: View {
 // MARK: - Previews
 
 #Preview("Tag with Stacks") {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Tag.self, Stack.self, configurations: config)
+    @Previewable @State var previewData: (container: ModelContainer, tag: Tag)? = {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        guard let container = try? ModelContainer(for: Tag.self, Stack.self, configurations: config) else {
+            return nil
+        }
+        let workTag = Tag(name: "Work", colorHex: "#007AFF")
+        container.mainContext.insert(workTag)
+        let stack1 = Stack(title: "Quarterly Report", stackDescription: nil, status: .active, sortOrder: 0)
+        let stack2 = Stack(title: "Client Proposal", stackDescription: nil, status: .active, sortOrder: 1)
+        stack1.tagObjects.append(workTag)
+        stack2.tagObjects.append(workTag)
+        container.mainContext.insert(stack1)
+        container.mainContext.insert(stack2)
+        return (container, workTag)
+    }()
 
-    let workTag = Tag(name: "Work", colorHex: "#007AFF")
-    container.mainContext.insert(workTag)
-
-    // Create some stacks
-    let stack1 = Stack(title: "Quarterly Report", stackDescription: nil, status: .active, sortOrder: 0)
-    let stack2 = Stack(title: "Client Proposal", stackDescription: nil, status: .active, sortOrder: 1)
-    stack1.tagObjects.append(workTag)
-    stack2.tagObjects.append(workTag)
-    container.mainContext.insert(stack1)
-    container.mainContext.insert(stack2)
-
-    return NavigationStack {
-        TagDetailView(tag: workTag)
+    if let previewData {
+        NavigationStack {
+            TagDetailView(tag: previewData.tag)
+        }
+        .modelContainer(previewData.container)
+    } else {
+        Text("Failed to create preview")
     }
-    .modelContainer(container)
 }
 
 #Preview("Tag without Stacks") {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Tag.self, Stack.self, configurations: config)
+    @Previewable @State var previewData: (container: ModelContainer, tag: Tag)? = {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        guard let container = try? ModelContainer(for: Tag.self, Stack.self, configurations: config) else {
+            return nil
+        }
+        let emptyTag = Tag(name: "Personal", colorHex: "#FF9500")
+        container.mainContext.insert(emptyTag)
+        return (container, emptyTag)
+    }()
 
-    let emptyTag = Tag(name: "Personal", colorHex: "#FF9500")
-    container.mainContext.insert(emptyTag)
-
-    return NavigationStack {
-        TagDetailView(tag: emptyTag)
+    if let previewData {
+        NavigationStack {
+            TagDetailView(tag: previewData.tag)
+        }
+        .modelContainer(previewData.container)
+    } else {
+        Text("Failed to create preview")
     }
-    .modelContainer(container)
 }
