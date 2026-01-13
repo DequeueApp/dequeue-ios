@@ -263,11 +263,9 @@ extension StackEditorView {
             }
 
             // Associate selected tags with the stack
-            for tag in selectedTags {
-                if !stack.tagObjects.contains(where: { $0.id == tag.id }) {
-                    stack.tagObjects.append(tag)
-                    logger.info("Tag '\(tag.name)' associated with stack: \(stack.id)")
-                }
+            for tag in selectedTags where !stack.tagObjects.contains(where: { $0.id == tag.id }) {
+                stack.tagObjects.append(tag)
+                logger.info("Tag '\(tag.name)' associated with stack: \(stack.id)")
             }
 
             // Create all pending tasks with error tracking
