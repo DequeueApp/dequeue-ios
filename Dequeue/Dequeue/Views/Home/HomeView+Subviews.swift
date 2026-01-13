@@ -34,13 +34,16 @@ extension HomeView {
 // MARK: - Stack List
 
 extension HomeView {
+    @ViewBuilder
     var stackList: some View {
+        let stacks = filteredStacks
+        let allowMove = selectedTagIds.isEmpty
         List {
-            ForEach(filteredStacks) { stack in
+            ForEach(stacks) { stack in
                 stackRow(for: stack)
             }
             // Disable reordering when filters are active to avoid confusion
-            .onMove(perform: selectedTagIds.isEmpty ? moveStacks : nil)
+            .onMove(perform: allowMove ? moveStacks : nil)
         }
         .listStyle(.plain)
         .refreshable {
