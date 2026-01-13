@@ -34,81 +34,10 @@ extension HomeView {
 // MARK: - Stack List
 
 extension HomeView {
-    @ViewBuilder
     var stackList: some View {
         List {
             ForEach(filteredStacks) { stack in
-                StackRowView(stack: stack)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectedStack = stack
-                    }
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        if stack.isActive {
-                            Button {
-                                deactivateStack(stack)
-                            } label: {
-                                Label("Deactivate", systemImage: "star.slash")
-                            }
-                            .tint(.gray)
-                        } else {
-                            Button {
-                                setAsActive(stack)
-                            } label: {
-                                Label("Set Active", systemImage: "star.fill")
-                            }
-                            .tint(.orange)
-                        }
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            deleteStack(stack)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-
-                        Button {
-                            handleCompleteButtonTapped(for: stack)
-                        } label: {
-                            Label("Complete", systemImage: "checkmark.circle")
-                        }
-                        .tint(.green)
-                    }
-                    .contextMenu {
-                        Button {
-                            selectedStack = stack
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-
-                        if stack.isActive {
-                            Button {
-                                deactivateStack(stack)
-                            } label: {
-                                Label("Deactivate", systemImage: "star.slash")
-                            }
-                        } else {
-                            Button {
-                                setAsActive(stack)
-                            } label: {
-                                Label("Set Active", systemImage: "star.fill")
-                            }
-                        }
-
-                        Button {
-                            handleCompleteButtonTapped(for: stack)
-                        } label: {
-                            Label("Complete", systemImage: "checkmark.circle")
-                        }
-
-                        Divider()
-
-                        Button(role: .destructive) {
-                            deleteStack(stack)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
+                stackRow(for: stack)
             }
             // Disable reordering when filters are active to avoid confusion
             .onMove(perform: selectedTagIds.isEmpty ? moveStacks : nil)
@@ -116,6 +45,98 @@ extension HomeView {
         .listStyle(.plain)
         .refreshable {
             await performSync()
+        }
+    }
+
+    // MARK: - Stack Row Helpers
+
+    @ViewBuilder
+    private func stackRow(for stack: Stack) -> some View {
+        StackRowView(stack: stack)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                selectedStack = stack
+            }
+            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                leadingSwipeActions(for: stack)
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                trailingSwipeActions(for: stack)
+            }
+            .contextMenu {
+                contextMenuContent(for: stack)
+            }
+    }
+
+    @ViewBuilder
+    private func leadingSwipeActions(for stack: Stack) -> some View {
+        if stack.isActive {
+            Button {
+                deactivateStack(stack)
+            } label: {
+                Label("Deactivate", systemImage: "star.slash")
+            }
+            .tint(.gray)
+        } else {
+            Button {
+                setAsActive(stack)
+            } label: {
+                Label("Set Active", systemImage: "star.fill")
+            }
+            .tint(.orange)
+        }
+    }
+
+    @ViewBuilder
+    private func trailingSwipeActions(for stack: Stack) -> some View {
+        Button(role: .destructive) {
+            deleteStack(stack)
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+
+        Button {
+            handleCompleteButtonTapped(for: stack)
+        } label: {
+            Label("Complete", systemImage: "checkmark.circle")
+        }
+        .tint(.green)
+    }
+
+    @ViewBuilder
+    private func contextMenuContent(for stack: Stack) -> some View {
+        Button {
+            selectedStack = stack
+        } label: {
+            Label("Edit", systemImage: "pencil")
+        }
+
+        if stack.isActive {
+            Button {
+                deactivateStack(stack)
+            } label: {
+                Label("Deactivate", systemImage: "star.slash")
+            }
+        } else {
+            Button {
+                setAsActive(stack)
+            } label: {
+                Label("Set Active", systemImage: "star.fill")
+            }
+        }
+
+        Button {
+            handleCompleteButtonTapped(for: stack)
+        } label: {
+            Label("Complete", systemImage: "checkmark.circle")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            deleteStack(stack)
+        } label: {
+            Label("Delete", systemImage: "trash")
         }
     }
 }
