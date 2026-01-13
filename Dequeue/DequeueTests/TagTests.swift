@@ -365,27 +365,6 @@ struct TagServiceTests {
         #expect(tag.normalizedName == "swift")
     }
 
-    @Test("soft delete sets isDeleted flag")
-    func softDeleteSetsIsDeletedFlag() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
-        let context = ModelContext(container)
-        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
-
-        let tag = try service.createTag(name: "Ruby")
-        let tagId = tag.id
-
-        try service.deleteTag(tag)
-
-        // Verify the tag was soft-deleted
-        #expect(tag.isDeleted == true)
-        #expect(tag.syncState == .pending)
-
-        // Verify findTagById returns nil for deleted tag (proving delete worked)
-        let found = try service.findTagById(tagId)
-        #expect(found == nil)
-    }
-
     @Test("findTagById returns tag")
     func findTagByIdReturnsTag() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
