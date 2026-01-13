@@ -375,11 +375,15 @@ struct TagServiceTests {
         let tag = try service.createTag(name: "Swift")
         let originalRevision = tag.revision
 
+        // Verify initial state
+        #expect(originalRevision == 1, "Initial revision should be 1, got \(originalRevision)")
+        #expect(tag.isDeleted == false, "Tag should not be deleted initially")
+
         try service.deleteTag(tag)
 
-        #expect(tag.isDeleted == true)
-        #expect(tag.syncState == .pending)
-        #expect(tag.revision == originalRevision + 1)
+        #expect(tag.isDeleted == true, "Tag should be deleted after deleteTag")
+        #expect(tag.syncState == .pending, "Sync state should be pending after deleteTag")
+        #expect(tag.revision == originalRevision + 1, "Revision should be \(originalRevision + 1), got \(tag.revision)")
     }
 
     @Test("findTagById returns tag")
