@@ -365,8 +365,8 @@ struct TagServiceTests {
         #expect(tag.normalizedName == "swift")
     }
 
-    @Test("deleteTag soft deletes")
-    func deleteTagSoftDeletes() async throws {
+    @Test("soft delete sets isDeleted flag")
+    func softDeleteSetsIsDeletedFlag() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
