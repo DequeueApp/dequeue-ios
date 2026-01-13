@@ -44,6 +44,10 @@ struct StackEditorView: View {
     @Environment(\.undoCompletionManager) var undoCompletionManager
     @State private var cachedDeviceId: String = ""
 
+    /// All available tags for autocomplete suggestions
+    @Query(filter: #Predicate<Tag> { !$0.isDeleted }, sort: \.name)
+    private var allTags: [Tag]
+
     let mode: Mode
     let isReadOnly: Bool
 
@@ -58,6 +62,7 @@ struct StackEditorView: View {
     @State var title: String = ""
     @State var stackDescription: String = ""
     @State var pendingTasks: [PendingTask] = []
+    @State var selectedTags: [Tag] = []
     @State var draftStack: Stack?
     @State var isCreatingDraft = false
     @State var showDiscardAlert = false
@@ -163,6 +168,15 @@ struct StackEditorView: View {
             userId: authService.currentUserId ?? "",
             deviceId: cachedDeviceId,
             onError: handleError,
+            syncManager: syncManager
+        )
+    }
+
+    var tagService: TagService {
+        TagService(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId,
             syncManager: syncManager
         )
     }

@@ -29,12 +29,35 @@ extension StackEditorView {
                 handleFocusChange(from: oldValue, to: newValue)
             }
 
+            createModeTagsSection
+
             createModeTasksSection
 
             // Reminders section - only show when draft exists
             if draftStack != nil {
                 remindersSection
             }
+        }
+    }
+
+    // MARK: - Create Mode Tags Section
+
+    var createModeTagsSection: some View {
+        Section("Tags") {
+            TagInputView(
+                selectedTags: $selectedTags,
+                allTags: allTags,
+                onTagAdded: { _ in },
+                onTagRemoved: { _ in },
+                onNewTagCreated: { name in
+                    do {
+                        return try tagService.findOrCreateTag(name: name)
+                    } catch {
+                        logger.error("Failed to create tag '\(name)': \(error.localizedDescription)")
+                        return nil
+                    }
+                }
+            )
         }
     }
 
@@ -237,6 +260,14 @@ extension StackEditorView {
                     description: stackDescription.isEmpty ? nil : stackDescription
                 )
                 logger.info("Stack created: \(stack.id)")
+            }
+
+            // Associate selected tags with the stack
+            for tag in selectedTags {
+                if !stack.tagObjects.contains(where: { $0.id == tag.id }) {
+                    stack.tagObjects.append(tag)
+                    logger.info("Tag '\(tag.name)' associated with stack: \(stack.id)")
+                }
             }
 
             // Create all pending tasks with error tracking
