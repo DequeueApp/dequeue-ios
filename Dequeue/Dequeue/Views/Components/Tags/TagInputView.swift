@@ -169,7 +169,11 @@ struct TagInputView: View {
                 createNewRow
             }
         }
+        #if os(iOS)
         .background(Color(.systemBackground))
+        #else
+        .background(Color(nsColor: .windowBackgroundColor))
+        #endif
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
     }
