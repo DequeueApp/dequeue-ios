@@ -48,7 +48,7 @@ struct TagInputView: View {
         let normalizedInput = debouncedText.lowercased().trimmingCharacters(in: .whitespaces)
         let selectedIds = Set(selectedTags.map(\.id))
 
-        return allTags
+        let sorted = allTags
             .filter { tag in
                 !selectedIds.contains(tag.id) &&
                 !tag.isDeleted &&
@@ -64,8 +64,8 @@ struct TagInputView: View {
                 }
                 return lhs.name < rhs.name
             }
-            .prefix(10)
-            .map { $0 }
+
+        return Array(sorted.prefix(10))
     }
 
     /// Whether to show "Create new" option
