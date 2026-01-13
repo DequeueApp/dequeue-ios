@@ -109,6 +109,8 @@ struct TagInputView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Selected tags, \(selectedTags.count) \(selectedTags.count == 1 ? "tag" : "tags")")
     }
 
     // MARK: - Input Field
@@ -126,6 +128,8 @@ struct TagInputView: View {
                     .onSubmit {
                         handleSubmit()
                     }
+                    .accessibilityLabel("Add tag")
+                    .accessibilityHint("Type to search for existing tags or create a new one")
                 #if os(iOS)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -140,6 +144,8 @@ struct TagInputView: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                    .accessibilityHint("Clears the tag search text")
                 }
             }
             .padding(.horizontal, 12)
@@ -186,6 +192,7 @@ struct TagInputView: View {
                     Circle()
                         .fill(color)
                         .frame(width: 8, height: 8)
+                        .accessibilityHidden(true)
                 }
 
                 Text(tag.name)
@@ -204,17 +211,31 @@ struct TagInputView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(suggestionAccessibilityLabel(for: tag))
+        .accessibilityHint("Double-tap to add this tag")
+    }
+
+    private func suggestionAccessibilityLabel(for tag: Tag) -> String {
+        if tag.activeStackCount > 0 {
+            let stacksWord = tag.activeStackCount == 1 ? "stack" : "stacks"
+            return "Suggestion: \(tag.name), \(tag.activeStackCount) \(stacksWord)"
+        } else {
+            return "Suggestion: \(tag.name)"
+        }
     }
 
     private var createNewRow: some View {
-        Button {
+        let trimmedInput = inputText.trimmingCharacters(in: .whitespaces)
+        return Button {
             createNewTag()
         } label: {
             HStack {
                 Image(systemName: "plus.circle.fill")
                     .foregroundStyle(.blue)
+                    .accessibilityHidden(true)
 
-                Text("Create \"\(inputText.trimmingCharacters(in: .whitespaces))\"")
+                Text("Create \"\(trimmedInput)\"")
                     .foregroundStyle(.primary)
 
                 Spacer()
@@ -224,6 +245,9 @@ struct TagInputView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Create new tag: \(trimmedInput)")
+        .accessibilityHint("Double-tap to create and add this new tag")
     }
 
     // MARK: - Actions
