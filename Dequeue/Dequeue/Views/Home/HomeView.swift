@@ -19,6 +19,7 @@ struct HomeView: View {
     @Query private var tasks: [QueueTask]
     @Query private var reminders: [Reminder]
     @Query private var pendingEvents: [Event]
+    @Query(filter: #Predicate<Tag> { !$0.isDeleted }, sort: \.name) private var allTags: [Tag]
 
     @State private var syncStatusViewModel: SyncStatusViewModel?
     @State private var cachedDeviceId: String = ""
@@ -76,6 +77,7 @@ struct HomeView: View {
     @State private var showError = false
     @State private var stackToComplete: Stack?
     @State private var showCompleteConfirmation = false
+    @State private var selectedTagIds: Set<String> = []
 
     /// Network monitor for offline detection
     private let networkMonitor = NetworkMonitor.shared
@@ -95,6 +97,28 @@ struct HomeView: View {
         reminders.filter { $0.status == .active && $0.isPastDue }.count
     }
 
+    /// Stacks filtered by selected tags (OR logic)
+    private var filteredStacks: [Stack] {
+        if selectedTagIds.isEmpty {
+            return stacks
+        }
+        return stacks.filter { stack in
+            stack.tagObjects.contains { tag in
+                selectedTagIds.contains(tag.id) && !tag.isDeleted
+            }
+        }
+    }
+
+    /// Whether the filter bar should be shown
+    private var shouldShowFilterBar: Bool {
+        // Show filter bar if there are any tags with stacks
+        allTags.contains { tag in
+            stacks.contains { stack in
+                stack.tagObjects.contains { $0.id == tag.id && !$0.isDeleted }
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -108,9 +132,20 @@ struct HomeView: View {
                     .padding(.top, 8)
                 }
 
+                // Tag filter bar
+                if shouldShowFilterBar {
+                    TagFilterBar(
+                        tags: allTags,
+                        stacks: stacks,
+                        selectedTagIds: $selectedTagIds
+                    )
+                }
+
                 Group {
                     if stacks.isEmpty {
                         emptyState
+                    } else if filteredStacks.isEmpty {
+                        noFilterResultsState
                     } else {
                         stackList
                     }
@@ -224,11 +259,23 @@ struct HomeView: View {
         )
     }
 
+    private var noFilterResultsState: some View {
+        ContentUnavailableView(
+            "No Matching Stacks",
+            systemImage: "line.3.horizontal.decrease.circle",
+            description: Text("No stacks match the selected tags")
+        ) {
+            Button("Clear Filters") {
+                selectedTagIds.removeAll()
+            }
+        }
+    }
+
     // MARK: - Stack List
 
     private var stackList: some View {
         List {
-            ForEach(stacks) { stack in
+            ForEach(filteredStacks) { stack in
                 StackRowView(stack: stack)
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -301,7 +348,8 @@ struct HomeView: View {
                         }
                     }
             }
-            .onMove(perform: moveStacks)
+            // Disable reordering when filters are active to avoid confusion
+            .onMove(perform: selectedTagIds.isEmpty ? moveStacks : nil)
         }
         .listStyle(.plain)
         .refreshable {
