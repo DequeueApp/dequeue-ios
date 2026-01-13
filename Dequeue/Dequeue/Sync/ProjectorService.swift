@@ -12,7 +12,7 @@ import SwiftData
 
 // swiftlint:disable:next type_body_length
 enum ProjectorService {
-    // swiftlint:disable:next cyclomatic_complexity
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func apply(event: Event, context: ModelContext) throws {
         guard let eventType = event.eventType else { return }
 
