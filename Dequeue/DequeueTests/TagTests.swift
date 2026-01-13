@@ -369,7 +369,7 @@ struct TagServiceTests {
     func deleteTagSoftDeletes() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
-        let context = ModelContext(container)
+        let context = container.mainContext
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "TestTagForDelete")
