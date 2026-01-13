@@ -103,7 +103,7 @@ struct TagModelTests {
 
 // MARK: - Tag Service Tests
 
-@Suite("Tag Service Tests")
+@Suite("Tag Service Tests", .serialized)
 @MainActor
 struct TagServiceTests {
     @Test("createTag creates tag with valid name")
