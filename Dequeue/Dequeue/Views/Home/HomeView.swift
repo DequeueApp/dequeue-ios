@@ -445,6 +445,11 @@ struct HomeView: View {
 struct StackRowView: View {
     let stack: Stack
 
+    /// Non-deleted tags to display
+    private var visibleTags: [Tag] {
+        stack.tagObjects.filter { !$0.isDeleted }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
@@ -476,6 +481,21 @@ struct StackRowView: View {
                         .font(.caption2)
                 }
                 .foregroundStyle(.orange)
+            }
+
+            // Tags row - show up to 3 tags with "+N more" indicator
+            if !visibleTags.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(Array(visibleTags.prefix(3))) { tag in
+                        TagChip(tag: tag)
+                    }
+
+                    if visibleTags.count > 3 {
+                        Text("+\(visibleTags.count - 3) more")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .padding(.vertical, 4)
