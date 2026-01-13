@@ -39,6 +39,9 @@ struct TagInputView: View {
     @State private var debouncedText = ""
     @State private var debounceTask: Task<Void, Never>?
 
+    /// Index of currently highlighted suggestion for keyboard navigation (-1 = none, last index + 1 = create new)
+    @State private var highlightedSuggestionIndex: Int = -1
+
     /// Filtered suggestions based on input
     private var filteredSuggestions: [Tag] {
         guard !debouncedText.isEmpty else { return [] }
@@ -79,6 +82,11 @@ struct TagInputView: View {
         let alreadySelected = selectedTags.contains { $0.normalizedName == normalizedInput }
 
         return !exactMatchExists && !alreadySelected
+    }
+
+    /// Total number of selectable items (suggestions + create new option if visible)
+    private var totalSelectableItems: Int {
+        filteredSuggestions.count + (showCreateNewOption ? 1 : 0)
     }
 
     var body: some View {
@@ -124,9 +132,26 @@ struct TagInputView: View {
                     .onChange(of: inputText) { _, newValue in
                         showSuggestions = !newValue.isEmpty
                         debounceSearch(newValue)
+                        // Reset highlight when input changes
+                        highlightedSuggestionIndex = -1
                     }
                     .onSubmit {
                         handleSubmit()
+                    }
+                    .onKeyPress(.escape) {
+                        dismissSuggestions()
+                        return .handled
+                    }
+                    .onKeyPress(.downArrow) {
+                        navigateSuggestions(direction: 1)
+                        return .handled
+                    }
+                    .onKeyPress(.upArrow) {
+                        navigateSuggestions(direction: -1)
+                        return .handled
+                    }
+                    .onKeyPress(.delete) {
+                        handleDeleteKey()
                     }
                     .accessibilityLabel("Add tag")
                     .accessibilityHint("Type to search for existing tags or create a new one")
@@ -165,13 +190,13 @@ struct TagInputView: View {
     private var suggestionsView: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Existing tag suggestions
-            ForEach(filteredSuggestions, id: \.id) { tag in
-                suggestionRow(for: tag)
+            ForEach(Array(filteredSuggestions.enumerated()), id: \.element.id) { index, tag in
+                suggestionRow(for: tag, isHighlighted: index == highlightedSuggestionIndex)
             }
 
             // Create new option
             if showCreateNewOption {
-                createNewRow
+                createNewRow(isHighlighted: highlightedSuggestionIndex == filteredSuggestions.count)
             }
         }
         #if os(iOS)
@@ -183,7 +208,7 @@ struct TagInputView: View {
         .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
     }
 
-    private func suggestionRow(for tag: Tag) -> some View {
+    private func suggestionRow(for tag: Tag, isHighlighted: Bool) -> some View {
         Button {
             selectTag(tag)
         } label: {
@@ -208,6 +233,7 @@ struct TagInputView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .background(isHighlighted ? Color.accentColor.opacity(0.15) : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -225,7 +251,7 @@ struct TagInputView: View {
         }
     }
 
-    private var createNewRow: some View {
+    private func createNewRow(isHighlighted: Bool) -> some View {
         let trimmedInput = inputText.trimmingCharacters(in: .whitespaces)
         return Button {
             createNewTag()
@@ -242,6 +268,7 @@ struct TagInputView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .background(isHighlighted ? Color.accentColor.opacity(0.15) : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -295,7 +322,17 @@ struct TagInputView: View {
     }
 
     private func handleSubmit() {
-        // If exact match in suggestions, select it
+        // If a suggestion is highlighted, select it
+        if highlightedSuggestionIndex >= 0 {
+            if highlightedSuggestionIndex < filteredSuggestions.count {
+                selectTag(filteredSuggestions[highlightedSuggestionIndex])
+            } else if showCreateNewOption {
+                createNewTag()
+            }
+            return
+        }
+
+        // Otherwise, if exact match in suggestions, select it
         if let exactMatch = filteredSuggestions.first(where: {
             $0.normalizedName == debouncedText.lowercased().trimmingCharacters(in: .whitespaces)
         }) {
@@ -309,6 +346,45 @@ struct TagInputView: View {
         inputText = ""
         debouncedText = ""
         showSuggestions = false
+        highlightedSuggestionIndex = -1
+    }
+
+    // MARK: - Keyboard Navigation
+
+    /// Dismiss suggestions and clear highlight
+    private func dismissSuggestions() {
+        showSuggestions = false
+        highlightedSuggestionIndex = -1
+    }
+
+    /// Navigate through suggestions with arrow keys
+    private func navigateSuggestions(direction: Int) {
+        guard showSuggestions && totalSelectableItems > 0 else { return }
+
+        let newIndex = highlightedSuggestionIndex + direction
+
+        // Wrap around at boundaries
+        if newIndex < 0 {
+            highlightedSuggestionIndex = totalSelectableItems - 1
+        } else if newIndex >= totalSelectableItems {
+            highlightedSuggestionIndex = 0
+        } else {
+            highlightedSuggestionIndex = newIndex
+        }
+    }
+
+    /// Handle delete/backspace key - remove last selected tag when input is empty
+    private func handleDeleteKey() -> KeyPress.Result {
+        // Only handle when input is empty and we have selected tags
+        guard inputText.isEmpty, !selectedTags.isEmpty else {
+            return .ignored
+        }
+
+        // Remove the last selected tag
+        if let lastTag = selectedTags.last {
+            removeTag(lastTag)
+        }
+        return .handled
     }
 }
 
