@@ -58,7 +58,9 @@ struct TagFilterBar: View {
 
     private var allChip: some View {
         Button {
-            selectedTagIds.removeAll()
+            withAnimation(filterAnimation) {
+                selectedTagIds.removeAll()
+            }
         } label: {
             Text("All")
                 .font(.subheadline.weight(selectedTagIds.isEmpty ? .semibold : .regular))
@@ -71,10 +73,16 @@ struct TagFilterBar: View {
                         : Color.secondary.opacity(0.15)
                 )
                 .clipShape(Capsule())
+                .animation(filterAnimation, value: selectedTagIds.isEmpty)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("All stacks")
         .accessibilityHint(selectedTagIds.isEmpty ? "Currently selected" : "Double tap to show all stacks")
+    }
+
+    /// Animation for filter state changes
+    private var filterAnimation: Animation {
+        .easeInOut(duration: 0.2)
     }
 
     private func tagChip(for tag: Tag) -> some View {
@@ -82,10 +90,12 @@ struct TagFilterBar: View {
         let count = stackCount(for: tag)
 
         return Button {
-            if isSelected {
-                selectedTagIds.remove(tag.id)
-            } else {
-                selectedTagIds.insert(tag.id)
+            withAnimation(filterAnimation) {
+                if isSelected {
+                    selectedTagIds.remove(tag.id)
+                } else {
+                    selectedTagIds.insert(tag.id)
+                }
             }
         } label: {
             HStack(spacing: 4) {
@@ -112,6 +122,7 @@ struct TagFilterBar: View {
                     : Color.secondary.opacity(0.15)
             )
             .clipShape(Capsule())
+            .animation(filterAnimation, value: isSelected)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(tag.name), \(count) stacks")
