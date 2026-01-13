@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import Combine
 
 /// A tag input view with autocomplete suggestions and selected tag display.
 ///
@@ -36,10 +35,9 @@ struct TagInputView: View {
     @State private var showSuggestions = false
     @FocusState private var isInputFocused: Bool
 
-    /// Debounce publisher for search
-    @State private var searchSubject = PassthroughSubject<String, Never>()
+    /// Debounc search state - using Task-based approach for proper lifecycle management
     @State private var debouncedText = ""
-    @State private var cancellables = Set<AnyCancellable>()
+    @State private var debounceTask: Task<Void, Never>?
 
     /// Filtered suggestions based on input
     private var filteredSuggestions: [Tag] {
@@ -93,8 +91,9 @@ struct TagInputView: View {
             // Input field with suggestions
             inputFieldSection
         }
-        .onAppear {
-            setupDebounce()
+        .onDisappear {
+            // Cancel any pending debounce task when view disappears
+            debounceTask?.cancel()
         }
     }
 
@@ -121,8 +120,8 @@ struct TagInputView: View {
                     .textFieldStyle(.plain)
                     .focused($isInputFocused)
                     .onChange(of: inputText) { _, newValue in
-                        searchSubject.send(newValue)
                         showSuggestions = !newValue.isEmpty
+                        debounceSearch(newValue)
                     }
                     .onSubmit {
                         handleSubmit()
@@ -229,13 +228,24 @@ struct TagInputView: View {
 
     // MARK: - Actions
 
-    private func setupDebounce() {
-        searchSubject
-            .debounce(for: .milliseconds(150), scheduler: DispatchQueue.main)
-            .sink { text in
-                debouncedText = text
+    /// Debounce search input using Task-based approach for proper lifecycle management.
+    /// This avoids Combine memory management issues and ensures cleanup on view disappear.
+    private func debounceSearch(_ text: String) {
+        // Cancel any existing debounce task
+        debounceTask?.cancel()
+
+        // Create new debounce task
+        debounceTask = Task {
+            do {
+                try await Task.sleep(for: .milliseconds(150))
+                // Only update if not cancelled
+                if !Task.isCancelled {
+                    debouncedText = text
+                }
+            } catch {
+                // Task was cancelled, do nothing
             }
-            .store(in: &cancellables)
+        }
     }
 
     private func selectTag(_ tag: Tag) {
