@@ -395,3 +395,177 @@ struct TagServiceTests {
         #expect(found == nil)
     }
 }
+
+// MARK: - Tag Migration Tests
+
+@Suite("Tag Migration Tests", .serialized)
+@MainActor
+struct TagMigrationTests {
+    @Test("migrateStringTagsToTagObjects migrates legacy tags")
+    func migrateStringTagsToTagObjectsMigratesLegacyTags() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let context = ModelContext(container)
+
+        // Create a stack with legacy string tags
+        let stack = Stack(title: "Test Stack", tags: ["Swift", "iOS"])
+        context.insert(stack)
+        try context.save()
+
+        // Verify stack has legacy tags and no tag objects
+        #expect(stack.tags.count == 2)
+        #expect(stack.tagObjects.isEmpty)
+
+        // Run migration
+        let migratedCount = try TagService.migrateStringTagsToTagObjects(modelContext: context)
+
+        // Verify migration results
+        #expect(migratedCount == 1)
+        #expect(stack.tags.isEmpty)
+        #expect(stack.tagObjects.count == 2)
+        #expect(stack.tagObjects.contains { $0.name == "Swift" })
+        #expect(stack.tagObjects.contains { $0.name == "iOS" })
+    }
+
+    @Test("migrateStringTagsToTagObjects deduplicates tags across stacks")
+    func migrateStringTagsToTagObjectsDeduplicatesTags() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let context = ModelContext(container)
+
+        // Create multiple stacks sharing the same tag
+        let stack1 = Stack(title: "Stack 1", tags: ["Swift"])
+        let stack2 = Stack(title: "Stack 2", tags: ["swift"])  // Different casing
+        context.insert(stack1)
+        context.insert(stack2)
+        try context.save()
+
+        // Run migration
+        let migratedCount = try TagService.migrateStringTagsToTagObjects(modelContext: context)
+
+        // Verify only one Tag entity was created (case-insensitive dedup)
+        #expect(migratedCount == 2)
+        let tagDescriptor = FetchDescriptor<Dequeue.Tag>()
+        let allTags: [Dequeue.Tag] = try context.fetch(tagDescriptor)
+        #expect(allTags.count == 1)
+
+        // Both stacks should reference the same tag
+        #expect(stack1.tagObjects.count == 1)
+        #expect(stack2.tagObjects.count == 1)
+        #expect(stack1.tagObjects.first?.id == stack2.tagObjects.first?.id)
+    }
+
+    @Test("migrateStringTagsToTagObjects skips already migrated stacks")
+    func migrateStringTagsToTagObjectsSkipsAlreadyMigrated() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let context = ModelContext(container)
+
+        // Create a stack without legacy tags (already migrated)
+        let stack = Stack(title: "Already Migrated", tags: [])
+        context.insert(stack)
+        try context.save()
+
+        // Run migration
+        let migratedCount = try TagService.migrateStringTagsToTagObjects(modelContext: context)
+
+        // No stacks should be migrated
+        #expect(migratedCount == 0)
+    }
+
+    @Test("migrateStringTagsToTagObjects skips empty tag names")
+    func migrateStringTagsToTagObjectsSkipsEmptyTagNames() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let context = ModelContext(container)
+
+        // Create a stack with empty and whitespace-only tags
+        let stack = Stack(title: "Test Stack", tags: ["Swift", "", "   ", "iOS"])
+        context.insert(stack)
+        try context.save()
+
+        // Run migration
+        _ = try TagService.migrateStringTagsToTagObjects(modelContext: context)
+
+        // Only valid tags should be migrated
+        #expect(stack.tagObjects.count == 2)
+        #expect(stack.tagObjects.contains { $0.name == "Swift" })
+        #expect(stack.tagObjects.contains { $0.name == "iOS" })
+    }
+
+    @Test("migrateStringTagsToTagObjects preserves original tag casing")
+    func migrateStringTagsToTagObjectsPreservesOriginalCasing() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let context = ModelContext(container)
+
+        // Create a stack with mixed-case tag
+        let stack = Stack(title: "Test Stack", tags: ["SwiftUI"])
+        context.insert(stack)
+        try context.save()
+
+        // Run migration
+        _ = try TagService.migrateStringTagsToTagObjects(modelContext: context)
+
+        // Tag should preserve original casing
+        #expect(stack.tagObjects.first?.name == "SwiftUI")
+        #expect(stack.tagObjects.first?.normalizedName == "swiftui")
+    }
+
+    @Test("migrateStringTagsToTagObjects uses existing tags if present")
+    func migrateStringTagsToTagObjectsUsesExistingTags() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let context = ModelContext(container)
+
+        // Create an existing tag
+        let existingTag = Tag(name: "Swift")
+        context.insert(existingTag)
+        try context.save()
+        let existingTagId = existingTag.id
+
+        // Create a stack with a legacy tag that matches the existing one
+        let stack = Stack(title: "Test Stack", tags: ["swift"])
+        context.insert(stack)
+        try context.save()
+
+        // Run migration
+        _ = try TagService.migrateStringTagsToTagObjects(modelContext: context)
+
+        // Stack should reference the existing tag, not create a new one
+        #expect(stack.tagObjects.count == 1)
+        #expect(stack.tagObjects.first?.id == existingTagId)
+
+        // Only the original tag should exist
+        let tagDescriptor = FetchDescriptor<Dequeue.Tag>()
+        let allTags: [Dequeue.Tag] = try context.fetch(tagDescriptor)
+        #expect(allTags.count == 1)
+    }
+
+    @Test("migrateStringTagsToTagObjects is idempotent")
+    func migrateStringTagsToTagObjectsIsIdempotent() async throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let context = ModelContext(container)
+
+        // Create a stack with legacy tags
+        let stack = Stack(title: "Test Stack", tags: ["Swift"])
+        context.insert(stack)
+        try context.save()
+
+        // Run migration twice
+        let firstMigration = try TagService.migrateStringTagsToTagObjects(modelContext: context)
+        let secondMigration = try TagService.migrateStringTagsToTagObjects(modelContext: context)
+
+        // First migration should migrate the stack
+        #expect(firstMigration == 1)
+
+        // Second migration should find nothing to migrate
+        #expect(secondMigration == 0)
+
+        // Only one tag should exist
+        let tagDescriptor = FetchDescriptor<Dequeue.Tag>()
+        let allTags: [Dequeue.Tag] = try context.fetch(tagDescriptor)
+        #expect(allTags.count == 1)
+    }
+}

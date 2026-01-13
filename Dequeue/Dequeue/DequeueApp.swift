@@ -41,7 +41,8 @@ struct DequeueApp: App {
             Event.self,
             Device.self,
             SyncConflict.self,
-            Attachment.self
+            Attachment.self,
+            Tag.self
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
