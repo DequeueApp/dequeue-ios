@@ -34,24 +34,46 @@ extension HomeView {
 // MARK: - Stack List
 
 extension HomeView {
-    @ViewBuilder
     var stackList: some View {
-        let stacks = filteredStacks
-        let allowMove = selectedTagIds.isEmpty
+        StackListContent(
+            stacks: filteredStacks,
+            selectedStack: $selectedStack,
+            allowMove: selectedTagIds.isEmpty,
+            onMove: moveStacks,
+            onSetActive: setAsActive,
+            onDeactivate: deactivateStack,
+            onComplete: handleCompleteButtonTapped,
+            onDelete: deleteStack,
+            onSync: performSync
+        )
+    }
+}
+
+/// Extracted stack list content to help Swift compiler with type inference.
+/// This struct isolates the complex List/ForEach/swipe actions from HomeView's extension context.
+private struct StackListContent: View {
+    let stacks: [Stack]
+    @Binding var selectedStack: Stack?
+    let allowMove: Bool
+    let onMove: (IndexSet, Int) -> Void
+    let onSetActive: (Stack) -> Void
+    let onDeactivate: (Stack) -> Void
+    let onComplete: (Stack) -> Void
+    let onDelete: (Stack) -> Void
+    let onSync: () async -> Void
+
+    var body: some View {
         List {
             ForEach(stacks) { stack in
                 stackRow(for: stack)
             }
-            // Disable reordering when filters are active to avoid confusion
-            .onMove(perform: allowMove ? moveStacks : nil)
+            .onMove(perform: allowMove ? onMove : nil)
         }
         .listStyle(.plain)
         .refreshable {
-            await performSync()
+            await onSync()
         }
     }
-
-    // MARK: - Stack Row Helpers
 
     @ViewBuilder
     private func stackRow(for stack: Stack) -> some View {
@@ -75,14 +97,14 @@ extension HomeView {
     private func leadingSwipeActions(for stack: Stack) -> some View {
         if stack.isActive {
             Button {
-                deactivateStack(stack)
+                onDeactivate(stack)
             } label: {
                 Label("Deactivate", systemImage: "star.slash")
             }
             .tint(.gray)
         } else {
             Button {
-                setAsActive(stack)
+                onSetActive(stack)
             } label: {
                 Label("Set Active", systemImage: "star.fill")
             }
@@ -93,13 +115,13 @@ extension HomeView {
     @ViewBuilder
     private func trailingSwipeActions(for stack: Stack) -> some View {
         Button(role: .destructive) {
-            deleteStack(stack)
+            onDelete(stack)
         } label: {
             Label("Delete", systemImage: "trash")
         }
 
         Button {
-            handleCompleteButtonTapped(for: stack)
+            onComplete(stack)
         } label: {
             Label("Complete", systemImage: "checkmark.circle")
         }
@@ -116,20 +138,20 @@ extension HomeView {
 
         if stack.isActive {
             Button {
-                deactivateStack(stack)
+                onDeactivate(stack)
             } label: {
                 Label("Deactivate", systemImage: "star.slash")
             }
         } else {
             Button {
-                setAsActive(stack)
+                onSetActive(stack)
             } label: {
                 Label("Set Active", systemImage: "star.fill")
             }
         }
 
         Button {
-            handleCompleteButtonTapped(for: stack)
+            onComplete(stack)
         } label: {
             Label("Complete", systemImage: "checkmark.circle")
         }
@@ -137,7 +159,7 @@ extension HomeView {
         Divider()
 
         Button(role: .destructive) {
-            deleteStack(stack)
+            onDelete(stack)
         } label: {
             Label("Delete", systemImage: "trash")
         }
