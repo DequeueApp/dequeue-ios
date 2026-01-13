@@ -351,15 +351,38 @@ extension StackEditorView {
             HStack {
                 Text("Reminders")
                 Spacer()
-                if !isReadOnly && currentStack != nil {
+                // Show add button when: not read-only AND (stack exists OR in create mode)
+                if !isReadOnly && (currentStack != nil || mode == .create) {
                     Button {
-                        showAddReminder = true
+                        handleAddReminderTap()
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .foregroundStyle(.blue)
                     }
                     .accessibilityIdentifier("addStackReminderButton")
                 }
+            }
+        }
+    }
+
+    /// Handles the add reminder button tap.
+    /// In create mode without a draft, auto-creates a draft first so reminders can be attached.
+    func handleAddReminderTap() {
+        // If we already have a stack, just show the sheet
+        if currentStack != nil {
+            showAddReminder = true
+            return
+        }
+
+        // In create mode without a draft, create the draft first
+        if case .create = mode {
+            // Use the current title or "Untitled" as fallback
+            let draftTitle = title.isEmpty ? "Untitled" : title
+            createDraft(title: draftTitle)
+
+            // Show the sheet - draftStack is now set
+            if draftStack != nil {
+                showAddReminder = true
             }
         }
     }

@@ -33,10 +33,7 @@ extension StackEditorView {
 
             createModeTasksSection
 
-            // Reminders section - only show when draft exists
-            if draftStack != nil {
-                remindersSection
-            }
+            remindersSection
         }
     }
 
