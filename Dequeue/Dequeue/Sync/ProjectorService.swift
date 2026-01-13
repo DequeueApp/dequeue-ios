@@ -151,10 +151,8 @@ enum ProjectorService {
             stack.updatedAt = event.timestamp  // LWW: Use event timestamp
             context.insert(stack)
 
-            // Apply tagIds - find and link the tags
-            if let tags = try? findTags(ids: payload.tagIds, context: context) {
-                stack.tagObjects = tags
-            }
+            // Apply tagIds - find and link tags, with proper error handling for race conditions
+            applyTagsToStack(stack, tagIds: payload.tagIds, context: context)
         }
     }
 
@@ -752,10 +750,37 @@ enum ProjectorService {
         return try context.fetch(descriptor).first
     }
 
-    private static func findTags(ids: [String], context: ModelContext) throws -> [Tag] {
+    /// Result of attempting to find tags by IDs
+    struct TagLookupResult {
+        let foundTags: [Tag]
+        let missingTagIds: [String]
+
+        var hasMissingTags: Bool { !missingTagIds.isEmpty }
+    }
+
+    /// Finds tags by IDs, returning both found tags and any missing IDs.
+    /// This handles the race condition where stack_updated arrives before tag_created events.
+    private static func findTagsWithMissing(ids: [String], context: ModelContext) throws -> TagLookupResult {
+        guard !ids.isEmpty else {
+            return TagLookupResult(foundTags: [], missingTagIds: [])
+        }
+
         let descriptor = FetchDescriptor<Tag>()
         let allTags = try context.fetch(descriptor)
-        return allTags.filter { ids.contains($0.id) && !$0.isDeleted }
+        let tagLookup = Dictionary(uniqueKeysWithValues: allTags.map { ($0.id, $0) })
+
+        var foundTags: [Tag] = []
+        var missingTagIds: [String] = []
+
+        for id in ids {
+            if let tag = tagLookup[id], !tag.isDeleted {
+                foundTags.append(tag)
+            } else {
+                missingTagIds.append(id)
+            }
+        }
+
+        return TagLookupResult(foundTags: foundTags, missingTagIds: missingTagIds)
     }
 
     /// Updates stack fields from payload. Uses event timestamp for deterministic LWW.
@@ -777,9 +802,64 @@ enum ProjectorService {
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
 
-        // Apply tagIds - find and link the tags
-        if let tags = try? findTags(ids: payload.tagIds, context: context) {
-            stack.tagObjects = tags
+        // Apply tagIds - find and link tags, with proper error handling for race conditions
+        applyTagsToStack(stack, tagIds: payload.tagIds, context: context)
+    }
+
+    /// Applies tags to a stack with proper handling for missing tags (race condition).
+    /// This handles the case where stack_updated arrives before tag_created events.
+    /// - Logs warnings for missing tags
+    /// - Still applies tags that ARE found (partial success)
+    private static func applyTagsToStack(_ stack: Stack, tagIds: [String], context: ModelContext) {
+        guard !tagIds.isEmpty else {
+            // Explicitly clear tags if payload has empty tagIds
+            stack.tagObjects = []
+            return
+        }
+
+        do {
+            let result = try findTagsWithMissing(ids: tagIds, context: context)
+
+            // Always apply found tags (partial success is better than nothing)
+            stack.tagObjects = result.foundTags
+
+            // Log warning for missing tags - this is critical for debugging sync issues
+            if result.hasMissingTags {
+                ErrorReportingService.addBreadcrumb(
+                    category: "sync_tag_race",
+                    message: "Missing tags during stack sync - race condition detected",
+                    data: [
+                        "stack_id": stack.id,
+                        "stack_title": stack.title,
+                        "expected_tag_count": tagIds.count,
+                        "found_tag_count": result.foundTags.count,
+                        "missing_tag_ids": result.missingTagIds.joined(separator: ",")
+                    ]
+                )
+
+                // Log each missing tag individually for easier debugging
+                for missingId in result.missingTagIds {
+                    ErrorReportingService.addBreadcrumb(
+                        category: "sync_tag_missing",
+                        message: "Tag not found locally during stack sync",
+                        data: [
+                            "stack_id": stack.id,
+                            "missing_tag_id": missingId
+                        ]
+                    )
+                }
+            }
+        } catch {
+            // Log the error but don't fail the entire sync
+            ErrorReportingService.addBreadcrumb(
+                category: "sync_tag_error",
+                message: "Failed to apply tags to stack",
+                data: [
+                    "stack_id": stack.id,
+                    "error": error.localizedDescription,
+                    "tag_ids": tagIds.joined(separator: ",")
+                ]
+            )
         }
     }
 
