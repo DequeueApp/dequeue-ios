@@ -46,7 +46,7 @@ struct StackEditorView: View {
 
     /// All available tags for autocomplete suggestions
     @Query(filter: #Predicate<Tag> { !$0.isDeleted }, sort: \.name)
-    private var allTags: [Tag]
+    var allTags: [Tag]
 
     let mode: Mode
     let isReadOnly: Bool
