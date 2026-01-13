@@ -52,7 +52,9 @@ struct TagsListView: View {
                 }
             }
         }
+        #if os(iOS)
         .listStyle(.insetGrouped)
+        #endif
         .navigationDestination(for: Tag.self) { tag in
             TagDetailView(tag: tag)
         }

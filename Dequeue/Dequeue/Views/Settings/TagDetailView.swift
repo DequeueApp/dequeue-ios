@@ -84,7 +84,9 @@ struct TagDetailView: View {
             }
         }
         .navigationTitle(isEditing ? "Edit Tag" : tag.name)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if isEditing {
@@ -149,7 +151,9 @@ struct TagDetailView: View {
                 }
             }
             .navigationTitle("Edit Tag")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
