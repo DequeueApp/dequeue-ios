@@ -101,7 +101,7 @@ struct TagChipLabel: View {
 #Preview("Tag with Remove Button") {
     let tag = Tag(name: "SwiftUI")
     return TagChip(tag: tag, showRemoveButton: true) {
-        print("Remove tapped")
+        // Remove action would be handled by parent view
     }
     .padding()
 }
