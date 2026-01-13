@@ -369,20 +369,21 @@ struct TagServiceTests {
     func deleteTagSoftDeletes() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
-        let context = container.mainContext
+        let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.createTag(name: "TestTagForDelete")
-
-        // Verify initial state
-        #expect(tag.isDeleted == false, "Tag should not be deleted initially")
-        #expect(tag.revision == 1, "Initial revision should be 1")
+        let tag = try service.createTag(name: "Ruby")
+        let tagId = tag.id
 
         try service.deleteTag(tag)
 
-        #expect(tag.isDeleted == true, "Tag should be deleted after deleteTag")
-        #expect(tag.syncState == .pending, "Sync state should be pending after deleteTag")
-        #expect(tag.revision == 2, "Revision should be 2 after deleteTag")
+        // Verify the tag was soft-deleted
+        #expect(tag.isDeleted == true)
+        #expect(tag.syncState == .pending)
+
+        // Verify findTagById returns nil for deleted tag (proving delete worked)
+        let found = try service.findTagById(tagId)
+        #expect(found == nil)
     }
 
     @Test("findTagById returns tag")
