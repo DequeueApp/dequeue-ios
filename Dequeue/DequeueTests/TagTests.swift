@@ -445,8 +445,8 @@ struct TagMigrationTests {
 
         // Verify only one Tag entity was created (case-insensitive dedup)
         #expect(migratedCount == 2)
-        let tagDescriptor = FetchDescriptor<Tag>()
-        let allTags = try context.fetch(tagDescriptor)
+        let tagDescriptor = FetchDescriptor<Dequeue.Tag>()
+        let allTags: [Dequeue.Tag] = try context.fetch(tagDescriptor)
         #expect(allTags.count == 1)
 
         // Both stacks should reference the same tag
@@ -537,8 +537,8 @@ struct TagMigrationTests {
         #expect(stack.tagObjects.first?.id == existingTagId)
 
         // Only the original tag should exist
-        let tagDescriptor = FetchDescriptor<Tag>()
-        let allTags = try context.fetch(tagDescriptor)
+        let tagDescriptor = FetchDescriptor<Dequeue.Tag>()
+        let allTags: [Dequeue.Tag] = try context.fetch(tagDescriptor)
         #expect(allTags.count == 1)
     }
 
@@ -564,8 +564,8 @@ struct TagMigrationTests {
         #expect(secondMigration == 0)
 
         // Only one tag should exist
-        let tagDescriptor = FetchDescriptor<Tag>()
-        let allTags = try context.fetch(tagDescriptor)
+        let tagDescriptor = FetchDescriptor<Dequeue.Tag>()
+        let allTags: [Dequeue.Tag] = try context.fetch(tagDescriptor)
         #expect(allTags.count == 1)
     }
 }
