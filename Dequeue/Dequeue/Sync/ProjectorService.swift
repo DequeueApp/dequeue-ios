@@ -65,6 +65,11 @@ enum ProjectorService {
 
         case .deviceDiscovered:
             try applyDeviceDiscovered(event: event, context: context)
+
+        // Tag events - stub handlers for now, full implementation in DEQ-157
+        case .tagCreated, .tagUpdated, .tagDeleted:
+            // Tag event projection will be implemented in DEQ-157
+            break
         }
     }
 
