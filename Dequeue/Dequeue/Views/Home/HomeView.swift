@@ -8,21 +8,20 @@
 import SwiftUI
 import SwiftData
 
-// swiftlint:disable:next type_body_length
 struct HomeView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.syncManager) private var syncManager
-    @Environment(\.authService) private var authService
-    @Environment(\.undoCompletionManager) private var undoCompletionManager
-    @Query private var stacks: [Stack]
-    @Query private var allStacks: [Stack]
-    @Query private var tasks: [QueueTask]
+    @Environment(\.modelContext) var modelContext
+    @Environment(\.syncManager) var syncManager
+    @Environment(\.authService) var authService
+    @Environment(\.undoCompletionManager) var undoCompletionManager
+    @Query var stacks: [Stack]
+    @Query var allStacks: [Stack]
+    @Query var tasks: [QueueTask]
     @Query private var reminders: [Reminder]
     @Query private var pendingEvents: [Event]
     @Query private var allTags: [Tag]
 
     @State private var syncStatusViewModel: SyncStatusViewModel?
-    @State private var cachedDeviceId: String = ""
+    @State var cachedDeviceId: String = ""
 
     init() {
         // Filter for active stacks only (exclude completed, closed, and archived)
@@ -75,23 +74,23 @@ struct HomeView: View {
         )
     }
 
-    @State private var selectedStack: Stack?
-    @State private var selectedTask: QueueTask?
+    @State var selectedStack: Stack?
+    @State var selectedTask: QueueTask?
     @State private var showReminders = false
     @State private var offlineBannerDismissed = false
     @State private var syncError: Error?
     @State private var showingSyncError = false
-    @State private var errorMessage: String?
-    @State private var showError = false
-    @State private var stackToComplete: Stack?
-    @State private var showCompleteConfirmation = false
+    @State var errorMessage: String?
+    @State var showError = false
+    @State var stackToComplete: Stack?
+    @State var showCompleteConfirmation = false
     @State private var selectedTagIds: Set<String> = []
 
     /// Network monitor for offline detection
     private let networkMonitor = NetworkMonitor.shared
 
     /// Stack service for operations - lightweight struct, safe to recreate each call
-    private var stackService: StackService {
+    var stackService: StackService {
         StackService(
             modelContext: modelContext,
             userId: authService.currentUserId ?? "",
@@ -394,106 +393,6 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Actions
-
-    /// Handle navigation to a Stack or Task from the Reminders list
-    private func handleGoToItem(parentId: String, parentType: ParentType) {
-        switch parentType {
-        case .stack:
-            if let stack = allStacks.first(where: { $0.id == parentId }) {
-                selectedStack = stack
-            }
-        case .task:
-            if let task = tasks.first(where: { $0.id == parentId }) {
-                selectedTask = task
-            }
-        }
-    }
-
-    private func moveStacks(from source: IndexSet, to destination: Int) {
-        // Capture original sort orders from the actual Stack model objects (via @Query).
-        // updateSortOrders() modifies these objects in-place before saving, so we need
-        // the original values to revert if the save fails.
-        let originalSortOrders = stacks.map { ($0.id, $0.sortOrder) }
-
-        var reorderedStacks = stacks
-        reorderedStacks.move(fromOffsets: source, toOffset: destination)
-
-        do {
-            try stackService.updateSortOrders(reorderedStacks)
-        } catch {
-            // Revert in-memory state on failure. This works because `stacks` (from @Query)
-            // returns the actual SwiftData model objects, and we're restoring their
-            // sortOrder property to the original values captured before the failed save.
-            for (id, originalOrder) in originalSortOrders {
-                if let stack = stacks.first(where: { $0.id == id }) {
-                    stack.sortOrder = originalOrder
-                }
-            }
-            ErrorReportingService.capture(error: error, context: ["action": "moveStacks"])
-            errorMessage = "Failed to save stack reorder: \(error.localizedDescription)"
-            showError = true
-        }
-    }
-
-    private func setAsActive(_ stack: Stack) {
-        do {
-            try stackService.setAsActive(stack)
-        } catch {
-            ErrorReportingService.capture(error: error, context: ["action": "setAsActive"])
-            errorMessage = "Failed to set stack as active: \(error.localizedDescription)"
-            showError = true
-        }
-    }
-
-    private func deactivateStack(_ stack: Stack) {
-        do {
-            try stackService.deactivateStack(stack)
-        } catch {
-            ErrorReportingService.capture(error: error, context: ["action": "deactivateStack"])
-            errorMessage = "Failed to deactivate stack: \(error.localizedDescription)"
-            showError = true
-        }
-    }
-
-    /// Handles the Complete button tap with conditional behavior based on pending tasks.
-    /// - If stack has pending tasks: show confirmation dialog
-    /// - If stack has no pending tasks: use delayed completion with undo
-    private func handleCompleteButtonTapped(for stack: Stack) {
-        if stack.pendingTasks.isEmpty {
-            // No pending tasks - use delayed completion with undo banner
-            if let manager = undoCompletionManager {
-                manager.startDelayedCompletion(for: stack)
-            } else {
-                // Fallback: complete immediately if manager not available
-                completeStack(stack)
-            }
-        } else {
-            // Has pending tasks - show confirmation dialog
-            stackToComplete = stack
-            showCompleteConfirmation = true
-        }
-    }
-
-    private func completeStack(_ stack: Stack) {
-        do {
-            try stackService.markAsCompleted(stack, completeAllTasks: true)
-        } catch {
-            ErrorReportingService.capture(error: error, context: ["action": "completeStack"])
-            errorMessage = "Failed to complete stack: \(error.localizedDescription)"
-            showError = true
-        }
-    }
-
-    private func deleteStack(_ stack: Stack) {
-        do {
-            try stackService.deleteStack(stack)
-        } catch {
-            ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
-            errorMessage = "Failed to delete stack: \(error.localizedDescription)"
-            showError = true
-        }
-    }
 }
 
 #Preview {
