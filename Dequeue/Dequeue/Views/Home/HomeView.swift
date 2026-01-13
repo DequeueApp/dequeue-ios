@@ -440,48 +440,6 @@ struct HomeView: View {
     }
 }
 
-// MARK: - Stack Row
-
-struct StackRowView: View {
-    let stack: Stack
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(stack.title)
-                    .font(.headline)
-
-                Spacer()
-
-                if stack.isActive {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(.yellow)
-                        .font(.caption)
-                        .accessibilityLabel("Active stack")
-                }
-            }
-
-            if let activeTask = stack.activeTask {
-                Text(activeTask.title)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            if !stack.activeReminders.isEmpty {
-                HStack(spacing: 4) {
-                    Image(systemName: "bell.fill")
-                        .font(.caption2)
-                    Text("\(stack.activeReminders.count)")
-                        .font(.caption2)
-                }
-                .foregroundStyle(.orange)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
 #Preview {
     HomeView()
         .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
