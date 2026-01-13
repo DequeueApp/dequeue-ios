@@ -13,6 +13,7 @@ extension StackEditorView {
     var editModeContent: some View {
         List {
             descriptionSection
+            editModeTagsSection
             pendingTasksSection
 
             if case .edit(let stack) = mode, !stack.completedTasks.isEmpty {
@@ -23,6 +24,58 @@ extension StackEditorView {
             actionsSection
             detailsSection
             eventHistorySection
+        }
+    }
+
+    // MARK: - Tags Section
+
+    @ViewBuilder
+    var editModeTagsSection: some View {
+        if case .edit(let stack) = mode {
+            Section("Tags") {
+                TagInputView(
+                    selectedTags: Binding(
+                        get: { stack.tagObjects.filter { !$0.isDeleted } },
+                        set: { _ in }
+                    ),
+                    allTags: allTags,
+                    onTagAdded: { tag in
+                        addTagToStack(tag, stack: stack)
+                    },
+                    onTagRemoved: { tag in
+                        removeTagFromStack(tag, stack: stack)
+                    },
+                    onNewTagCreated: { name in
+                        createAndAddTag(name: name, stack: stack)
+                    }
+                )
+            }
+        }
+    }
+
+    private func addTagToStack(_ tag: Tag, stack: Stack) {
+        guard !stack.tagObjects.contains(where: { $0.id == tag.id }) else { return }
+        stack.tagObjects.append(tag)
+        stack.updatedAt = Date()
+        stack.syncState = .pending
+        syncManager?.triggerImmediatePush()
+    }
+
+    private func removeTagFromStack(_ tag: Tag, stack: Stack) {
+        stack.tagObjects.removeAll { $0.id == tag.id }
+        stack.updatedAt = Date()
+        stack.syncState = .pending
+        syncManager?.triggerImmediatePush()
+    }
+
+    private func createAndAddTag(name: String, stack: Stack) -> Tag? {
+        do {
+            let tag = try tagService.findOrCreateTag(name: name)
+            addTagToStack(tag, stack: stack)
+            return tag
+        } catch {
+            handleError(error)
+            return nil
         }
     }
 
