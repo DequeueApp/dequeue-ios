@@ -7,6 +7,37 @@
 
 import SwiftUI
 
+// MARK: - Sync
+
+extension HomeView {
+    /// Performs a manual sync: pushes local changes first, then pulls from server.
+    /// Push-first order ensures local changes are sent before potentially receiving
+    /// conflicting updates, allowing the server to handle conflict resolution.
+    func performSync() async {
+        guard let syncManager = syncManager else {
+            ErrorReportingService.addBreadcrumb(
+                category: "sync",
+                message: "Pull-to-refresh attempted with nil syncManager"
+            )
+            return
+        }
+
+        do {
+            // Push local changes first
+            try await syncManager.manualPush()
+            // Then pull from server
+            try await syncManager.manualPull()
+        } catch {
+            syncError = error
+            showingSyncError = true
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "pull_to_refresh"]
+            )
+        }
+    }
+}
+
 // MARK: - Actions
 
 extension HomeView {

@@ -78,13 +78,13 @@ struct HomeView: View {
     @State var selectedTask: QueueTask?
     @State private var showReminders = false
     @State private var offlineBannerDismissed = false
-    @State private var syncError: Error?
-    @State private var showingSyncError = false
+    @State var syncError: Error?
+    @State var showingSyncError = false
     @State var errorMessage: String?
     @State var showError = false
     @State var stackToComplete: Stack?
     @State var showCompleteConfirmation = false
-    @State private var selectedTagIds: Set<String> = []
+    @State var selectedTagIds: Set<String> = []
 
     /// Network monitor for offline detection
     private let networkMonitor = NetworkMonitor.shared
@@ -105,7 +105,7 @@ struct HomeView: View {
     }
 
     /// Stacks filtered by selected tags (OR logic)
-    private var filteredStacks: [Stack] {
+    var filteredStacks: [Stack] {
         if selectedTagIds.isEmpty {
             return stacks
         }
@@ -253,143 +253,6 @@ struct HomeView: View {
                     offlineBannerDismissed = false
                 }
             }
-        }
-    }
-
-    // MARK: - Empty State
-
-    private var emptyState: some View {
-        ContentUnavailableView(
-            "No Stacks",
-            systemImage: "tray",
-            description: Text("Add a stack to get started")
-        )
-    }
-
-    private var noFilterResultsState: some View {
-        ContentUnavailableView(
-            "No Matching Stacks",
-            systemImage: "line.3.horizontal.decrease.circle",
-            description: Text("No stacks match the selected tags")
-        ) {
-            Button("Clear Filters") {
-                selectedTagIds.removeAll()
-            }
-        }
-    }
-
-    // MARK: - Stack List
-
-    private var stackList: some View {
-        List {
-            ForEach(filteredStacks) { stack in
-                StackRowView(stack: stack)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectedStack = stack
-                    }
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                        if stack.isActive {
-                            Button {
-                                deactivateStack(stack)
-                            } label: {
-                                Label("Deactivate", systemImage: "star.slash")
-                            }
-                            .tint(.gray)
-                        } else {
-                            Button {
-                                setAsActive(stack)
-                            } label: {
-                                Label("Set Active", systemImage: "star.fill")
-                            }
-                            .tint(.orange)
-                        }
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            deleteStack(stack)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-
-                        Button {
-                            handleCompleteButtonTapped(for: stack)
-                        } label: {
-                            Label("Complete", systemImage: "checkmark.circle")
-                        }
-                        .tint(.green)
-                    }
-                    .contextMenu {
-                        Button {
-                            selectedStack = stack
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-
-                        if stack.isActive {
-                            Button {
-                                deactivateStack(stack)
-                            } label: {
-                                Label("Deactivate", systemImage: "star.slash")
-                            }
-                        } else {
-                            Button {
-                                setAsActive(stack)
-                            } label: {
-                                Label("Set Active", systemImage: "star.fill")
-                            }
-                        }
-
-                        Button {
-                            handleCompleteButtonTapped(for: stack)
-                        } label: {
-                            Label("Complete", systemImage: "checkmark.circle")
-                        }
-
-                        Divider()
-
-                        Button(role: .destructive) {
-                            deleteStack(stack)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-            }
-            // Disable reordering when filters are active to avoid confusion
-            .onMove(perform: selectedTagIds.isEmpty ? moveStacks : nil)
-        }
-        .listStyle(.plain)
-        .refreshable {
-            await performSync()
-        }
-    }
-
-    // MARK: - Sync
-
-    /// Performs a manual sync: pushes local changes first, then pulls from server.
-    /// Push-first order ensures local changes are sent before potentially receiving
-    /// conflicting updates, allowing the server to handle conflict resolution.
-    private func performSync() async {
-        guard let syncManager = syncManager else {
-            ErrorReportingService.addBreadcrumb(
-                category: "sync",
-                message: "Pull-to-refresh attempted with nil syncManager"
-            )
-            return
-        }
-
-        do {
-            // Push local changes first
-            try await syncManager.manualPush()
-            // Then pull from server
-            try await syncManager.manualPull()
-        } catch {
-            syncError = error
-            showingSyncError = true
-            ErrorReportingService.capture(
-                error: error,
-                context: ["source": "pull_to_refresh"]
-            )
         }
     }
 
