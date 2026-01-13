@@ -19,7 +19,7 @@ struct HomeView: View {
     @Query private var tasks: [QueueTask]
     @Query private var reminders: [Reminder]
     @Query private var pendingEvents: [Event]
-    @Query(filter: #Predicate<Tag> { !$0.isDeleted }, sort: \.name) private var allTags: [Tag]
+    @Query private var allTags: [Tag]
 
     @State private var syncStatusViewModel: SyncStatusViewModel?
     @State private var cachedDeviceId: String = ""
@@ -64,6 +64,14 @@ struct HomeView: View {
             filter: #Predicate<Event> { event in
                 event.isSynced == false
             }
+        )
+
+        // Fetch all tags for filter bar
+        _allTags = Query(
+            filter: #Predicate<Tag> { tag in
+                tag.isDeleted == false
+            },
+            sort: \.name
         )
     }
 
