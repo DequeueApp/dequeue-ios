@@ -19,11 +19,11 @@ extension HomeView {
     }
 
     var noFilterResultsState: some View {
-        ContentUnavailableView(
-            "No Matching Stacks",
-            systemImage: "line.3.horizontal.decrease.circle",
-            description: Text("No stacks match the selected tags")
-        ) {
+        ContentUnavailableView {
+            Label("No Matching Stacks", systemImage: "line.3.horizontal.decrease.circle")
+        } description: {
+            Text("No stacks match the selected tags")
+        } actions: {
             Button("Clear Filters") {
                 selectedTagIds.removeAll()
             }
@@ -34,6 +34,7 @@ extension HomeView {
 // MARK: - Stack List
 
 extension HomeView {
+    @ViewBuilder
     var stackList: some View {
         List {
             ForEach(filteredStacks) { stack in
