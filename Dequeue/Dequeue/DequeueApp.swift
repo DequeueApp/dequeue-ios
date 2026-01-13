@@ -138,10 +138,16 @@ struct RootView: View {
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active && authService.isAuthenticated {
+            if newPhase == .active {
                 Task {
-                    await handleAppBecameActive()
-                    await notificationService.updateAppBadge()
+                    // Refresh auth session when app becomes active
+                    // This validates the session if we're back online after being offline
+                    await authService.refreshSessionIfNeeded()
+
+                    if authService.isAuthenticated {
+                        await handleAppBecameActive()
+                        await notificationService.updateAppBadge()
+                    }
                 }
             }
         }
