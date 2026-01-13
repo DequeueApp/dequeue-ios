@@ -112,14 +112,24 @@ struct TagInputView: View {
             HStack(spacing: 6) {
                 ForEach(selectedTags, id: \.id) { tag in
                     TagChip(tag: tag, showRemoveButton: true) {
-                        removeTag(tag)
+                        withAnimation(tagAnimation) {
+                            removeTag(tag)
+                        }
                     }
+                    .transition(.asymmetric(
+                        insertion: .scale.combined(with: .opacity),
+                        removal: .scale.combined(with: .opacity)
+                    ))
                 }
             }
+            .animation(tagAnimation, value: selectedTags.map(\.id))
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Selected tags, \(selectedTags.count) \(selectedTags.count == 1 ? "tag" : "tags")")
     }
+
+    /// Animation for tag add/remove - respects reduced motion preference
+    private var tagAnimation: Animation { .spring(response: 0.3, dampingFraction: 0.7) }
 
     // MARK: - Input Field
 
@@ -178,12 +188,20 @@ struct TagInputView: View {
             .background(Color.secondary.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
-            // Suggestions list
-            if showSuggestions && (showCreateNewOption || !filteredSuggestions.isEmpty) {
+            // Suggestions list with animated appearance
+            if shouldShowSuggestions {
                 suggestionsView
+                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
             }
         }
+        .animation(suggestionsAnimation, value: shouldShowSuggestions)
     }
+
+    /// Whether to show the suggestions popover
+    private var shouldShowSuggestions: Bool { showSuggestions && (showCreateNewOption || !filteredSuggestions.isEmpty) }
+
+    /// Animation for suggestions popover
+    private var suggestionsAnimation: Animation { .spring(response: 0.25, dampingFraction: 0.8) }
 
     // MARK: - Suggestions View
 
@@ -234,6 +252,7 @@ struct TagInputView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(isHighlighted ? Color.accentColor.opacity(0.15) : Color.clear)
+            .animation(.easeInOut(duration: 0.15), value: isHighlighted)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -243,12 +262,9 @@ struct TagInputView: View {
     }
 
     private func suggestionAccessibilityLabel(for tag: Tag) -> String {
-        if tag.activeStackCount > 0 {
-            let stacksWord = tag.activeStackCount == 1 ? "stack" : "stacks"
-            return "Suggestion: \(tag.name), \(tag.activeStackCount) \(stacksWord)"
-        } else {
-            return "Suggestion: \(tag.name)"
-        }
+        tag.activeStackCount > 0
+            ? "Suggestion: \(tag.name), \(tag.activeStackCount) \(tag.activeStackCount == 1 ? "stack" : "stacks")"
+            : "Suggestion: \(tag.name)"
     }
 
     private func createNewRow(isHighlighted: Bool) -> some View {
@@ -269,6 +285,7 @@ struct TagInputView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(isHighlighted ? Color.accentColor.opacity(0.15) : Color.clear)
+            .animation(.easeInOut(duration: 0.15), value: isHighlighted)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -300,22 +317,23 @@ struct TagInputView: View {
     }
 
     private func selectTag(_ tag: Tag) {
-        selectedTags.append(tag)
+        withAnimation(tagAnimation) {
+            selectedTags.append(tag)
+        }
         onTagAdded(tag)
         clearInput()
     }
 
-    private func removeTag(_ tag: Tag) {
-        selectedTags.removeAll { $0.id == tag.id }
-        onTagRemoved(tag)
-    }
+    private func removeTag(_ tag: Tag) { selectedTags.removeAll { $0.id == tag.id }; onTagRemoved(tag) }
 
     private func createNewTag() {
         let trimmedName = inputText.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return }
 
         if let newTag = onNewTagCreated(trimmedName) {
-            selectedTags.append(newTag)
+            withAnimation(tagAnimation) {
+                selectedTags.append(newTag)
+            }
             onTagAdded(newTag)
         }
         clearInput()
@@ -343,47 +361,26 @@ struct TagInputView: View {
     }
 
     private func clearInput() {
-        inputText = ""
-        debouncedText = ""
-        showSuggestions = false
-        highlightedSuggestionIndex = -1
+        inputText = ""; debouncedText = ""; showSuggestions = false; highlightedSuggestionIndex = -1
     }
 
     // MARK: - Keyboard Navigation
 
     /// Dismiss suggestions and clear highlight
-    private func dismissSuggestions() {
-        showSuggestions = false
-        highlightedSuggestionIndex = -1
-    }
+    private func dismissSuggestions() { showSuggestions = false; highlightedSuggestionIndex = -1 }
 
     /// Navigate through suggestions with arrow keys
     private func navigateSuggestions(direction: Int) {
         guard showSuggestions && totalSelectableItems > 0 else { return }
-
         let newIndex = highlightedSuggestionIndex + direction
-
-        // Wrap around at boundaries
-        if newIndex < 0 {
-            highlightedSuggestionIndex = totalSelectableItems - 1
-        } else if newIndex >= totalSelectableItems {
-            highlightedSuggestionIndex = 0
-        } else {
-            highlightedSuggestionIndex = newIndex
-        }
+        highlightedSuggestionIndex = newIndex < 0 ? totalSelectableItems - 1
+            : newIndex >= totalSelectableItems ? 0 : newIndex
     }
 
     /// Handle delete/backspace key - remove last selected tag when input is empty
     private func handleDeleteKey() -> KeyPress.Result {
-        // Only handle when input is empty and we have selected tags
-        guard inputText.isEmpty, !selectedTags.isEmpty else {
-            return .ignored
-        }
-
-        // Remove the last selected tag
-        if let lastTag = selectedTags.last {
-            removeTag(lastTag)
-        }
+        guard inputText.isEmpty, !selectedTags.isEmpty else { return .ignored }
+        if let lastTag = selectedTags.last { removeTag(lastTag) }
         return .handled
     }
 }
