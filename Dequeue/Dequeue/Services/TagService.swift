@@ -42,13 +42,13 @@ enum TagServiceError: LocalizedError, Equatable {
         switch (lhs, rhs) {
         case (.emptyTagName, .emptyTagName):
             return true
-        case (.tagNameTooLong(let lhsMax), .tagNameTooLong(let rhsMax)):
+        case let (.tagNameTooLong(lhsMax), .tagNameTooLong(rhsMax)):
             return lhsMax == rhsMax
-        case (.duplicateTagName(let lhsName), .duplicateTagName(let rhsName)):
+        case let (.duplicateTagName(lhsName), .duplicateTagName(rhsName)):
             return lhsName == rhsName
         case (.tagNotFound, .tagNotFound):
             return true
-        case (.operationFailed(let lhsError), .operationFailed(let rhsError)):
+        case let (.operationFailed(lhsError), .operationFailed(rhsError)):
             return lhsError.localizedDescription == rhsError.localizedDescription
         default:
             return false
