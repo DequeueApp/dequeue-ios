@@ -67,9 +67,9 @@ final class TagService {
     private let eventService: EventService
     private let syncManager: SyncManager?
 
-    init(modelContext: ModelContext, syncManager: SyncManager? = nil) {
+    init(modelContext: ModelContext, userId: String, deviceId: String, syncManager: SyncManager? = nil) {
         self.modelContext = modelContext
-        self.eventService = EventService(modelContext: modelContext)
+        self.eventService = EventService(modelContext: modelContext, userId: userId, deviceId: deviceId)
         self.syncManager = syncManager
     }
 

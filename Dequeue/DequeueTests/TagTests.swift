@@ -111,7 +111,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "Swift")
 
@@ -126,7 +126,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "  Swift  ")
 
@@ -139,7 +139,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "Urgent", colorHex: "#FF0000")
 
@@ -152,7 +152,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         #expect(throws: TagServiceError.emptyTagName) {
             _ = try service.createTag(name: "")
@@ -164,7 +164,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         #expect(throws: TagServiceError.emptyTagName) {
             _ = try service.createTag(name: "   ")
@@ -176,7 +176,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let longName = String(repeating: "a", count: 51)
 
@@ -190,7 +190,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         _ = try service.createTag(name: "Swift")
 
@@ -204,7 +204,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         _ = try service.createTag(name: "Frontend")
 
@@ -218,7 +218,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let original = try service.createTag(name: "Swift")
         let found = try service.findOrCreateTag(name: "swift")
@@ -231,7 +231,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.findOrCreateTag(name: "NewTag")
 
@@ -243,7 +243,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         _ = try service.createTag(name: "Swift")
         _ = try service.createTag(name: "Kotlin")
@@ -263,7 +263,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         _ = try service.createTag(name: "Swift")
         _ = try service.createTag(name: "SwiftUI")
@@ -281,7 +281,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         _ = try service.createTag(name: "Swift")
         _ = try service.createTag(name: "Kotlin")
@@ -296,7 +296,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "Swift")
         let originalRevision = tag.revision
@@ -313,7 +313,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "Urgent")
         try service.updateTag(tag, colorHex: "#FF0000")
@@ -326,7 +326,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "Urgent", colorHex: "#FF0000")
         try service.updateTag(tag, colorHex: Optional<String?>.some(nil))
@@ -339,7 +339,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         _ = try service.createTag(name: "Swift")
         let kotlinTag = try service.createTag(name: "Kotlin")
@@ -354,7 +354,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "Swift")
 
@@ -370,7 +370,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "Swift")
         let originalRevision = tag.revision
@@ -387,7 +387,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "Swift")
         let found = try service.findTagById(tag.id)
@@ -401,7 +401,7 @@ struct TagServiceTests {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Tag.self, Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
         let context = ModelContext(container)
-        let service = TagService(modelContext: context)
+        let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try service.createTag(name: "Swift")
         let tagId = tag.id
