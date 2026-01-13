@@ -400,6 +400,42 @@ final class StackService {
         syncManager?.triggerImmediatePush()
     }
 
+    // MARK: - Tag Operations
+
+    /// Adds a tag to a stack and records the update event for sync.
+    ///
+    /// - Parameters:
+    ///   - tag: The tag to add
+    ///   - stack: The stack to add the tag to
+    func addTag(_ tag: Tag, to stack: Stack) throws {
+        guard !stack.tagObjects.contains(where: { $0.id == tag.id }) else { return }
+
+        stack.tagObjects.append(tag)
+        stack.updatedAt = Date()
+        stack.syncState = .pending
+
+        try eventService.recordStackUpdated(stack, changes: ["tagIds": stack.tagObjects.map { $0.id }])
+        try modelContext.save()
+        syncManager?.triggerImmediatePush()
+    }
+
+    /// Removes a tag from a stack and records the update event for sync.
+    ///
+    /// - Parameters:
+    ///   - tag: The tag to remove
+    ///   - stack: The stack to remove the tag from
+    func removeTag(_ tag: Tag, from stack: Stack) throws {
+        guard stack.tagObjects.contains(where: { $0.id == tag.id }) else { return }
+
+        stack.tagObjects.removeAll { $0.id == tag.id }
+        stack.updatedAt = Date()
+        stack.syncState = .pending
+
+        try eventService.recordStackUpdated(stack, changes: ["tagIds": stack.tagObjects.map { $0.id }])
+        try modelContext.save()
+        syncManager?.triggerImmediatePush()
+    }
+
     // MARK: - History Revert
 
     /// Reverts a stack to a historical state captured in an event.

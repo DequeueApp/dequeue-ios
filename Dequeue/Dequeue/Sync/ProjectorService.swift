@@ -66,10 +66,13 @@ enum ProjectorService {
         case .deviceDiscovered:
             try applyDeviceDiscovered(event: event, context: context)
 
-        // Tag events - stub handlers for now, full implementation in DEQ-157
-        case .tagCreated, .tagUpdated, .tagDeleted:
-            // Tag event projection will be implemented in DEQ-157
-            break
+        // Tag events
+        case .tagCreated:
+            try applyTagCreated(event: event, context: context)
+        case .tagUpdated:
+            try applyTagUpdated(event: event, context: context)
+        case .tagDeleted:
+            try applyTagDeleted(event: event, context: context)
         }
     }
 
@@ -130,7 +133,7 @@ enum ProjectorService {
                 conflictType: .update,
                 context: context
             ) else { return }
-            updateStack(existing, from: payload, eventTimestamp: event.timestamp)
+            updateStack(existing, from: payload, context: context, eventTimestamp: event.timestamp)
         } else {
             let stack = Stack(
                 id: payload.id,
@@ -147,6 +150,11 @@ enum ProjectorService {
             )
             stack.updatedAt = event.timestamp  // LWW: Use event timestamp
             context.insert(stack)
+
+            // Apply tagIds - find and link the tags
+            if let tags = try? findTags(ids: payload.tagIds, context: context) {
+                stack.tagObjects = tags
+            }
         }
     }
 
@@ -167,7 +175,7 @@ enum ProjectorService {
             context: context
         ) else { return }
 
-        updateStack(stack, from: payload, eventTimestamp: event.timestamp)
+        updateStack(stack, from: payload, context: context, eventTimestamp: event.timestamp)
     }
 
     private static func applyStackDeleted(event: Event, context: ModelContext) throws {
@@ -640,6 +648,84 @@ enum ProjectorService {
         reminder.lastSyncedAt = Date()
     }
 
+    // MARK: - Tag Events
+
+    private static func applyTagCreated(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(TagEventPayload.self)
+
+        if let existing = try findTag(id: payload.id, context: context) {
+            // LWW: Only update if this event is newer than current state
+            guard shouldApplyEvent(
+                eventTimestamp: event.timestamp,
+                localTimestamp: existing.updatedAt,
+                entityType: .tag,
+                entityId: payload.id,
+                conflictType: .update,
+                context: context
+            ) else { return }
+            updateTag(existing, from: payload, eventTimestamp: event.timestamp)
+        } else {
+            let tag = Tag(
+                id: payload.id,
+                name: payload.name,
+                colorHex: payload.colorHex,
+                syncState: .synced,
+                lastSyncedAt: Date()
+            )
+            tag.updatedAt = event.timestamp  // LWW: Use event timestamp
+            context.insert(tag)
+        }
+    }
+
+    private static func applyTagUpdated(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(TagEventPayload.self)
+        guard let tag = try findTag(id: payload.id, context: context) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !tag.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: tag.updatedAt,
+            entityType: .tag,
+            entityId: payload.id,
+            conflictType: .update,
+            context: context
+        ) else { return }
+
+        updateTag(tag, from: payload, eventTimestamp: event.timestamp)
+    }
+
+    private static func applyTagDeleted(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(EntityDeletedPayload.self)
+        guard let tag = try findTag(id: payload.id, context: context) else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: tag.updatedAt,
+            entityType: .tag,
+            entityId: payload.id,
+            conflictType: .delete,
+            context: context
+        ) else { return }
+
+        tag.isDeleted = true
+        tag.updatedAt = event.timestamp  // LWW: Use event timestamp
+        tag.syncState = .synced
+        tag.lastSyncedAt = Date()
+    }
+
+    /// Updates tag fields from payload. Uses event timestamp for deterministic LWW.
+    private static func updateTag(_ tag: Tag, from payload: TagEventPayload, eventTimestamp: Date) {
+        tag.name = payload.name
+        tag.colorHex = payload.colorHex
+        tag.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
+        tag.syncState = .synced
+        tag.lastSyncedAt = Date()
+    }
+
     // MARK: - Helpers
 
     private static func findStack(id: String, context: ModelContext) throws -> Stack? {
@@ -660,8 +746,25 @@ enum ProjectorService {
         return try context.fetch(descriptor).first
     }
 
+    private static func findTag(id: String, context: ModelContext) throws -> Tag? {
+        let predicate = #Predicate<Tag> { $0.id == id }
+        let descriptor = FetchDescriptor<Tag>(predicate: predicate)
+        return try context.fetch(descriptor).first
+    }
+
+    private static func findTags(ids: [String], context: ModelContext) throws -> [Tag] {
+        let descriptor = FetchDescriptor<Tag>()
+        let allTags = try context.fetch(descriptor)
+        return allTags.filter { ids.contains($0.id) && !$0.isDeleted }
+    }
+
     /// Updates stack fields from payload. Uses event timestamp for deterministic LWW.
-    private static func updateStack(_ stack: Stack, from payload: StackEventPayload, eventTimestamp: Date) {
+    private static func updateStack(
+        _ stack: Stack,
+        from payload: StackEventPayload,
+        context: ModelContext,
+        eventTimestamp: Date
+    ) {
         stack.title = payload.title
         stack.stackDescription = payload.description
         stack.status = payload.status
@@ -673,6 +776,11 @@ enum ProjectorService {
         stack.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         stack.syncState = .synced
         stack.lastSyncedAt = Date()
+
+        // Apply tagIds - find and link the tags
+        if let tags = try? findTags(ids: payload.tagIds, context: context) {
+            stack.tagObjects = tags
+        }
     }
 
     /// Updates task fields from payload. Uses event timestamp for deterministic LWW.

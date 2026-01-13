@@ -54,18 +54,19 @@ extension StackEditorView {
     }
 
     private func addTagToStack(_ tag: Tag, stack: Stack) {
-        guard !stack.tagObjects.contains(where: { $0.id == tag.id }) else { return }
-        stack.tagObjects.append(tag)
-        stack.updatedAt = Date()
-        stack.syncState = .pending
-        syncManager?.triggerImmediatePush()
+        do {
+            try stackService.addTag(tag, to: stack)
+        } catch {
+            handleError(error)
+        }
     }
 
     private func removeTagFromStack(_ tag: Tag, stack: Stack) {
-        stack.tagObjects.removeAll { $0.id == tag.id }
-        stack.updatedAt = Date()
-        stack.syncState = .pending
-        syncManager?.triggerImmediatePush()
+        do {
+            try stackService.removeTag(tag, from: stack)
+        } catch {
+            handleError(error)
+        }
     }
 
     private func createAndAddTag(name: String, stack: Stack) -> Tag? {

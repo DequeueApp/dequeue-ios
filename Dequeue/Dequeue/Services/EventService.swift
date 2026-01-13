@@ -369,6 +369,7 @@ struct StackState: Codable {
     let isDraft: Bool
     let isActive: Bool
     let activeTaskId: String?
+    let tagIds: [String]
 
     static func from(_ stack: Stack) -> StackState {
         StackState(
@@ -383,7 +384,8 @@ struct StackState: Codable {
             deleted: stack.isDeleted,
             isDraft: stack.isDraft,
             isActive: stack.isActive,
-            activeTaskId: stack.activeTaskId
+            activeTaskId: stack.activeTaskId,
+            tagIds: stack.tagObjects.filter { !$0.isDeleted }.map { $0.id }
         )
     }
 }
@@ -675,10 +677,11 @@ struct StackEventPayload: Codable {
     let isActive: Bool
     let activeTaskId: String?
     let deleted: Bool
+    let tagIds: [String]
 
     // Handle status as string from server
     enum CodingKeys: String, CodingKey {
-        case id, title, description, status, priority, sortOrder, isDraft, isActive, activeTaskId, deleted
+        case id, title, description, status, priority, sortOrder, isDraft, isActive, activeTaskId, deleted, tagIds
     }
 
     init(from decoder: Decoder) throws {
@@ -701,6 +704,7 @@ struct StackEventPayload: Codable {
         isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? false
         activeTaskId = try container.decodeIfPresent(String.self, forKey: .activeTaskId)
         deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
+        tagIds = try container.decodeIfPresent([String].self, forKey: .tagIds) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -715,6 +719,7 @@ struct StackEventPayload: Codable {
         try container.encode(isActive, forKey: .isActive)
         try container.encodeIfPresent(activeTaskId, forKey: .activeTaskId)
         try container.encode(deleted, forKey: .deleted)
+        try container.encode(tagIds, forKey: .tagIds)
     }
 }
 
