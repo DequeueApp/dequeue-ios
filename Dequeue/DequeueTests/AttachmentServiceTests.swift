@@ -154,7 +154,7 @@ struct AttachmentServiceTests {
         try context.save()
 
         // Create a mock file manager that reports a large file size
-        let mockFileManager = MockFileManager(reportedFileSize: 60 * 1024 * 1024) // 60 MB
+        let mockFileManager = MockFileManager(reportedFileSize: 60 * 1_024 * 1_024) // 60 MB
         let service = AttachmentService(
             modelContext: context,
             userId: "test-user",

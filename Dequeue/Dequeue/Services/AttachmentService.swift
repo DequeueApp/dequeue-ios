@@ -32,7 +32,7 @@ enum AttachmentServiceError: LocalizedError, Equatable {
         switch self {
         case .fileNotFound(let url):
             return "File not found at \(url.lastPathComponent)"
-        case .fileTooLarge(let sizeBytes, let maxBytes):
+        case let .fileTooLarge(sizeBytes, maxBytes):
             let formatter = ByteCountFormatter()
             formatter.countStyle = .file
             let size = formatter.string(fromByteCount: sizeBytes)
@@ -42,7 +42,7 @@ enum AttachmentServiceError: LocalizedError, Equatable {
             return "Could not determine file type"
         case .fileCopyFailed(let underlying):
             return "Failed to copy file: \(underlying)"
-        case .parentNotFound(let id, let type):
+        case let .parentNotFound(id, type):
             return "Parent \(type.rawValue) not found: \(id)"
         case .attachmentNotFound(let id):
             return "Attachment not found: \(id)"
@@ -78,7 +78,7 @@ enum AttachmentServiceError: LocalizedError, Equatable {
 @MainActor
 final class AttachmentService {
     /// Maximum file size in bytes (50 MB)
-    static let maxFileSizeBytes: Int64 = 50 * 1024 * 1024
+    static let maxFileSizeBytes: Int64 = 50 * 1_024 * 1_024
 
     private let modelContext: ModelContext
     private let eventService: EventService
