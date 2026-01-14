@@ -9,9 +9,9 @@ import SwiftUI
 import SwiftData
 
 struct HomeView: View {
-    @Environment(\.modelContext) var modelContext
-    @Environment(\.syncManager) var syncManager
-    @Environment(\.authService) var authService
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
 
     @Query private var reminders: [Reminder]
     @Query private var pendingEvents: [Event]
