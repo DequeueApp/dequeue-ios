@@ -57,7 +57,7 @@ struct CustomBottomBar: View {
                 Text(label)
                     .font(.caption2)
             }
-            .foregroundStyle(selectedTab == tag ? .accent : .secondary)
+            .foregroundColor(selectedTab == tag ? .accentColor : .secondary)
             .frame(minWidth: 64)
         }
         .buttonStyle(.plain)
