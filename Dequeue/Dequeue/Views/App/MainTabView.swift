@@ -40,15 +40,15 @@ struct MainTabView: View {
     private var iOSLayout: some View {
         #if os(iOS)
         TabView(selection: $selectedTab) {
-            HomeView()
+            StacksView()
                 .tabItem {
-                    Label("Home", systemImage: "house")
+                    Label("Stacks", systemImage: "square.stack.3d.up")
                 }
                 .tag(0)
 
-            DraftsView()
+            ActivityFeedView()
                 .tabItem {
-                    Label("Drafts", systemImage: "doc")
+                    Label("Activity", systemImage: "clock.arrow.circlepath")
                 }
                 .tag(1)
 
@@ -59,17 +59,11 @@ struct MainTabView: View {
                 }
                 .tag(2)
 
-            CompletedStacksView()
-                .tabItem {
-                    Label("Completed", systemImage: "checkmark.circle")
-                }
-                .tag(3)
-
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gear")
                 }
-                .tag(4)
+                .tag(3)
         }
         .onChange(of: selectedTab) { oldValue, newValue in
             if newValue == 2 {
@@ -145,15 +139,12 @@ struct MainTabView: View {
         NavigationSplitView {
             List(selection: $selectedTab) {
                 NavigationLink(value: 0) {
-                    Label("Home", systemImage: "house")
+                    Label("Stacks", systemImage: "square.stack.3d.up")
                 }
                 NavigationLink(value: 1) {
-                    Label("Drafts", systemImage: "doc")
+                    Label("Activity", systemImage: "clock.arrow.circlepath")
                 }
                 NavigationLink(value: 3) {
-                    Label("Completed", systemImage: "checkmark.circle")
-                }
-                NavigationLink(value: 4) {
                     Label("Settings", systemImage: "gear")
                 }
             }
@@ -227,15 +218,13 @@ struct MainTabView: View {
     private var detailContent: some View {
         switch selectedTab {
         case 0:
-            HomeView()
+            StacksView()
         case 1:
-            DraftsView()
+            ActivityFeedView()
         case 3:
-            CompletedStacksView()
-        case 4:
             SettingsView()
         default:
-            HomeView()
+            StacksView()
         }
     }
     #endif
