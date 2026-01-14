@@ -3,6 +3,7 @@
 //  Dequeue
 //
 //  Main tab-based navigation for authenticated users
+//  Uses native TabView with Liquid Glass (iOS 26+)
 //
 
 import SwiftUI
@@ -15,7 +16,6 @@ struct MainTabView: View {
 
     @State private var selectedTab = 0
     @State private var cachedDeviceId: String = ""
-    @State private var previousTab = 0
     @State private var showAddSheet = false
     @State private var showStackPicker = false
     @State private var activeStackForDetail: Stack?
@@ -35,49 +35,40 @@ struct MainTabView: View {
     private var isIPad: Bool {
         UIDevice.current.userInterfaceIdiom == .pad
     }
+
+    /// Standard tab bar height on iOS
+    private let tabBarHeight: CGFloat = 49
     #endif
 
     private var iOSLayout: some View {
         #if os(iOS)
         ZStack(alignment: .bottom) {
-            // Main content area
-            iOSContentView
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            // Floating banners (above the bottom bar)
-            GeometryReader { geometry in
-                VStack(spacing: 12) {
-                    // Undo completion banner (appears above active stack banner)
-                    if undoCompletionManager.hasPendingCompletion,
-                       let stack = undoCompletionManager.pendingStack {
-                        UndoCompletionBanner(
-                            stackTitle: stack.title,
-                            progress: undoCompletionManager.progress,
-                            onUndo: {
-                                withAnimation(.easeInOut(duration: 0.25)) {
-                                    undoCompletionManager.undoCompletion()
-                                }
-                            }
-                        )
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .top).combined(with: .opacity),
-                            removal: .opacity
-                        ))
+            // Native TabView with Liquid Glass (automatic in iOS 26)
+            TabView(selection: $selectedTab) {
+                StacksView()
+                    .tabItem {
+                        Label("Stacks", systemImage: "square.stack.3d.up")
                     }
+                    .tag(0)
 
-                    activeStackBanner
-                }
-                .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
-                .padding(.horizontal)
-                .padding(.bottom, geometry.safeAreaInsets.bottom + 80) // Above custom bar
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
+                ActivityFeedView()
+                    .tabItem {
+                        Label("Activity", systemImage: "clock.arrow.circlepath")
+                    }
+                    .tag(1)
+
+                SettingsView()
+                    .tabItem {
+                        Label("Settings", systemImage: "gear")
+                    }
+                    .tag(2)
             }
-        }
-        .safeAreaInset(edge: .bottom) {
-            CustomBottomBar(selectedTab: $selectedTab) {
-                showAddSheet = true
-            }
+
+            // Floating banners positioned above tab bar
+            floatingBanners
+
+            // Floating add button
+            floatingAddButton
         }
         .sheet(isPresented: $showAddSheet) {
             StackEditorView(mode: .create)
@@ -108,17 +99,58 @@ struct MainTabView: View {
     }
 
     #if os(iOS)
-    @ViewBuilder
-    private var iOSContentView: some View {
-        switch selectedTab {
-        case 0:
-            StacksView()
-        case 1:
-            ActivityFeedView()
-        case 2:
-            SettingsView()
-        default:
-            StacksView()
+    private var floatingBanners: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 12) {
+                // Undo completion banner (appears above active stack banner)
+                if undoCompletionManager.hasPendingCompletion,
+                   let stack = undoCompletionManager.pendingStack {
+                    UndoCompletionBanner(
+                        stackTitle: stack.title,
+                        progress: undoCompletionManager.progress,
+                        onUndo: {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                undoCompletionManager.undoCompletion()
+                            }
+                        }
+                    )
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .opacity
+                    ))
+                }
+
+                activeStackBanner
+            }
+            .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
+            .padding(.horizontal)
+            // Position above tab bar: safe area + tab bar height + padding
+            .padding(.bottom, geometry.safeAreaInsets.bottom + tabBarHeight + 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
+        }
+    }
+
+    private var floatingAddButton: some View {
+        GeometryReader { geometry in
+            Button {
+                showAddSheet = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 56, height: 56)
+                    .background(Color.accentColor)
+                    .clipShape(Circle())
+                    .glassEffect()
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Add new stack")
+            .accessibilityHint("Creates a new stack")
+            // Position in bottom-right, above tab bar
+            .padding(.trailing, 20)
+            .padding(.bottom, geometry.safeAreaInsets.bottom + tabBarHeight + 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         }
     }
     #endif

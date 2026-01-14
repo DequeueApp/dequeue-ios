@@ -91,7 +91,7 @@ struct ActiveStackBanner: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(minHeight: BannerConstants.minTapHeight)
-        .background(bannerBackground)
+        .glassEffect(in: RoundedRectangle(cornerRadius: BannerConstants.cornerRadius))
     }
 
     private var emptyStateContent: some View {
@@ -114,20 +114,7 @@ struct ActiveStackBanner: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(minHeight: BannerConstants.minTapHeight)
-        .background(bannerBackground)
-    }
-
-    // MARK: - Styling
-
-    private var bannerBackground: some View {
-        RoundedRectangle(cornerRadius: BannerConstants.cornerRadius)
-            .fill(.regularMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: BannerConstants.cornerRadius)
-                    .strokeBorder(.primary.opacity(0.1), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
-            .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+        .glassEffect(in: RoundedRectangle(cornerRadius: BannerConstants.cornerRadius))
     }
 }
 
