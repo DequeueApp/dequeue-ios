@@ -45,12 +45,15 @@ struct StacksView: View {
             }
             .navigationTitle("Stacks")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         showAddSheet = true
                     } label: {
-                        Image(systemName: "plus")
+                        Label("Add Stack", systemImage: "plus")
                     }
+                    #if os(macOS)
+                    .keyboardShortcut("n", modifiers: .command)
+                    #endif
                     .accessibilityLabel("Add new stack")
                     .accessibilityHint("Creates a new stack")
                 }

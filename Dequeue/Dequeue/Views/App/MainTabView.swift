@@ -125,7 +125,6 @@ struct MainTabView: View {
                 .padding(.horizontal)
                 // Position above tab bar: safe area + tab bar height
                 .padding(.bottom, geometry.safeAreaInsets.bottom + tabBarHeight)
-                .contentShape(Rectangle())
                 .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
             }
         }
