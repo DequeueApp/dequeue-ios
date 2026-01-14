@@ -1,62 +1,36 @@
 {
-  "phase": 1,
-  "iteration": 7,
-  "currentIssue": "DEQ-164",
-  "pr": null,
-  "completed": ["DEQ-149", "DEQ-151", "DEQ-152", "DEQ-153", "DEQ-154", "DEQ-155", "DEQ-156", "DEQ-157", "DEQ-158", "DEQ-159", "DEQ-160", "DEQ-161", "DEQ-162", "DEQ-163"],
+  "phase": 2,
+  "iteration": 2,
+  "currentIssue": "DEQ-178",
+  "pr": 122,
+  "completed": ["DEQ-177"],
   "blocked": [],
-  "lastAction": "Merged PR #111 for DEQ-163, all CI passed",
+  "lastAction": "Created PR #122 for DEQ-176, DEQ-178, DEQ-179",
   "ciHistory": [
     {
       "iteration": 1,
-      "pr": 95,
-      "result": "success",
-      "note": "All checks passed after removing flaky test",
-      "timestamp": "2026-01-13T07:07:00Z"
-    },
-    {
-      "iteration": 2,
-      "pr": 106,
-      "result": "success",
-      "note": "All checks passed after fixing Tag type ambiguity",
-      "timestamp": "2026-01-13T08:49:20Z"
-    },
-    {
-      "iteration": 3,
-      "pr": 107,
+      "pr": 121,
       "result": "success",
       "note": "All checks passed",
-      "timestamp": "2026-01-13T09:08:00Z"
-    },
-    {
-      "iteration": 4,
-      "pr": 108,
-      "result": "success",
-      "note": "All checks passed after macOS background color fix",
-      "timestamp": "2026-01-13T10:27:00Z"
-    },
-    {
-      "iteration": 5,
-      "pr": 109,
-      "result": "success",
-      "note": "All checks passed after fixing allTags access level",
-      "timestamp": "2026-01-13T11:14:00Z"
-    },
-    {
-      "iteration": 6,
-      "pr": 110,
-      "result": "success",
-      "note": "All checks passed",
-      "timestamp": "2026-01-13T11:35:00Z"
-    },
-    {
-      "iteration": 7,
-      "pr": 111,
-      "result": "success",
-      "note": "All checks passed",
-      "timestamp": "2026-01-13T12:47:00Z"
+      "timestamp": "2026-01-14T03:07:00Z"
     }
   ],
   "feedbackAddressed": [],
-  "feedbackPending": []
+  "feedbackPending": [],
+  "linearIssues": [
+    "DEQ-176",
+    "DEQ-177",
+    "DEQ-178",
+    "DEQ-179",
+    "DEQ-180",
+    "DEQ-181",
+    "DEQ-182",
+    "DEQ-183",
+    "DEQ-184",
+    "DEQ-185",
+    "DEQ-186",
+    "DEQ-187",
+    "DEQ-188",
+    "DEQ-189"
+  ]
 }
