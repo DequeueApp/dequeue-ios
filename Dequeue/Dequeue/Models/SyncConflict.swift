@@ -15,6 +15,7 @@ enum SyncConflictEntityType: String, Codable {
     case stack
     case task
     case reminder
+    case tag
 }
 
 /// Types of operations that can cause conflicts
