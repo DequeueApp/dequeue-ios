@@ -26,7 +26,7 @@ struct ProjectorServiceTests {
     private func createTestContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try ModelContainer(
-            for: Stack.self, QueueTask.self, Reminder.self, Event.self, SyncConflict.self,
+            for: Stack.self, QueueTask.self, Reminder.self, Event.self, SyncConflict.self, Attachment.self,
             configurations: config
         )
     }
@@ -700,5 +700,441 @@ struct ProjectorServiceTests {
 
         // The id should be the stackId since taskId is not present
         #expect(payload.id == stackId)
+    }
+
+    // MARK: - Attachment Projection Tests (DEQ-75)
+
+    /// Creates an attachment event payload matching AttachmentEventPayload structure
+    private func createAttachmentPayload(
+        id: String,
+        parentId: String,
+        parentType: ParentType,
+        filename: String = "test.pdf",
+        mimeType: String = "application/pdf",
+        sizeBytes: Int64 = 1_024,
+        url: String? = nil,
+        deleted: Bool = false
+    ) throws -> Data {
+        var payload: [String: Any] = [
+            "id": id,
+            "parentId": parentId,
+            "parentType": parentType.rawValue,
+            "filename": filename,
+            "mimeType": mimeType,
+            "sizeBytes": sizeBytes,
+            "deleted": deleted
+        ]
+        if let url {
+            payload["url"] = url
+        } else {
+            payload["url"] = NSNull()
+        }
+        return try JSONSerialization.data(withJSONObject: payload)
+    }
+
+    /// Creates an attachment removed payload
+    private func createAttachmentRemovedPayload(attachmentId: String) throws -> Data {
+        let payload: [String: String] = [
+            "attachmentId": attachmentId
+        ]
+        return try JSONSerialization.data(withJSONObject: payload)
+    }
+
+    @Test("applyAttachmentAdded creates new attachment")
+    func applyAttachmentAddedCreatesNewAttachment() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create a stack to attach to
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        try context.save()
+
+        let attachmentId = CUID.generate()
+        let payloadData = try createAttachmentPayload(
+            id: attachmentId,
+            parentId: stack.id,
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 2_048,
+            url: "https://example.com/doc.pdf"
+        )
+
+        let event = Event(
+            eventType: .attachmentAdded,
+            payload: payloadData,
+            entityId: attachmentId,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+        context.insert(event)
+        try context.save()
+
+        // Apply the event
+        try applyEvents([event], context: context)
+
+        // Verify attachment was created
+        let predicate = #Predicate<Attachment> { $0.id == attachmentId }
+        let descriptor = FetchDescriptor<Attachment>(predicate: predicate)
+        let attachments = try context.fetch(descriptor)
+
+        #expect(attachments.count == 1)
+        let attachment = attachments.first
+        #expect(attachment?.filename == "document.pdf")
+        #expect(attachment?.mimeType == "application/pdf")
+        #expect(attachment?.sizeBytes == 2_048)
+        #expect(attachment?.parentId == stack.id)
+        #expect(attachment?.parentType == .stack)
+        #expect(attachment?.remoteUrl == "https://example.com/doc.pdf")
+        #expect(attachment?.syncState == .synced)
+        #expect(attachment?.uploadState == .completed)
+        #expect(attachment?.isDeleted == false)
+    }
+
+    @Test("applyAttachmentAdded updates existing attachment with LWW")
+    func applyAttachmentAddedUpdatesExisting() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create a stack and an existing attachment
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+
+        let attachmentId = CUID.generate()
+        let existingAttachment = Attachment(
+            id: attachmentId,
+            parentId: stack.id,
+            parentType: .stack,
+            filename: "old_name.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1_024,
+            syncState: .pending
+        )
+        existingAttachment.updatedAt = Date().addingTimeInterval(-100)  // Old timestamp
+        context.insert(existingAttachment)
+        try context.save()
+
+        // Create an attachment.added event with newer timestamp
+        let payloadData = try createAttachmentPayload(
+            id: attachmentId,
+            parentId: stack.id,
+            parentType: .stack,
+            filename: "new_name.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 2_048,
+            url: "https://example.com/new.pdf"
+        )
+
+        let event = Event(
+            eventType: .attachmentAdded,
+            payload: payloadData,
+            entityId: attachmentId,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+        context.insert(event)
+        try context.save()
+
+        // Apply the event
+        try applyEvents([event], context: context)
+
+        // Verify attachment was updated
+        let predicate = #Predicate<Attachment> { $0.id == attachmentId }
+        let descriptor = FetchDescriptor<Attachment>(predicate: predicate)
+        let attachments = try context.fetch(descriptor)
+
+        #expect(attachments.count == 1)
+        let attachment = attachments.first
+        #expect(attachment?.filename == "new_name.pdf")
+        #expect(attachment?.sizeBytes == 2_048)
+        #expect(attachment?.remoteUrl == "https://example.com/new.pdf")
+        #expect(attachment?.syncState == .synced)
+    }
+
+    @Test("applyAttachmentAdded skips update when local is newer (LWW)")
+    func applyAttachmentAddedSkipsWhenLocalIsNewer() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create a stack and an existing attachment with a recent timestamp
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+
+        let attachmentId = CUID.generate()
+        let existingAttachment = Attachment(
+            id: attachmentId,
+            parentId: stack.id,
+            parentType: .stack,
+            filename: "local_name.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 3_000,
+            syncState: .pending
+        )
+        existingAttachment.updatedAt = Date().addingTimeInterval(100)  // Future timestamp
+        context.insert(existingAttachment)
+        try context.save()
+
+        // Create an attachment.added event with older timestamp
+        let payloadData = try createAttachmentPayload(
+            id: attachmentId,
+            parentId: stack.id,
+            parentType: .stack,
+            filename: "remote_name.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 2_048
+        )
+
+        let oldTimestamp = Date().addingTimeInterval(-50)
+        let event = Event(
+            eventType: .attachmentAdded,
+            payload: payloadData,
+            timestamp: oldTimestamp,
+            entityId: attachmentId,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+        context.insert(event)
+        try context.save()
+
+        // Apply the event
+        try applyEvents([event], context: context)
+
+        // Verify attachment was NOT updated (LWW kept local)
+        let predicate = #Predicate<Attachment> { $0.id == attachmentId }
+        let descriptor = FetchDescriptor<Attachment>(predicate: predicate)
+        let attachments = try context.fetch(descriptor)
+
+        #expect(attachments.count == 1)
+        let attachment = attachments.first
+        #expect(attachment?.filename == "local_name.pdf")  // Still local name
+        #expect(attachment?.sizeBytes == 3_000)  // Still local size
+    }
+
+    @Test("applyAttachmentRemoved marks attachment as deleted")
+    func applyAttachmentRemovedMarksAsDeleted() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create a stack and an attachment
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+
+        let attachmentId = CUID.generate()
+        let attachment = Attachment(
+            id: attachmentId,
+            parentId: stack.id,
+            parentType: .stack,
+            filename: "test.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1_024
+        )
+        attachment.updatedAt = Date().addingTimeInterval(-100)  // Old timestamp
+        context.insert(attachment)
+        try context.save()
+
+        #expect(attachment.isDeleted == false)
+
+        // Create an attachment.removed event
+        let payloadData = try createAttachmentRemovedPayload(attachmentId: attachmentId)
+        let event = Event(
+            eventType: .attachmentRemoved,
+            payload: payloadData,
+            entityId: attachmentId,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+        context.insert(event)
+        try context.save()
+
+        // Apply the event
+        try applyEvents([event], context: context)
+
+        // Verify attachment was marked as deleted
+        #expect(attachment.isDeleted == true)
+        #expect(attachment.syncState == .synced)
+    }
+
+    @Test("applyAttachmentRemoved ignores when attachment not found")
+    func applyAttachmentRemovedIgnoresWhenNotFound() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let nonExistentId = CUID.generate()
+        let payloadData = try createAttachmentRemovedPayload(attachmentId: nonExistentId)
+        let event = Event(
+            eventType: .attachmentRemoved,
+            payload: payloadData,
+            entityId: nonExistentId,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+        context.insert(event)
+        try context.save()
+
+        // Apply the event - should not throw
+        try applyEvents([event], context: context)
+
+        // Verify no attachment was created
+        let descriptor = FetchDescriptor<Attachment>()
+        let attachments = try context.fetch(descriptor)
+        #expect(attachments.isEmpty)
+    }
+
+    @Test("applyAttachmentRemoved respects LWW")
+    func applyAttachmentRemovedRespectsLWW() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create a stack and an attachment with recent timestamp
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+
+        let attachmentId = CUID.generate()
+        let attachment = Attachment(
+            id: attachmentId,
+            parentId: stack.id,
+            parentType: .stack,
+            filename: "test.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1_024
+        )
+        attachment.updatedAt = Date().addingTimeInterval(100)  // Future timestamp
+        context.insert(attachment)
+        try context.save()
+
+        // Create an attachment.removed event with older timestamp
+        let payloadData = try createAttachmentRemovedPayload(attachmentId: attachmentId)
+        let oldTimestamp = Date().addingTimeInterval(-50)
+        let event = Event(
+            eventType: .attachmentRemoved,
+            payload: payloadData,
+            timestamp: oldTimestamp,
+            entityId: attachmentId,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+        context.insert(event)
+        try context.save()
+
+        // Apply the event
+        try applyEvents([event], context: context)
+
+        // Verify attachment was NOT deleted (LWW kept local)
+        #expect(attachment.isDeleted == false)
+    }
+
+    @Test("applyAttachmentAdded works with task parent")
+    func applyAttachmentAddedWorksWithTaskParent() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create a stack and task
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        let task = QueueTask(title: "Test Task")
+        task.stack = stack
+        stack.tasks.append(task)
+        context.insert(task)
+        try context.save()
+
+        let attachmentId = CUID.generate()
+        let payloadData = try createAttachmentPayload(
+            id: attachmentId,
+            parentId: task.id,
+            parentType: .task,
+            filename: "task_attachment.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 4_096
+        )
+
+        let event = Event(
+            eventType: .attachmentAdded,
+            payload: payloadData,
+            entityId: attachmentId,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+        context.insert(event)
+        try context.save()
+
+        // Apply the event
+        try applyEvents([event], context: context)
+
+        // Verify attachment was created with task parent
+        let predicate = #Predicate<Attachment> { $0.id == attachmentId }
+        let descriptor = FetchDescriptor<Attachment>(predicate: predicate)
+        let attachments = try context.fetch(descriptor)
+
+        #expect(attachments.count == 1)
+        let attachment = attachments.first
+        #expect(attachment?.parentId == task.id)
+        #expect(attachment?.parentType == .task)
+    }
+
+    @Test("applyAttachmentAdded sets uploadState based on url presence")
+    func applyAttachmentAddedSetsUploadStateCorrectly() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        try context.save()
+
+        // Test 1: Attachment with URL should be .completed
+        let attachmentId1 = CUID.generate()
+        let payload1 = try createAttachmentPayload(
+            id: attachmentId1,
+            parentId: stack.id,
+            parentType: .stack,
+            url: "https://example.com/file.pdf"
+        )
+        let event1 = Event(
+            eventType: .attachmentAdded,
+            payload: payload1,
+            entityId: attachmentId1,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+        context.insert(event1)
+
+        // Test 2: Attachment without URL should be .pending
+        let attachmentId2 = CUID.generate()
+        let payload2 = try createAttachmentPayload(
+            id: attachmentId2,
+            parentId: stack.id,
+            parentType: .stack,
+            url: nil
+        )
+        let event2 = Event(
+            eventType: .attachmentAdded,
+            payload: payload2,
+            entityId: attachmentId2,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+        context.insert(event2)
+        try context.save()
+
+        // Apply both events
+        try applyEvents([event1, event2], context: context)
+
+        // Verify uploadState
+        let pred1 = #Predicate<Attachment> { $0.id == attachmentId1 }
+        let attachment1 = try context.fetch(FetchDescriptor<Attachment>(predicate: pred1)).first
+        #expect(attachment1?.uploadState == .completed)
+
+        let pred2 = #Predicate<Attachment> { $0.id == attachmentId2 }
+        let attachment2 = try context.fetch(FetchDescriptor<Attachment>(predicate: pred2)).first
+        #expect(attachment2?.uploadState == .pending)
     }
 }
