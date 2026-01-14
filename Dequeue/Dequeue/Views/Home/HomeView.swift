@@ -2,55 +2,32 @@
 //  HomeView.swift
 //  Dequeue
 //
-//  Main dashboard showing active stacks
+//  Main dashboard showing active stacks with navigation chrome
 //
 
 import SwiftUI
 import SwiftData
 
 struct HomeView: View {
-    @Environment(\.modelContext) var modelContext
-    @Environment(\.syncManager) var syncManager
-    @Environment(\.authService) var authService
-    @Environment(\.undoCompletionManager) var undoCompletionManager
-    @Query var stacks: [Stack]
-    @Query var allStacks: [Stack]
-    @Query var tasks: [QueueTask]
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
+
     @Query private var reminders: [Reminder]
     @Query private var pendingEvents: [Event]
-    @Query private var allTags: [Tag]
+    @Query private var allStacks: [Stack]
+    @Query private var tasks: [QueueTask]
 
     @State private var syncStatusViewModel: SyncStatusViewModel?
-    @State var cachedDeviceId: String = ""
+    @State private var cachedDeviceId: String = ""
+    @State private var showReminders = false
+    @State private var offlineBannerDismissed = false
+    @State private var selectedStack: Stack?
+    @State private var selectedTask: QueueTask?
+
+    private let networkMonitor = NetworkMonitor.shared
 
     init() {
-        // Filter for active stacks only (exclude completed, closed, and archived)
-        // Note: SwiftData #Predicate doesn't support captured enum values,
-        // so we compare against the rawValue string directly
-        let activeRawValue = StackStatus.active.rawValue
-        _stacks = Query(
-            filter: #Predicate<Stack> { stack in
-                stack.isDeleted == false &&
-                stack.isDraft == false &&
-                stack.statusRawValue == activeRawValue
-            },
-            sort: \Stack.sortOrder
-        )
-
-        // Fetch all stacks for reminder navigation (includes completed, closed, etc.)
-        _allStacks = Query(
-            filter: #Predicate<Stack> { stack in
-                stack.isDeleted == false
-            }
-        )
-
-        // Fetch all tasks for reminder navigation
-        _tasks = Query(
-            filter: #Predicate<QueueTask> { task in
-                task.isDeleted == false
-            }
-        )
-
         // Fetch active reminders for badge count
         _reminders = Query(
             filter: #Predicate<Reminder> { reminder in
@@ -65,65 +42,24 @@ struct HomeView: View {
             }
         )
 
-        // Fetch all tags for filter bar
-        _allTags = Query(
-            filter: #Predicate<Tag> { tag in
-                tag.isDeleted == false
-            },
-            sort: \.name
+        // Fetch all stacks for reminder navigation
+        _allStacks = Query(
+            filter: #Predicate<Stack> { stack in
+                stack.isDeleted == false
+            }
         )
-    }
 
-    @State var selectedStack: Stack?
-    @State var selectedTask: QueueTask?
-    @State private var showReminders = false
-    @State private var offlineBannerDismissed = false
-    @State var syncError: Error?
-    @State var showingSyncError = false
-    @State var errorMessage: String?
-    @State var showError = false
-    @State var stackToComplete: Stack?
-    @State var showCompleteConfirmation = false
-    @State var selectedTagIds: Set<String> = []
-
-    /// Network monitor for offline detection
-    private let networkMonitor = NetworkMonitor.shared
-
-    /// Stack service for operations - lightweight struct, safe to recreate each call
-    var stackService: StackService {
-        StackService(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            syncManager: syncManager
+        // Fetch all tasks for reminder navigation
+        _tasks = Query(
+            filter: #Predicate<QueueTask> { task in
+                task.isDeleted == false
+            }
         )
     }
 
     /// Count of overdue reminders for badge display
     private var overdueCount: Int {
         reminders.filter { $0.status == .active && $0.isPastDue }.count
-    }
-
-    /// Stacks filtered by selected tags (OR logic)
-    var filteredStacks: [Stack] {
-        if selectedTagIds.isEmpty {
-            return stacks
-        }
-        return stacks.filter { stack in
-            stack.tagObjects.contains { tag in
-                selectedTagIds.contains(tag.id) && !tag.isDeleted
-            }
-        }
-    }
-
-    /// Whether the filter bar should be shown
-    private var shouldShowFilterBar: Bool {
-        // Show filter bar if there are any tags with stacks
-        allTags.contains { tag in
-            stacks.contains { stack in
-                stack.tagObjects.contains { $0.id == tag.id && !$0.isDeleted }
-            }
-        }
     }
 
     var body: some View {
@@ -139,24 +75,7 @@ struct HomeView: View {
                     .padding(.top, 8)
                 }
 
-                // Tag filter bar
-                if shouldShowFilterBar {
-                    TagFilterBar(
-                        tags: allTags,
-                        stacks: stacks,
-                        selectedTagIds: $selectedTagIds
-                    )
-                }
-
-                Group {
-                    if stacks.isEmpty {
-                        emptyState
-                    } else if filteredStacks.isEmpty {
-                        noFilterResultsState
-                    } else {
-                        stackList
-                    }
-                }
+                InProgressStacksListView()
             }
             .navigationTitle("Dequeue")
             .toolbar {
@@ -193,12 +112,10 @@ struct HomeView: View {
                 }
             }
             .task {
-                // Fetch device ID for service creation
                 if cachedDeviceId.isEmpty {
                     cachedDeviceId = await DeviceService.shared.getDeviceId()
                 }
 
-                // Initialize sync status view model
                 if syncStatusViewModel == nil {
                     syncStatusViewModel = SyncStatusViewModel(modelContext: modelContext)
                     if let syncManager = syncManager {
@@ -207,7 +124,6 @@ struct HomeView: View {
                 }
             }
             .onDisappear {
-                // Stop monitoring to prevent background Task from running indefinitely
                 syncStatusViewModel?.stopMonitoring()
             }
             .sheet(isPresented: $showReminders) {
@@ -221,37 +137,24 @@ struct HomeView: View {
                     TaskDetailView(task: task)
                 }
             }
-            .alert("Sync Failed", isPresented: $showingSyncError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                if let syncError = syncError {
-                    Text(syncError.localizedDescription)
-                }
-            }
-            .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                if let errorMessage {
-                    Text(errorMessage)
-                }
-            }
-            .confirmationDialog(
-                "Complete Stack?",
-                isPresented: $showCompleteConfirmation,
-                presenting: stackToComplete
-            ) { stack in
-                Button("Complete Stack & All Tasks") {
-                    completeStack(stack)
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: { stack in
-                Text("This will mark \"\(stack.title)\" and all its pending tasks as completed.")
-            }
             .onChange(of: networkMonitor.isConnected) { _, isConnected in
-                // Reset banner dismissal when network changes
                 if !isConnected {
                     offlineBannerDismissed = false
                 }
+            }
+        }
+    }
+
+    /// Handle navigation to a Stack or Task from the Reminders list
+    private func handleGoToItem(parentId: String, parentType: ParentType) {
+        switch parentType {
+        case .stack:
+            if let stack = allStacks.first(where: { $0.id == parentId }) {
+                selectedStack = stack
+            }
+        case .task:
+            if let task = tasks.first(where: { $0.id == parentId }) {
+                selectedTask = task
             }
         }
     }
@@ -259,5 +162,5 @@ struct HomeView: View {
 
 #Preview {
     HomeView()
-        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
+        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self, Tag.self], inMemory: true)
 }
