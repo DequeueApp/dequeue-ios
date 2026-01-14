@@ -57,7 +57,7 @@ struct CompletedStacksListView: View {
                     VStack(alignment: .leading) {
                         Text(stack.title)
                             .font(.headline)
-                        Text("Completed \(stack.updatedAt, style: .relative) ago")
+                        Text("Created \(stack.createdAt, style: .relative) ago")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

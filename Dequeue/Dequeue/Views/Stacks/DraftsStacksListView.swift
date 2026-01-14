@@ -80,7 +80,7 @@ struct DraftsStacksListView: View {
                     VStack(alignment: .leading) {
                         Text(draft.title.isEmpty ? "Untitled" : draft.title)
                             .font(.headline)
-                        Text("Last edited \(draft.updatedAt, style: .relative) ago")
+                        Text("Created \(draft.createdAt, style: .relative) ago")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
