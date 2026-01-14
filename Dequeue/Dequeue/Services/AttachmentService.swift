@@ -160,12 +160,18 @@ final class AttachmentService {
         let localPath = try copyFileToAttachmentsDirectory(fileURL: fileURL, attachmentId: attachment.id)
         attachment.localPath = localPath
 
-        // Insert into context
+        // Insert into context and save - clean up file if save fails
         modelContext.insert(attachment)
 
-        // Record event
-        try eventService.recordAttachmentAdded(attachment)
-        try modelContext.save()
+        do {
+            try eventService.recordAttachmentAdded(attachment)
+            try modelContext.save()
+        } catch {
+            // Rollback: clean up the copied file since database save failed
+            cleanupCopiedFile(at: localPath)
+            throw AttachmentServiceError.operationFailed(underlying: error)
+        }
+
         syncManager?.triggerImmediatePush()
 
         return attachment
@@ -311,10 +317,21 @@ final class AttachmentService {
         do {
             try fileManager.copyItem(at: fileURL, to: destinationURL)
         } catch {
+            // Clean up the directory we created if copy fails
+            try? fileManager.removeItem(at: attachmentDir)
             throw AttachmentServiceError.fileCopyFailed(underlying: error.localizedDescription)
         }
 
         return destinationURL.path
+    }
+
+    /// Cleans up a copied file if database operations fail.
+    ///
+    /// - Parameter localPath: The path to the file to clean up
+    private func cleanupCopiedFile(at localPath: String) {
+        let fileURL = URL(fileURLWithPath: localPath)
+        // Remove the file and its parent directory (attachment-specific directory)
+        try? fileManager.removeItem(at: fileURL.deletingLastPathComponent())
     }
 
     /// Returns the attachments directory URL, creating it if necessary.
