@@ -90,4 +90,8 @@ enum EventType: String, Codable, CaseIterable {
 
     // Device events
     case deviceDiscovered = "device.discovered"
+
+    // Attachment events
+    case attachmentAdded = "attachment.added"
+    case attachmentRemoved = "attachment.removed"
 }
