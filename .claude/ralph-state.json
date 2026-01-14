@@ -1,11 +1,11 @@
 {
   "phase": 2,
   "iteration": 3,
-  "currentIssue": "DEQ-181",
-  "pr": null,
-  "completed": ["DEQ-177", "DEQ-176", "DEQ-178", "DEQ-179", "DEQ-180"],
+  "currentIssue": "DEQ-185",
+  "pr": 123,
+  "completed": ["DEQ-177", "DEQ-176", "DEQ-178", "DEQ-179", "DEQ-180", "DEQ-181", "DEQ-182", "DEQ-183", "DEQ-184"],
   "blocked": [],
-  "lastAction": "Merged PR #122, DEQ-180 already done via list extractions",
+  "lastAction": "Created PR #123 for DEQ-181, DEQ-182, DEQ-183, DEQ-184",
   "ciHistory": [
     {
       "iteration": 1,
