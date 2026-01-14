@@ -118,7 +118,7 @@ struct MainTabView: View {
             .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
             .padding(.horizontal)
             // Position above tab bar: safe area + tab bar height + padding
-            .padding(.bottom, geometry.safeAreaInsets.bottom + tabBarHeight + 16)
+            .padding(.bottom, geometry.safeAreaInsets.bottom + tabBarHeight + 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
         }
