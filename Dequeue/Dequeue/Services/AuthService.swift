@@ -23,6 +23,7 @@ protocol AuthServiceProtocol {
     func configure() async
     func signOut() async throws
     func getAuthToken() async throws -> String
+    func refreshSessionIfNeeded() async
 }
 
 // MARK: - Clerk Auth Service
@@ -32,19 +33,92 @@ protocol AuthServiceProtocol {
 final class ClerkAuthService: AuthServiceProtocol {
     private var currentSignUp: SignUp?
     private var currentSignIn: SignIn?
+    private var backgroundRefreshTask: Task<Void, Never>?
+    private var lastRefreshTime: Date?
+    private let refreshThrottleInterval: TimeInterval = 60 // 1 minute
 
     // Cache auth state to avoid repeated Clerk SDK calls on every view render
     private(set) var isAuthenticated: Bool = false
     private(set) var isLoading: Bool = true
     private(set) var currentUserId: String?
 
+    /// Configures auth service with offline-first approach.
+    ///
+    /// This method is designed to never block app launch, even when offline:
+    /// 1. Configure Clerk SDK (no network required)
+    /// 2. Immediately check for cached session state
+    /// 3. Set isLoading = false so UI proceeds instantly
+    /// 4. Refresh session from network in background (non-blocking)
+    ///
+    /// If offline, the cached session is trusted. When back online, the session
+    /// will be validated and refreshed. If the session was invalidated server-side,
+    /// the user will be prompted to re-login only after network is available.
     @MainActor
     func configure() async {
+        // Step 1: Configure SDK (no network call)
         await Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
-        try? await Clerk.shared.load()
 
+        // Step 2: Check cached session immediately (no network call)
+        // Clerk SDK may have persisted session from previous app launch
         updateAuthState()
+
+        // Step 3: Allow UI to proceed immediately - don't block on network
         isLoading = false
+
+        // Step 4: Refresh session from network in background (non-blocking)
+        // This validates the session is still valid server-side and refreshes tokens
+        // Cancel any existing refresh task to prevent race conditions
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = Task {
+            await refreshSessionInBackground()
+        }
+    }
+
+    /// Refreshes session from Clerk servers in background.
+    ///
+    /// This is non-blocking and respects network availability:
+    /// - If offline, does nothing (trusts cached session)
+    /// - If online, validates session with Clerk servers
+    /// - Updates auth state if session was invalidated server-side
+    /// - Errors are logged but don't crash the app (graceful degradation)
+    @MainActor
+    private func refreshSessionInBackground() async {
+        // Check network status - don't attempt if offline
+        guard NetworkMonitor.shared.isConnected else {
+            return
+        }
+
+        // Attempt to load/refresh session from Clerk servers
+        // This validates the session is still valid and refreshes tokens
+        do {
+            try await Clerk.shared.load()
+        } catch {
+            // Log error for debugging but don't crash - degrade gracefully
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "session_refresh", "offline_mode": !NetworkMonitor.shared.isConnected]
+            )
+        }
+
+        // Update auth state in case session was invalidated server-side
+        updateAuthState()
+    }
+
+    /// Called when app becomes active to refresh session if needed.
+    ///
+    /// This ensures that when returning from background or when network
+    /// becomes available, we validate the session is still valid.
+    /// Throttles refreshes to avoid excessive network calls on rapid app state changes.
+    @MainActor
+    func refreshSessionIfNeeded() async {
+        // Throttle refreshes to avoid excessive network calls
+        if let lastRefresh = lastRefreshTime,
+           Date().timeIntervalSince(lastRefresh) < refreshThrottleInterval {
+            return
+        }
+
+        lastRefreshTime = Date()
+        await refreshSessionInBackground()
     }
 
     @MainActor
@@ -209,6 +283,10 @@ final class MockAuthService: AuthServiceProtocol {
             throw AuthError.notAuthenticated
         }
         return "mock-token-\(UUID().uuidString)"
+    }
+
+    func refreshSessionIfNeeded() async {
+        // No-op for mock
     }
 
     // For testing
