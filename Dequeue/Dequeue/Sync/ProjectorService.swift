@@ -74,10 +74,11 @@ enum ProjectorService {
         case .tagDeleted:
             try applyTagDeleted(event: event, context: context)
 
-        // Attachment events - handled by AttachmentService, not ProjectorService
-        // These events are processed separately via the attachment sync flow
-        case .attachmentAdded, .attachmentRemoved:
-            break
+        // Attachment events
+        case .attachmentAdded:
+            try applyAttachmentAdded(event: event, context: context)
+        case .attachmentRemoved:
+            try applyAttachmentRemoved(event: event, context: context)
         }
     }
 
@@ -729,6 +730,87 @@ enum ProjectorService {
         tag.lastSyncedAt = Date()
     }
 
+    // MARK: - Attachment Events
+
+    private static func applyAttachmentAdded(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(AttachmentEventPayload.self)
+
+        if let existing = try findAttachment(id: payload.id, context: context) {
+            // LWW: Only update if this event is newer than current state
+            guard shouldApplyEvent(
+                eventTimestamp: event.timestamp,
+                localTimestamp: existing.updatedAt,
+                entityType: .attachment,
+                entityId: payload.id,
+                conflictType: .update,
+                context: context
+            ) else { return }
+            updateAttachment(existing, from: payload, eventTimestamp: event.timestamp)
+        } else {
+            // Create new attachment from sync event
+            // Note: localPath is nil for remote attachments - file will be downloaded on demand
+            let attachment = Attachment(
+                id: payload.id,
+                parentId: payload.parentId,
+                parentType: payload.parentType,
+                filename: payload.filename,
+                mimeType: payload.mimeType,
+                sizeBytes: payload.sizeBytes,
+                remoteUrl: payload.url,
+                localPath: nil,  // Remote attachment - no local file yet
+                createdAt: event.timestamp,
+                updatedAt: event.timestamp,
+                isDeleted: payload.deleted,
+                syncState: .synced,
+                uploadState: payload.url != nil ? .completed : .pending,
+                lastSyncedAt: Date()
+            )
+            context.insert(attachment)
+        }
+    }
+
+    private static func applyAttachmentRemoved(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(EntityDeletedPayload.self)
+        guard let attachment = try findAttachment(id: payload.id, context: context) else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: attachment.updatedAt,
+            entityType: .attachment,
+            entityId: payload.id,
+            conflictType: .delete,
+            context: context
+        ) else { return }
+
+        attachment.isDeleted = true
+        attachment.updatedAt = event.timestamp  // LWW: Use event timestamp
+        attachment.syncState = .synced
+        attachment.lastSyncedAt = Date()
+    }
+
+    /// Updates attachment fields from payload. Uses event timestamp for deterministic LWW.
+    private static func updateAttachment(
+        _ attachment: Attachment,
+        from payload: AttachmentEventPayload,
+        eventTimestamp: Date
+    ) {
+        attachment.parentId = payload.parentId
+        attachment.parentType = payload.parentType
+        attachment.filename = payload.filename
+        attachment.mimeType = payload.mimeType
+        attachment.sizeBytes = payload.sizeBytes
+        attachment.remoteUrl = payload.url
+        attachment.isDeleted = payload.deleted
+        attachment.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
+        attachment.syncState = .synced
+        attachment.lastSyncedAt = Date()
+        // Note: uploadState should be set based on whether we have a remote URL
+        if payload.url != nil {
+            attachment.uploadState = .completed
+        }
+    }
+
     // MARK: - Helpers
 
     private static func findStack(id: String, context: ModelContext) throws -> Stack? {
@@ -752,6 +834,12 @@ enum ProjectorService {
     private static func findTag(id: String, context: ModelContext) throws -> Tag? {
         let predicate = #Predicate<Tag> { $0.id == id }
         let descriptor = FetchDescriptor<Tag>(predicate: predicate)
+        return try context.fetch(descriptor).first
+    }
+
+    private static func findAttachment(id: String, context: ModelContext) throws -> Attachment? {
+        let predicate = #Predicate<Attachment> { $0.id == id }
+        let descriptor = FetchDescriptor<Attachment>(predicate: predicate)
         return try context.fetch(descriptor).first
     }
 
