@@ -63,3 +63,4 @@ coverage/
 # Claude Code local config (user-specific)
 .claude/*.local.md
 .claude/*.local.json
+.claude/ralph-state.json
