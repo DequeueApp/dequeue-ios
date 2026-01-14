@@ -47,8 +47,12 @@ extension StackEditorView {
                 onTagAdded: { _ in },
                 onTagRemoved: { _ in },
                 onNewTagCreated: { name in
+                    guard let service = tagService else {
+                        logger.error("TagService not initialized when creating tag '\(name)'")
+                        return nil
+                    }
                     do {
-                        return try tagService.findOrCreateTag(name: name)
+                        return try service.findOrCreateTag(name: name)
                     } catch {
                         logger.error("Failed to create tag '\(name)': \(error.localizedDescription)")
                         return nil
@@ -169,10 +173,15 @@ extension StackEditorView {
     }
 
     func createDraft(title: String) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         isCreatingDraft = true
 
         do {
-            let draft = try stackService.createStack(
+            let draft = try service.createStack(
                 title: title,
                 description: stackDescription.isEmpty ? nil : stackDescription,
                 isDraft: true
@@ -198,9 +207,13 @@ extension StackEditorView {
             showError = true
             return
         }
+        guard let service = stackService else {
+            logger.error("StackService not initialized when updating draft")
+            return
+        }
 
         do {
-            try stackService.updateDraft(
+            try service.updateDraft(
                 draft,
                 title: title.isEmpty ? "Untitled" : title,
                 description: description.isEmpty ? nil : description
@@ -230,9 +243,9 @@ extension StackEditorView {
     }
 
     func discardDraftAndDismiss() {
-        if let draft = draftStack {
+        if let draft = draftStack, let service = stackService {
             do {
-                try stackService.discardDraft(draft)
+                try service.discardDraft(draft)
                 logger.info("Draft discarded: \(draft.id)")
                 syncManager?.triggerImmediatePush()
             } catch {
@@ -243,17 +256,28 @@ extension StackEditorView {
     }
 
     func publishAndCreate() {
+        guard let stackSvc = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+        guard let taskSvc = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+
         do {
             let stack: Stack
 
             if let existingDraft = draftStack {
                 existingDraft.title = title
                 existingDraft.stackDescription = stackDescription.isEmpty ? nil : stackDescription
-                try stackService.publishDraft(existingDraft)
+                try stackSvc.publishDraft(existingDraft)
                 stack = existingDraft
                 logger.info("Draft published as stack: \(stack.id)")
             } else {
-                stack = try stackService.createStack(
+                stack = try stackSvc.createStack(
                     title: title,
                     description: stackDescription.isEmpty ? nil : stackDescription
                 )
@@ -270,7 +294,7 @@ extension StackEditorView {
             var failedTasks: [String] = []
             for pendingTask in pendingTasks {
                 do {
-                    let task = try taskService.createTask(
+                    let task = try taskSvc.createTask(
                         title: pendingTask.title,
                         description: pendingTask.description,
                         stack: stack
@@ -308,11 +332,15 @@ extension StackEditorView {
     func saveOnBackground() {
         guard isCreateMode else { return }
         guard !isCreatingDraft else { return }
+        guard let service = stackService else {
+            logger.warning("Background save skipped: StackService not initialized")
+            return
+        }
 
         if draftStack == nil && !title.isEmpty {
             // Create draft with current content
             do {
-                let draft = try stackService.createStack(
+                let draft = try service.createStack(
                     title: title,
                     description: stackDescription.isEmpty ? nil : stackDescription,
                     isDraft: true
@@ -329,7 +357,7 @@ extension StackEditorView {
             let descriptionChanged = draft.stackDescription != stackDescription
             if titleChanged || descriptionChanged {
                 do {
-                    try stackService.updateDraft(
+                    try service.updateDraft(
                         draft,
                         title: title.isEmpty ? "Untitled" : title,
                         description: stackDescription.isEmpty ? nil : stackDescription

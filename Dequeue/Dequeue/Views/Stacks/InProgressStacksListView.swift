@@ -17,7 +17,7 @@ struct InProgressStacksListView: View {
     @Query private var stacks: [Stack]
     @Query private var allTags: [Tag]
 
-    @State private var cachedDeviceId: String = ""
+    @State private var stackService: StackService?
     @State private var selectedStack: Stack?
     @State private var syncError: Error?
     @State private var showingSyncError = false
@@ -44,15 +44,6 @@ struct InProgressStacksListView: View {
                 tag.isDeleted == false
             },
             sort: \.name
-        )
-    }
-
-    private var stackService: StackService {
-        StackService(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            syncManager: syncManager
         )
     }
 
@@ -103,9 +94,14 @@ struct InProgressStacksListView: View {
             }
         }
         .task {
-            if cachedDeviceId.isEmpty {
-                cachedDeviceId = await DeviceService.shared.getDeviceId()
-            }
+            guard stackService == nil else { return }
+            let deviceId = await DeviceService.shared.getDeviceId()
+            stackService = StackService(
+                modelContext: modelContext,
+                userId: authService.currentUserId ?? "",
+                deviceId: deviceId,
+                syncManager: syncManager
+            )
         }
         .sheet(item: $selectedStack) { stack in
             StackEditorView(mode: .edit(stack))
@@ -286,8 +282,13 @@ struct InProgressStacksListView: View {
     }
 
     private func setAsActive(_ stack: Stack) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try stackService.setAsActive(stack)
+            try service.setAsActive(stack)
         } catch {
             ErrorReportingService.capture(error: error, context: ["action": "setAsActive"])
             errorMessage = "Failed to set stack as active: \(error.localizedDescription)"
@@ -296,8 +297,13 @@ struct InProgressStacksListView: View {
     }
 
     private func deactivateStack(_ stack: Stack) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try stackService.deactivateStack(stack)
+            try service.deactivateStack(stack)
         } catch {
             ErrorReportingService.capture(error: error, context: ["action": "deactivateStack"])
             errorMessage = "Failed to deactivate stack: \(error.localizedDescription)"
@@ -319,8 +325,13 @@ struct InProgressStacksListView: View {
     }
 
     private func completeStack(_ stack: Stack) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try stackService.markAsCompleted(stack, completeAllTasks: true)
+            try service.markAsCompleted(stack, completeAllTasks: true)
         } catch {
             ErrorReportingService.capture(error: error, context: ["action": "completeStack"])
             errorMessage = "Failed to complete stack: \(error.localizedDescription)"
@@ -329,8 +340,13 @@ struct InProgressStacksListView: View {
     }
 
     private func deleteStack(_ stack: Stack) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try stackService.deleteStack(stack)
+            try service.deleteStack(stack)
         } catch {
             ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
             errorMessage = "Failed to delete stack: \(error.localizedDescription)"

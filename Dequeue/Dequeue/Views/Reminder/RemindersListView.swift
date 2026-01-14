@@ -18,7 +18,7 @@ struct RemindersListView: View {
     @Query private var stacks: [Stack]
     @Query private var tasks: [QueueTask]
 
-    @State private var cachedDeviceId: String = ""
+    @State private var reminderActionHandler: ReminderActionHandler?
 
     // Cached calendar instance for date comparisons
     private static let calendar = Calendar.current
@@ -48,16 +48,6 @@ struct RemindersListView: View {
     @State private var reminderToDelete: Reminder?
     @State private var showError = false
     @State private var errorMessage = ""
-
-    private var reminderActionHandler: ReminderActionHandler {
-        ReminderActionHandler(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            onError: showError,
-            syncManager: syncManager
-        )
-    }
 
     // MARK: - Filtered Reminders
 
@@ -127,7 +117,7 @@ struct RemindersListView: View {
                         isPresented: $showSnoozePicker,
                         reminder: reminder,
                         onSnooze: { snoozeUntil in
-                            reminderActionHandler.snooze(reminder, until: snoozeUntil)
+                            reminderActionHandler?.snooze(reminder, until: snoozeUntil)
                             selectedReminderForSnooze = nil
                         }
                     )
@@ -136,7 +126,7 @@ struct RemindersListView: View {
             .confirmationDialog("Delete Reminder", isPresented: $showDeleteConfirmation) {
                 Button("Delete", role: .destructive) {
                     if let reminder = reminderToDelete {
-                        reminderActionHandler.delete(reminder)
+                        reminderActionHandler?.delete(reminder)
                     }
                 }
                 Button("Cancel", role: .cancel) {
@@ -146,9 +136,15 @@ struct RemindersListView: View {
                 Text("Are you sure you want to delete this reminder?")
             }
             .task {
-                if cachedDeviceId.isEmpty {
-                    cachedDeviceId = await DeviceService.shared.getDeviceId()
-                }
+                guard reminderActionHandler == nil else { return }
+                let deviceId = await DeviceService.shared.getDeviceId()
+                reminderActionHandler = ReminderActionHandler(
+                    modelContext: modelContext,
+                    userId: authService.currentUserId ?? "",
+                    deviceId: deviceId,
+                    onError: showError,
+                    syncManager: syncManager
+                )
             }
         }
     }
@@ -266,7 +262,7 @@ struct RemindersListView: View {
                 showSnoozePicker = true
             } : nil,
             onDismiss: reminder.isPastDue ? {
-                reminderActionHandler.dismiss(reminder)
+                reminderActionHandler?.dismiss(reminder)
             } : nil,
             onDelete: {
                 reminderToDelete = reminder

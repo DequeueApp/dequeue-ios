@@ -28,17 +28,7 @@ struct TagDetailView: View {
     @State private var showDeleteConfirmation = false
     @State private var errorMessage: String?
     @State private var showError = false
-    @State private var cachedDeviceId: String = ""
-
-    /// Service for tag operations
-    private var tagService: TagService {
-        TagService(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            syncManager: syncManager
-        )
-    }
+    @State private var tagService: TagService?
 
     /// Stacks that have this tag (active only)
     private var stacksWithTag: [Stack] {
@@ -132,9 +122,14 @@ struct TagDetailView: View {
             StackEditorView(mode: .edit(stack))
         }
         .task {
-            if cachedDeviceId.isEmpty {
-                cachedDeviceId = await DeviceService.shared.getDeviceId()
-            }
+            guard tagService == nil else { return }
+            let deviceId = await DeviceService.shared.getDeviceId()
+            tagService = TagService(
+                modelContext: modelContext,
+                userId: authService.currentUserId ?? "",
+                deviceId: deviceId,
+                syncManager: syncManager
+            )
         }
     }
 
@@ -174,8 +169,13 @@ struct TagDetailView: View {
     // MARK: - Actions
 
     private func saveChanges() {
+        guard let service = tagService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try tagService.updateTag(tag, name: editedName)
+            try service.updateTag(tag, name: editedName)
             isEditing = false
         } catch {
             errorMessage = error.localizedDescription
@@ -185,8 +185,13 @@ struct TagDetailView: View {
     }
 
     private func deleteTag() {
+        guard let service = tagService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try tagService.deleteTag(tag)
+            try service.deleteTag(tag)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

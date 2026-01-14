@@ -49,7 +49,7 @@ struct AddReminderSheet: View {
     /// When provided, the sheet operates in edit mode instead of create mode
     var existingReminder: Reminder?
 
-    @State private var cachedDeviceId: String = ""
+    @State private var reminderService: ReminderService?
 
     // Cached calendar instance for date calculations
     private static let calendar = Calendar.current
@@ -60,15 +60,6 @@ struct AddReminderSheet: View {
     @State private var isSaving = false
 
     private var isEditMode: Bool { existingReminder != nil }
-
-    private var reminderService: ReminderService {
-        ReminderService(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            syncManager: syncManager
-        )
-    }
 
     var body: some View {
         NavigationStack {
@@ -115,8 +106,14 @@ struct AddReminderSheet: View {
         }
         .presentationDetents([.medium, .large])
         .task {
-            if cachedDeviceId.isEmpty {
-                cachedDeviceId = await DeviceService.shared.getDeviceId()
+            if reminderService == nil {
+                let deviceId = await DeviceService.shared.getDeviceId()
+                reminderService = ReminderService(
+                    modelContext: modelContext,
+                    userId: authService.currentUserId ?? "",
+                    deviceId: deviceId,
+                    syncManager: syncManager
+                )
             }
             await checkPermissionState()
         }
@@ -311,6 +308,12 @@ struct AddReminderSheet: View {
     }
 
     private func saveReminder() {
+        guard let service = reminderService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+
         isSaving = true
 
         Task {
@@ -318,16 +321,16 @@ struct AddReminderSheet: View {
                 if let existingReminder {
                     // Edit mode: update existing reminder
                     await notificationService.cancelNotification(for: existingReminder)
-                    try reminderService.updateReminder(existingReminder, remindAt: selectedDate)
+                    try service.updateReminder(existingReminder, remindAt: selectedDate)
                     try await notificationService.scheduleNotification(for: existingReminder)
                 } else {
                     // Create mode: create new reminder
                     let reminder: Reminder
                     switch parent {
                     case .task(let task):
-                        reminder = try reminderService.createReminder(for: task, at: selectedDate)
+                        reminder = try service.createReminder(for: task, at: selectedDate)
                     case .stack(let stack):
-                        reminder = try reminderService.createReminder(for: stack, at: selectedDate)
+                        reminder = try service.createReminder(for: stack, at: selectedDate)
                     }
                     try await notificationService.scheduleNotification(for: reminder)
                 }
