@@ -1,7 +1,7 @@
 {
   "phase": 1,
   "iteration": 2,
-  "currentIssue": "DEQ-83",
+  "currentIssue": "DEQ-81",
   "currentRepo": "dequeue-ios-2",
   "pr": null,
   "completed": [],
@@ -52,19 +52,9 @@
       "issue": "DEQ-80",
       "pr": 137,
       "note": "AttachmentFileCache for local storage"
-    },
-    {
-      "issue": "DEQ-81",
-      "pr": 138,
-      "note": "AttachmentRowView, AttachmentGridView, StackEditorView attachments section"
-    },
-    {
-      "issue": "DEQ-82",
-      "pr": 139,
-      "note": "TaskDetailView attachments section"
     }
   ],
-  "lastAction": "DEQ-83 - Implementing AttachmentPicker for iOS and macOS",
+  "lastAction": "DEQ-81 - Creating AttachmentRowView, AttachmentGridView, and attachmentsSection",
   "ciHistory": [
     {
       "run": 21012326753,

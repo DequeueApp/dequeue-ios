@@ -21,6 +21,7 @@ extension StackEditorView {
             }
 
             remindersSection
+            attachmentsSection
             actionsSection
             detailsSection
             eventHistorySection
