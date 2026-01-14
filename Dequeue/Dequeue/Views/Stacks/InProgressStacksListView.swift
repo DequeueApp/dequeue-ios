@@ -256,10 +256,12 @@ struct InProgressStacksListView: View {
             Label("Delete", systemImage: "trash")
         }
     }
+}
 
-    // MARK: - Actions
+// MARK: - Actions
 
-    private func performSync() async {
+extension InProgressStacksListView {
+    func performSync() async {
         guard let syncManager = syncManager else {
             ErrorReportingService.addBreadcrumb(
                 category: "sync",
@@ -281,7 +283,7 @@ struct InProgressStacksListView: View {
         }
     }
 
-    private func setAsActive(_ stack: Stack) {
+    func setAsActive(_ stack: Stack) {
         guard let service = stackService else {
             errorMessage = "Initializing... please try again."
             showError = true
@@ -296,7 +298,7 @@ struct InProgressStacksListView: View {
         }
     }
 
-    private func deactivateStack(_ stack: Stack) {
+    func deactivateStack(_ stack: Stack) {
         guard let service = stackService else {
             errorMessage = "Initializing... please try again."
             showError = true
@@ -311,7 +313,7 @@ struct InProgressStacksListView: View {
         }
     }
 
-    private func handleCompleteButtonTapped(for stack: Stack) {
+    func handleCompleteButtonTapped(for stack: Stack) {
         if stack.pendingTasks.isEmpty {
             if let manager = undoCompletionManager {
                 manager.startDelayedCompletion(for: stack)
@@ -324,7 +326,7 @@ struct InProgressStacksListView: View {
         }
     }
 
-    private func completeStack(_ stack: Stack) {
+    func completeStack(_ stack: Stack) {
         guard let service = stackService else {
             errorMessage = "Initializing... please try again."
             showError = true
@@ -339,7 +341,7 @@ struct InProgressStacksListView: View {
         }
     }
 
-    private func deleteStack(_ stack: Stack) {
+    func deleteStack(_ stack: Stack) {
         guard let service = stackService else {
             errorMessage = "Initializing... please try again."
             showError = true
