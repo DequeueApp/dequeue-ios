@@ -56,12 +56,16 @@ struct InProgressStacksListView: View {
         )
     }
 
-    /// Stacks filtered by selected tags (OR logic)
+    /// Stacks filtered by selected tags (OR logic) and excluding pending completion
     private var filteredStacks: [Stack] {
+        // First, filter out any stack that's pending completion (in undo window)
+        let pendingCompletionId = undoCompletionManager?.pendingStack?.id
+        let visibleStacks = stacks.filter { $0.id != pendingCompletionId }
+
         if selectedTagIds.isEmpty {
-            return stacks
+            return visibleStacks
         }
-        return stacks.filter { stack in
+        return visibleStacks.filter { stack in
             stack.tagObjects.contains { tag in
                 selectedTagIds.contains(tag.id) && !tag.isDeleted
             }
