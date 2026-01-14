@@ -62,7 +62,7 @@ struct RemindersListView: View {
     // MARK: - Filtered Reminders
 
     private var activeReminders: [Reminder] {
-        reminders.filter { $0.status == .active || $0.status == .snoozed }
+        return reminders.filter { $0.status == .active || $0.status == .snoozed }
     }
 
     private var overdueReminders: [Reminder] {
@@ -72,13 +72,13 @@ struct RemindersListView: View {
     }
 
     private var todayReminders: [Reminder] {
-        activeReminders
+        return activeReminders
             .filter { !$0.isPastDue && Self.calendar.isDateInToday($0.remindAt) }
             .sorted { $0.remindAt < $1.remindAt }
     }
 
     private var upcomingReminders: [Reminder] {
-        activeReminders
+        return activeReminders
             .filter { !$0.isPastDue && !Self.calendar.isDateInToday($0.remindAt) }
             .sorted { $0.remindAt < $1.remindAt }
     }
