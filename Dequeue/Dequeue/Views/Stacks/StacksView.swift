@@ -29,6 +29,8 @@ struct StacksView: View {
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
                 .padding(.top, 8)
+                .accessibilityLabel("Stack filter")
+                .accessibilityHint("Select to filter stacks by status")
 
                 // Content based on selection
                 switch selectedFilter {
