@@ -47,8 +47,12 @@ extension StackEditorView {
                 onTagAdded: { _ in },
                 onTagRemoved: { _ in },
                 onNewTagCreated: { name in
+                    guard let service = tagService else {
+                        logger.error("TagService not initialized when creating tag '\(name)'")
+                        return nil
+                    }
                     do {
-                        return try tagService.findOrCreateTag(name: name)
+                        return try service.findOrCreateTag(name: name)
                     } catch {
                         logger.error("Failed to create tag '\(name)': \(error.localizedDescription)")
                         return nil
@@ -169,10 +173,15 @@ extension StackEditorView {
     }
 
     func createDraft(title: String) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         isCreatingDraft = true
 
         do {
-            let draft = try stackService.createStack(
+            let draft = try service.createStack(
                 title: title,
                 description: stackDescription.isEmpty ? nil : stackDescription,
                 isDraft: true
@@ -198,9 +207,13 @@ extension StackEditorView {
             showError = true
             return
         }
+        guard let service = stackService else {
+            logger.error("StackService not initialized when updating draft")
+            return
+        }
 
         do {
-            try stackService.updateDraft(
+            try service.updateDraft(
                 draft,
                 title: title.isEmpty ? "Untitled" : title,
                 description: description.isEmpty ? nil : description
@@ -230,9 +243,9 @@ extension StackEditorView {
     }
 
     func discardDraftAndDismiss() {
-        if let draft = draftStack {
+        if let draft = draftStack, let service = stackService {
             do {
-                try stackService.discardDraft(draft)
+                try service.discardDraft(draft)
                 logger.info("Draft discarded: \(draft.id)")
                 syncManager?.triggerImmediatePush()
             } catch {
@@ -243,52 +256,19 @@ extension StackEditorView {
     }
 
     func publishAndCreate() {
+        guard let stackSvc = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+
         do {
-            let stack: Stack
+            let stack = try createOrPublishStack(using: stackSvc)
+            associateTagsWithStack(stack)
 
-            if let existingDraft = draftStack {
-                existingDraft.title = title
-                existingDraft.stackDescription = stackDescription.isEmpty ? nil : stackDescription
-                try stackService.publishDraft(existingDraft)
-                stack = existingDraft
-                logger.info("Draft published as stack: \(stack.id)")
-            } else {
-                stack = try stackService.createStack(
-                    title: title,
-                    description: stackDescription.isEmpty ? nil : stackDescription
-                )
-                logger.info("Stack created: \(stack.id)")
-            }
-
-            // Associate selected tags with the stack
-            for tag in selectedTags where !stack.tagObjects.contains(where: { $0.id == tag.id }) {
-                stack.tagObjects.append(tag)
-                logger.info("Tag '\(tag.name)' associated with stack: \(stack.id)")
-            }
-
-            // Create all pending tasks with error tracking
-            var failedTasks: [String] = []
-            for pendingTask in pendingTasks {
-                do {
-                    let task = try taskService.createTask(
-                        title: pendingTask.title,
-                        description: pendingTask.description,
-                        stack: stack
-                    )
-                    logger.info("Task created: \(task.id)")
-                } catch {
-                    logger.error("Failed to create task '\(pendingTask.title)': \(error.localizedDescription)")
-                    failedTasks.append(pendingTask.title)
-                }
-            }
-
-            // Show error and don't dismiss if some tasks failed
+            let failedTasks = createPendingTasks(for: stack)
             if !failedTasks.isEmpty {
-                logger.warning("Stack created but \(failedTasks.count) task(s) failed to create")
-                let taskList = failedTasks.prefix(3).joined(separator: ", ")
-                let suffix = failedTasks.count > 3 ? " and \(failedTasks.count - 3) more" : ""
-                errorMessage = "Stack created but \(failedTasks.count) task(s) failed: \(taskList)\(suffix)"
-                showError = true
+                showTaskCreationError(failedTasks: failedTasks)
                 return
             }
 
@@ -301,6 +281,57 @@ extension StackEditorView {
         }
     }
 
+    private func createOrPublishStack(using stackSvc: StackService) throws -> Stack {
+        if let existingDraft = draftStack {
+            existingDraft.title = title
+            existingDraft.stackDescription = stackDescription.isEmpty ? nil : stackDescription
+            try stackSvc.publishDraft(existingDraft)
+            logger.info("Draft published as stack: \(existingDraft.id)")
+            return existingDraft
+        } else {
+            let stack = try stackSvc.createStack(
+                title: title,
+                description: stackDescription.isEmpty ? nil : stackDescription
+            )
+            logger.info("Stack created: \(stack.id)")
+            return stack
+        }
+    }
+
+    private func associateTagsWithStack(_ stack: Stack) {
+        for tag in selectedTags where !stack.tagObjects.contains(where: { $0.id == tag.id }) {
+            stack.tagObjects.append(tag)
+            logger.info("Tag '\(tag.name)' associated with stack: \(stack.id)")
+        }
+    }
+
+    private func createPendingTasks(for stack: Stack) -> [String] {
+        guard let taskSvc = taskService else { return [] }
+        var failedTasks: [String] = []
+        for pendingTask in pendingTasks {
+            do {
+                let task = try taskSvc.createTask(
+                    title: pendingTask.title,
+                    description: pendingTask.description,
+                    stack: stack
+                )
+                logger.info("Task created: \(task.id)")
+            } catch {
+                logger.error("Failed to create task '\(pendingTask.title)': \(error.localizedDescription)")
+                failedTasks.append(pendingTask.title)
+            }
+        }
+        return failedTasks
+    }
+
+    private func showTaskCreationError(failedTasks: [String]) {
+        logger.warning("Stack created but \(failedTasks.count) task(s) failed to create")
+        let taskList = failedTasks.prefix(3).joined(separator: ", ")
+        let suffix = failedTasks.count > 3 ? " and \(failedTasks.count - 3) more" : ""
+        errorMessage = "Stack created but \(failedTasks.count) task(s) failed: \(taskList)\(suffix)"
+        showError = true
+    }
+
     // MARK: - Background Save
 
     /// Saves any pending changes when the app enters background.
@@ -308,11 +339,15 @@ extension StackEditorView {
     func saveOnBackground() {
         guard isCreateMode else { return }
         guard !isCreatingDraft else { return }
+        guard let service = stackService else {
+            logger.warning("Background save skipped: StackService not initialized")
+            return
+        }
 
         if draftStack == nil && !title.isEmpty {
             // Create draft with current content
             do {
-                let draft = try stackService.createStack(
+                let draft = try service.createStack(
                     title: title,
                     description: stackDescription.isEmpty ? nil : stackDescription,
                     isDraft: true
@@ -329,7 +364,7 @@ extension StackEditorView {
             let descriptionChanged = draft.stackDescription != stackDescription
             if titleChanged || descriptionChanged {
                 do {
-                    try stackService.updateDraft(
+                    try service.updateDraft(
                         draft,
                         title: title.isEmpty ? "Untitled" : title,
                         description: stackDescription.isEmpty ? nil : stackDescription

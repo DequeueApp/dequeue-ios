@@ -15,7 +15,9 @@ struct StackPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var stacks: [Stack]
 
-    @State private var cachedDeviceId: String = ""
+    @State private var stackService: StackService?
+    @State private var errorMessage: String?
+    @State private var showError = false
 
     init() {
         // Query for stacks that can be set as active:
@@ -32,18 +34,6 @@ struct StackPickerSheet: View {
             sort: \Stack.sortOrder
         )
     }
-
-    private var stackService: StackService {
-        StackService(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            syncManager: syncManager
-        )
-    }
-
-    @State private var errorMessage: String?
-    @State private var showError = false
 
     var body: some View {
         NavigationStack {
@@ -73,9 +63,14 @@ struct StackPickerSheet: View {
                 }
             }
             .task {
-                if cachedDeviceId.isEmpty {
-                    cachedDeviceId = await DeviceService.shared.getDeviceId()
-                }
+                guard stackService == nil else { return }
+                let deviceId = await DeviceService.shared.getDeviceId()
+                stackService = StackService(
+                    modelContext: modelContext,
+                    userId: authService.currentUserId ?? "",
+                    deviceId: deviceId,
+                    syncManager: syncManager
+                )
             }
         }
     }
@@ -141,15 +136,14 @@ struct StackPickerSheet: View {
     // MARK: - Actions
 
     private func selectStack(_ stack: Stack) {
-        // Guard against edge case where deviceId hasn't loaded yet
-        guard !cachedDeviceId.isEmpty else {
+        guard let service = stackService else {
             errorMessage = "Initializing... please try again"
             showError = true
             return
         }
 
         do {
-            try stackService.setAsActive(stack)
+            try service.setAsActive(stack)
             // Note: syncManager?.triggerImmediatePush() is called internally by setAsActive()
             dismiss()
         } catch {

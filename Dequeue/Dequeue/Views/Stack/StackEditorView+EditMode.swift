@@ -54,24 +54,39 @@ extension StackEditorView {
     }
 
     private func addTagToStack(_ tag: Tag, stack: Stack) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try stackService.addTag(tag, to: stack)
+            try service.addTag(tag, to: stack)
         } catch {
             handleError(error)
         }
     }
 
     private func removeTagFromStack(_ tag: Tag, stack: Stack) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try stackService.removeTag(tag, from: stack)
+            try service.removeTag(tag, from: stack)
         } catch {
             handleError(error)
         }
     }
 
     private func createAndAddTag(name: String, stack: Stack) -> Tag? {
+        guard let service = tagService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return nil
+        }
         do {
-            let tag = try tagService.findOrCreateTag(name: name)
+            let tag = try service.findOrCreateTag(name: name)
             addTagToStack(tag, stack: stack)
             return tag
         } catch {
@@ -265,9 +280,14 @@ extension StackEditorView {
 
     func setStackActive() {
         guard case .edit(let stack) = mode else { return }
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
 
         do {
-            try stackService.setAsActive(stack)
+            try service.setAsActive(stack)
             dismiss()
         } catch {
             handleError(error)
@@ -276,9 +296,14 @@ extension StackEditorView {
 
     func deactivateStack() {
         guard case .edit(let stack) = mode else { return }
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
 
         do {
-            try stackService.deactivateStack(stack)
+            try service.deactivateStack(stack)
             dismiss()
         } catch {
             handleError(error)
@@ -312,9 +337,14 @@ extension StackEditorView {
 
     func saveDescription() {
         guard case .edit(let stack) = mode else { return }
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
 
         do {
-            try stackService.updateStack(
+            try service.updateStack(
                 stack,
                 title: stack.title,
                 description: editedDescription.isEmpty ? nil : editedDescription
@@ -326,9 +356,14 @@ extension StackEditorView {
     }
 
     func toggleTaskComplete(_ task: QueueTask) {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
             if task.status != .completed {
-                try taskService.markAsCompleted(task)
+                try service.markAsCompleted(task)
             }
         } catch {
             handleError(error)
@@ -336,8 +371,13 @@ extension StackEditorView {
     }
 
     func setTaskActive(_ task: QueueTask) {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try taskService.activateTask(task)
+            try service.activateTask(task)
         } catch {
             handleError(error)
         }
@@ -345,12 +385,17 @@ extension StackEditorView {
 
     func moveTask(from source: IndexSet, to destination: Int) {
         guard case .edit(let stack) = mode else { return }
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
 
         var tasks = stack.pendingTasks
         tasks.move(fromOffsets: source, toOffset: destination)
 
         do {
-            try taskService.updateSortOrders(tasks)
+            try service.updateSortOrders(tasks)
         } catch {
             handleError(error)
         }
@@ -358,9 +403,14 @@ extension StackEditorView {
 
     func completeStack(completeAllTasks: Bool) {
         guard case .edit(let stack) = mode else { return }
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
 
         do {
-            try stackService.markAsCompleted(stack, completeAllTasks: completeAllTasks)
+            try service.markAsCompleted(stack, completeAllTasks: completeAllTasks)
             dismiss()
         } catch {
             handleError(error)
@@ -369,9 +419,14 @@ extension StackEditorView {
 
     func closeStack() {
         guard case .edit(let stack) = mode else { return }
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
 
         do {
-            try stackService.closeStack(stack)
+            try service.closeStack(stack)
             dismiss()
         } catch {
             handleError(error)
@@ -396,9 +451,14 @@ extension StackEditorView {
 
         // In edit mode, create actual task
         guard let stack = currentStack else { return }
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
 
         do {
-            _ = try taskService.createTask(
+            _ = try service.createTask(
                 title: newTaskTitle,
                 description: newTaskDescription.isEmpty ? nil : newTaskDescription,
                 stack: stack

@@ -18,8 +18,10 @@ struct TaskDetailView: View {
     @Environment(\.authService) private var authService
 
     @Bindable var task: QueueTask
-    @State private var cachedDeviceId: String = ""
 
+    @State private var taskService: TaskService?
+    @State private var notificationService: NotificationService?
+    @State private var reminderActionHandler: ReminderActionHandler?
     @State private var isEditingTitle = false
     @State private var editedTitle = ""
     @State private var isEditingDescription = false
@@ -35,29 +37,6 @@ struct TaskDetailView: View {
     @State private var selectedReminderForEdit: Reminder?
     @State private var showDeleteReminderConfirmation = false
     @State private var reminderToDelete: Reminder?
-
-    private var taskService: TaskService {
-        TaskService(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            syncManager: syncManager
-        )
-    }
-
-    private var notificationService: NotificationService {
-        NotificationService(modelContext: modelContext)
-    }
-
-    private var reminderActionHandler: ReminderActionHandler {
-        ReminderActionHandler(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            onError: showError,
-            syncManager: syncManager
-        )
-    }
 
     var body: some View {
         List {
@@ -83,9 +62,22 @@ struct TaskDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .task {
-            if cachedDeviceId.isEmpty {
-                cachedDeviceId = await DeviceService.shared.getDeviceId()
-            }
+            guard taskService == nil else { return }
+            let deviceId = await DeviceService.shared.getDeviceId()
+            taskService = TaskService(
+                modelContext: modelContext,
+                userId: authService.currentUserId ?? "",
+                deviceId: deviceId,
+                syncManager: syncManager
+            )
+            notificationService = NotificationService(modelContext: modelContext)
+            reminderActionHandler = ReminderActionHandler(
+                modelContext: modelContext,
+                userId: authService.currentUserId ?? "",
+                deviceId: deviceId,
+                onError: showError,
+                syncManager: syncManager
+            )
         }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -127,7 +119,9 @@ struct TaskDetailView: View {
             Text("This action cannot be undone.")
         }
         .sheet(isPresented: $showAddReminder) {
-            AddReminderSheet(parent: .task(task), notificationService: notificationService)
+            if let service = notificationService {
+                AddReminderSheet(parent: .task(task), notificationService: service)
+            }
         }
         .sheet(isPresented: $showSnoozePicker) {
             if let reminder = selectedReminderForSnooze {
@@ -135,24 +129,24 @@ struct TaskDetailView: View {
                     isPresented: $showSnoozePicker,
                     reminder: reminder,
                     onSnooze: { snoozeUntil in
-                        reminderActionHandler.snooze(reminder, until: snoozeUntil)
+                        reminderActionHandler?.snooze(reminder, until: snoozeUntil)
                         selectedReminderForSnooze = nil
                     }
                 )
             }
         }
         .sheet(isPresented: $showEditReminder) {
-            if let reminder = selectedReminderForEdit {
+            if let reminder = selectedReminderForEdit, let service = notificationService {
                 AddReminderSheet(
                     parent: .task(task),
-                    notificationService: notificationService,
+                    notificationService: service,
                     existingReminder: reminder
                 )
             }
         }
         .confirmationDialog("Delete Reminder", isPresented: $showDeleteReminderConfirmation) {
             Button("Delete", role: .destructive) {
-                if let reminder = reminderToDelete { reminderActionHandler.delete(reminder) }
+                if let reminder = reminderToDelete { reminderActionHandler?.delete(reminder) }
             }
             Button("Cancel", role: .cancel) { }
         } message: {
@@ -443,9 +437,14 @@ struct TaskDetailView: View {
         guard !editedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
 
         do {
-            try taskService.updateTask(task, title: editedTitle, description: task.taskDescription)
+            try service.updateTask(task, title: editedTitle, description: task.taskDescription)
             isEditingTitle = false
         } catch {
             showError(error)
@@ -453,8 +452,13 @@ struct TaskDetailView: View {
     }
 
     private func saveDescription() {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try taskService.updateTask(
+            try service.updateTask(
                 task,
                 title: task.title,
                 description: editedDescription.isEmpty ? nil : editedDescription
@@ -466,40 +470,65 @@ struct TaskDetailView: View {
     }
 
     private func completeTask() {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try taskService.markAsCompleted(task)
+            try service.markAsCompleted(task)
         } catch {
             showError(error)
         }
     }
 
     private func blockTask() {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try taskService.markAsBlocked(task, reason: nil)
+            try service.markAsBlocked(task, reason: nil)
         } catch {
             showError(error)
         }
     }
 
     private func unblockTask() {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try taskService.unblock(task)
+            try service.unblock(task)
         } catch {
             showError(error)
         }
     }
 
     private func setTaskActive() {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try taskService.activateTask(task)
+            try service.activateTask(task)
         } catch {
             showError(error)
         }
     }
 
     private func closeTask() {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try taskService.closeTask(task)
+            try service.closeTask(task)
             dismiss()
         } catch {
             showError(error)
@@ -507,8 +536,13 @@ struct TaskDetailView: View {
     }
 
     private func deleteTask() {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
         do {
-            try taskService.deleteTask(task)
+            try service.deleteTask(task)
             dismiss()
         } catch {
             showError(error)

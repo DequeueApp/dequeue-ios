@@ -42,7 +42,11 @@ struct StackEditorView: View {
     @Environment(\.syncManager) var syncManager
     @Environment(\.authService) var authService
     @Environment(\.undoCompletionManager) var undoCompletionManager
-    @State private var cachedDeviceId: String = ""
+    @State var stackService: StackService?
+    @State var taskService: TaskService?
+    @State var notificationService: NotificationService?
+    @State var reminderActionHandler: ReminderActionHandler?
+    @State var tagService: TagService?
 
     /// All available tags for autocomplete suggestions
     @Query(filter: #Predicate<Tag> { !$0.isDeleted }, sort: \.name)
@@ -138,49 +142,6 @@ struct StackEditorView: View {
         isCreateMode && (!title.isEmpty || !stackDescription.isEmpty || draftStack != nil)
     }
 
-    // MARK: - Services
-
-    var stackService: StackService {
-        StackService(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            syncManager: syncManager
-        )
-    }
-
-    var taskService: TaskService {
-        TaskService(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            syncManager: syncManager
-        )
-    }
-
-    var notificationService: NotificationService {
-        NotificationService(modelContext: modelContext)
-    }
-
-    var reminderActionHandler: ReminderActionHandler {
-        ReminderActionHandler(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            onError: handleError,
-            syncManager: syncManager
-        )
-    }
-
-    var tagService: TagService {
-        TagService(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            syncManager: syncManager
-        )
-    }
-
     // MARK: - Body
 
     var body: some View {
@@ -201,9 +162,34 @@ struct StackEditorView: View {
             #endif
             .toolbar { toolbarContent }
             .task {
-                if cachedDeviceId.isEmpty {
-                    cachedDeviceId = await DeviceService.shared.getDeviceId()
-                }
+                guard stackService == nil else { return }
+                let deviceId = await DeviceService.shared.getDeviceId()
+                stackService = StackService(
+                    modelContext: modelContext,
+                    userId: authService.currentUserId ?? "",
+                    deviceId: deviceId,
+                    syncManager: syncManager
+                )
+                taskService = TaskService(
+                    modelContext: modelContext,
+                    userId: authService.currentUserId ?? "",
+                    deviceId: deviceId,
+                    syncManager: syncManager
+                )
+                notificationService = NotificationService(modelContext: modelContext)
+                reminderActionHandler = ReminderActionHandler(
+                    modelContext: modelContext,
+                    userId: authService.currentUserId ?? "",
+                    deviceId: deviceId,
+                    onError: handleError,
+                    syncManager: syncManager
+                )
+                tagService = TagService(
+                    modelContext: modelContext,
+                    userId: authService.currentUserId ?? "",
+                    deviceId: deviceId,
+                    syncManager: syncManager
+                )
             }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
@@ -249,8 +235,8 @@ struct StackEditorView: View {
                 )
             }
             .sheet(isPresented: $showAddReminder) {
-                if let stack = currentStack {
-                    AddReminderSheet(parent: .stack(stack), notificationService: notificationService)
+                if let stack = currentStack, let service = notificationService {
+                    AddReminderSheet(parent: .stack(stack), notificationService: service)
                 }
             }
             .sheet(isPresented: $showSnoozePicker) {
@@ -259,17 +245,19 @@ struct StackEditorView: View {
                         isPresented: $showSnoozePicker,
                         reminder: reminder,
                         onSnooze: { snoozeUntil in
-                            reminderActionHandler.snooze(reminder, until: snoozeUntil)
+                            reminderActionHandler?.snooze(reminder, until: snoozeUntil)
                             selectedReminderForSnooze = nil
                         }
                     )
                 }
             }
             .sheet(isPresented: $showEditReminder) {
-                if let reminder = selectedReminderForEdit, let stack = currentStack {
+                if let reminder = selectedReminderForEdit,
+                   let stack = currentStack,
+                   let service = notificationService {
                     AddReminderSheet(
                         parent: .stack(stack),
-                        notificationService: notificationService,
+                        notificationService: service,
                         existingReminder: reminder
                     )
                 }
@@ -277,7 +265,7 @@ struct StackEditorView: View {
             .confirmationDialog("Delete Reminder", isPresented: $showDeleteReminderConfirmation) {
                 Button("Delete", role: .destructive) {
                     if let reminder = reminderToDelete {
-                        reminderActionHandler.delete(reminder)
+                        reminderActionHandler?.delete(reminder)
                     }
                 }
                 Button("Cancel", role: .cancel) { }
@@ -403,7 +391,7 @@ extension StackEditorView {
                         showSnoozePicker = true
                     },
                     onDismiss: (isReadOnly || !reminder.isPastDue) ? nil : {
-                        reminderActionHandler.dismiss(reminder)
+                        reminderActionHandler?.dismiss(reminder)
                     },
                     onDelete: isReadOnly ? nil : {
                         reminderToDelete = reminder

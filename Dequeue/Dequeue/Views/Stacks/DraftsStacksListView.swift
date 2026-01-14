@@ -33,18 +33,9 @@ struct DraftsStacksListView: View {
         )
     }
 
-    @State private var cachedDeviceId: String = ""
+    @State private var stackService: StackService?
     @State private var deleteErrorMessage: String?
     @State private var showDeleteError = false
-
-    private var stackService: StackService {
-        StackService(
-            modelContext: modelContext,
-            userId: authService.currentUserId ?? "",
-            deviceId: cachedDeviceId,
-            syncManager: syncManager
-        )
-    }
 
     var body: some View {
         Group {
@@ -55,9 +46,14 @@ struct DraftsStacksListView: View {
             }
         }
         .task {
-            if cachedDeviceId.isEmpty {
-                cachedDeviceId = await DeviceService.shared.getDeviceId()
-            }
+            guard stackService == nil else { return }
+            let deviceId = await DeviceService.shared.getDeviceId()
+            stackService = StackService(
+                modelContext: modelContext,
+                userId: authService.currentUserId ?? "",
+                deviceId: deviceId,
+                syncManager: syncManager
+            )
         }
         .alert("Error", isPresented: $showDeleteError) {
             Button("OK", role: .cancel) { }
@@ -103,10 +99,16 @@ struct DraftsStacksListView: View {
     // MARK: - Actions
 
     private func deleteDrafts(at offsets: IndexSet) {
+        guard let service = stackService else {
+            deleteErrorMessage = "Initializing... please try again."
+            showDeleteError = true
+            return
+        }
+
         for index in offsets {
             let draft = drafts[index]
             do {
-                try stackService.discardDraft(draft)
+                try service.discardDraft(draft)
                 logger.info("Draft discarded via swipe: \(draft.id)")
             } catch {
                 logger.error("Failed to discard draft: \(error.localizedDescription)")
