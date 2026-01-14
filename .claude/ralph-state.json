@@ -1,7 +1,7 @@
 {
   "phase": 1,
   "iteration": 2,
-  "currentIssue": "DEQ-77",
+  "currentIssue": "DEQ-78",
   "currentRepo": "dequeue-ios-2",
   "pr": null,
   "completed": [],
@@ -32,9 +32,14 @@
       "issue": "DEQ-76",
       "pr": 133,
       "note": "Presigned URL request flow"
+    },
+    {
+      "issue": "DEQ-77",
+      "pr": 134,
+      "note": "UploadManager with progress tracking"
     }
   ],
-  "lastAction": "DEQ-76 PR #133 created - AttachmentUploadService with presigned URL flow",
+  "lastAction": "DEQ-77 PR #134 created - UploadManager with progress tracking and cancellation",
   "ciHistory": [
     {
       "run": 21012326753,
