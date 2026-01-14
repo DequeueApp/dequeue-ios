@@ -200,7 +200,7 @@ actor SyncManager {
             return checkpoint
         }
         // Default to Unix epoch for initial sync (pull all events)
-        return ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: 0))
+        return Self.iso8601Standard.string(from: Date(timeIntervalSince1970: 0))
     }
 
     // MARK: - Connection

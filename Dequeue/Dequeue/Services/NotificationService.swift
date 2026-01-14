@@ -318,11 +318,7 @@ final class NotificationService: NSObject {
     }
 
     private func formatReminderBody(for reminder: Reminder, parentTitle: String?) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-
-        let timeString = formatter.string(from: reminder.remindAt)
+        let timeString = reminder.remindAt.formatted(date: .omitted, time: .shortened)
         let typeLabel = reminder.parentType == .task ? "Task" : "Stack"
 
         if let title = parentTitle {

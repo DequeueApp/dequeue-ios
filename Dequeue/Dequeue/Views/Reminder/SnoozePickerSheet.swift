@@ -78,6 +78,9 @@ enum SnoozeOption: String, CaseIterable, Identifiable {
     case threeHours = "3hours"
     case tomorrowMorning = "tomorrowMorning"
 
+    // Cached calendar instance for date calculations
+    private static let calendar = Calendar.current
+
     var id: String { rawValue }
 
     var title: String {
@@ -126,7 +129,6 @@ enum SnoozeOption: String, CaseIterable, Identifiable {
     }
 
     var targetDate: Date {
-        let calendar = Calendar.current
         let now = Date()
 
         switch self {
@@ -138,10 +140,10 @@ enum SnoozeOption: String, CaseIterable, Identifiable {
             return now.addingTimeInterval(3 * 60 * 60)
         case .tomorrowMorning:
             // Tomorrow at 9:00 AM
-            guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) else {
+            guard let tomorrow = Self.calendar.date(byAdding: .day, value: 1, to: now) else {
                 return now.addingTimeInterval(24 * 60 * 60)
             }
-            return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? tomorrow
+            return Self.calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? tomorrow
         }
     }
 }
