@@ -16,13 +16,22 @@ struct DraftsStacksListView: View {
     @Environment(\.syncManager) private var syncManager
     @Environment(\.authService) private var authService
 
-    @Query(
-        filter: #Predicate<Stack> { stack in
-            stack.isDeleted == false && stack.isDraft == true
-        },
-        sort: \Stack.createdAt,
-        order: .reverse
-    ) private var drafts: [Stack]
+    @Query private var drafts: [Stack]
+
+    init() {
+        // Query drafts that are not deleted, are marked as draft,
+        // and have active status (not completed/closed)
+        let activeRaw = StackStatus.active.rawValue
+        _drafts = Query(
+            filter: #Predicate<Stack> { stack in
+                stack.isDeleted == false &&
+                stack.isDraft == true &&
+                stack.statusRawValue == activeRaw
+            },
+            sort: \Stack.createdAt,
+            order: .reverse
+        )
+    }
 
     @State private var cachedDeviceId: String = ""
     @State private var deleteErrorMessage: String?
@@ -88,6 +97,7 @@ struct DraftsStacksListView: View {
             }
             .onDelete(perform: deleteDrafts)
         }
+        .listStyle(.plain)
     }
 
     // MARK: - Actions
