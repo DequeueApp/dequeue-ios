@@ -92,6 +92,7 @@ struct ActiveStackBanner: View {
         .padding(.vertical, 12)
         .frame(minHeight: BannerConstants.minTapHeight)
         .glassEffect(in: RoundedRectangle(cornerRadius: BannerConstants.cornerRadius))
+        .contentShape(RoundedRectangle(cornerRadius: BannerConstants.cornerRadius))
     }
 
     private var emptyStateContent: some View {
@@ -115,6 +116,7 @@ struct ActiveStackBanner: View {
         .padding(.vertical, 12)
         .frame(minHeight: BannerConstants.minTapHeight)
         .glassEffect(in: RoundedRectangle(cornerRadius: BannerConstants.cornerRadius))
+        .contentShape(RoundedRectangle(cornerRadius: BannerConstants.cornerRadius))
     }
 }
 

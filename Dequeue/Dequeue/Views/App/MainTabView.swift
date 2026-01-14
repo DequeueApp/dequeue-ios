@@ -94,38 +94,40 @@ struct MainTabView: View {
     #if os(iOS)
     private var floatingBanners: some View {
         GeometryReader { geometry in
-            // Color.clear allows touches to pass through to content below
-            // while the overlay positions the banners at the bottom
-            Color.clear
-                .allowsHitTesting(false)
-                .overlay(alignment: .bottom) {
-                    VStack(spacing: 12) {
-                        // Undo completion banner (appears above active stack banner)
-                        if undoCompletionManager.hasPendingCompletion,
-                           let stack = undoCompletionManager.pendingStack {
-                            UndoCompletionBanner(
-                                stackTitle: stack.title,
-                                progress: undoCompletionManager.progress,
-                                onUndo: {
-                                    withAnimation(.easeInOut(duration: 0.25)) {
-                                        undoCompletionManager.undoCompletion()
-                                    }
-                                }
-                            )
-                            .transition(.asymmetric(
-                                insertion: .move(edge: .top).combined(with: .opacity),
-                                removal: .opacity
-                            ))
-                        }
+            // Use VStack with Spacer to position content at bottom
+            // This avoids hit testing issues with Color.clear overlay pattern
+            VStack {
+                Spacer()
+                    .allowsHitTesting(false)
 
-                        activeStackBanner
+                VStack(spacing: 12) {
+                    // Undo completion banner (appears above active stack banner)
+                    if undoCompletionManager.hasPendingCompletion,
+                       let stack = undoCompletionManager.pendingStack {
+                        UndoCompletionBanner(
+                            stackTitle: stack.title,
+                            progress: undoCompletionManager.progress,
+                            onUndo: {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    undoCompletionManager.undoCompletion()
+                                }
+                            }
+                        )
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .opacity
+                        ))
                     }
-                    .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
-                    .padding(.horizontal)
-                    // Position above tab bar: safe area + tab bar height
-                    .padding(.bottom, geometry.safeAreaInsets.bottom + tabBarHeight)
-                    .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
+
+                    activeStackBanner
                 }
+                .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
+                .padding(.horizontal)
+                // Position above tab bar: safe area + tab bar height
+                .padding(.bottom, geometry.safeAreaInsets.bottom + tabBarHeight)
+                .contentShape(Rectangle())
+                .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
+            }
         }
     }
 
