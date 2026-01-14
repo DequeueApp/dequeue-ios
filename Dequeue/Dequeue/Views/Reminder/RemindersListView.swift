@@ -20,6 +20,9 @@ struct RemindersListView: View {
 
     @State private var cachedDeviceId: String = ""
 
+    // Cached calendar instance for date comparisons
+    private static let calendar = Calendar.current
+
     /// Callback when user wants to navigate to a Stack or Task
     /// Parameters: parentId, parentType
     var onGoToItem: ((String, ParentType) -> Void)?
@@ -59,7 +62,7 @@ struct RemindersListView: View {
     // MARK: - Filtered Reminders
 
     private var activeReminders: [Reminder] {
-        reminders.filter { $0.status == .active || $0.status == .snoozed }
+        return reminders.filter { $0.status == .active || $0.status == .snoozed }
     }
 
     private var overdueReminders: [Reminder] {
@@ -69,16 +72,14 @@ struct RemindersListView: View {
     }
 
     private var todayReminders: [Reminder] {
-        let calendar = Calendar.current
         return activeReminders
-            .filter { !$0.isPastDue && calendar.isDateInToday($0.remindAt) }
+            .filter { !$0.isPastDue && Self.calendar.isDateInToday($0.remindAt) }
             .sorted { $0.remindAt < $1.remindAt }
     }
 
     private var upcomingReminders: [Reminder] {
-        let calendar = Calendar.current
         return activeReminders
-            .filter { !$0.isPastDue && !calendar.isDateInToday($0.remindAt) }
+            .filter { !$0.isPastDue && !Self.calendar.isDateInToday($0.remindAt) }
             .sorted { $0.remindAt < $1.remindAt }
     }
 

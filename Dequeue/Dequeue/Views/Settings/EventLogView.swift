@@ -118,10 +118,7 @@ struct EventRow: View {
     }
 
     private var timestampText: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .medium
-        return formatter.string(from: event.timestamp)
+        event.timestamp.formatted(date: .abbreviated, time: .standard)
     }
 
     var body: some View {

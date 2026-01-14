@@ -17,6 +17,9 @@ struct ReminderRowView: View {
     var onDismiss: (() -> Void)?
     var onDelete: (() -> Void)?
 
+    // Cached calendar instance for date comparisons
+    private static let calendar = Calendar.current
+
     var body: some View {
         Button {
             onTap?()
@@ -199,12 +202,11 @@ struct ReminderRowView: View {
     // MARK: - Formatting
 
     private var formattedDate: String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(reminder.remindAt) {
+        if Self.calendar.isDateInToday(reminder.remindAt) {
             return "Today"
-        } else if calendar.isDateInTomorrow(reminder.remindAt) {
+        } else if Self.calendar.isDateInTomorrow(reminder.remindAt) {
             return "Tomorrow"
-        } else if calendar.isDateInYesterday(reminder.remindAt) {
+        } else if Self.calendar.isDateInYesterday(reminder.remindAt) {
             return "Yesterday"
         } else {
             return reminder.remindAt.formatted(date: .abbreviated, time: .omitted)

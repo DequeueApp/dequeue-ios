@@ -50,6 +50,9 @@ struct AddReminderSheet: View {
     var existingReminder: Reminder?
 
     @State private var cachedDeviceId: String = ""
+
+    // Cached calendar instance for date calculations
+    private static let calendar = Calendar.current
     @State private var selectedDate = Date().addingTimeInterval(3_600) // 1 hour from now
     @State private var permissionState: PermissionState = .checking
     @State private var showError = false
@@ -352,9 +355,8 @@ struct AddReminderSheet: View {
     }
 
     private func nextDayAt(hour: Int) -> Date {
-        let calendar = Calendar.current
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-        return calendar.date(bySettingHour: hour, minute: 0, second: 0, of: tomorrow) ?? tomorrow
+        let tomorrow = Self.calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        return Self.calendar.date(bySettingHour: hour, minute: 0, second: 0, of: tomorrow) ?? tomorrow
     }
 }
 
