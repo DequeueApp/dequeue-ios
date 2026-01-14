@@ -25,8 +25,14 @@ final class Attachment {
     /// The ID of the parent Stack or Task
     var parentId: String
 
+    /// Raw value storage for parentType (SwiftData predicate compatibility)
+    var parentTypeRawValue: String
+
     /// Whether this attachment belongs to a Stack or Task
-    var parentType: ParentType
+    var parentType: ParentType {
+        get { ParentType(rawValue: parentTypeRawValue) ?? .stack }
+        set { parentTypeRawValue = newValue.rawValue }
+    }
 
     // File metadata
     var filename: String
@@ -79,7 +85,7 @@ final class Attachment {
     ) {
         self.id = id
         self.parentId = parentId
-        self.parentType = parentType
+        self.parentTypeRawValue = parentType.rawValue
         self.filename = filename
         self.mimeType = mimeType
         self.sizeBytes = sizeBytes
