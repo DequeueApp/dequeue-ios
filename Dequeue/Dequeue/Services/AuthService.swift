@@ -33,6 +33,9 @@ protocol AuthServiceProtocol {
 final class ClerkAuthService: AuthServiceProtocol {
     private var currentSignUp: SignUp?
     private var currentSignIn: SignIn?
+    private var backgroundRefreshTask: Task<Void, Never>?
+    private var lastRefreshTime: Date?
+    private let refreshThrottleInterval: TimeInterval = 60 // 1 minute
 
     // Cache auth state to avoid repeated Clerk SDK calls on every view render
     private(set) var isAuthenticated: Bool = false
@@ -64,7 +67,9 @@ final class ClerkAuthService: AuthServiceProtocol {
 
         // Step 4: Refresh session from network in background (non-blocking)
         // This validates the session is still valid server-side and refreshes tokens
-        Task {
+        // Cancel any existing refresh task to prevent race conditions
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = Task {
             await refreshSessionInBackground()
         }
     }
@@ -75,6 +80,7 @@ final class ClerkAuthService: AuthServiceProtocol {
     /// - If offline, does nothing (trusts cached session)
     /// - If online, validates session with Clerk servers
     /// - Updates auth state if session was invalidated server-side
+    /// - Errors are logged but don't crash the app (graceful degradation)
     @MainActor
     private func refreshSessionInBackground() async {
         // Check network status - don't attempt if offline
@@ -84,7 +90,15 @@ final class ClerkAuthService: AuthServiceProtocol {
 
         // Attempt to load/refresh session from Clerk servers
         // This validates the session is still valid and refreshes tokens
-        try? await Clerk.shared.load()
+        do {
+            try await Clerk.shared.load()
+        } catch {
+            // Log error for debugging but don't crash - degrade gracefully
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "session_refresh", "offline_mode": !NetworkMonitor.shared.isConnected]
+            )
+        }
 
         // Update auth state in case session was invalidated server-side
         updateAuthState()
@@ -94,8 +108,16 @@ final class ClerkAuthService: AuthServiceProtocol {
     ///
     /// This ensures that when returning from background or when network
     /// becomes available, we validate the session is still valid.
+    /// Throttles refreshes to avoid excessive network calls on rapid app state changes.
     @MainActor
     func refreshSessionIfNeeded() async {
+        // Throttle refreshes to avoid excessive network calls
+        if let lastRefresh = lastRefreshTime,
+           Date().timeIntervalSince(lastRefresh) < refreshThrottleInterval {
+            return
+        }
+
+        lastRefreshTime = Date()
         await refreshSessionInBackground()
     }
 
