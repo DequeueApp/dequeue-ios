@@ -48,6 +48,8 @@ struct TaskDetailView: View {
 
             remindersSection
 
+            attachmentsSection
+
             actionsSection
 
             detailsSection
