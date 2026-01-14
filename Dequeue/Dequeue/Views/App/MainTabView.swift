@@ -16,7 +16,6 @@ struct MainTabView: View {
 
     @State private var selectedTab = 0
     @State private var cachedDeviceId: String = ""
-    @State private var showAddSheet = false
     @State private var showStackPicker = false
     @State private var activeStackForDetail: Stack?
     @State private var undoCompletionManager = UndoCompletionManager()
@@ -66,12 +65,6 @@ struct MainTabView: View {
 
             // Floating banners positioned above tab bar
             floatingBanners
-
-            // Floating add button
-            floatingAddButton
-        }
-        .sheet(isPresented: $showAddSheet) {
-            StackEditorView(mode: .create)
         }
         .sheet(isPresented: $showStackPicker) {
             StackPickerSheet()
@@ -131,28 +124,6 @@ struct MainTabView: View {
         }
     }
 
-    private var floatingAddButton: some View {
-        GeometryReader { geometry in
-            Button {
-                showAddSheet = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(Color.accentColor)
-                    .clipShape(Circle())
-                    .glassEffect()
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Add new stack")
-            .accessibilityHint("Creates a new stack")
-            // Position in bottom-right, above tab bar
-            .padding(.trailing, 20)
-            .padding(.bottom, geometry.safeAreaInsets.bottom + tabBarHeight + 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-        }
-    }
     #endif
 
     // MARK: - macOS Layout
@@ -172,15 +143,6 @@ struct MainTabView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-            .toolbar {
-                ToolbarItem {
-                    Button {
-                        showAddSheet = true
-                    } label: {
-                        Label("Add Stack", systemImage: "plus")
-                    }
-                }
-            }
         } detail: {
             ZStack(alignment: .bottom) {
                 detailContent
@@ -211,9 +173,6 @@ struct MainTabView: View {
                 .padding(.bottom, 16)
                 .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
             }
-        }
-        .sheet(isPresented: $showAddSheet) {
-            StackEditorView(mode: .create)
         }
         .sheet(isPresented: $showStackPicker) {
             StackPickerSheet()
