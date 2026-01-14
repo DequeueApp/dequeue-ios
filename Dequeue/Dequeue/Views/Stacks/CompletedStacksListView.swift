@@ -64,6 +64,7 @@ struct CompletedStacksListView: View {
                 }
             }
         }
+        .listStyle(.plain)
     }
 }
 

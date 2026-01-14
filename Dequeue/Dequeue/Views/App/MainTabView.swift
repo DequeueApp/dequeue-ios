@@ -39,50 +39,12 @@ struct MainTabView: View {
 
     private var iOSLayout: some View {
         #if os(iOS)
-        TabView(selection: $selectedTab) {
-            StacksView()
-                .tabItem {
-                    Label("Stacks", systemImage: "square.stack.3d.up")
-                }
-                .tag(0)
+        ZStack(alignment: .bottom) {
+            // Main content area
+            iOSContentView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            ActivityFeedView()
-                .tabItem {
-                    Label("Activity", systemImage: "clock.arrow.circlepath")
-                }
-                .tag(1)
-
-            // Placeholder for Add tab - actual view presented as sheet
-            Color.clear
-                .tabItem {
-                    Label("Add", systemImage: "plus.circle")
-                }
-                .tag(2)
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
-                .tag(3)
-        }
-        .onChange(of: selectedTab) { oldValue, newValue in
-            if newValue == 2 {
-                // Add tab selected - show sheet and return to previous tab
-                selectedTab = oldValue
-                showAddSheet = true
-            }
-            previousTab = oldValue
-        }
-        .sheet(isPresented: $showAddSheet) {
-            StackEditorView(mode: .create)
-        }
-        .sheet(isPresented: $showStackPicker) {
-            StackPickerSheet()
-        }
-        .sheet(item: $activeStackForDetail) { stack in
-            StackEditorView(mode: .edit(stack))
-        }
-        .overlay(alignment: .bottom) {
+            // Floating banners (above the bottom bar)
             GeometryReader { geometry in
                 VStack(spacing: 12) {
                     // Undo completion banner (appears above active stack banner)
@@ -107,11 +69,24 @@ struct MainTabView: View {
                 }
                 .frame(maxWidth: isIPad ? min(400, geometry.size.width / 3) : .infinity)
                 .padding(.horizontal)
-                .padding(.top, 0)
-                .padding(.bottom, geometry.safeAreaInsets.bottom + 24)
+                .padding(.bottom, geometry.safeAreaInsets.bottom + 80) // Above custom bar
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
             }
+        }
+        .safeAreaInset(edge: .bottom) {
+            CustomBottomBar(selectedTab: $selectedTab) {
+                showAddSheet = true
+            }
+        }
+        .sheet(isPresented: $showAddSheet) {
+            StackEditorView(mode: .create)
+        }
+        .sheet(isPresented: $showStackPicker) {
+            StackPickerSheet()
+        }
+        .sheet(item: $activeStackForDetail) { stack in
+            StackEditorView(mode: .edit(stack))
         }
         .environment(\.undoCompletionManager, undoCompletionManager)
         .task {
@@ -131,6 +106,22 @@ struct MainTabView: View {
         EmptyView()
         #endif
     }
+
+    #if os(iOS)
+    @ViewBuilder
+    private var iOSContentView: some View {
+        switch selectedTab {
+        case 0:
+            StacksView()
+        case 1:
+            ActivityFeedView()
+        case 2:
+            SettingsView()
+        default:
+            StacksView()
+        }
+    }
+    #endif
 
     // MARK: - macOS Layout
 
