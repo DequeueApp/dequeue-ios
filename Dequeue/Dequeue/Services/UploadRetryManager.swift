@@ -144,7 +144,8 @@ final class UploadRetryManager {
 
         scheduleRetry(attachmentId: attachmentId, delay: delay)
 
-        os_log("[UploadRetryManager] Scheduled retry \(state.attemptCount)/\(self.configuration.maxAttempts) for \(attachmentId) in \(delay)s")
+        // swiftlint:disable:next line_length
+        os_log("[UploadRetryManager] Scheduled retry \(state.attemptCount)/\(configuration.maxAttempts) for \(attachmentId) in \(delay)s")
     }
 
     /// Manually triggers a retry for an attachment.
