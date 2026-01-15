@@ -375,15 +375,10 @@ struct ThumbnailGeneratorTests {
     }
 
     private func imageSize(_ image: PlatformImage) -> CGSize {
-        #if canImport(UIKit)
-        // Use pixel dimensions for consistent behavior across devices
-        guard let cgImage = image.cgImage else {
-            return image.size
-        }
-        return CGSize(width: cgImage.width, height: cgImage.height)
-        #elseif canImport(AppKit)
+        // Use image.size (point dimensions) to match how ThumbnailGenerator
+        // calculates dimensions. This ensures tests work consistently regardless
+        // of device scale (1x, 2x, 3x).
         return image.size
-        #endif
     }
 }
 
