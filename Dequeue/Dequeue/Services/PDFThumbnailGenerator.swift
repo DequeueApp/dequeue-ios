@@ -27,7 +27,7 @@ enum PDFThumbnailError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .failedToLoadPDF(let url):
+        case let .failedToLoadPDF(url):
             return "Failed to load PDF: \(url.lastPathComponent)"
         case .emptyPDF:
             return "PDF has no pages"
@@ -37,7 +37,7 @@ enum PDFThumbnailError: LocalizedError {
             return "Failed to render PDF page"
         case .failedToCompressImage:
             return "Failed to compress thumbnail image"
-        case .fileTooLarge(let size, let maxSize):
+        case let .fileTooLarge(size, maxSize):
             let formatter = ByteCountFormatter()
             return "PDF too large (\(formatter.string(fromByteCount: size))) - max \(formatter.string(fromByteCount: maxSize))"
         }
@@ -59,7 +59,7 @@ struct PDFThumbnailConfiguration {
     static let `default` = PDFThumbnailConfiguration(
         maxDimension: 200,
         compressionQuality: 0.7,
-        maxFileSize: 100 * 1024 * 1024  // 100 MB
+        maxFileSize: 100 * 1_024 * 1_024  // 100 MB
     )
 }
 
