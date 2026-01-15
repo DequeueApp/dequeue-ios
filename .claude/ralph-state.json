@@ -1,7 +1,7 @@
 {
   "phase": 1,
   "iteration": 2,
-  "currentIssue": "DEQ-81",
+  "currentIssue": "DEQ-79",
   "currentRepo": "dequeue-ios-2",
   "pr": null,
   "completed": [],
@@ -42,19 +42,9 @@
       "issue": "DEQ-78",
       "pr": 135,
       "note": "DownloadManager with progress tracking"
-    },
-    {
-      "issue": "DEQ-79",
-      "pr": 136,
-      "note": "UploadRetryManager with exponential backoff"
-    },
-    {
-      "issue": "DEQ-80",
-      "pr": 137,
-      "note": "AttachmentFileCache for local storage"
     }
   ],
-  "lastAction": "DEQ-81 - Creating AttachmentRowView, AttachmentGridView, and attachmentsSection",
+  "lastAction": "DEQ-78 PR #135 created - DownloadManager with progress tracking",
   "ciHistory": [
     {
       "run": 21012326753,
