@@ -16,6 +16,7 @@ struct StacksView: View {
     }
 
     @State private var selectedFilter: StackFilter = .inProgress
+    @State private var showAddSheet = false
 
     var body: some View {
         NavigationStack {
@@ -43,6 +44,23 @@ struct StacksView: View {
                 }
             }
             .navigationTitle("Stacks")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showAddSheet = true
+                    } label: {
+                        Label("Add Stack", systemImage: "plus")
+                    }
+                    #if os(macOS)
+                    .keyboardShortcut("n", modifiers: .command)
+                    #endif
+                    .accessibilityLabel("Add new stack")
+                    .accessibilityHint("Creates a new stack")
+                }
+            }
+        }
+        .sheet(isPresented: $showAddSheet) {
+            StackEditorView(mode: .create)
         }
     }
 }

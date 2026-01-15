@@ -10,6 +10,9 @@ import SwiftData
 import Foundation
 @testable import Dequeue
 
+// Disambiguate from Swift Testing's Attachment type
+private typealias Attachment = Dequeue.Attachment
+
 /// Simple error type for test assertions
 private struct TestError: Error {
     let message: String
