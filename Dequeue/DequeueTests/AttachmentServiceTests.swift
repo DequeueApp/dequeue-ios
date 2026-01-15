@@ -187,10 +187,11 @@ struct AttachmentServiceTests {
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let attachment = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
+        let attachmentId = attachment.id
 
         // Check that an event was recorded
         let eventDescriptor = FetchDescriptor<Event>(
-            predicate: #Predicate { $0.entityId == attachment.id }
+            predicate: #Predicate { $0.entityId == attachmentId }
         )
         let events = try context.fetch(eventDescriptor)
         #expect(events.count == 1)
@@ -388,6 +389,7 @@ struct AttachmentServiceTests {
     // MARK: - MIME Type Tests
 
     @Test("mimeType returns correct type for common extensions")
+    @MainActor
     func mimeTypeForCommonExtensions() {
         #expect(AttachmentService.mimeType(for: URL(fileURLWithPath: "/test.txt")) == "text/plain")
         #expect(AttachmentService.mimeType(for: URL(fileURLWithPath: "/test.pdf")) == "application/pdf")
@@ -397,6 +399,7 @@ struct AttachmentServiceTests {
     }
 
     @Test("mimeType returns octet-stream for unknown extensions")
+    @MainActor
     func mimeTypeForUnknownExtension() {
         #expect(AttachmentService.mimeType(for: URL(fileURLWithPath: "/test.xyz123")) == "application/octet-stream")
     }
