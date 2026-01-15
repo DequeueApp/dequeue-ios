@@ -58,6 +58,7 @@ struct AttachmentSettingsView: View {
                 Text("Storage")
             } footer: {
                 if settings.storageQuota != .unlimited {
+                    // swiftlint:disable:next line_length
                     Text("When the storage quota is reached, older cached files will be removed to make room for new downloads.")
                 }
             }
@@ -69,6 +70,7 @@ struct AttachmentSettingsView: View {
                 .foregroundStyle(.red)
                 .disabled(storageUsed == 0 || isCalculating)
             } footer: {
+                // swiftlint:disable:next line_length
                 Text("This will remove all locally cached attachment files. Files will be re-downloaded when you view them.")
             }
         }

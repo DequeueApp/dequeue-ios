@@ -151,7 +151,7 @@ final class AttachmentSettings {
 // MARK: - Environment Key
 
 private struct AttachmentSettingsKey: EnvironmentKey {
-    static let defaultValue: AttachmentSettings = AttachmentSettings()
+    static let defaultValue = AttachmentSettings()
 }
 
 extension EnvironmentValues {
