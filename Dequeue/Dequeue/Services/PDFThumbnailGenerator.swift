@@ -39,6 +39,7 @@ enum PDFThumbnailError: LocalizedError {
             return "Failed to compress thumbnail image"
         case let .fileTooLarge(size, maxSize):
             let formatter = ByteCountFormatter()
+            // swiftlint:disable:next line_length
             return "PDF too large (\(formatter.string(fromByteCount: size))) - max \(formatter.string(fromByteCount: maxSize))"
         }
     }
