@@ -229,12 +229,12 @@ struct AttachmentFileIconView: View {
 
 extension Attachment {
     /// Returns the SF Symbol name for this attachment's file type
-    var fileTypeIconName: String {
+    @MainActor var fileTypeIconName: String {
         FileTypeIcon.symbolName(for: mimeType)
     }
 
     /// Returns the color for this attachment's file type icon
-    var fileTypeIconColor: Color {
+    @MainActor var fileTypeIconColor: Color {
         FileTypeIcon.color(for: mimeType)
     }
 }
