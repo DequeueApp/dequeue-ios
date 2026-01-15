@@ -376,7 +376,11 @@ struct ThumbnailGeneratorTests {
 
     private func imageSize(_ image: PlatformImage) -> CGSize {
         #if canImport(UIKit)
-        return image.size
+        // Use pixel dimensions for consistent behavior across devices
+        guard let cgImage = image.cgImage else {
+            return image.size
+        }
+        return CGSize(width: cgImage.width, height: cgImage.height)
         #elseif canImport(AppKit)
         return image.size
         #endif
