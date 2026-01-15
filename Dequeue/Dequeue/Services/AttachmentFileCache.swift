@@ -56,10 +56,8 @@ actor AttachmentFileCache {
         self.fileManager = fileManager
 
         // Set up cache directory in Documents
-        let documentsDirectory = fileManager.urls(
-            for: .documentDirectory,
-            in: .userDomainMask
-        ).first!
+        // swiftlint:disable:next force_unwrapping
+        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
         self.cacheDirectory = documentsDirectory.appendingPathComponent("Attachments")
 
         // Create root directory if needed
