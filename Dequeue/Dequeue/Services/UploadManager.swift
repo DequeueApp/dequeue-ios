@@ -120,12 +120,14 @@ actor UploadManager {
         delegateHandler.registerTask(
             task,
             attachmentId: attachmentId,
-            totalBytes: totalBytes
-        ) { [weak self] progress in
-            Task { await self?.handleProgress(progress) }
-        } completion: { [weak self] result in
-            Task { await self?.handleCompletion(attachmentId: attachmentId, result: result) }
-        }
+            totalBytes: totalBytes,
+            onProgress: { [weak self] progress in
+                Task { await self?.handleProgress(progress) }
+            },
+            onCompletion: { [weak self] result in
+                Task { await self?.handleCompletion(attachmentId: attachmentId, result: result) }
+            }
+        )
 
         activeTasks[attachmentId] = task
         task.resume()
