@@ -7,6 +7,9 @@
 
 import SwiftUI
 import QuickLook
+#if os(macOS)
+import QuickLookUI
+#endif
 import os.log
 
 // MARK: - Preview State
