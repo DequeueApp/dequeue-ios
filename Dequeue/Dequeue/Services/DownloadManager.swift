@@ -134,12 +134,14 @@ actor DownloadManager {
         delegateHandler.registerTask(
             task,
             attachmentId: attachmentId,
-            destinationURL: localURL
-        ) { [weak self] progress in
-            Task { await self?.handleProgress(progress) }
-        } completion: { [weak self] result in
-            Task { await self?.handleCompletion(attachmentId: attachmentId, result: result) }
-        }
+            destinationURL: localURL,
+            onProgress: { [weak self] progress in
+                Task { await self?.handleProgress(progress) }
+            },
+            onCompletion: { [weak self] result in
+                Task { await self?.handleCompletion(attachmentId: attachmentId, result: result) }
+            }
+        )
 
         activeTasks[attachmentId] = task
         task.resume()
