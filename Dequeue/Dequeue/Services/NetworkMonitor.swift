@@ -101,4 +101,16 @@ final class NetworkMonitor: @unchecked Sendable {
     /// This singleton intentionally runs for the app's entire lifetime.
     /// The NWPathMonitor is lightweight and designed for continuous monitoring.
     @MainActor static let shared = NetworkMonitor()
+
+    /// Whether the device is currently connected via WiFi.
+    ///
+    /// Useful for determining download behavior based on network type.
+    @MainActor var isWiFi: Bool {
+        connectionType == .wifi
+    }
+
+    /// Whether the device is currently connected via cellular.
+    @MainActor var isCellular: Bool {
+        connectionType == .cellular
+    }
 }
