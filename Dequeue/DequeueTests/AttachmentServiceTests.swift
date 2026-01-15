@@ -23,6 +23,7 @@ private func makeTestContainer() throws -> ModelContainer {
         Attachment.self,
         Tag.self,
         Device.self,
+        SyncConflict.self,
         configurations: config
     )
 }
