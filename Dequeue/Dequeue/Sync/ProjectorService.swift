@@ -73,6 +73,11 @@ enum ProjectorService {
             try applyTagUpdated(event: event, context: context)
         case .tagDeleted:
             try applyTagDeleted(event: event, context: context)
+
+        // Attachment events - handled by AttachmentService, not ProjectorService
+        // These events are processed separately via the attachment sync flow
+        case .attachmentAdded, .attachmentRemoved:
+            break
         }
     }
 
