@@ -168,6 +168,7 @@ struct StorageQuotaExceededDialog: ViewModifier {
                     handler.handleDecision(.cancel)
                 }
             } message: {
+                // swiftlint:disable:next line_length
                 Text("You've used all your attachment storage (\(usageText)). Free up space by removing attachments or increase your quota in Settings.")
             }
     }
