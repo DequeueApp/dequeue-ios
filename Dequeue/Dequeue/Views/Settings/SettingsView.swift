@@ -66,6 +66,11 @@ struct SettingsView: View {
                         Label("Notifications", systemImage: "bell.badge")
                     }
                     NavigationLink {
+                        AttachmentSettingsView()
+                    } label: {
+                        Label("Attachments", systemImage: "paperclip")
+                    }
+                    NavigationLink {
                         AppearanceSettingsView()
                     } label: {
                         Label("Appearance", systemImage: "paintbrush")
