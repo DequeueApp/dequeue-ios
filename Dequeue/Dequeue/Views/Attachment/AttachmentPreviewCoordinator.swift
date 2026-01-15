@@ -185,6 +185,7 @@ struct AttachmentQuickLookView: NSViewRepresentable {
             }
         }
 
+        @available(*, unavailable)
         required init?(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
@@ -244,7 +245,7 @@ struct AttachmentPreviewModifier: ViewModifier {
                 .ignoresSafeArea()
             }
             #elseif os(macOS)
-            .onChange(of: coordinator.previewURL) { oldValue, newValue in
+            .onChange(of: coordinator.previewURL) { _, newValue in
                 if let url = newValue {
                     // macOS uses the QLPreviewPanel system
                     NSWorkspace.shared.open(url)
