@@ -348,13 +348,14 @@ final class MockAttachmentUploadService: AttachmentUploadServiceProtocol {
         }
 
         // Return a default mock response
-        // swiftlint:disable:next force_unwrapping
+        // swiftlint:disable force_unwrapping
         return PresignedUploadResponse(
             uploadUrl: URL(string: "https://s3.example.com/upload/\(CUID.generate())")!,
             downloadUrl: URL(string: "https://cdn.example.com/files/\(CUID.generate())")!,
             attachmentId: CUID.generate(),
             expiresAt: Date().addingTimeInterval(3_600)
         )
+        // swiftlint:enable force_unwrapping
     }
 
     func uploadToPresignedURL(
