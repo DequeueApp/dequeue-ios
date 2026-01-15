@@ -12,6 +12,18 @@ import SwiftData
 
 // swiftlint:disable:next type_body_length
 enum ProjectorService {
+    // MARK: - Pending Tag Associations
+
+    /// Stores pending tag-to-stack associations when stack.updated arrives before tag.created.
+    /// Key: tagId that hasn't been created yet
+    /// Value: Set of stackIds waiting for that tag
+    private static var pendingTagAssociations: [String: Set<String>] = [:]
+
+    /// Clears all pending tag associations. Call at the start of a full sync to reset state.
+    static func clearPendingTagAssociations() {
+        pendingTagAssociations.removeAll()
+    }
+
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func apply(event: Event, context: ModelContext) throws {
         guard let eventType = event.eventType else { return }
@@ -672,6 +684,19 @@ enum ProjectorService {
             )
             tag.updatedAt = event.timestamp  // LWW: Use event timestamp
             context.insert(tag)
+
+            // Resolve any pending associations for this tag
+            // This handles the race condition where stack.updated arrived before tag.created
+            if let pendingStackIds = pendingTagAssociations[payload.id], !pendingStackIds.isEmpty {
+                for stackId in pendingStackIds {
+                    if let stack = try? findStack(id: stackId, context: context), !stack.isDeleted {
+                        if !stack.tagObjects.contains(where: { $0.id == tag.id }) {
+                            stack.tagObjects.append(tag)
+                        }
+                    }
+                }
+                pendingTagAssociations.removeValue(forKey: payload.id)
+            }
         }
     }
 
@@ -847,6 +872,12 @@ enum ProjectorService {
                             "missing_tag_id": missingId
                         ]
                     )
+                }
+
+                // Store pending associations for resolution when the tag is created
+                // This handles the race condition where stack.updated arrives before tag.created
+                for missingId in result.missingTagIds {
+                    pendingTagAssociations[missingId, default: []].insert(stack.id)
                 }
             }
         } catch {
