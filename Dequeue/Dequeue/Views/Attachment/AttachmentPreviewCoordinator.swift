@@ -198,18 +198,18 @@ struct AttachmentQuickLookView: NSViewRepresentable {
         // swiftlint:disable implicitly_unwrapped_optional
         // These method signatures are required by the Objective-C QLPreviewPanel API
         // nonisolated to match the NSResponder method signatures
-        nonisolated override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        override nonisolated func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
             true
         }
 
-        nonisolated override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        override nonisolated func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
             MainActor.assumeIsolated {
                 panel.dataSource = self
                 panel.delegate = self
             }
         }
 
-        nonisolated override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        override nonisolated func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
             MainActor.assumeIsolated {
                 onDismiss?()
             }
