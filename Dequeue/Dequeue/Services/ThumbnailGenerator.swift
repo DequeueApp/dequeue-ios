@@ -25,15 +25,15 @@ enum ThumbnailGeneratorError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unsupportedFormat(let mimeType):
+        case let .unsupportedFormat(mimeType):
             return "Unsupported image format: \(mimeType)"
-        case .failedToLoadImage(let url):
+        case let .failedToLoadImage(url):
             return "Failed to load image from: \(url.lastPathComponent)"
         case .failedToCreateThumbnail:
             return "Failed to create thumbnail"
         case .failedToCompressImage:
             return "Failed to compress thumbnail image"
-        case .fileTooLarge(let size, let maxSize):
+        case let .fileTooLarge(size, maxSize):
             let formatter = ByteCountFormatter()
             return "File too large (\(formatter.string(fromByteCount: size))) - max \(formatter.string(fromByteCount: maxSize))"
         }
@@ -55,7 +55,7 @@ struct ThumbnailConfiguration {
     static let `default` = ThumbnailConfiguration(
         maxDimension: 200,
         compressionQuality: 0.7,
-        maxSourceFileSize: 100 * 1024 * 1024  // 100 MB
+        maxSourceFileSize: 100 * 1_024 * 1_024  // 100 MB
     )
 }
 
