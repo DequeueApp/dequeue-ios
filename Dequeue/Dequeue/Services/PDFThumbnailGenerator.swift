@@ -47,7 +47,7 @@ enum PDFThumbnailError: LocalizedError {
 
 // MARK: - PDF Thumbnail Configuration
 
-struct PDFThumbnailConfiguration {
+struct PDFThumbnailConfiguration: Sendable {
     /// Maximum dimension (width or height) for the thumbnail
     let maxDimension: CGFloat
 
@@ -57,7 +57,7 @@ struct PDFThumbnailConfiguration {
     /// Maximum PDF file size to process (in bytes)
     let maxFileSize: Int64
 
-    static let `default` = PDFThumbnailConfiguration(
+    nonisolated static let `default` = PDFThumbnailConfiguration(
         maxDimension: 200,
         compressionQuality: 0.7,
         maxFileSize: 100 * 1_024 * 1_024  // 100 MB
