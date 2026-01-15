@@ -35,6 +35,7 @@ enum ThumbnailGeneratorError: LocalizedError {
             return "Failed to compress thumbnail image"
         case let .fileTooLarge(size, maxSize):
             let formatter = ByteCountFormatter()
+            // swiftlint:disable:next line_length
             return "File too large (\(formatter.string(fromByteCount: size))) - max \(formatter.string(fromByteCount: maxSize))"
         }
     }
