@@ -305,7 +305,7 @@ actor MockUploadManager {
         if simulateProgress {
             // Simulate progress updates
             Task {
-                let totalBytes: Int64 = 1000
+                let totalBytes: Int64 = 1_000
                 for i in stride(from: 0, through: 100, by: 25) {
                     continuation.yield(UploadProgress(
                         attachmentId: attachmentId,
