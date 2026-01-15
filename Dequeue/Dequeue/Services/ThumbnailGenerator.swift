@@ -43,7 +43,7 @@ enum ThumbnailGeneratorError: LocalizedError {
 
 // MARK: - Thumbnail Configuration
 
-struct ThumbnailConfiguration {
+struct ThumbnailConfiguration: Sendable {
     /// Maximum dimension (width or height) for the thumbnail
     let maxDimension: CGFloat
 
@@ -53,7 +53,7 @@ struct ThumbnailConfiguration {
     /// Maximum source file size to process (in bytes)
     let maxSourceFileSize: Int64
 
-    static let `default` = ThumbnailConfiguration(
+    nonisolated static let `default` = ThumbnailConfiguration(
         maxDimension: 200,
         compressionQuality: 0.7,
         maxSourceFileSize: 100 * 1_024 * 1_024  // 100 MB
