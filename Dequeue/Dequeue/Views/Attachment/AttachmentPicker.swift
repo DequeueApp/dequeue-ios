@@ -12,7 +12,7 @@ import UniformTypeIdentifiers
 
 private enum AttachmentPickerConstants {
     /// Maximum file size in bytes (50 MB)
-    static let maxFileSizeBytes: Int64 = 50 * 1024 * 1024
+    static let maxFileSizeBytes: Int64 = 50 * 1_024 * 1_024
 
     /// Formatted maximum file size for display
     static let maxFileSizeFormatted = "50 MB"
@@ -178,17 +178,17 @@ enum AttachmentPickerError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .fileTooLarge(let filename, let size, let maxSize):
+        case let .fileTooLarge(filename, size, maxSize):
             let formatter = ByteCountFormatter()
             formatter.countStyle = .file
             let sizeStr = formatter.string(fromByteCount: size)
             let maxStr = formatter.string(fromByteCount: maxSize)
             return "File '\(filename)' (\(sizeStr)) exceeds the maximum size of \(maxStr)"
 
-        case .fileAccessError(let filename, let error):
+        case let .fileAccessError(filename, error):
             return "Unable to access '\(filename)': \(error.localizedDescription)"
 
-        case .unsupportedFileType(let filename):
+        case let .unsupportedFileType(filename):
             return "File type not supported: \(filename)"
         }
     }
