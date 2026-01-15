@@ -150,9 +150,7 @@ actor PDFThumbnailGenerator {
 
         #if canImport(UIKit)
         // Use PDFPage's built-in thumbnail method on iOS
-        guard let thumbnailImage = page.thumbnail(of: thumbnailSize, for: .mediaBox) else {
-            throw PDFThumbnailError.failedToRenderPage
-        }
+        let thumbnailImage = page.thumbnail(of: thumbnailSize, for: .mediaBox)
 
         guard let jpegData = thumbnailImage.jpegData(compressionQuality: configuration.compressionQuality) else {
             throw PDFThumbnailError.failedToCompressImage
