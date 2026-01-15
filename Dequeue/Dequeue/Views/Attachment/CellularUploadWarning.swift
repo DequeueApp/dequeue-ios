@@ -26,7 +26,7 @@ final class CellularUploadCoordinator {
     // MARK: - Configuration
 
     /// Minimum file size (in bytes) to trigger cellular warning
-    static let warningThreshold: Int64 = 10 * 1024 * 1024  // 10 MB
+    static let warningThreshold: Int64 = 10 * 1_024 * 1_024  // 10 MB
 
     // MARK: - Properties
 
