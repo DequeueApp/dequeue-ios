@@ -10,9 +10,8 @@ import SwiftUI
 // MARK: - File Type Icon Mapping
 
 /// Maps MIME types to appropriate SF Symbols
-// swiftlint:disable:next type_body_length
+// swiftlint:disable type_body_length cyclomatic_complexity function_body_length
 enum FileTypeIcon {
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     /// Returns the SF Symbol name for a given MIME type
     static func symbolName(for mimeType: String) -> String {
         let lowerMimeType = mimeType.lowercased()
@@ -171,6 +170,7 @@ enum FileTypeIcon {
         }
     }
 }
+// swiftlint:enable type_body_length cyclomatic_complexity function_body_length
 
 // MARK: - File Type Icon View
 
