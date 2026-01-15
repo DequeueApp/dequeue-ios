@@ -191,6 +191,8 @@ struct AttachmentQuickLookView: NSViewRepresentable {
 
         override var acceptsFirstResponder: Bool { true }
 
+        // swiftlint:disable implicitly_unwrapped_optional
+        // These method signatures are required by the Objective-C QLPreviewPanel API
         override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
             true
         }
@@ -203,6 +205,7 @@ struct AttachmentQuickLookView: NSViewRepresentable {
         override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
             onDismiss?()
         }
+        // swiftlint:enable implicitly_unwrapped_optional
 
         private func showQuickLook() {
             guard let panel = QLPreviewPanel.shared() else { return }
@@ -211,6 +214,8 @@ struct AttachmentQuickLookView: NSViewRepresentable {
 
         // MARK: - QLPreviewPanelDataSource
 
+        // swiftlint:disable implicitly_unwrapped_optional
+        // Protocol method signatures required by Objective-C QLPreviewPanelDataSource
         func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
             1
         }
@@ -218,6 +223,7 @@ struct AttachmentQuickLookView: NSViewRepresentable {
         func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
             url as NSURL
         }
+        // swiftlint:enable implicitly_unwrapped_optional
     }
 }
 #endif
