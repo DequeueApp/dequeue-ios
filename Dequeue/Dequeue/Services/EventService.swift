@@ -250,6 +250,27 @@ final class EventService {
         try recordEvent(type: .deviceDiscovered, payload: payload, entityId: device.id)
     }
 
+    // MARK: - Attachment Events
+
+    func recordAttachmentAdded(_ attachment: Attachment) throws {
+        let payload = AttachmentAddedPayload(
+            attachmentId: attachment.id,
+            parentId: attachment.parentId,
+            parentType: attachment.parentType.rawValue,
+            state: AttachmentState.from(attachment)
+        )
+        try recordEvent(type: .attachmentAdded, payload: payload, entityId: attachment.id)
+    }
+
+    func recordAttachmentRemoved(_ attachment: Attachment) throws {
+        let payload = AttachmentRemovedPayload(
+            attachmentId: attachment.id,
+            parentId: attachment.parentId,
+            parentType: attachment.parentType.rawValue
+        )
+        try recordEvent(type: .attachmentRemoved, payload: payload, entityId: attachment.id)
+    }
+
     // MARK: - Query
 
     func fetchPendingEvents() throws -> [Event] {
@@ -498,6 +519,35 @@ struct TagState: Codable {
     }
 }
 
+/// Full attachment state snapshot - matches backend attachment event payload
+struct AttachmentState: Codable {
+    let id: String
+    let parentId: String
+    let parentType: String
+    let filename: String
+    let mimeType: String
+    let sizeBytes: Int64
+    let url: String?
+    let createdAt: Int64  // Unix timestamp in milliseconds
+    let updatedAt: Int64
+    let deleted: Bool
+
+    static func from(_ attachment: Attachment) -> AttachmentState {
+        AttachmentState(
+            id: attachment.id,
+            parentId: attachment.parentId,
+            parentType: attachment.parentType.rawValue,
+            filename: attachment.filename,
+            mimeType: attachment.mimeType,
+            sizeBytes: attachment.sizeBytes,
+            url: attachment.remoteUrl,
+            createdAt: Int64(attachment.createdAt.timeIntervalSince1970 * 1_000),
+            updatedAt: Int64(attachment.updatedAt.timeIntervalSince1970 * 1_000),
+            deleted: attachment.isDeleted
+        )
+    }
+}
+
 // MARK: - Event Payloads (match React Native EventService payload interfaces)
 
 // Stack payloads
@@ -647,6 +697,20 @@ struct TagUpdatedPayload: Encodable {
 
 struct TagDeletedPayload: Codable {
     let tagId: String
+}
+
+// Attachment payloads
+struct AttachmentAddedPayload: Codable {
+    let attachmentId: String
+    let parentId: String
+    let parentType: String
+    let state: AttachmentState
+}
+
+struct AttachmentRemovedPayload: Codable {
+    let attachmentId: String
+    let parentId: String
+    let parentType: String
 }
 
 // MARK: - Reading Payloads (for ProjectorService to decode incoming events)
@@ -870,6 +934,54 @@ struct TagEventPayload: Codable {
     }
 }
 
+/// Payload for reading attachment events - extracts data from state object
+struct AttachmentEventPayload: Codable {
+    let id: String
+    let parentId: String
+    let parentType: ParentType
+    let filename: String
+    let mimeType: String
+    let sizeBytes: Int64
+    let url: String?
+    let deleted: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, parentId, parentType, filename, mimeType, sizeBytes, url, deleted
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        parentId = try container.decode(String.self, forKey: .parentId)
+
+        // Decode parentType - try enum first, then String
+        if let typeValue = try? container.decode(ParentType.self, forKey: .parentType) {
+            parentType = typeValue
+        } else {
+            let typeString = try container.decode(String.self, forKey: .parentType)
+            parentType = ParentType(rawValue: typeString) ?? .stack
+        }
+
+        filename = try container.decode(String.self, forKey: .filename)
+        mimeType = try container.decode(String.self, forKey: .mimeType)
+        sizeBytes = try container.decode(Int64.self, forKey: .sizeBytes)
+        url = try container.decodeIfPresent(String.self, forKey: .url)
+        deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(parentId, forKey: .parentId)
+        try container.encode(parentType.rawValue, forKey: .parentType)
+        try container.encode(filename, forKey: .filename)
+        try container.encode(mimeType, forKey: .mimeType)
+        try container.encode(sizeBytes, forKey: .sizeBytes)
+        try container.encodeIfPresent(url, forKey: .url)
+        try container.encode(deleted, forKey: .deleted)
+    }
+}
+
 /// Payload for entity deletion events
 struct EntityDeletedPayload: Codable {
     let id: String
@@ -880,6 +992,7 @@ struct EntityDeletedPayload: Codable {
         case taskId   // For task.deleted
         case reminderId  // For reminder.deleted
         case tagId  // For tag.deleted
+        case attachmentId  // For attachment.removed
     }
 
     init(from decoder: Decoder) throws {
@@ -893,6 +1006,8 @@ struct EntityDeletedPayload: Codable {
             id = reminderId
         } else if let tagId = try? container.decode(String.self, forKey: .tagId) {
             id = tagId
+        } else if let attachmentId = try? container.decode(String.self, forKey: .attachmentId) {
+            id = attachmentId
         } else {
             id = try container.decode(String.self, forKey: .id)
         }
