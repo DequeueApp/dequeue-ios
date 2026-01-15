@@ -236,7 +236,7 @@ actor DownloadManager {
 // MARK: - URLSession Delegate Handler
 
 /// Handles URLSession delegate callbacks for download progress tracking.
-final class DownloadDelegateHandler: NSObject, URLSessionDownloadDelegate, Sendable {
+final class DownloadDelegateHandler: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private struct TaskInfo: Sendable {
         let attachmentId: String
         let destinationURL: URL
@@ -244,6 +244,7 @@ final class DownloadDelegateHandler: NSObject, URLSessionDownloadDelegate, Senda
         let onCompletion: @Sendable (Result<URL, Error>) -> Void
     }
 
+    // Protected by taskInfoLock - @unchecked Sendable on class handles thread safety
     private let taskInfoLock = NSLock()
     private var taskInfo: [Int: TaskInfo] = [:]
 
