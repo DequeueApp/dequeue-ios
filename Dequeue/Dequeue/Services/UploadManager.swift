@@ -186,7 +186,7 @@ actor UploadManager {
 /// This class bridges the delegate-based URLSession API to the async/await world.
 /// It tracks progress for multiple concurrent uploads and routes callbacks to
 /// the appropriate handlers.
-final class UploadDelegateHandler: NSObject, URLSessionTaskDelegate, Sendable {
+final class UploadDelegateHandler: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     private struct TaskInfo: Sendable {
         let attachmentId: String
         let totalBytes: Int64
@@ -194,6 +194,7 @@ final class UploadDelegateHandler: NSObject, URLSessionTaskDelegate, Sendable {
         let onCompletion: @Sendable (Result<Void, Error>) -> Void
     }
 
+    // Protected by taskInfoLock - @unchecked Sendable on class handles thread safety
     private let taskInfoLock = NSLock()
     private var taskInfo: [Int: TaskInfo] = [:]
 
