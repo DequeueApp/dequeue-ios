@@ -12,6 +12,7 @@ import SwiftUI
 /// Maps MIME types to appropriate SF Symbols
 enum FileTypeIcon {
     /// Returns the SF Symbol name for a given MIME type
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func symbolName(for mimeType: String) -> String {
         let lowerMimeType = mimeType.lowercased()
 
@@ -117,6 +118,7 @@ enum FileTypeIcon {
     }
 
     /// Returns the primary color for a file type
+    // swiftlint:disable:next cyclomatic_complexity
     static func color(for mimeType: String) -> Color {
         let lowerMimeType = mimeType.lowercased()
 
