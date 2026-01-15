@@ -34,6 +34,8 @@ extension StackEditorView {
             createModeTasksSection
 
             remindersSection
+
+            attachmentsSection
         }
     }
 

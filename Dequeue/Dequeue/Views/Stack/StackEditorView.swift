@@ -437,13 +437,13 @@ extension StackEditorView {
 
 #Preview("Create Mode") {
     StackEditorView(mode: .create)
-        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
+        .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self, Attachment.self], inMemory: true)
 }
 
 #Preview("Edit Mode") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // swiftlint:disable:next force_try
-    let container = try! ModelContainer(for: Stack.self, configurations: config)
+    let container = try! ModelContainer(for: Stack.self, Attachment.self, configurations: config)
     let stack = Stack(title: "Test Stack", stackDescription: "Test description", status: .active, sortOrder: 0)
     container.mainContext.insert(stack)
     return StackEditorView(mode: .edit(stack)).modelContainer(container)
