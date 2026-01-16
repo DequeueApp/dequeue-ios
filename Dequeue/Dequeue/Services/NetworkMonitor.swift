@@ -10,6 +10,15 @@ import Network
 import Observation
 import os
 
+/// Protocol for network monitoring - allows for test mocking
+@MainActor
+protocol NetworkMonitoring {
+    var isConnected: Bool { get }
+    var connectionType: NWInterface.InterfaceType? { get }
+    var isWiFi: Bool { get }
+    var isCellular: Bool { get }
+}
+
 /// Monitors network connectivity and provides reactive updates for UI.
 ///
 /// Uses Apple's Network framework (NWPathMonitor) to detect connectivity changes.
@@ -38,7 +47,7 @@ import os
 /// }
 /// ```
 @Observable
-final class NetworkMonitor: @unchecked Sendable {
+final class NetworkMonitor: NetworkMonitoring, @unchecked Sendable {
     /// Whether the device currently has network connectivity.
     /// Optimistic default: true (avoids false offline indicators during launch)
     @MainActor private(set) var isConnected: Bool = true
