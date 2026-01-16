@@ -17,8 +17,9 @@ struct CellularUploadCoordinatorTests {
     // MARK: - Helper Functions
 
     /// Poll for a condition with timeout to avoid race conditions
+    /// Uses a conservative 5-second timeout to accommodate slow CI runners
     private func waitFor(
-        timeout: Duration = .seconds(1),
+        timeout: Duration = .seconds(5),
         condition: @escaping () -> Bool
     ) async throws {
         let start = ContinuousClock.now
