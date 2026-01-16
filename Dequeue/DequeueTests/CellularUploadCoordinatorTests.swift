@@ -7,6 +7,7 @@
 
 import Testing
 import Foundation
+import Network
 @testable import Dequeue
 
 @Suite("CellularUploadCoordinator Tests")
