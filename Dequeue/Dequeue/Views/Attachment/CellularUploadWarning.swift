@@ -30,7 +30,7 @@ final class CellularUploadCoordinator {
 
     // MARK: - Properties
 
-    private let networkMonitor: NetworkMonitor
+    private let networkMonitor: any NetworkMonitoring
     private let logger = Logger(subsystem: "com.dequeue", category: "CellularUploadCoordinator")
 
     /// Whether the warning dialog is currently shown
@@ -53,7 +53,7 @@ final class CellularUploadCoordinator {
 
     // MARK: - Initialization
 
-    init(networkMonitor: NetworkMonitor = .shared) {
+    init(networkMonitor: any NetworkMonitoring = NetworkMonitor.shared) {
         self.networkMonitor = networkMonitor
     }
 
