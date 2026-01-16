@@ -12,6 +12,7 @@ import SwiftUI
 extension StackEditorView {
     var editModeContent: some View {
         List {
+            titleSection
             descriptionSection
             editModeTagsSection
             pendingTasksSection
@@ -93,6 +94,63 @@ extension StackEditorView {
         } catch {
             handleError(error)
             return nil
+        }
+    }
+
+    // MARK: - Title Section
+
+    var titleSection: some View {
+        Section {
+            titleContent
+        } header: {
+            Text("Title")
+        }
+    }
+
+    @ViewBuilder
+    var titleContent: some View {
+        if case .edit(let stack) = mode {
+            if isReadOnly {
+                Text(stack.title).foregroundStyle(.primary)
+            } else if isEditingTitle {
+                titleEditingView
+            } else {
+                titleDisplayButton(for: stack)
+            }
+        }
+    }
+
+    var titleEditingView: some View {
+        Group {
+            TextField("Title", text: $editedTitle)
+                .onSubmit { saveTitle() }
+
+            HStack {
+                Button("Cancel") {
+                    isEditingTitle = false
+                    if case .edit(let stack) = mode {
+                        editedTitle = stack.title
+                    }
+                }
+                .foregroundStyle(.secondary)
+                Spacer()
+                Button("Save") { saveTitle() }
+                    .fontWeight(.medium)
+                    .disabled(editedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    func titleDisplayButton(for stack: Stack) -> some View {
+        Button {
+            editedTitle = stack.title
+            isEditingTitle = true
+        } label: {
+            HStack {
+                Text(stack.title).foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "pencil").foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -335,6 +393,28 @@ extension StackEditorView {
     }
 
     // MARK: - Edit Mode Actions
+
+    func saveTitle() {
+        let trimmedTitle = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else { return }
+        guard case .edit(let stack) = mode else { return }
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+
+        do {
+            try service.updateStack(
+                stack,
+                title: trimmedTitle,
+                description: stack.stackDescription
+            )
+            isEditingTitle = false
+        } catch {
+            handleError(error)
+        }
+    }
 
     func saveDescription() {
         guard case .edit(let stack) = mode else { return }

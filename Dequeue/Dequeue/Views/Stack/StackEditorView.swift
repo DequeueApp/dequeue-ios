@@ -85,6 +85,8 @@ struct StackEditorView: View {
     }
 
     // Edit mode state
+    @State var isEditingTitle = false
+    @State var editedTitle = ""
     @State var isEditingDescription = false
     @State var editedDescription = ""
     @State var showCompletedTasks = false
