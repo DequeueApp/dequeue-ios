@@ -297,22 +297,27 @@ struct CellularUploadCoordinatorTests {
 
 // MARK: - Mock NetworkMonitor
 
+/// Test-only mock that extends NetworkMonitor for testing cellular upload scenarios
 @MainActor
-private class MockNetworkMonitor: NetworkMonitor {
-    private var _isWiFi: Bool
-    private var _isCellular: Bool
+@Observable
+private final class MockNetworkMonitor: NetworkMonitor, @unchecked Sendable {
+    private let _mockIsWiFi: Bool
+    private let _mockIsCellular: Bool
 
     init(isWiFi: Bool, isCellular: Bool) {
-        self._isWiFi = isWiFi
-        self._isCellular = isCellular
+        self._mockIsWiFi = isWiFi
+        self._mockIsCellular = isCellular
         super.init()
+        // Stop the actual network monitoring to prevent it from interfering with tests
+        self.stopMonitoring()
     }
 
+    // Override the computed properties to provide test values
     override var isWiFi: Bool {
-        _isWiFi
+        _mockIsWiFi
     }
 
     override var isCellular: Bool {
-        _isCellular
+        _mockIsCellular
     }
 }
