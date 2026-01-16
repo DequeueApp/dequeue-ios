@@ -19,11 +19,11 @@ enum AttachmentDownloadBehavior: String, CaseIterable, Codable {
     var displayName: String {
         switch self {
         case .onDemand:
-            return "On-demand only"
+            return "On Demand"
         case .wifiOnly:
-            return "Auto-download on WiFi"
+            return "WiFi Only"
         case .always:
-            return "Always auto-download"
+            return "Always"
         }
     }
 
