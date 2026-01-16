@@ -84,7 +84,7 @@ struct CellularUploadCoordinatorTests {
     }
 
     @Test("Large file on cellular triggers warning state")
-    func largeFileOnCellularTriggersWarning() async {
+    func largeFileOnCellularTriggersWarning() async throws {
         let mockMonitor = MockNetworkMonitor(isWiFi: false, isCellular: true)
         let coordinator = CellularUploadCoordinator(networkMonitor: mockMonitor)
 
@@ -112,7 +112,7 @@ struct CellularUploadCoordinatorTests {
     // MARK: - Decision Handling Tests
 
     @Test("Handle decision proceed completes successfully")
-    func handleProceedDecision() async {
+    func handleProceedDecision() async throws {
         let mockMonitor = MockNetworkMonitor(isWiFi: false, isCellular: true)
         let coordinator = CellularUploadCoordinator(networkMonitor: mockMonitor)
 
@@ -134,7 +134,7 @@ struct CellularUploadCoordinatorTests {
     }
 
     @Test("Handle decision cancel completes successfully")
-    func handleCancelDecision() async {
+    func handleCancelDecision() async throws {
         let mockMonitor = MockNetworkMonitor(isWiFi: false, isCellular: true)
         let coordinator = CellularUploadCoordinator(networkMonitor: mockMonitor)
 
@@ -156,7 +156,7 @@ struct CellularUploadCoordinatorTests {
     }
 
     @Test("Handle decision waitForWiFi completes successfully")
-    func handleWaitForWiFiDecision() async {
+    func handleWaitForWiFiDecision() async throws {
         let mockMonitor = MockNetworkMonitor(isWiFi: false, isCellular: true)
         let coordinator = CellularUploadCoordinator(networkMonitor: mockMonitor)
 
@@ -281,7 +281,7 @@ struct CellularUploadCoordinatorTests {
     }
 
     @Test("File at exactly threshold triggers warning")
-    func fileAtThresholdTriggersWarning() async {
+    func fileAtThresholdTriggersWarning() async throws {
         let mockMonitor = MockNetworkMonitor(isWiFi: false, isCellular: true)
         let coordinator = CellularUploadCoordinator(networkMonitor: mockMonitor)
 
