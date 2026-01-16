@@ -82,6 +82,7 @@ final class AttachmentSettings {
     private enum Keys {
         static let downloadBehavior = "attachmentDownloadBehavior"
         static let storageQuota = "attachmentStorageQuota"
+        static let storageQuotaSet = "attachmentStorageQuotaSet"
     }
 
     // MARK: - Properties
@@ -97,6 +98,7 @@ final class AttachmentSettings {
     var storageQuota: AttachmentStorageQuota {
         didSet {
             UserDefaults.standard.set(storageQuota.rawValue, forKey: Keys.storageQuota)
+            UserDefaults.standard.set(true, forKey: Keys.storageQuotaSet)
         }
     }
 
@@ -112,14 +114,16 @@ final class AttachmentSettings {
         }
 
         // Load storage quota
-        let savedQuota = UserDefaults.standard.integer(forKey: Keys.storageQuota)
-        if savedQuota == 0 && !UserDefaults.standard.bool(forKey: "\(Keys.storageQuota)_set") {
+        if !UserDefaults.standard.bool(forKey: Keys.storageQuotaSet) {
             // Not set yet, use default
             self.storageQuota = .fiveGB
-        } else if let quota = AttachmentStorageQuota(rawValue: Int64(savedQuota)) {
-            self.storageQuota = quota
         } else {
-            self.storageQuota = .fiveGB
+            let savedQuota = UserDefaults.standard.integer(forKey: Keys.storageQuota)
+            if let quota = AttachmentStorageQuota(rawValue: Int64(savedQuota)) {
+                self.storageQuota = quota
+            } else {
+                self.storageQuota = .fiveGB
+            }
         }
     }
 
