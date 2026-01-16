@@ -92,24 +92,30 @@ struct AttachmentSettingsView: View {
 
         let attachmentsURL = documentsURL.appendingPathComponent("Attachments")
 
-        var totalSize: Int64 = 0
-        var fileCount = 0
-
+        // Collect URLs synchronously to avoid Swift 6 concurrency issues with enumerator
+        let urls: [URL]
         if let enumerator = fileManager.enumerator(
             at: attachmentsURL,
             includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
             options: [.skipsHiddenFiles]
         ) {
-            for case let fileURL as URL in enumerator {
-                guard let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
-                      resourceValues.isRegularFile == true else {
-                    continue
-                }
+            urls = enumerator.compactMap { $0 as? URL }
+        } else {
+            urls = []
+        }
 
-                if let fileSize = resourceValues.fileSize {
-                    totalSize += Int64(fileSize)
-                    fileCount += 1
-                }
+        var totalSize: Int64 = 0
+        var fileCount = 0
+
+        for fileURL in urls {
+            guard let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
+                  resourceValues.isRegularFile == true else {
+                continue
+            }
+
+            if let fileSize = resourceValues.fileSize {
+                totalSize += Int64(fileSize)
+                fileCount += 1
             }
         }
 
