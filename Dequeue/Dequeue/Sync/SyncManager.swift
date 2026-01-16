@@ -231,20 +231,18 @@ actor SyncManager {
         token: String,
         getToken: @escaping @Sendable () async throws -> String
     ) async throws {
-        // Always update credentials even if we think we're connected,
-        // because the token might have been refreshed
-        self.userId = userId
-        self.token = token
-        self.getTokenFunction = getToken
-
         // Guard against concurrent connection attempts
         guard !isConnecting else {
             os_log("[Sync] Connection already in progress, skipping")
             return
         }
 
-        // If already in healthy connected state, just update credentials and return
+        // If already in healthy connected state, update credentials and return
         if isHealthyConnection {
+            // Update credentials even if healthy (token may have refreshed)
+            self.userId = userId
+            self.token = token
+            self.getTokenFunction = getToken
             os_log("[Sync] Already connected with healthy connection, credentials updated")
             return
         }
@@ -252,6 +250,11 @@ actor SyncManager {
         os_log("[Sync] Not connected, establishing connection")
         isConnecting = true
         defer { isConnecting = false }
+
+        // Update credentials before connecting
+        self.userId = userId
+        self.token = token
+        self.getTokenFunction = getToken
 
         // Cache deviceId at connection time to avoid actor hops during push
         self.deviceId = await DeviceService.shared.getDeviceId()
