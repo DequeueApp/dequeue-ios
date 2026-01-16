@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import Clerk
 import UserNotifications
+import os.log
 
 // MARK: - Environment Key for SyncManager
 
@@ -168,7 +169,12 @@ struct RootView: View {
 
     private func handleAuthStateChange(isAuthenticated: Bool) async {
         if isAuthenticated {
-            guard let userId = authService.currentUserId else { return }
+            guard let userId = authService.currentUserId else {
+                os_log("[Auth] handleAuthStateChange: No userId available")
+                return
+            }
+
+            os_log("[Auth] handleAuthStateChange: Authenticated, userId: \(userId)")
 
             // Ensure current device is discovered and registered
             do {
@@ -177,37 +183,60 @@ struct RootView: View {
                     userId: userId
                 )
             } catch {
+                os_log("[Auth] Device discovery failed: \(error.localizedDescription)")
                 ErrorReportingService.capture(
                     error: error,
                     context: ["source": "device_discovery"]
                 )
             }
 
-            // Connect to sync
-            do {
-                let token = try await authService.getAuthToken()
-                try await syncManager.connect(
-                    userId: userId,
-                    token: token,
-                    getToken: { @MainActor in try await authService.getAuthToken() }
-                )
-                ErrorReportingService.addBreadcrumb(
-                    category: "sync",
-                    message: "Sync connected",
-                    data: ["userId": userId]
-                )
-            } catch {
-                ErrorReportingService.capture(
-                    error: error,
-                    context: ["source": "sync_connect"]
-                )
-            }
+            // Connect to sync with retry
+            await connectSyncWithRetry(userId: userId, maxRetries: 3)
         } else {
+            os_log("[Auth] handleAuthStateChange: Not authenticated, disconnecting sync")
             await syncManager.disconnect()
             ErrorReportingService.addBreadcrumb(
                 category: "sync",
                 message: "Sync disconnected"
             )
+        }
+    }
+
+    /// Connects to sync with retry logic for transient failures
+    private func connectSyncWithRetry(userId: String, maxRetries: Int) async {
+        for attempt in 1...maxRetries {
+            do {
+                os_log("[Sync] Connection attempt \(attempt)/\(maxRetries)")
+                let token = try await authService.getAuthToken()
+                os_log("[Sync] Got auth token, connecting...")
+                try await syncManager.connect(
+                    userId: userId,
+                    token: token,
+                    getToken: { @MainActor in try await authService.getAuthToken() }
+                )
+                os_log("[Sync] Connected successfully on attempt \(attempt)")
+                ErrorReportingService.addBreadcrumb(
+                    category: "sync",
+                    message: "Sync connected",
+                    data: ["userId": userId, "attempt": attempt]
+                )
+                return // Success, exit retry loop
+            } catch {
+                os_log("[Sync] Connection attempt \(attempt) failed: \(error.localizedDescription)")
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["source": "sync_connect", "attempt": attempt, "maxRetries": maxRetries]
+                )
+
+                if attempt < maxRetries {
+                    // Wait before retrying (exponential backoff: 1s, 2s, 4s)
+                    let delay = pow(2.0, Double(attempt - 1))
+                    os_log("[Sync] Retrying in \(delay) seconds...")
+                    try? await Task.sleep(for: .seconds(delay))
+                } else {
+                    os_log("[Sync] All connection attempts failed")
+                }
+            }
         }
     }
 
