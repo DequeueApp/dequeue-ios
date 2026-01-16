@@ -15,6 +15,7 @@ struct UploadManagerTests {
     // MARK: - UploadProgress Tests
 
     @Test("UploadProgress calculates fraction completed correctly")
+    @MainActor
     func progressFractionCalculation() {
         let progress = UploadProgress(
             attachmentId: "test-id",
@@ -26,6 +27,7 @@ struct UploadManagerTests {
     }
 
     @Test("UploadProgress handles zero total bytes")
+    @MainActor
     func progressZeroTotalBytes() {
         let progress = UploadProgress(
             attachmentId: "test-id",
@@ -37,6 +39,7 @@ struct UploadManagerTests {
     }
 
     @Test("UploadProgress handles completed upload")
+    @MainActor
     func progressCompletedUpload() {
         let progress = UploadProgress(
             attachmentId: "test-id",
@@ -122,6 +125,7 @@ struct UploadManagerTests {
     }
 
     @Test("MockUploadManager simulates progress")
+    @MainActor
     func mockSimulatesProgress() async throws {
         let mock = MockUploadManager()
         // swiftlint:disable:next force_unwrapping
