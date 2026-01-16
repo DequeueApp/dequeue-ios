@@ -10,6 +10,9 @@
 
 import Foundation
 import SwiftData
+import os
+
+private let logger = Logger(subsystem: "com.dequeue", category: "EventService")
 
 // MARK: - Event Context
 
@@ -70,12 +73,16 @@ final class EventService {
     }
 
     func recordStackUpdated(_ stack: Stack, changes: [String: Any] = [:]) throws {
+        logger.info("recordStackUpdated: stack.id='\(stack.id)', stack.title='\(stack.title)'")
+        let state = StackState.from(stack)
+        logger.info("recordStackUpdated: StackState.title='\(state.title)'")
         let payload = StackUpdatedPayload(
             stackId: stack.id,
             changes: changes,
-            fullState: StackState.from(stack)
+            fullState: state
         )
         try recordEvent(type: .stackUpdated, payload: payload, entityId: stack.id)
+        logger.info("recordStackUpdated: event recorded with title='\(state.title)'")
     }
 
     func recordStackDeleted(_ stack: Stack) throws {

@@ -7,6 +7,9 @@
 
 import Foundation
 import SwiftData
+import os
+
+private let logger = Logger(subsystem: "com.dequeue", category: "StackService")
 
 // MARK: - Stack Service Errors
 
@@ -244,13 +247,17 @@ final class StackService {
     // MARK: - Update
 
     func updateStack(_ stack: Stack, title: String, description: String?) throws {
+        logger.info("updateStack: input title='\(title)', stack.title before='\(stack.title)'")
         stack.title = title
         stack.stackDescription = description
         stack.updatedAt = Date()
         stack.syncState = .pending
+        logger.info("updateStack: stack.title after set='\(stack.title)'")
 
         try eventService.recordStackUpdated(stack)
+        logger.info("updateStack: event recorded, about to save context")
         try modelContext.save()
+        logger.info("updateStack: context saved")
         syncManager?.triggerImmediatePush()
     }
 

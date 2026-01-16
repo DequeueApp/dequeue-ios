@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+import os
+
+private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView+EditMode")
 
 // MARK: - Edit Mode Content
 
@@ -161,93 +164,6 @@ extension StackEditorView {
         }
     }
 
-    // MARK: - Tasks Section
-
-    var pendingTasksSection: some View {
-        Section {
-            if case .edit(let stack) = mode {
-                if stack.pendingTasks.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Tasks", systemImage: "checkmark.circle")
-                    } description: {
-                        Text("All tasks completed!")
-                    }
-                    .listRowBackground(Color.clear)
-                    .accessibilityLabel("No pending tasks. All tasks completed!")
-                } else {
-                    taskListContent(for: stack)
-                }
-            }
-        } header: {
-            HStack {
-                Text("Tasks")
-                Spacer()
-                if case .edit(let stack) = mode {
-                    Text("\(stack.pendingTasks.count) pending")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if !isReadOnly {
-                    Button {
-                        showAddTask = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundStyle(.blue)
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("addTaskButton")
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    func taskListContent(for stack: Stack) -> some View {
-        let taskList = ForEach(stack.pendingTasks) { task in
-            NavigationLink {
-                TaskDetailView(task: task)
-            } label: {
-                TaskRowView(
-                    task: task,
-                    isActive: task.id == stack.activeTask?.id,
-                    onToggleComplete: isReadOnly ? nil : { toggleTaskComplete(task) },
-                    onSetActive: isReadOnly ? nil : { setTaskActive(task) }
-                )
-            }
-            .buttonStyle(.plain)
-        }
-
-        if isReadOnly {
-            taskList
-        } else {
-            taskList.onMove(perform: moveTask)
-        }
-    }
-
-    var completedTasksSection: some View {
-        Section {
-            if case .edit(let stack) = mode {
-                DisclosureGroup(isExpanded: $showCompletedTasks) {
-                    ForEach(stack.completedTasks) { task in
-                        NavigationLink {
-                            TaskDetailView(task: task)
-                        } label: {
-                            CompletedTaskRowView(task: task)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                } label: {
-                    HStack {
-                        Text("Completed")
-                        Spacer()
-                        Text("\(stack.completedTasks.count)")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-    }
-
     // MARK: - Actions Section
 
     @ViewBuilder
@@ -335,6 +251,41 @@ extension StackEditorView {
     }
 
     // MARK: - Edit Mode Actions
+
+    func saveStackTitle() {
+        logger.info("saveStackTitle: editedTitle='\(self.editedTitle)'")
+        let trimmedTitle = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        logger.info("saveStackTitle: trimmedTitle='\(trimmedTitle)'")
+        guard !trimmedTitle.isEmpty else {
+            logger.warning("saveStackTitle: trimmedTitle is empty, returning")
+            return
+        }
+        guard case .edit(let stack) = mode else {
+            logger.warning("saveStackTitle: not in edit mode, returning")
+            return
+        }
+        logger.info("saveStackTitle: current stack.title='\(stack.title)'")
+        guard let service = stackService else {
+            logger.error("saveStackTitle: stackService is nil")
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+
+        do {
+            logger.info("saveStackTitle: calling updateStack with title='\(trimmedTitle)'")
+            try service.updateStack(
+                stack,
+                title: trimmedTitle,
+                description: stack.stackDescription
+            )
+            logger.info("saveStackTitle: after updateStack, stack.title='\(stack.title)'")
+            editedTitle = ""
+        } catch {
+            logger.error("saveStackTitle: error - \(error.localizedDescription)")
+            handleError(error)
+        }
+    }
 
     func saveDescription() {
         guard case .edit(let stack) = mode else { return }

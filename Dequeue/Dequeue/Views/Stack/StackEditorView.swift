@@ -85,6 +85,8 @@ struct StackEditorView: View {
     }
 
     // Edit mode state
+    @State var showEditTitleAlert = false
+    @State var editedTitle = ""
     @State var isEditingDescription = false
     @State var editedDescription = ""
     @State var showCompletedTasks = false
@@ -137,6 +139,16 @@ struct StackEditorView: View {
         }
     }
 
+    /// Whether to show a custom title view with edit button (for edit mode, non-read-only)
+    private var showsCustomTitle: Bool {
+        !isCreateMode && !isReadOnly
+    }
+
+    /// The title to display in the navigation bar (empty when using custom editable title)
+    private var displayedTitle: String {
+        showsCustomTitle ? "" : navigationTitle
+    }
+
     /// Whether there's unsaved content that should prevent accidental dismissal
     private var hasUnsavedContent: Bool {
         isCreateMode && (!title.isEmpty || !stackDescription.isEmpty || draftStack != nil)
@@ -156,9 +168,9 @@ struct StackEditorView: View {
             #if os(macOS)
             .frame(minWidth: 500, minHeight: 400)
             #endif
-            .navigationTitle(navigationTitle)
+            .navigationTitle(displayedTitle)
             #if os(iOS)
-            .navigationBarTitleDisplayMode(isCreateMode ? .inline : .large)
+            .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar { toolbarContent }
             .task {
@@ -212,6 +224,18 @@ struct StackEditorView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("You have unsaved content. Would you like to save it as a draft?")
+            }
+            .alert("Edit Title", isPresented: $showEditTitleAlert) {
+                TextField("Title", text: $editedTitle)
+                Button("Save") {
+                    saveStackTitle()
+                }
+                .disabled(editedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Cancel", role: .cancel) {
+                    editedTitle = ""
+                }
+            } message: {
+                Text("Enter a new title for this stack")
             }
             .confirmationDialog("Complete Stack", isPresented: $showCompleteConfirmation, titleVisibility: .visible) {
                 Button("Complete All Tasks & Stack") { completeStack(completeAllTasks: true) }
@@ -315,6 +339,12 @@ extension StackEditorView {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Close") { dismiss() }
             }
+            // Custom title with inline edit button for editable stacks
+            if showsCustomTitle {
+                ToolbarItem(placement: .principal) {
+                    editableTitleView
+                }
+            }
             if !isReadOnly {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Complete") { handleCompleteButtonTapped() }
@@ -324,81 +354,26 @@ extension StackEditorView {
         }
     }
 
-    var remindersSection: some View {
-        Section {
-            if let stack = currentStack, !stack.activeReminders.isEmpty {
-                remindersList
-            } else {
-                HStack {
-                    Label("No reminders", systemImage: "bell.slash")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-            }
-        } header: {
-            HStack {
-                Text("Reminders")
-                Spacer()
-                // Show add button when: not read-only AND (stack exists OR in create mode)
-                if !isReadOnly && (currentStack != nil || mode == .create) {
-                    Button {
-                        handleAddReminderTap()
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundStyle(.blue)
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("addStackReminderButton")
-                }
-            }
-        }
-    }
-
-    /// Handles the add reminder button tap.
-    /// In create mode without a draft, auto-creates a draft first so reminders can be attached.
-    func handleAddReminderTap() {
-        // If we already have a stack, just show the sheet
-        if currentStack != nil {
-            showAddReminder = true
-            return
-        }
-
-        // In create mode without a draft, create the draft first
-        if case .create = mode {
-            // Use the current title or "Untitled" as fallback
-            let draftTitle = title.isEmpty ? "Untitled" : title
-            createDraft(title: draftTitle)
-
-            // Show the sheet - draftStack is now set
-            if draftStack != nil {
-                showAddReminder = true
-            }
-        }
-    }
-
+    /// Custom title view with inline pencil button for editing
     @ViewBuilder
-    var remindersList: some View {
-        if let stack = currentStack {
-            ForEach(stack.activeReminders) { reminder in
-                ReminderRowView(
-                    reminder: reminder,
-                    onTap: isReadOnly ? nil : {
-                        selectedReminderForEdit = reminder
-                        showEditReminder = true
-                    },
-                    onSnooze: isReadOnly ? nil : {
-                        selectedReminderForSnooze = reminder
-                        showSnoozePicker = true
-                    },
-                    onDismiss: (isReadOnly || !reminder.isPastDue) ? nil : {
-                        reminderActionHandler?.dismiss(reminder)
-                    },
-                    onDelete: isReadOnly ? nil : {
-                        reminderToDelete = reminder
-                        showDeleteReminderConfirmation = true
-                    }
-                )
+    private var editableTitleView: some View {
+        if case .edit(let stack) = mode {
+            Button {
+                editedTitle = stack.title
+                showEditTitleAlert = true
+            } label: {
+                HStack(spacing: 4) {
+                    Text(stack.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Image(systemName: "pencil")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Edit title: \(stack.title)")
+            .accessibilityHint("Double tap to edit the stack title")
         }
     }
 
