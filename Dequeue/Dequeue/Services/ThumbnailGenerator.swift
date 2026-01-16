@@ -164,7 +164,10 @@ actor ThumbnailGenerator {
         let targetSize = calculateTargetSize(for: originalSize)
 
         // Create resized image using UIGraphicsImageRenderer for efficiency
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        // Use scale=1.0 to ensure consistent output regardless of device scale (1x, 2x, 3x)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
         let resizedImage = renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }

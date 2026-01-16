@@ -323,7 +323,10 @@ struct ThumbnailGeneratorTests {
     private func createTestImage(width: Int, height: Int) -> PlatformImage {
         #if canImport(UIKit)
         let size = CGSize(width: width, height: height)
-        let renderer = UIGraphicsImageRenderer(size: size)
+        // Use scale=1.0 for consistent test behavior across devices
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
         return renderer.image { context in
             UIColor.blue.setFill()
             context.fill(CGRect(origin: .zero, size: size))
