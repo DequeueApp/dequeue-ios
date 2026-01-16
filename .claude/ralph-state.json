@@ -1,7 +1,7 @@
 {
   "phase": 1,
   "iteration": 2,
-  "currentIssue": "DEQ-78",
+  "currentIssue": "DEQ-80",
   "currentRepo": "dequeue-ios-2",
   "pr": null,
   "completed": [],
@@ -37,9 +37,19 @@
       "issue": "DEQ-77",
       "pr": 134,
       "note": "UploadManager with progress tracking"
+    },
+    {
+      "issue": "DEQ-78",
+      "pr": 135,
+      "note": "DownloadManager with progress tracking"
+    },
+    {
+      "issue": "DEQ-79",
+      "pr": 136,
+      "note": "UploadRetryManager with exponential backoff"
     }
   ],
-  "lastAction": "DEQ-77 PR #134 created - UploadManager with progress tracking and cancellation",
+  "lastAction": "DEQ-79 PR #136 created - UploadRetryManager with exponential backoff",
   "ciHistory": [
     {
       "run": 21012326753,
