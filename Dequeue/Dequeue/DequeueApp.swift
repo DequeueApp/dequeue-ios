@@ -148,6 +148,10 @@ struct RootView: View {
                     await authService.refreshSessionIfNeeded()
 
                     if authService.isAuthenticated {
+                        // Ensure sync is connected with fresh credentials
+                        // This handles cases where WebSocket disconnected in background
+                        // or user re-authenticated without triggering onChange
+                        await ensureSyncConnected()
                         await handleAppBecameActive()
                         await notificationService.updateAppBadge()
                     }
@@ -203,6 +207,30 @@ struct RootView: View {
             ErrorReportingService.addBreadcrumb(
                 category: "sync",
                 message: "Sync disconnected"
+            )
+        }
+    }
+
+    /// Ensures sync is connected with fresh credentials.
+    /// Called when app becomes active to handle cases where:
+    /// - WebSocket disconnected while app was in background
+    /// - User re-authenticated without triggering onChange (session refresh)
+    /// - Initial connection failed and needs retry
+    private func ensureSyncConnected() async {
+        guard let userId = authService.currentUserId else { return }
+
+        do {
+            let token = try await authService.getAuthToken()
+            try await syncManager.ensureConnected(
+                userId: userId,
+                token: token,
+                getToken: { @MainActor in try await authService.getAuthToken() }
+            )
+        } catch {
+            // Log but don't show error - this is a background recovery attempt
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "sync_ensure_connected"]
             )
         }
     }

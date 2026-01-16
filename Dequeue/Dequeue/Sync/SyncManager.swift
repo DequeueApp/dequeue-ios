@@ -206,6 +206,12 @@ actor SyncManager {
     // MARK: - Connection
 
     func connect(userId: String, token: String, getToken: @escaping @Sendable () async throws -> String) async throws {
+        // Disconnect any existing connection first to ensure clean state
+        if isConnected || webSocketTask != nil {
+            os_log("[Sync] Disconnecting existing connection before reconnecting")
+            disconnectInternal()
+        }
+
         self.userId = userId
         self.token = token
         self.getTokenFunction = getToken
@@ -216,7 +222,50 @@ actor SyncManager {
         startPeriodicSync()
     }
 
+    /// Ensures sync is connected with fresh credentials.
+    /// Call this when app becomes active or after re-authentication to ensure sync is working.
+    /// Unlike `connect()`, this is safe to call repeatedly - it's a no-op if already connected.
+    func ensureConnected(
+        userId: String,
+        token: String,
+        getToken: @escaping @Sendable () async throws -> String
+    ) async throws {
+        // Always update credentials even if we think we're connected,
+        // because the token might have been refreshed
+        self.userId = userId
+        self.token = token
+        self.getTokenFunction = getToken
+
+        // If already connected with working WebSocket, just update credentials and return
+        if isConnected && webSocketTask != nil {
+            os_log("[Sync] Already connected, credentials updated")
+            return
+        }
+
+        os_log("[Sync] Not connected, establishing connection")
+        // Cache deviceId at connection time to avoid actor hops during push
+        self.deviceId = await DeviceService.shared.getDeviceId()
+
+        try await connectWebSocket()
+        startPeriodicSync()
+    }
+
+    /// Returns true if sync appears to be in a healthy connected state
+    var isHealthyConnection: Bool {
+        isConnected && webSocketTask != nil && getTokenFunction != nil
+    }
+
     func disconnect() {
+        disconnectInternal()
+        // Clear credentials on explicit disconnect (logout)
+        token = nil
+        userId = nil
+        getTokenFunction = nil
+    }
+
+    /// Internal disconnect that cleans up connection state but preserves credentials.
+    /// Used when reconnecting to avoid losing the ability to authenticate.
+    private func disconnectInternal() {
         periodicSyncTask?.cancel()
         periodicSyncTask = nil
         heartbeatTask?.cancel()
@@ -229,8 +278,6 @@ actor SyncManager {
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         isConnected = false
-        token = nil
-        userId = nil
         consecutiveHeartbeatFailures = 0
         lastSuccessfulHeartbeat = nil
     }
