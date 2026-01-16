@@ -28,9 +28,14 @@ extension EnvironmentValues {
 struct DequeueApp: App {
     @State private var authService = ClerkAuthService()
     @State private var attachmentSettings = AttachmentSettings()
+    @State private var consecutiveSyncFailures = 0
+    @State private var showSyncError = false
     let sharedModelContainer: ModelContainer
     let syncManager: SyncManager
     let notificationService: NotificationService
+
+    /// Threshold for showing user feedback about sync issues
+    private let syncFailureThreshold = 3
 
     init() {
         // Note: ErrorReportingService.configure() is now called asynchronously
@@ -95,7 +100,7 @@ struct DequeueApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(syncManager: syncManager)
+            RootView(syncManager: syncManager, showSyncError: $showSyncError)
                 .environment(\.authService, authService)
                 .environment(\.clerk, Clerk.shared)
                 .environment(\.syncManager, syncManager)
@@ -119,6 +124,7 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     let syncManager: SyncManager
+    @Binding var showSyncError: Bool
 
     private var notificationService: NotificationService {
         NotificationService(modelContext: modelContext)
@@ -136,6 +142,13 @@ struct RootView: View {
         }
         .animation(.easeInOut, value: authService.isLoading)
         .animation(.easeInOut, value: authService.isAuthenticated)
+        .alert("Sync Connection Issue", isPresented: $showSyncError) {
+            Button("OK") {
+                showSyncError = false
+            }
+        } message: {
+            Text("Unable to connect to sync. Your changes are saved locally and will sync when connection is restored.")
+        }
         .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
             Task {
                 await handleAuthStateChange(isAuthenticated: isAuthenticated)
@@ -248,6 +261,14 @@ struct RootView: View {
     private func ensureSyncConnected() async {
         guard let userId = authService.currentUserId else { return }
 
+        // Efficient health check: skip connection attempt if already healthy
+        if await syncManager.isHealthyConnection {
+            os_log("[Sync] Connection already healthy, skipping reconnect")
+            return
+        }
+
+        os_log("[Sync] Connection not healthy, attempting to reconnect")
+
         do {
             let token = try await authService.getAuthToken()
             try await syncManager.ensureConnected(
@@ -255,12 +276,27 @@ struct RootView: View {
                 token: token,
                 getToken: { @MainActor in try await authService.getAuthToken() }
             )
+
+            // Success: reset failure counter
+            consecutiveSyncFailures = 0
+
         } catch {
-            // Log but don't show error - this is a background recovery attempt
+            // Track consecutive failures
+            consecutiveSyncFailures += 1
+
             ErrorReportingService.capture(
                 error: error,
-                context: ["source": "sync_ensure_connected"]
+                context: [
+                    "source": "sync_ensure_connected",
+                    "consecutive_failures": consecutiveSyncFailures
+                ]
             )
+
+            // Show user feedback after threshold
+            if consecutiveSyncFailures >= syncFailureThreshold {
+                os_log("[Sync] Consecutive failure threshold reached (\(consecutiveSyncFailures))")
+                showSyncError = true
+            }
         }
     }
 

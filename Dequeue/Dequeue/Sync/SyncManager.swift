@@ -31,6 +31,7 @@ actor SyncManager {
     private var userId: String?
     private var deviceId: String?  // Cached at connection time to avoid actor hops
     private var isConnected = false
+    private var isConnecting = false  // Guard against concurrent connection attempts
     private var reconnectAttempts = 0
     private let maxReconnectAttempts = 10
     private let baseReconnectDelay: TimeInterval = 1.0
@@ -236,13 +237,22 @@ actor SyncManager {
         self.token = token
         self.getTokenFunction = getToken
 
-        // If already connected with working WebSocket, just update credentials and return
-        if isConnected && webSocketTask != nil {
-            os_log("[Sync] Already connected, credentials updated")
+        // Guard against concurrent connection attempts
+        guard !isConnecting else {
+            os_log("[Sync] Connection already in progress, skipping")
+            return
+        }
+
+        // If already in healthy connected state, just update credentials and return
+        if isHealthyConnection {
+            os_log("[Sync] Already connected with healthy connection, credentials updated")
             return
         }
 
         os_log("[Sync] Not connected, establishing connection")
+        isConnecting = true
+        defer { isConnecting = false }
+
         // Cache deviceId at connection time to avoid actor hops during push
         self.deviceId = await DeviceService.shared.getDeviceId()
 
