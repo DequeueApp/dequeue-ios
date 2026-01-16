@@ -10,30 +10,56 @@
 import Foundation
 import SwiftData
 
+// MARK: - Thread-Safe Pending Tag Associations
+
+/// Actor to safely manage pending tag-to-stack associations across concurrent sync operations.
+/// Handles race condition where stack.updated arrives before tag.created.
+actor PendingTagAssociationsActor {
+    /// Stores pending tag-to-stack associations
+    /// Key: tagId that hasn't been created yet
+    /// Value: Set of stackIds waiting for that tag
+    private var associations: [String: Set<String>] = [:]
+
+    /// Adds a pending association between a tag and a stack
+    func addPending(tagId: String, stackId: String) {
+        associations[tagId, default: []].insert(stackId)
+    }
+
+    /// Resolves pending associations for a tag and returns the stack IDs
+    /// Removes the tag from pending after resolution
+    func resolvePending(tagId: String) -> Set<String> {
+        defer { associations.removeValue(forKey: tagId) }
+        return associations[tagId] ?? []
+    }
+
+    /// Clears all pending associations
+    func clear() {
+        associations.removeAll()
+    }
+}
+
 // swiftlint:disable:next type_body_length
 enum ProjectorService {
     // MARK: - Pending Tag Associations
 
-    /// Stores pending tag-to-stack associations when stack.updated arrives before tag.created.
-    /// Key: tagId that hasn't been created yet
-    /// Value: Set of stackIds waiting for that tag
-    private static var pendingTagAssociations: [String: Set<String>] = [:]
+    /// Thread-safe actor for managing pending tag associations
+    private static let pendingTagAssociations = PendingTagAssociationsActor()
 
     /// Clears all pending tag associations. Call at the start of a full sync to reset state.
-    static func clearPendingTagAssociations() {
-        pendingTagAssociations.removeAll()
+    static func clearPendingTagAssociations() async {
+        await pendingTagAssociations.clear()
     }
 
     // swiftlint:disable:next cyclomatic_complexity function_body_length
-    static func apply(event: Event, context: ModelContext) throws {
+    static func apply(event: Event, context: ModelContext) async throws {
         guard let eventType = event.eventType else { return }
 
         switch eventType {
         // Stack events
         case .stackCreated:
-            try applyStackCreated(event: event, context: context)
+            try await applyStackCreated(event: event, context: context)
         case .stackUpdated:
-            try applyStackUpdated(event: event, context: context)
+            try await applyStackUpdated(event: event, context: context)
         case .stackDeleted:
             try applyStackDeleted(event: event, context: context)
         case .stackDiscarded:
@@ -80,7 +106,7 @@ enum ProjectorService {
 
         // Tag events
         case .tagCreated:
-            try applyTagCreated(event: event, context: context)
+            try await applyTagCreated(event: event, context: context)
         case .tagUpdated:
             try applyTagUpdated(event: event, context: context)
         case .tagDeleted:
@@ -132,7 +158,7 @@ enum ProjectorService {
 
     // MARK: - Stack Events
 
-    private static func applyStackCreated(event: Event, context: ModelContext) throws {
+    private static func applyStackCreated(event: Event, context: ModelContext) async throws {
         let payload = try event.decodePayload(StackEventPayload.self)
 
         if let existing = try findStack(id: payload.id, context: context) {
@@ -145,7 +171,7 @@ enum ProjectorService {
                 conflictType: .update,
                 context: context
             ) else { return }
-            updateStack(existing, from: payload, context: context, eventTimestamp: event.timestamp)
+            await updateStack(existing, from: payload, context: context, eventTimestamp: event.timestamp)
         } else {
             let stack = Stack(
                 id: payload.id,
@@ -164,11 +190,11 @@ enum ProjectorService {
             context.insert(stack)
 
             // Apply tagIds - find and link tags, with proper error handling for race conditions
-            applyTagsToStack(stack, tagIds: payload.tagIds, context: context)
+            await applyTagsToStack(stack, tagIds: payload.tagIds, context: context)
         }
     }
 
-    private static func applyStackUpdated(event: Event, context: ModelContext) throws {
+    private static func applyStackUpdated(event: Event, context: ModelContext) async throws {
         let payload = try event.decodePayload(StackEventPayload.self)
         guard let stack = try findStack(id: payload.id, context: context) else { return }
 
@@ -185,7 +211,7 @@ enum ProjectorService {
             context: context
         ) else { return }
 
-        updateStack(stack, from: payload, context: context, eventTimestamp: event.timestamp)
+        await updateStack(stack, from: payload, context: context, eventTimestamp: event.timestamp)
     }
 
     private static func applyStackDeleted(event: Event, context: ModelContext) throws {
@@ -660,7 +686,7 @@ enum ProjectorService {
 
     // MARK: - Tag Events
 
-    private static func applyTagCreated(event: Event, context: ModelContext) throws {
+    private static func applyTagCreated(event: Event, context: ModelContext) async throws {
         let payload = try event.decodePayload(TagEventPayload.self)
 
         if let existing = try findTag(id: payload.id, context: context) {
@@ -687,7 +713,8 @@ enum ProjectorService {
 
             // Resolve any pending associations for this tag
             // This handles the race condition where stack.updated arrived before tag.created
-            if let pendingStackIds = pendingTagAssociations[payload.id], !pendingStackIds.isEmpty {
+            let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: payload.id)
+            if !pendingStackIds.isEmpty {
                 for stackId in pendingStackIds {
                     if let stack = try? findStack(id: stackId, context: context), !stack.isDeleted {
                         if !stack.tagObjects.contains(where: { $0.id == tag.id }) {
@@ -695,7 +722,6 @@ enum ProjectorService {
                         }
                     }
                 }
-                pendingTagAssociations.removeValue(forKey: payload.id)
             }
         }
     }
@@ -814,7 +840,7 @@ enum ProjectorService {
         from payload: StackEventPayload,
         context: ModelContext,
         eventTimestamp: Date
-    ) {
+    ) async {
         stack.title = payload.title
         stack.stackDescription = payload.description
         stack.status = payload.status
@@ -828,14 +854,14 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
 
         // Apply tagIds - find and link tags, with proper error handling for race conditions
-        applyTagsToStack(stack, tagIds: payload.tagIds, context: context)
+        await applyTagsToStack(stack, tagIds: payload.tagIds, context: context)
     }
 
     /// Applies tags to a stack with proper handling for missing tags (race condition).
     /// This handles the case where stack_updated arrives before tag_created events.
     /// - Logs warnings for missing tags
     /// - Still applies tags that ARE found (partial success)
-    private static func applyTagsToStack(_ stack: Stack, tagIds: [String], context: ModelContext) {
+    private static func applyTagsToStack(_ stack: Stack, tagIds: [String], context: ModelContext) async {
         guard !tagIds.isEmpty else {
             // Explicitly clear tags if payload has empty tagIds
             stack.tagObjects = []
@@ -877,7 +903,7 @@ enum ProjectorService {
                 // Store pending associations for resolution when the tag is created
                 // This handles the race condition where stack.updated arrives before tag.created
                 for missingId in result.missingTagIds {
-                    pendingTagAssociations[missingId, default: []].insert(stack.id)
+                    await pendingTagAssociations.addPending(tagId: missingId, stackId: stack.id)
                 }
             }
         } catch {
