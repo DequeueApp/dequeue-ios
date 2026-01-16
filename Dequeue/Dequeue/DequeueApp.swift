@@ -26,6 +26,7 @@ extension EnvironmentValues {
 @main
 struct DequeueApp: App {
     @State private var authService = ClerkAuthService()
+    @State private var attachmentSettings = AttachmentSettings()
     let sharedModelContainer: ModelContainer
     let syncManager: SyncManager
     let notificationService: NotificationService
@@ -97,6 +98,7 @@ struct DequeueApp: App {
                 .environment(\.authService, authService)
                 .environment(\.clerk, Clerk.shared)
                 .environment(\.syncManager, syncManager)
+                .environment(\.attachmentSettings, attachmentSettings)
                 .applyAppTheme()
                 .task {
                     // Configure error reporting first (runs on background thread)
