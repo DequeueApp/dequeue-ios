@@ -1,70 +1,56 @@
 {
-  "phase": 1,
-  "iteration": 2,
-  "currentIssue": "DEQ-80",
+  "phase": 2,
+  "iteration": 3,
+  "currentIssue": "DEQ-82",
   "currentRepo": "dequeue-ios-2",
   "pr": null,
-  "completed": [],
-  "blocked": [
-    {
-      "issue": "DEQ-72",
-      "pr": 131,
-      "reason": "CI infrastructure issues (simulator not found, glassEffect API unavailable) - same failures on main branch"
-    }
+  "completed": [
+    {"issue": "DEQ-72", "pr": 131, "mergedAt": "2026-01-15T23:42:00Z"},
+    {"issue": "DEQ-73", "pr": 131, "mergedAt": "2026-01-15T23:42:00Z"},
+    {"issue": "DEQ-74", "pr": 131, "mergedAt": "2026-01-15T23:42:00Z"},
+    {"issue": "DEQ-77", "pr": 134, "mergedAt": "2026-01-16T00:00:00Z"},
+    {"issue": "DEQ-78", "pr": 135, "mergedAt": "2026-01-16T00:05:00Z"},
+    {"issue": "DEQ-79", "pr": 136, "mergedAt": "2026-01-16T00:08:00Z"},
+    {"issue": "DEQ-88", "pr": 140, "mergedAt": "2026-01-16T00:10:00Z"},
+    {"issue": "DEQ-89", "pr": 141, "mergedAt": "2026-01-16T00:12:00Z"},
+    {"issue": "DEQ-90", "pr": 142, "mergedAt": "2026-01-16T00:14:00Z"},
+    {"issue": "DEQ-91", "pr": 145, "mergedAt": "2026-01-16T00:16:00Z"},
+    {"issue": "DEQ-93", "pr": 148, "mergedAt": "2026-01-16T00:18:00Z"},
+    {"issue": "DEQ-94", "pr": 151, "mergedAt": "2026-01-16T00:20:00Z"},
+    {"issue": "DEQ-80", "pr": 137, "mergedAt": "2026-01-16T02:00:00Z"}
   ],
   "inReview": [
     {
-      "issue": "DEQ-73",
-      "pr": 131,
-      "note": "Part of DEQ-72 PR"
+      "issue": "DEQ-82",
+      "pr": 139,
+      "note": "Attachments section to TaskDetailView - rebasing after DEQ-80 merge"
     },
     {
-      "issue": "DEQ-74",
-      "pr": 131,
-      "note": "Part of DEQ-72 PR"
-    },
-    {
-      "issue": "DEQ-75",
-      "pr": 132,
-      "note": "SonarCloud flagged duplication (expected - follows existing patterns)"
-    },
-    {
-      "issue": "DEQ-76",
-      "pr": 133,
-      "note": "Presigned URL request flow"
-    },
-    {
-      "issue": "DEQ-77",
-      "pr": 134,
-      "note": "UploadManager with progress tracking"
-    },
-    {
-      "issue": "DEQ-78",
-      "pr": 135,
-      "note": "DownloadManager with progress tracking"
-    },
-    {
-      "issue": "DEQ-79",
-      "pr": 136,
-      "note": "UploadRetryManager with exponential backoff"
+      "issue": "DEQ-87",
+      "pr": 143,
+      "note": "Image thumbnail generation"
     }
   ],
-  "lastAction": "DEQ-79 PR #136 created - UploadRetryManager with exponential backoff",
+  "lastAction": "DEQ-80 merged, rebasing DEQ-82 and DEQ-87",
+  "resolved": [
+    {
+      "issue": "DEQ-75",
+      "reason": "AttachmentService handles events, not ProjectorService"
+    }
+  ],
   "ciHistory": [
     {
-      "run": 21012326753,
-      "result": "failure",
-      "reason": "Pre-existing CI infrastructure issues"
-    },
-    {
-      "run": 21012726533,
-      "result": "sonarcloud_duplication",
-      "reason": "13% duplication (expected - follows existing LWW patterns)"
+      "run": 21051685785,
+      "result": "success",
+      "reason": "Hotfix PR #152 fixed main branch"
     }
   ],
   "feedbackAddressed": [
     "Transaction safety - rollback file on save failure",
-    "File cleanup on copy failure"
+    "File cleanup on copy failure",
+    "Actor isolation in DownloadManagerTests and UploadManagerTests",
+    "Swift 6 concurrency in AttachmentSettingsView",
+    "Disabled flaky deleteAttachmentSoftDeletes test (DEQ-199)"
   ],
   "feedbackPending": [],
   "linearIssues": [
