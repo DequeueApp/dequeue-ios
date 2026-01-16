@@ -14,6 +14,26 @@ import Network
 @MainActor
 struct CellularUploadCoordinatorTests {
 
+    // MARK: - Helper Functions
+
+    /// Poll for a condition with timeout to avoid race conditions
+    private func waitFor(
+        timeout: Duration = .seconds(1),
+        condition: @escaping () -> Bool
+    ) async throws {
+        let start = ContinuousClock.now
+        while !condition() {
+            if ContinuousClock.now - start > timeout {
+                throw TestError.timeout
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    private enum TestError: Error {
+        case timeout
+    }
+
     // MARK: - checkUpload Tests
 
     @Test("Small files proceed without warning")
@@ -75,8 +95,8 @@ struct CellularUploadCoordinatorTests {
             )
         }
 
-        // Give it a moment to set up the warning
-        try? await Task.sleep(for: .milliseconds(50))
+        // Wait for warning state to be set (poll with timeout to avoid race conditions)
+        try await waitFor { coordinator.showWarning }
 
         // Verify warning is shown
         #expect(coordinator.showWarning)
@@ -102,7 +122,8 @@ struct CellularUploadCoordinatorTests {
             )
         }
 
-        try? await Task.sleep(for: .milliseconds(50))
+        // Wait for warning state to be set (poll with timeout to avoid race conditions)
+        try await waitFor { coordinator.showWarning }
 
         coordinator.handleDecision(.proceed)
         let decision = await checkTask.value
@@ -123,7 +144,8 @@ struct CellularUploadCoordinatorTests {
             )
         }
 
-        try? await Task.sleep(for: .milliseconds(50))
+        // Wait for warning state to be set (poll with timeout to avoid race conditions)
+        try await waitFor { coordinator.showWarning }
 
         coordinator.handleDecision(.cancel)
         let decision = await checkTask.value
@@ -144,7 +166,8 @@ struct CellularUploadCoordinatorTests {
             )
         }
 
-        try? await Task.sleep(for: .milliseconds(50))
+        // Wait for warning state to be set (poll with timeout to avoid race conditions)
+        try await waitFor { coordinator.showWarning }
 
         coordinator.handleDecision(.waitForWiFi)
         let decision = await checkTask.value
@@ -160,8 +183,7 @@ struct CellularUploadCoordinatorTests {
         let mockMonitor = MockNetworkMonitor(isWiFi: false, isCellular: true)
         let coordinator = CellularUploadCoordinator(networkMonitor: mockMonitor)
 
-        // swiftlint:disable:next force_unwrapping
-        let testURL = URL(string: "file:///test/file.jpg")!
+        let testURL = URL(fileURLWithPath: "/test/file.jpg")
 
         coordinator.queueForWiFi(
             id: "test-id",
@@ -180,8 +202,7 @@ struct CellularUploadCoordinatorTests {
         let mockMonitor = MockNetworkMonitor(isWiFi: false, isCellular: true)
         let coordinator = CellularUploadCoordinator(networkMonitor: mockMonitor)
 
-        // swiftlint:disable:next force_unwrapping
-        let testURL = URL(string: "file:///test/file.jpg")!
+        let testURL = URL(fileURLWithPath: "/test/file.jpg")
 
         coordinator.queueForWiFi(
             id: "test-id",
@@ -201,8 +222,7 @@ struct CellularUploadCoordinatorTests {
         let mockMonitor = MockNetworkMonitor(isWiFi: true, isCellular: false)
         let coordinator = CellularUploadCoordinator(networkMonitor: mockMonitor)
 
-        // swiftlint:disable:next force_unwrapping
-        let testURL = URL(string: "file:///test/file.jpg")!
+        let testURL = URL(fileURLWithPath: "/test/file.jpg")
 
         coordinator.queueForWiFi(
             id: "test-id",
@@ -223,8 +243,7 @@ struct CellularUploadCoordinatorTests {
         let mockMonitor = MockNetworkMonitor(isWiFi: false, isCellular: true)
         let coordinator = CellularUploadCoordinator(networkMonitor: mockMonitor)
 
-        // swiftlint:disable:next force_unwrapping
-        let testURL = URL(string: "file:///test/file.jpg")!
+        let testURL = URL(fileURLWithPath: "/test/file.jpg")
 
         coordinator.queueForWiFi(id: "id-1", filename: "test1.jpg", fileSize: 1000, fileURL: testURL)
         coordinator.queueForWiFi(id: "id-2", filename: "test2.jpg", fileSize: 2000, fileURL: testURL)
@@ -243,8 +262,7 @@ struct CellularUploadCoordinatorTests {
         let mockMonitor = MockNetworkMonitor(isWiFi: false, isCellular: true)
         let coordinator = CellularUploadCoordinator(networkMonitor: mockMonitor)
 
-        // swiftlint:disable:next force_unwrapping
-        let testURL = URL(string: "file:///test/file.jpg")!
+        let testURL = URL(fileURLWithPath: "/test/file.jpg")
 
         coordinator.queueForWiFi(id: "id-1", filename: "test1.jpg", fileSize: 1000, fileURL: testURL)
         coordinator.queueForWiFi(id: "id-2", filename: "test2.jpg", fileSize: 2000, fileURL: testURL)
@@ -273,7 +291,8 @@ struct CellularUploadCoordinatorTests {
             )
         }
 
-        try? await Task.sleep(for: .milliseconds(50))
+        // Wait for warning state to be set (poll with timeout to avoid race conditions)
+        try await waitFor { coordinator.showWarning }
 
         #expect(coordinator.showWarning)
 
