@@ -9,7 +9,7 @@ import Testing
 import Foundation
 @testable import Dequeue
 
-@Suite("AttachmentSettings Tests")
+@Suite("AttachmentSettings Tests", .serialized)
 @MainActor
 struct AttachmentSettingsTests {
 
