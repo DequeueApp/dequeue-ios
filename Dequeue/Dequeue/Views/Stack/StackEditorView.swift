@@ -85,7 +85,7 @@ struct StackEditorView: View {
     }
 
     // Edit mode state
-    @State var isEditingTitle = false
+    @State var showEditTitleAlert = false
     @State var editedTitle = ""
     @State var isEditingDescription = false
     @State var editedDescription = ""
@@ -139,6 +139,16 @@ struct StackEditorView: View {
         }
     }
 
+    /// Whether to show a custom title view with edit button (for edit mode, non-read-only)
+    private var showsCustomTitle: Bool {
+        !isCreateMode && !isReadOnly
+    }
+
+    /// The title to display in the navigation bar (empty when using custom editable title)
+    private var displayedTitle: String {
+        showsCustomTitle ? "" : navigationTitle
+    }
+
     /// Whether there's unsaved content that should prevent accidental dismissal
     private var hasUnsavedContent: Bool {
         isCreateMode && (!title.isEmpty || !stackDescription.isEmpty || draftStack != nil)
@@ -158,9 +168,9 @@ struct StackEditorView: View {
             #if os(macOS)
             .frame(minWidth: 500, minHeight: 400)
             #endif
-            .navigationTitle(navigationTitle)
+            .navigationTitle(displayedTitle)
             #if os(iOS)
-            .navigationBarTitleDisplayMode(isCreateMode ? .inline : .large)
+            .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar { toolbarContent }
             .task {
@@ -214,6 +224,18 @@ struct StackEditorView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("You have unsaved content. Would you like to save it as a draft?")
+            }
+            .alert("Edit Title", isPresented: $showEditTitleAlert) {
+                TextField("Title", text: $editedTitle)
+                Button("Save") {
+                    saveStackTitle()
+                }
+                .disabled(editedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Cancel", role: .cancel) {
+                    editedTitle = ""
+                }
+            } message: {
+                Text("Enter a new title for this stack")
             }
             .confirmationDialog("Complete Stack", isPresented: $showCompleteConfirmation, titleVisibility: .visible) {
                 Button("Complete All Tasks & Stack") { completeStack(completeAllTasks: true) }
@@ -317,12 +339,41 @@ extension StackEditorView {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Close") { dismiss() }
             }
+            // Custom title with inline edit button for editable stacks
+            if showsCustomTitle {
+                ToolbarItem(placement: .principal) {
+                    editableTitleView
+                }
+            }
             if !isReadOnly {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Complete") { handleCompleteButtonTapped() }
                         .fontWeight(.semibold)
                 }
             }
+        }
+    }
+
+    /// Custom title view with inline pencil button for editing
+    @ViewBuilder
+    private var editableTitleView: some View {
+        if case .edit(let stack) = mode {
+            Button {
+                editedTitle = stack.title
+                showEditTitleAlert = true
+            } label: {
+                HStack(spacing: 4) {
+                    Text(stack.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Image(systemName: "pencil")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Edit title: \(stack.title)")
+            .accessibilityHint("Double tap to edit the stack title")
         }
     }
 

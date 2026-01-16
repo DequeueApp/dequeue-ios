@@ -6,13 +6,15 @@
 //
 
 import SwiftUI
+import os
+
+private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView+EditMode")
 
 // MARK: - Edit Mode Content
 
 extension StackEditorView {
     var editModeContent: some View {
         List {
-            titleSection
             descriptionSection
             editModeTagsSection
             pendingTasksSection
@@ -94,63 +96,6 @@ extension StackEditorView {
         } catch {
             handleError(error)
             return nil
-        }
-    }
-
-    // MARK: - Title Section
-
-    var titleSection: some View {
-        Section {
-            titleContent
-        } header: {
-            Text("Title")
-        }
-    }
-
-    @ViewBuilder
-    var titleContent: some View {
-        if case .edit(let stack) = mode {
-            if isReadOnly {
-                Text(stack.title).foregroundStyle(.primary)
-            } else if isEditingTitle {
-                titleEditingView
-            } else {
-                titleDisplayButton(for: stack)
-            }
-        }
-    }
-
-    var titleEditingView: some View {
-        Group {
-            TextField("Title", text: $editedTitle)
-                .onSubmit { saveTitle() }
-
-            HStack {
-                Button("Cancel") {
-                    isEditingTitle = false
-                    if case .edit(let stack) = mode {
-                        editedTitle = stack.title
-                    }
-                }
-                .foregroundStyle(.secondary)
-                Spacer()
-                Button("Save") { saveTitle() }
-                    .fontWeight(.medium)
-                    .disabled(editedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-        }
-    }
-
-    func titleDisplayButton(for stack: Stack) -> some View {
-        Button {
-            editedTitle = stack.title
-            isEditingTitle = true
-        } label: {
-            HStack {
-                Text(stack.title).foregroundStyle(.primary)
-                Spacer()
-                Image(systemName: "pencil").foregroundStyle(.secondary)
-            }
         }
     }
 
@@ -394,24 +339,37 @@ extension StackEditorView {
 
     // MARK: - Edit Mode Actions
 
-    func saveTitle() {
+    func saveStackTitle() {
+        logger.info("saveStackTitle: editedTitle='\(self.editedTitle)'")
         let trimmedTitle = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return }
-        guard case .edit(let stack) = mode else { return }
+        logger.info("saveStackTitle: trimmedTitle='\(trimmedTitle)'")
+        guard !trimmedTitle.isEmpty else {
+            logger.warning("saveStackTitle: trimmedTitle is empty, returning")
+            return
+        }
+        guard case .edit(let stack) = mode else {
+            logger.warning("saveStackTitle: not in edit mode, returning")
+            return
+        }
+        logger.info("saveStackTitle: current stack.title='\(stack.title)'")
         guard let service = stackService else {
+            logger.error("saveStackTitle: stackService is nil")
             errorMessage = "Initializing... please try again."
             showError = true
             return
         }
 
         do {
+            logger.info("saveStackTitle: calling updateStack with title='\(trimmedTitle)'")
             try service.updateStack(
                 stack,
                 title: trimmedTitle,
                 description: stack.stackDescription
             )
-            isEditingTitle = false
+            logger.info("saveStackTitle: after updateStack, stack.title='\(stack.title)'")
+            editedTitle = ""
         } catch {
+            logger.error("saveStackTitle: error - \(error.localizedDescription)")
             handleError(error)
         }
     }
