@@ -326,7 +326,7 @@ struct RootView: View {
     )
     let syncManager = SyncManager(modelContainer: container)
 
-    RootView(syncManager: syncManager)
+    RootView(syncManager: syncManager, showSyncError: .constant(false))
         .environment(\.authService, mockAuth)
         .modelContainer(container)
 }
@@ -343,7 +343,7 @@ struct RootView: View {
     )
     let syncManager = SyncManager(modelContainer: container)
 
-    RootView(syncManager: syncManager)
+    RootView(syncManager: syncManager, showSyncError: .constant(false))
         .environment(\.authService, MockAuthService())
         .modelContainer(container)
 }
