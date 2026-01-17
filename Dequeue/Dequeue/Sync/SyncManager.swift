@@ -66,6 +66,27 @@ actor SyncManager {
     private let maxConsecutiveHeartbeatFailures = 3
     private var lastSuccessfulHeartbeat: Date?
 
+    // Initial sync tracking
+    private var _isInitialSyncInProgress = false
+    private var _initialSyncEventsProcessed = 0
+    private var _initialSyncTotalEvents = 0
+
+    /// Whether an initial sync is currently in progress (fresh device downloading events)
+    var isInitialSyncInProgress: Bool {
+        _isInitialSyncInProgress
+    }
+
+    /// Progress of initial sync (0.0 to 1.0), or nil if total is unknown
+    var initialSyncProgress: Double? {
+        guard _isInitialSyncInProgress, _initialSyncTotalEvents > 0 else { return nil }
+        return Double(_initialSyncEventsProcessed) / Double(_initialSyncTotalEvents)
+    }
+
+    /// Number of events processed during initial sync
+    var initialSyncEventsProcessed: Int {
+        _initialSyncEventsProcessed
+    }
+
     // Key for storing last sync checkpoint in UserDefaults
     private let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
 
@@ -201,6 +222,11 @@ actor SyncManager {
         }
         // Default to Unix epoch for initial sync (pull all events)
         return Self.iso8601Standard.string(from: Date(timeIntervalSince1970: 0))
+    }
+
+    /// Checks if this is a fresh device that needs initial sync (no checkpoint saved)
+    private func isInitialSync() -> Bool {
+        return UserDefaults.standard.string(forKey: lastSyncCheckpointKey) == nil
     }
 
     // MARK: - Connection
@@ -624,6 +650,11 @@ actor SyncManager {
 
         for eventData in events {
             try await processEvent(eventData, context: context, stats: &stats)
+
+            // Track progress during initial sync
+            if await isInitialSyncInProgress {
+                await incrementInitialSyncProgress()
+            }
         }
 
         try context.save()
@@ -633,6 +664,11 @@ actor SyncManager {
         if stats.hasReminderEvents {
             await rescheduleNotifications(context: context)
         }
+    }
+
+    /// Increments the initial sync progress counter (actor-isolated)
+    private func incrementInitialSyncProgress() {
+        _initialSyncEventsProcessed += 1
     }
 
     @MainActor
@@ -889,14 +925,33 @@ actor SyncManager {
     // MARK: - Periodic Sync
 
     private func startPeriodicSync() {
-        // Initial pull
+        // Initial pull - detect if this is a fresh device
+        let needsInitialSync = isInitialSync()
+
         Task {
             do {
-                os_log("[Sync] Starting initial pull...")
+                if needsInitialSync {
+                    os_log("[Sync] Fresh device detected - starting initial sync...")
+                    _isInitialSyncInProgress = true
+                    _initialSyncEventsProcessed = 0
+                    _initialSyncTotalEvents = 0
+                } else {
+                    os_log("[Sync] Starting incremental sync pull...")
+                }
+
                 try await pullEvents()
-                os_log("[Sync] Initial pull completed successfully")
+
+                if needsInitialSync {
+                    os_log("[Sync] Initial sync completed successfully")
+                    _isInitialSyncInProgress = false
+                } else {
+                    os_log("[Sync] Incremental pull completed successfully")
+                }
             } catch {
                 os_log("[Sync] Initial pull FAILED: \(error.localizedDescription)")
+                if needsInitialSync {
+                    _isInitialSyncInProgress = false
+                }
                 await MainActor.run {
                     ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
                 }

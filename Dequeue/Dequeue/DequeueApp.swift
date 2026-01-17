@@ -119,6 +119,8 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     let syncManager: SyncManager
 
+    @State private var syncStatusViewModel: SyncStatusViewModel?
+
     private var notificationService: NotificationService {
         NotificationService(modelContext: modelContext)
     }
@@ -128,13 +130,26 @@ struct RootView: View {
             if authService.isLoading {
                 SplashView()
             } else if authService.isAuthenticated {
-                MainTabView()
+                if let viewModel = syncStatusViewModel, viewModel.isInitialSyncInProgress {
+                    InitialSyncLoadingView(eventsProcessed: viewModel.initialSyncEventsProcessed)
+                } else {
+                    MainTabView()
+                }
             } else {
                 AuthView()
             }
         }
+        .task {
+            // Initialize sync status view model for tracking initial sync
+            if syncStatusViewModel == nil {
+                let viewModel = SyncStatusViewModel(modelContext: modelContext)
+                viewModel.setSyncManager(syncManager)
+                syncStatusViewModel = viewModel
+            }
+        }
         .animation(.easeInOut, value: authService.isLoading)
         .animation(.easeInOut, value: authService.isAuthenticated)
+        .animation(.easeInOut, value: syncStatusViewModel?.isInitialSyncInProgress)
         .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
             Task {
                 await handleAuthStateChange(isAuthenticated: isAuthenticated)
