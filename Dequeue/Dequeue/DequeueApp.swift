@@ -312,7 +312,7 @@ struct RootView: View {
     }
 }
 
-#Preview("Authenticated") {
+#Preview("Authenticated") @MainActor in {
     let mockAuth = MockAuthService()
     mockAuth.mockSignIn()
     // swiftlint:disable:next force_try
@@ -326,12 +326,12 @@ struct RootView: View {
     )
     let syncManager = SyncManager(modelContainer: container)
 
-    RootView(syncManager: syncManager, showSyncError: .constant(false))
+    return RootView(syncManager: syncManager, showSyncError: .constant(false))
         .environment(\.authService, mockAuth)
         .modelContainer(container)
 }
 
-#Preview("Unauthenticated") {
+#Preview("Unauthenticated") @MainActor in {
     // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Stack.self,
@@ -343,7 +343,7 @@ struct RootView: View {
     )
     let syncManager = SyncManager(modelContainer: container)
 
-    RootView(syncManager: syncManager, showSyncError: .constant(false))
+    return RootView(syncManager: syncManager, showSyncError: .constant(false))
         .environment(\.authService, MockAuthService())
         .modelContainer(container)
 }
