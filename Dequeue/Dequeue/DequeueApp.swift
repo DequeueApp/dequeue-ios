@@ -126,6 +126,9 @@ struct RootView: View {
     let syncManager: SyncManager
     @Binding var showSyncError: Bool
 
+    @State private var consecutiveSyncFailures = 0
+    private let syncFailureThreshold = 3
+
     private var notificationService: NotificationService {
         NotificationService(modelContext: modelContext)
     }
