@@ -312,7 +312,7 @@ struct RootView: View {
     }
 }
 
-#Preview("Authenticated") @MainActor in {
+#Preview("Authenticated") {
     let mockAuth = MockAuthService()
     mockAuth.mockSignIn()
     // swiftlint:disable:next force_try
@@ -331,7 +331,7 @@ struct RootView: View {
         .modelContainer(container)
 }
 
-#Preview("Unauthenticated") @MainActor in {
+#Preview("Unauthenticated") {
     // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Stack.self,
