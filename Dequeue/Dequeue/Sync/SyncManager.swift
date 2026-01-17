@@ -371,6 +371,9 @@ actor SyncManager {
 
     // swiftlint:disable:next function_body_length
     func pushEvents() async throws {
+        let startTime = Date()
+        let syncId = String(UUID().uuidString.prefix(8))
+
         guard let token = try await refreshToken() else {
             throw SyncError.notAuthenticated
         }
@@ -394,6 +397,8 @@ actor SyncManager {
         }
 
         guard !pendingEventData.isEmpty else { return }
+
+        os_log("[Sync] Push started: syncId=\(syncId), events=\(pendingEventData.count)")
 
         // Use cached deviceId (falls back to fetching if not cached, e.g., during reconnect)
         let eventDeviceId: String
@@ -464,24 +469,62 @@ actor SyncManager {
             throw SyncError.pushFailed
         }
 
-        if httpResponse.statusCode == 401 {
-            // Token expired, try to refresh and retry
-            guard let newToken = try await refreshToken() else {
-                throw SyncError.notAuthenticated
-            }
-            request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-            let (retryData, retryResponse) = try await session.data(for: request)
+        do {
+            if httpResponse.statusCode == 401 {
+                // Token expired, try to refresh and retry
+                guard let newToken = try await refreshToken() else {
+                    throw SyncError.notAuthenticated
+                }
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                let (retryData, retryResponse) = try await session.data(for: request)
 
-            guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
-                  retryHttpResponse.statusCode == 200 else {
+                guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
+                      retryHttpResponse.statusCode == 200 else {
+                    throw SyncError.pushFailed
+                }
+
+                try await processPushResponse(retryData, eventIds: pendingEventData.map { $0.id })
+            } else if httpResponse.statusCode == 200 {
+                try await processPushResponse(data, eventIds: pendingEventData.map { $0.id })
+            } else {
+                // Log the HTTP error
+                await MainActor.run {
+                    ErrorReportingService.logAPIResponse(
+                        endpoint: "/sync/push",
+                        statusCode: httpResponse.statusCode,
+                        responseSize: data.count,
+                        error: String(data: data, encoding: .utf8)
+                    )
+                }
                 throw SyncError.pushFailed
             }
 
-            try await processPushResponse(retryData, eventIds: pendingEventData.map { $0.id })
-        } else if httpResponse.statusCode == 200 {
-            try await processPushResponse(data, eventIds: pendingEventData.map { $0.id })
-        } else {
-            throw SyncError.pushFailed
+            // Log successful push
+            let duration = Date().timeIntervalSince(startTime)
+            os_log("[Sync] Push completed: syncId=\(syncId), duration=\(String(format: "%.2f", duration))s")
+            await MainActor.run {
+                ErrorReportingService.logSyncComplete(
+                    syncId: syncId,
+                    duration: duration,
+                    itemsUploaded: pendingEventData.count,
+                    itemsDownloaded: 0
+                )
+            }
+        } catch {
+            // Classify the failure
+            let duration = Date().timeIntervalSince(startTime)
+            let failureReason = await NetworkReachability.classifyFailure(error: error)
+
+            await MainActor.run {
+                ErrorReportingService.logSyncFailure(
+                    syncId: syncId,
+                    duration: duration,
+                    error: error,
+                    failureReason: failureReason.description,
+                    internetReachable: failureReason.isServerProblem
+                )
+            }
+            throw error
         }
     }
 
@@ -547,13 +590,16 @@ actor SyncManager {
     // MARK: - Pull Events
 
     func pullEvents() async throws {
+        let startTime = Date()
+        let syncId = String(UUID().uuidString.prefix(8))
+
         guard let token = try await refreshToken() else {
             os_log("[Sync] Pull failed: Not authenticated")
             throw SyncError.notAuthenticated
         }
 
         let since = await getLastSyncTimestamp()
-        os_log("[Sync] Pulling events since: \(since)")
+        os_log("[Sync] Pull started: syncId=\(syncId), since=\(since)")
 
         let pullURL = await MainActor.run { Configuration.syncAPIBaseURL.appendingPathComponent("sync/pull") }
         os_log("[Sync] Pull URL: \(pullURL.absoluteString)")
@@ -573,35 +619,77 @@ actor SyncManager {
 
         os_log("[Sync] Pull response status: \(httpResponse.statusCode)")
 
-        if httpResponse.statusCode == 401 {
-            os_log("[Sync] Token expired, refreshing...")
-            guard let newToken = try await refreshToken() else {
-                os_log("[Sync] Token refresh failed")
-                throw SyncError.notAuthenticated
-            }
-            request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-            let (retryData, retryResponse) = try await session.data(for: request)
+        do {
+            var pullData: Data
+            if httpResponse.statusCode == 401 {
+                os_log("[Sync] Token expired, refreshing...")
+                guard let newToken = try await refreshToken() else {
+                    os_log("[Sync] Token refresh failed")
+                    throw SyncError.notAuthenticated
+                }
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                let (retryData, retryResponse) = try await session.data(for: request)
 
-            guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
-                  retryHttpResponse.statusCode == 200 else {
-                os_log("[Sync] Retry failed with status: \((retryResponse as? HTTPURLResponse)?.statusCode ?? -1)")
+                guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
+                      retryHttpResponse.statusCode == 200 else {
+                    os_log("[Sync] Retry failed with status: \((retryResponse as? HTTPURLResponse)?.statusCode ?? -1)")
+                    throw SyncError.pullFailed
+                }
+
+                pullData = retryData
+            } else if httpResponse.statusCode == 200 {
+                pullData = data
+            } else {
+                // Log the response body for debugging
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    os_log("[Sync] Pull failed with status \(httpResponse.statusCode): \(responseBody)")
+                }
+                await MainActor.run {
+                    ErrorReportingService.logAPIResponse(
+                        endpoint: "/sync/pull",
+                        statusCode: httpResponse.statusCode,
+                        responseSize: data.count,
+                        error: String(data: data, encoding: .utf8)
+                    )
+                }
                 throw SyncError.pullFailed
             }
 
-            try await processPullResponse(retryData)
-        } else if httpResponse.statusCode == 200 {
-            try await processPullResponse(data)
-        } else {
-            // Log the response body for debugging
-            if let responseBody = String(data: data, encoding: .utf8) {
-                os_log("[Sync] Pull failed with status \(httpResponse.statusCode): \(responseBody)")
+            let eventsDownloaded = try await processPullResponse(pullData)
+
+            // Log successful pull
+            let duration = Date().timeIntervalSince(startTime)
+            os_log("[Sync] Pull completed: syncId=\(syncId), duration=\(String(format: "%.2f", duration))s, events=\(eventsDownloaded)")
+            await MainActor.run {
+                ErrorReportingService.logSyncComplete(
+                    syncId: syncId,
+                    duration: duration,
+                    itemsUploaded: 0,
+                    itemsDownloaded: eventsDownloaded
+                )
             }
-            throw SyncError.pullFailed
+        } catch {
+            // Classify the failure
+            let duration = Date().timeIntervalSince(startTime)
+            let failureReason = await NetworkReachability.classifyFailure(error: error)
+
+            await MainActor.run {
+                ErrorReportingService.logSyncFailure(
+                    syncId: syncId,
+                    duration: duration,
+                    error: error,
+                    failureReason: failureReason.description,
+                    internetReachable: failureReason.isServerProblem
+                )
+            }
+            throw error
         }
     }
 
+    /// Process the pull response and return the number of events downloaded
     // swiftlint:disable:next function_body_length
-    private func processPullResponse(_ data: Data) async throws {
+    @discardableResult
+    private func processPullResponse(_ data: Data) async throws -> Int {
         // Log raw response for debugging
         if let rawResponse = String(data: data, encoding: .utf8) {
             let preview = String(rawResponse.prefix(500))
@@ -610,7 +698,7 @@ actor SyncManager {
 
         guard let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             os_log("[Sync] Failed to parse pull response as JSON")
-            return
+            return 0
         }
 
         // Handle events being null or missing - treat as empty array
@@ -623,7 +711,7 @@ actor SyncManager {
             events = []
         } else {
             os_log("[Sync] Response 'events' has unexpected type. Keys: \(response.keys.joined(separator: ", "))")
-            return
+            return 0
         }
 
         let nextCheckpoint = response["nextCheckpoint"] as? String
@@ -687,6 +775,8 @@ actor SyncManager {
                 data: ["total": totalCount, "processed": processedCount]
             )
         }
+
+        return processedCount
     }
 
     private func getLastSyncTimestamp() async -> String {

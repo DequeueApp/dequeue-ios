@@ -32,6 +32,14 @@ enum Configuration {
         return "https://ac1d2ecd30098c9cc51d2148c9013cd0@o287313.ingest.us.sentry.io/4510574643773440"
     }()
 
+    /// Distributed tracing targets - only send trace headers to our own backend
+    /// This enables connecting mobile traces to backend traces in Sentry
+    static let tracePropagationTargets: [String] = [
+        "sync.ardonos.com",
+        "localhost",
+        "127.0.0.1"
+    ]
+
     // MARK: - Sync Backend
 
     // App ID for the sync service
