@@ -279,7 +279,6 @@ struct RootView: View {
 
             // Success: reset failure counter
             consecutiveSyncFailures = 0
-
         } catch {
             // Track consecutive failures
             consecutiveSyncFailures += 1
