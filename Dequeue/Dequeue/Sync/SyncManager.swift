@@ -1153,7 +1153,9 @@ actor SyncManager {
                     os_log("[Sync] Fallback pull (safety net, every \(self.fallbackPullIntervalMinutes) minutes)")
                     try await self.pullEvents()
                 } catch {
-                    ErrorReportingService.capture(error: error, context: ["source": "fallback_pull"])
+                    await MainActor.run {
+                        ErrorReportingService.capture(error: error, context: ["source": "fallback_pull"])
+                    }
                 }
             }
         }
