@@ -36,9 +36,14 @@ actor SyncManager {
     private let maxReconnectAttempts = 10
     private let baseReconnectDelay: TimeInterval = 1.0
 
-    /// Fallback sync interval when immediate push is unavailable or fails.
-    /// Immediate push after each save handles the common case; this is a safety net.
-    private let periodicSyncIntervalSeconds: UInt64 = 5
+    /// Push interval for pending events. This is a fallback - immediate push after each
+    /// save handles the common case, but this catches any events that slip through.
+    private let periodicPushIntervalSeconds: UInt64 = 5
+
+    /// Fallback pull interval when WebSocket is healthy. This is a safety net for edge cases
+    /// where WebSocket might miss an event. Normal operation relies on WebSocket for real-time
+    /// updates - this is NOT the primary sync mechanism.
+    private let fallbackPullIntervalMinutes: UInt64 = 5
 
     /// Heartbeat interval for WebSocket keep-alive
     private let heartbeatIntervalSeconds: UInt64 = 30
@@ -51,7 +56,8 @@ actor SyncManager {
     /// See DequeueApp.swift:178 for usage example with @MainActor closure.
     private var getTokenFunction: (@Sendable () async throws -> String)?
 
-    private var periodicSyncTask: Task<Void, Never>?
+    private var periodicPushTask: Task<Void, Never>?
+    private var fallbackPullTask: Task<Void, Never>?
     private var heartbeatTask: Task<Void, Never>?
     private var listenTask: Task<Void, Never>?
     private var networkMonitorTask: Task<Void, Never>?
@@ -252,7 +258,7 @@ actor SyncManager {
         self.deviceId = await DeviceService.shared.getDeviceId()
 
         try await connectWebSocket()
-        startPeriodicSync()
+        startSyncTasks()
     }
 
     /// Ensures sync is connected with fresh credentials.
@@ -292,7 +298,7 @@ actor SyncManager {
         self.deviceId = await DeviceService.shared.getDeviceId()
 
         try await connectWebSocket()
-        startPeriodicSync()
+        startSyncTasks()
     }
 
     /// Returns true if sync appears to be in a healthy connected state
@@ -311,8 +317,10 @@ actor SyncManager {
     /// Internal disconnect that cleans up connection state but preserves credentials.
     /// Used when reconnecting to avoid losing the ability to authenticate.
     private func disconnectInternal() {
-        periodicSyncTask?.cancel()
-        periodicSyncTask = nil
+        periodicPushTask?.cancel()
+        periodicPushTask = nil
+        fallbackPullTask?.cancel()
+        fallbackPullTask = nil
         heartbeatTask?.cancel()
         heartbeatTask = nil
         listenTask?.cancel()
@@ -1009,6 +1017,10 @@ actor SyncManager {
 
         do {
             try await connectWebSocket()
+            // Restart sync tasks after successful reconnection
+            // This does an immediate pull to catch any events missed during disconnect
+            startSyncTasks()
+            os_log("[Sync] Reconnected successfully, sync tasks restarted")
         } catch {
             await handleDisconnect()
         }
@@ -1065,9 +1077,13 @@ actor SyncManager {
         lastSuccessfulHeartbeat = Date()
     }
 
-    // MARK: - Periodic Sync
+    // MARK: - Sync Tasks
 
-    private func startPeriodicSync() {
+    /// Starts all sync-related background tasks:
+    /// - Initial pull (one-time on connect)
+    /// - Periodic push task (every 5 seconds for pending events)
+    /// - Fallback pull task (every 5 minutes as safety net - WebSocket is primary)
+    private func startSyncTasks() {
         // Initial pull - detect if this is a fresh device
         let needsInitialSync = isInitialSync()
 
@@ -1099,19 +1115,40 @@ actor SyncManager {
             }
         }
 
-        periodicSyncTask = Task { [weak self] in
+        // Periodic push task - pushes any pending events that weren't pushed immediately.
+        // This is a fallback for edge cases; immediate push after save is the common path.
+        // Does NOT pull - WebSocket handles incoming events in real-time.
+        periodicPushTask = Task { [weak self] in
             while let self = self, await self.isConnected {
-                // Periodic sync as a fallback - immediate push is triggered by services
-                // after each save operation, so this mainly catches edge cases
-                try? await Task.sleep(for: .seconds(self.periodicSyncIntervalSeconds))
+                try? await Task.sleep(for: .seconds(self.periodicPushIntervalSeconds))
 
                 guard await self.isConnected else { break }
 
                 do {
                     try await self.pushEvents()
+                } catch {
+                    await MainActor.run {
+                        ErrorReportingService.capture(error: error, context: ["source": "periodic_push"])
+                    }
+                }
+            }
+        }
+
+        // Fallback pull task - rare safety net for edge cases where WebSocket might miss events.
+        // WebSocket is the primary mechanism for receiving events from other devices.
+        // This runs every 5 minutes, NOT every few seconds, to avoid wasting resources.
+        fallbackPullTask = Task { [weak self] in
+            while let self = self, await self.isConnected {
+                // Wait 5 minutes before first fallback pull (initial pull already happened)
+                try? await Task.sleep(for: .seconds(self.fallbackPullIntervalMinutes * 60))
+
+                guard await self.isConnected else { break }
+
+                do {
+                    os_log("[Sync] Fallback pull (safety net, every \(self.fallbackPullIntervalMinutes) minutes)")
                     try await self.pullEvents()
                 } catch {
-                    await ErrorReportingService.capture(error: error, context: ["source": "periodic_sync"])
+                    ErrorReportingService.capture(error: error, context: ["source": "fallback_pull"])
                 }
             }
         }
