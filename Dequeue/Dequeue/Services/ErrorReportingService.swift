@@ -46,7 +46,8 @@ enum ErrorReportingService {
     private static let appLogCategory = "app.log"
 
     /// Truncates a string to the maximum error message length, adding a truncation indicator if needed
-    private static func truncateErrorMessage(_ message: String) -> String {
+    /// Internal access for use in extension files
+    static func truncateErrorMessage(_ message: String) -> String {
         guard message.count > maxErrorMessageLength else { return message }
         let truncatedLength = maxErrorMessageLength - truncationIndicator.count
         return String(message.prefix(truncatedLength)) + truncationIndicator
@@ -320,6 +321,39 @@ enum ErrorReportingService {
 
     // MARK: - Private Logging Implementation
 
+    /// Converts SentryLevel to a human-readable string for console output
+    private static func levelString(for level: SentryLevel) -> String {
+        switch level {
+        case .debug: return "DEBUG"
+        case .info: return "INFO"
+        case .warning: return "WARNING"
+        case .error: return "ERROR"
+        case .fatal: return "FATAL"
+        @unknown default: return "LOG"
+        }
+    }
+
+    /// Sends a log message to the appropriate Sentry logger method based on level
+    private static func sendToSentryLogger(_ message: String, level: SentryLevel, attributes: [String: String]) {
+        let logger = SentrySDK.logger
+        switch level {
+        case .debug: logger.debug(message, attributes: attributes)
+        case .info: logger.info(message, attributes: attributes)
+        case .warning: logger.warn(message, attributes: attributes)
+        case .error: logger.error(message, attributes: attributes)
+        case .fatal: logger.fatal(message, attributes: attributes)
+        @unknown default: logger.info(message, attributes: attributes)
+        }
+    }
+
+    /// Outputs a debug message to console (only in DEBUG builds)
+    private static func debugConsoleOutput(_ message: String, level: SentryLevel, attributes: [String: Any]) {
+        #if DEBUG
+        let attributeString = attributes.isEmpty ? "" : " \(attributes)"
+        os_log("[%{public}@] %{public}@%{public}@", levelString(for: level), message, attributeString)
+        #endif
+    }
+
     private static func log(
         _ message: String,
         level: SentryLevel,
@@ -331,23 +365,11 @@ enum ErrorReportingService {
         // Skip Sentry logging if not configured (e.g., test/CI environments)
         // Still output to console in debug builds for local development
         guard isConfigured else {
-            #if DEBUG
-            let levelString: String
-            switch level {
-            case .debug: levelString = "DEBUG"
-            case .info: levelString = "INFO"
-            case .warning: levelString = "WARNING"
-            case .error: levelString = "ERROR"
-            case .fatal: levelString = "FATAL"
-            default: levelString = "LOG"
-            }
-            let attributeString = attributes.isEmpty ? "" : " \(attributes)"
-            os_log("[%{public}@] %{public}@%{public}@ (Sentry not configured)", levelString, message, attributeString)
-            #endif
+            debugConsoleOutput(message, level: level, attributes: attributes)
             return
         }
 
-        // Build enriched attributes
+        // Build enriched attributes with source location and metadata
         var enrichedAttributes = attributes
         enrichedAttributes["file"] = URL(fileURLWithPath: file).lastPathComponent
         enrichedAttributes["function"] = function
@@ -355,25 +377,9 @@ enum ErrorReportingService {
         enrichedAttributes["device"] = deviceIdentifier
         enrichedAttributes["timestamp"] = ISO8601DateFormatter().string(from: Date())
 
-        // Convert to string values for Sentry
+        // Convert to string values for Sentry and send to structured logger
         let stringAttributes = enrichedAttributes.mapValues { "\($0)" }
-
-        // Send to Sentry's structured logger (9.x+ API)
-        let logger = SentrySDK.logger
-        switch level {
-        case .debug:
-            logger.debug(message, attributes: stringAttributes)
-        case .info:
-            logger.info(message, attributes: stringAttributes)
-        case .warning:
-            logger.warn(message, attributes: stringAttributes)
-        case .error:
-            logger.error(message, attributes: stringAttributes)
-        case .fatal:
-            logger.fatal(message, attributes: stringAttributes)
-        @unknown default:
-            logger.info(message, attributes: stringAttributes)
-        }
+        sendToSentryLogger(message, level: level, attributes: stringAttributes)
 
         // Also add as breadcrumb for correlation with crashes
         let breadcrumb = Breadcrumb()
@@ -384,19 +390,7 @@ enum ErrorReportingService {
         SentrySDK.addBreadcrumb(breadcrumb)
 
         // Console output in debug builds
-        #if DEBUG
-        let levelString: String
-        switch level {
-        case .debug: levelString = "DEBUG"
-        case .info: levelString = "INFO"
-        case .warning: levelString = "WARNING"
-        case .error: levelString = "ERROR"
-        case .fatal: levelString = "FATAL"
-        default: levelString = "LOG"
-        }
-        let attributeString = attributes.isEmpty ? "" : " \(attributes)"
-        os_log("[%{public}@] %{public}@%{public}@", levelString, message, attributeString)
-        #endif
+        debugConsoleOutput(message, level: level, attributes: attributes)
     }
 
     // MARK: - Device Identifier
@@ -421,110 +415,5 @@ enum ErrorReportingService {
         #else
         return "unknown"
         #endif
-    }
-}
-
-// MARK: - Sync-Specific Logging
-
-extension ErrorReportingService {
-    /// Log a sync operation start
-    static func logSyncStart(syncId: String, trigger: String) {
-        logInfo("Sync started", attributes: [
-            "syncId": syncId,
-            "trigger": trigger
-        ])
-    }
-
-    /// Log a sync operation completion
-    static func logSyncComplete(syncId: String, duration: TimeInterval, itemsUploaded: Int, itemsDownloaded: Int) {
-        logInfo("Sync completed", attributes: [
-            "syncId": syncId,
-            "duration": String(format: "%.2f", duration),
-            "itemsUploaded": itemsUploaded,
-            "itemsDownloaded": itemsDownloaded
-        ])
-    }
-
-    /// Log a sync failure with server issue detection
-    static func logSyncFailure(
-        syncId: String,
-        duration: TimeInterval,
-        error: Error,
-        failureReason: String,
-        internetReachable: Bool
-    ) {
-        if internetReachable {
-            // Server issue - this is critical, internet works but sync failed
-            logError("SYNC FAILED - SERVER ISSUE", attributes: [
-                "syncId": syncId,
-                "duration": String(format: "%.2f", duration),
-                "reason": failureReason,
-                "error": error.localizedDescription,
-                "internetReachable": true
-            ])
-
-            // Also capture as Sentry event for alerting
-            SentrySDK.capture(error: error) { scope in
-                scope.setTag(value: "server_issue", key: "sync_failure_type")
-                scope.setExtra(value: failureReason, key: "failure_reason")
-                scope.setExtra(value: syncId, key: "sync_id")
-            }
-        } else {
-            // Expected offline behavior - info level
-            logInfo("Sync skipped - offline", attributes: [
-                "syncId": syncId,
-                "duration": String(format: "%.2f", duration),
-                "reason": failureReason,
-                "internetReachable": false
-            ])
-        }
-    }
-
-    // MARK: - API Response Logging
-
-    /// Log an API response for observability
-    static func logAPIResponse(endpoint: String, statusCode: Int, responseSize: Int?, error: String? = nil) {
-        let attributes: [String: Any] = [
-            "endpoint": endpoint,
-            "status": statusCode,
-            "responseSize": responseSize ?? 0
-        ]
-
-        if (200...299).contains(statusCode) {
-            logDebug("API success", attributes: attributes)
-        } else if (400...499).contains(statusCode) {
-            var warningAttrs = attributes
-            if let error = error {
-                warningAttrs["error"] = truncateErrorMessage(error)
-            }
-            logWarning("API client error", attributes: warningAttrs)
-        } else if (500...599).contains(statusCode) {
-            var errorAttrs = attributes
-            if let error = error {
-                errorAttrs["error"] = truncateErrorMessage(error)
-            }
-            logError("API server error", attributes: errorAttrs)
-        }
-    }
-
-    // MARK: - App Lifecycle Logging
-
-    /// Log app launch
-    static func logAppLaunch(isWarmLaunch: Bool) {
-        logInfo("App launched", attributes: [
-            "launchType": isWarmLaunch ? "warm" : "cold"
-        ])
-    }
-
-    /// Log app entering foreground
-    static func logAppForeground() {
-        logInfo("App entered foreground")
-    }
-
-    /// Log app entering background
-    static func logAppBackground(pendingSyncItems: Int) {
-        logInfo("App entered background", attributes: [
-            "pendingSyncItems": pendingSyncItems
-        ])
     }
 }
