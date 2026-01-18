@@ -29,6 +29,7 @@ We're building a production-quality native iOS/iPadOS/macOS app together. Your r
 ## Swift & SwiftUI Rules
 
 ### FORBIDDEN - NEVER DO THESE:
+- **NO sleep loops while actionable work exists** - if a CI check failed or PR feedback exists, ACT IMMEDIATELY
 - **NO force unwrapping** (`!`) without explicit safety comment
 - **NO implicitly unwrapped optionals** unless for @IBOutlet (which we don't use)
 - **NO Any type** - use specific types or generics
@@ -264,26 +265,49 @@ struct ServiceNameTests {
 - Always rebase onto main before marking PR ready for review
 - Link PRs to their Linear issue
 
-## CI Checks
+## Bias Toward Action - CRITICAL
 
-### Act on Failures Immediately - Don't Wait!
-**NEVER wait for all CI checks to complete before acting on failures.**
+### FORBIDDEN: Sleep Loops While Actionable Work Exists
+**NEVER sit in a polling/sleep loop when there is actionable feedback available.**
 
-If there are 7 CI checks running and 1 fails while others are still in progress:
-- **Start fixing the failed check immediately** - don't sleep/poll waiting for the other 6
-- You already have actionable information - use it
-- Waiting for all checks to finish when you could be fixing known failures is wasteful
+This is a CRITICAL rule. Violating it wastes time and compute.
 
-### Iterative CI Response
-- Monitor checks as they complete, not just when all finish
-- Act on the **first failure** rather than waiting for complete results
-- If multiple checks fail, you can address them in parallel if they're independent
-- Only wait for all checks when everything is passing and you need final confirmation
+### What "Actionable" Means
+You have actionable work the moment ANY of these exist:
+- ❌ A CI check has failed (even if others are still running)
+- ❌ A PR review has comments requesting changes
+- ❌ A linter/type checker has errors
+- ❌ Tests are failing
+
+**You do NOT need to wait for:**
+- Other CI checks still in progress
+- Additional reviewers to weigh in
+- "Complete" feedback - partial feedback is enough to start
+
+### WRONG - Never Do This
+```
+# WRONG: Sleeping while actionable work exists
+while not all_checks_complete():
+    sleep(30)  # NO! If 1 of 7 checks failed, ACT ON IT NOW
+```
+
+### RIGHT - Act Immediately
+```
+# RIGHT: Act on first failure
+if any_check_failed():
+    fix_the_failure()  # Don't wait for other checks
+```
+
+### The Rule
+1. **One CI check fails while 6 are running?** → Fix it immediately
+2. **PR review has 1 critical comment?** → Address it now, don't wait for more comments
+3. **Linter failed in 5 seconds, tests still running?** → Fix lint errors now
 
 ### Why This Matters
-- CI checks have varying durations - some take seconds, others take minutes
-- A fast-failing linter check shouldn't wait for a slow integration test
-- Every minute spent sleeping on known failures is wasted time
+- A lint check that fails in 5 seconds shouldn't wait for a 10-minute integration test
+- Every 30-second sleep cycle while actionable work exists is wasted
+- Parallel work: fix known issues while other checks run
+- Only wait/poll when ALL checks are passing and you need final confirmation
 
 ## Communication Protocol
 
