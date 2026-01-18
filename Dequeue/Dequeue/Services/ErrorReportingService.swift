@@ -118,7 +118,9 @@ enum ErrorReportingService {
                     options.enableNetworkTracking = true        // HTTP request spans
                     options.enableFileIOTracing = true          // File read/write spans
                     options.enableCoreDataTracing = true        // Core Data operations
+                    #if os(iOS)
                     options.enableUserInteractionTracing = true // Taps, swipes, gestures
+                    #endif
                     options.enableSwizzling = true              // Required for automatic instrumentation
 
                     // App hang detection - detect frozen UI (main thread blocked)
@@ -140,11 +142,13 @@ enum ErrorReportingService {
                     }
 
                     // ============================================
-                    // SESSION REPLAY (video-like playback of sessions)
+                    // SESSION REPLAY (video-like playback of sessions, iOS only)
                     // ============================================
+                    #if os(iOS)
                     options.sessionReplay.sessionSampleRate = 1.0    // Record 100% of sessions
                     options.sessionReplay.onErrorSampleRate = 1.0    // Definitely record if error occurs
                     // Note: Replay auto-masks sensitive content by default
+                    #endif
 
                     // ============================================
                     // STRUCTURED LOGS (Sentry 9.x+)
@@ -170,8 +174,10 @@ enum ErrorReportingService {
                     // ============================================
                     // ATTACHMENTS & SCREENSHOTS
                     // ============================================
+                    #if os(iOS)
                     options.attachScreenshot = true             // Capture screenshot on errors
                     options.attachViewHierarchy = true          // Capture view hierarchy on errors
+                    #endif
                     options.attachStacktrace = true             // Attach stack traces to all events
 
                     // ============================================
