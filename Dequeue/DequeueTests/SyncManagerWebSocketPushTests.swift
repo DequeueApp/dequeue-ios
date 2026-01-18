@@ -85,7 +85,7 @@ struct SyncManagerWebSocketPushTests {
 
         // Should serialize without throwing
         let data = try JSONSerialization.data(withJSONObject: payload)
-        #expect(data.count > 0)
+        #expect(!data.isEmpty)
 
         // Should be deserializable
         let deserialized = try JSONSerialization.jsonObject(with: data) as? [String: Any]

@@ -233,7 +233,9 @@ struct PDFThumbnailGeneratorTests {
         UIGraphicsBeginPDFContextToData(data, pageRect, nil)
         for pageIndex in 0..<pageCount {
             UIGraphicsBeginPDFPage()
-            let context = UIGraphicsGetCurrentContext()!
+            guard let context = UIGraphicsGetCurrentContext() else {
+                fatalError("No graphics context available after UIGraphicsBeginPDFPage()")
+            }
 
             // Draw background
             context.setFillColor(UIColor.white.cgColor)
