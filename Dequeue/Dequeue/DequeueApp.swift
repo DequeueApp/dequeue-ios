@@ -392,6 +392,9 @@ struct RootView: View {
             let pendingEvents = try eventService.fetchPendingEvents()
             return pendingEvents.count
         } catch {
+            // Log error instead of silently ignoring - but don't capture to Sentry
+            // since this is a non-critical observability path during background transition
+            os_log("[App] Failed to get pending sync count: \(error.localizedDescription)")
             return 0
         }
     }

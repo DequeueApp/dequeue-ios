@@ -22,13 +22,21 @@ enum NetworkReachability {
 
     // MARK: - Constants
 
-    /// Timeout for reachability check (reduced from 5s to minimize delay on sync failures)
-    /// nonisolated(unsafe) required: accessed from Sendable closure in OSAllocatedUnfairLock.withLock
+    // Timeout for reachability check (reduced from 5s to minimize delay on sync failures)
+    // nonisolated(unsafe) required: accessed from OSAllocatedUnfairLock Sendable closure.
+    // Safe because this is an immutable constant of a Sendable type (TimeInterval/Double).
     nonisolated(unsafe) private static let reachabilityTimeout: TimeInterval = 2.0
 
-    /// How long to consider a cached reachability result valid
-    /// nonisolated(unsafe) required: accessed from Sendable closure in OSAllocatedUnfairLock.withLock
-    nonisolated(unsafe) private static let reachabilityCacheDuration: TimeInterval = 10.0
+    // How long to consider a cached "online" result valid (longer since network rarely drops suddenly)
+    // nonisolated(unsafe) required: accessed from OSAllocatedUnfairLock Sendable closure.
+    // Safe because this is an immutable constant of a Sendable type (TimeInterval/Double).
+    nonisolated(unsafe) private static let onlineCacheDuration: TimeInterval = 30.0
+
+    // How long to consider a cached "offline" result valid (shorter to detect network recovery quickly).
+    // This prevents stale offline cache from blocking reconnection when network comes back.
+    // nonisolated(unsafe) required: accessed from OSAllocatedUnfairLock Sendable closure.
+    // Safe because this is an immutable constant of a Sendable type (TimeInterval/Double).
+    nonisolated(unsafe) private static let offlineCacheDuration: TimeInterval = 3.0
 
     // MARK: - Cached State
 
@@ -49,7 +57,7 @@ enum NetworkReachability {
     /// and returns quickly. This tells us if the device has working internet
     /// connectivity independent of our backend status.
     ///
-    /// Results are cached for `reachabilityCacheDuration` to avoid blocking
+    /// Results are cached (3s for offline, 30s for online) to avoid blocking
     /// network calls when multiple failures occur in rapid succession.
     ///
     /// - Returns: `true` if internet is reachable, `false` otherwise
@@ -66,11 +74,14 @@ enum NetworkReachability {
         return isReachable
     }
 
-    /// Returns cached reachability if still valid, nil if expired or not yet set
+    /// Returns cached reachability if still valid, nil if expired or not yet set.
+    /// Uses different cache durations: shorter for offline (to detect recovery quickly),
+    /// longer for online (since connections rarely drop suddenly).
     private static func getCachedReachability() -> Bool? {
         cacheLock.withLock { state in
             let age = Date().timeIntervalSince(state.timestamp)
-            guard age < reachabilityCacheDuration else {
+            let cacheDuration = state.isReachable ? onlineCacheDuration : offlineCacheDuration
+            guard age < cacheDuration else {
                 return nil
             }
             return state.isReachable

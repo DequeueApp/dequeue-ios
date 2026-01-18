@@ -521,17 +521,20 @@ actor SyncManager {
                 itemsDownloaded: 0
             )
         } catch {
-            // Classify the failure
+            // Capture duration immediately, then log failure in background to avoid blocking
+            // The reachability check can take 2+ seconds, which would delay sync retry unnecessarily
             let duration = Date().timeIntervalSince(startTime)
-            let failureReason = await NetworkReachability.classifyFailure(error: error)
-
-            await ErrorReportingService.logSyncFailure(
-                syncId: syncId,
-                duration: duration,
-                error: error,
-                failureReason: failureReason.description,
-                internetReachable: failureReason.isServerProblem
-            )
+            let capturedError = error
+            Task.detached(priority: .utility) {
+                let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
+                await ErrorReportingService.logSyncFailure(
+                    syncId: syncId,
+                    duration: duration,
+                    error: capturedError,
+                    failureReason: failureReason.description,
+                    internetReachable: failureReason.isServerProblem
+                )
+            }
             throw error
         }
     }
@@ -677,17 +680,20 @@ actor SyncManager {
                 itemsDownloaded: eventsDownloaded
             )
         } catch {
-            // Classify the failure
+            // Capture duration immediately, then log failure in background to avoid blocking
+            // The reachability check can take 2+ seconds, which would delay sync retry unnecessarily
             let duration = Date().timeIntervalSince(startTime)
-            let failureReason = await NetworkReachability.classifyFailure(error: error)
-
-            await ErrorReportingService.logSyncFailure(
-                syncId: syncId,
-                duration: duration,
-                error: error,
-                failureReason: failureReason.description,
-                internetReachable: failureReason.isServerProblem
-            )
+            let capturedError = error
+            Task.detached(priority: .utility) {
+                let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
+                await ErrorReportingService.logSyncFailure(
+                    syncId: syncId,
+                    duration: duration,
+                    error: capturedError,
+                    failureReason: failureReason.description,
+                    internetReachable: failureReason.isServerProblem
+                )
+            }
             throw error
         }
     }
