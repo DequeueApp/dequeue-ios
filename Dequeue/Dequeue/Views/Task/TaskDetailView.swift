@@ -38,6 +38,10 @@ struct TaskDetailView: View {
     @State private var showDeleteReminderConfirmation = false
     @State private var reminderToDelete: Reminder?
 
+    // Attachment state
+    @State internal var showAttachmentPicker = false
+    @State internal var attachmentService: AttachmentService?
+
     var body: some View {
         List {
             statusSection
@@ -78,6 +82,12 @@ struct TaskDetailView: View {
                 userId: authService.currentUserId ?? "",
                 deviceId: deviceId,
                 onError: showError,
+                syncManager: syncManager
+            )
+            attachmentService = AttachmentService(
+                modelContext: modelContext,
+                userId: authService.currentUserId ?? "",
+                deviceId: deviceId,
                 syncManager: syncManager
             )
         }
@@ -154,6 +164,15 @@ struct TaskDetailView: View {
         } message: {
             Text("Are you sure you want to delete this reminder?")
         }
+        .attachmentPicker(
+            isPresented: $showAttachmentPicker,
+            allowsMultipleSelection: true,
+            onFilesSelected: handleAttachmentFilesSelected,
+            onError: { error in
+                errorMessage = error.localizedDescription
+                showError = true
+            }
+        )
     }
 
     // MARK: - Sections
@@ -551,7 +570,7 @@ struct TaskDetailView: View {
         }
     }
 
-    private func showError(_ error: Error) {
+    internal func showError(_ error: Error) {
         errorMessage = error.localizedDescription
         showError = true
         ErrorReportingService.capture(error: error, context: ["view": "TaskDetailView"])

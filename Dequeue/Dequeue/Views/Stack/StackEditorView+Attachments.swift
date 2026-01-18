@@ -54,9 +54,32 @@ extension StackEditorView {
         // For now, this is a placeholder - will be implemented with AttachmentService integration
     }
 
-    private func showFilePicker() {
-        // TODO: Show file picker (implemented in DEQ-82)
-        // This will be wired up when the file picker is implemented
+    func showFilePicker() {
+        showAttachmentPicker = true
+    }
+
+    /// Handles files selected from the attachment picker.
+    /// Creates attachment records for each selected file.
+    func handleAttachmentFilesSelected(_ urls: [URL]) {
+        guard let stack = currentStack,
+              let service = attachmentService else {
+            return
+        }
+
+        for url in urls {
+            // Security-scoped resource access is already started by DocumentPicker
+            defer { url.stopAccessingSecurityScopedResource() }
+
+            do {
+                _ = try service.createAttachment(
+                    for: stack.id,
+                    parentType: .stack,
+                    fileURL: url
+                )
+            } catch {
+                handleError(error)
+            }
+        }
     }
 }
 

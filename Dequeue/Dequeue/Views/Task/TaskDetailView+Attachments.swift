@@ -24,7 +24,7 @@ extension TaskDetailView {
 
     /// Handles the add attachment button tap.
     func handleAddAttachmentTap() {
-        // TODO: Show file picker (will be implemented in DEQ-83)
+        showAttachmentPicker = true
     }
 
     func handleAttachmentTap(_ attachment: Attachment) {
@@ -33,6 +33,29 @@ extension TaskDetailView {
 
     func handleDeleteAttachment(_ attachment: Attachment) {
         // TODO: Delete attachment (will be implemented with AttachmentService integration)
+    }
+
+    /// Handles files selected from the attachment picker.
+    /// Creates attachment records for each selected file.
+    func handleAttachmentFilesSelected(_ urls: [URL]) {
+        guard let service = attachmentService else {
+            return
+        }
+
+        for url in urls {
+            // Security-scoped resource access is already started by DocumentPicker
+            defer { url.stopAccessingSecurityScopedResource() }
+
+            do {
+                _ = try service.createAttachment(
+                    for: task.id,
+                    parentType: .task,
+                    fileURL: url
+                )
+            } catch {
+                showError(error)
+            }
+        }
     }
 }
 

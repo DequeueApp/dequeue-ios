@@ -107,6 +107,11 @@ struct StackEditorView: View {
     @State var showDeleteReminderConfirmation = false
     @State var reminderToDelete: Reminder?
 
+    // Attachment state
+    @State var showAttachmentPicker = false
+    @State var attachmentService: AttachmentService?
+    @State var attachmentError: AttachmentPickerError?
+
     // MARK: - Computed Properties
 
     /// True if we're creating a new stack OR editing a draft (both use the simple form UI)
@@ -197,6 +202,12 @@ struct StackEditorView: View {
                     syncManager: syncManager
                 )
                 tagService = TagService(
+                    modelContext: modelContext,
+                    userId: authService.currentUserId ?? "",
+                    deviceId: deviceId,
+                    syncManager: syncManager
+                )
+                attachmentService = AttachmentService(
                     modelContext: modelContext,
                     userId: authService.currentUserId ?? "",
                     deviceId: deviceId,
@@ -296,6 +307,16 @@ struct StackEditorView: View {
             } message: {
                 Text("Are you sure you want to delete this reminder?")
             }
+            .attachmentPicker(
+                isPresented: $showAttachmentPicker,
+                allowsMultipleSelection: true,
+                onFilesSelected: handleAttachmentFilesSelected,
+                onError: { error in
+                    attachmentError = error
+                    errorMessage = error.localizedDescription
+                    showError = true
+                }
+            )
             // Prevent swipe-to-dismiss when there's unsaved content
             .interactiveDismissDisabled(hasUnsavedContent)
             #if os(iOS)
