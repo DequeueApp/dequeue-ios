@@ -1079,6 +1079,35 @@ actor SyncManager {
 
     // MARK: - Sync Tasks
 
+    /// Performs the initial pull when connecting, handling both fresh device and incremental sync cases.
+    private func performInitialPull(needsInitialSync: Bool) async {
+        do {
+            if needsInitialSync {
+                os_log("[Sync] Fresh device detected - starting initial sync...")
+                _isInitialSyncInProgress = true
+                _initialSyncEventsProcessed = 0
+                _initialSyncTotalEvents = 0
+            } else {
+                os_log("[Sync] Starting incremental sync pull...")
+            }
+
+            try await pullEvents()
+
+            if needsInitialSync {
+                os_log("[Sync] Initial sync completed successfully")
+                _isInitialSyncInProgress = false
+            } else {
+                os_log("[Sync] Incremental pull completed successfully")
+            }
+        } catch {
+            os_log("[Sync] Initial pull FAILED: \(error.localizedDescription)")
+            if needsInitialSync {
+                _isInitialSyncInProgress = false
+            }
+            await ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
+        }
+    }
+
     /// Starts all sync-related background tasks:
     /// - Initial pull (one-time on connect)
     /// - Periodic push task (every 5 seconds for pending events)
@@ -1088,31 +1117,7 @@ actor SyncManager {
         let needsInitialSync = isInitialSync()
 
         Task {
-            do {
-                if needsInitialSync {
-                    os_log("[Sync] Fresh device detected - starting initial sync...")
-                    _isInitialSyncInProgress = true
-                    _initialSyncEventsProcessed = 0
-                    _initialSyncTotalEvents = 0
-                } else {
-                    os_log("[Sync] Starting incremental sync pull...")
-                }
-
-                try await pullEvents()
-
-                if needsInitialSync {
-                    os_log("[Sync] Initial sync completed successfully")
-                    _isInitialSyncInProgress = false
-                } else {
-                    os_log("[Sync] Incremental pull completed successfully")
-                }
-            } catch {
-                os_log("[Sync] Initial pull FAILED: \(error.localizedDescription)")
-                if needsInitialSync {
-                    _isInitialSyncInProgress = false
-                }
-                await ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
-            }
+            await performInitialPull(needsInitialSync: needsInitialSync)
         }
 
         // Periodic push task - pushes any pending events that weren't pushed immediately.
