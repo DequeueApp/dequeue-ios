@@ -9,6 +9,29 @@ import Foundation
 import SwiftUI
 import Clerk
 
+// MARK: - Session State Change
+
+/// Describes a change in authentication session state
+enum SessionStateChange: Sendable {
+    /// Session was restored (e.g., after network reconnection validated cached session)
+    case sessionRestored(userId: String)
+    /// Session was invalidated unexpectedly (not by user sign-out)
+    /// This can happen in multi-device scenarios when another device's action affects this session
+    case sessionInvalidated(reason: SessionInvalidationReason)
+}
+
+/// Reasons why a session might be invalidated
+enum SessionInvalidationReason: Sendable {
+    /// Session expired on server
+    case expired
+    /// Session was revoked (e.g., password change, admin action)
+    case revoked
+    /// Network error during validation
+    case networkError
+    /// Unknown reason
+    case unknown
+}
+
 // MARK: - Auth Service Protocol
 
 @MainActor
@@ -19,6 +42,8 @@ protocol AuthServiceProtocol {
     var isLoading: Bool { get }
     /// The unique identifier of the currently authenticated user, if any
     var currentUserId: String? { get }
+    /// Stream of session state changes for observing unexpected auth events
+    var sessionStateChanges: AsyncStream<SessionStateChange> { get }
 
     func configure() async
     func signOut() async throws
@@ -41,6 +66,17 @@ final class ClerkAuthService: AuthServiceProtocol {
     private(set) var isAuthenticated: Bool = false
     private(set) var isLoading: Bool = true
     private(set) var currentUserId: String?
+
+    // Session state change stream for multi-device session handling
+    private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
+
+    /// Stream of session state changes for observing unexpected auth events
+    /// Use this to react to sessions being invalidated or restored in multi-device scenarios
+    var sessionStateChanges: AsyncStream<SessionStateChange> {
+        AsyncStream { continuation in
+            self.sessionStateChangeContinuation = continuation
+        }
+    }
 
     /// Configures auth service with offline-first approach.
     ///
@@ -80,6 +116,7 @@ final class ClerkAuthService: AuthServiceProtocol {
     /// - If offline, does nothing (trusts cached session)
     /// - If online, validates session with Clerk servers
     /// - Updates auth state if session was invalidated server-side
+    /// - Emits session state changes for multi-device scenarios
     /// - Errors are logged but don't crash the app (graceful degradation)
     @MainActor
     private func refreshSessionInBackground() async {
@@ -88,11 +125,17 @@ final class ClerkAuthService: AuthServiceProtocol {
             return
         }
 
+        // Capture state before refresh to detect changes
+        let wasAuthenticated = isAuthenticated
+        let previousUserId = currentUserId
+
         // Attempt to load/refresh session from Clerk servers
         // This validates the session is still valid and refreshes tokens
+        var refreshError: Error?
         do {
             try await Clerk.shared.load()
         } catch {
+            refreshError = error
             // Log error for debugging but don't crash - degrade gracefully
             ErrorReportingService.capture(
                 error: error,
@@ -102,6 +145,33 @@ final class ClerkAuthService: AuthServiceProtocol {
 
         // Update auth state in case session was invalidated server-side
         updateAuthState()
+
+        // Detect and emit session state changes for multi-device handling
+        if wasAuthenticated && !isAuthenticated {
+            // Session was invalidated - determine reason
+            let reason: SessionInvalidationReason
+            if refreshError != nil {
+                reason = .networkError
+            } else {
+                // Session was valid locally but invalid on server
+                // This typically happens when session was revoked or expired
+                reason = .revoked
+            }
+            sessionStateChangeContinuation?.yield(.sessionInvalidated(reason: reason))
+            ErrorReportingService.addBreadcrumb(
+                category: "auth",
+                message: "Session invalidated during refresh",
+                data: ["reason": String(describing: reason), "previousUserId": previousUserId ?? "nil"]
+            )
+        } else if !wasAuthenticated && isAuthenticated, let userId = currentUserId {
+            // Session was restored (rare case - usually from Clerk SDK internal state)
+            sessionStateChangeContinuation?.yield(.sessionRestored(userId: userId))
+            ErrorReportingService.addBreadcrumb(
+                category: "auth",
+                message: "Session restored during refresh",
+                data: ["userId": userId]
+            )
+        }
     }
 
     /// Called when app becomes active to refresh session if needed.
@@ -140,6 +210,9 @@ final class ClerkAuthService: AuthServiceProtocol {
         isAuthenticated = false
         currentUserId = nil
         ErrorReportingService.clearUser()
+        // Clean up the session state change stream
+        sessionStateChangeContinuation?.finish()
+        sessionStateChangeContinuation = nil
     }
 
     @MainActor
@@ -269,6 +342,14 @@ final class MockAuthService: AuthServiceProtocol {
     var isLoading: Bool = false
     var currentUserId: String?
 
+    private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
+
+    var sessionStateChanges: AsyncStream<SessionStateChange> {
+        AsyncStream { continuation in
+            self.sessionStateChangeContinuation = continuation
+        }
+    }
+
     func configure() async {
         // No-op for mock
     }
@@ -276,6 +357,8 @@ final class MockAuthService: AuthServiceProtocol {
     func signOut() async throws {
         isAuthenticated = false
         currentUserId = nil
+        sessionStateChangeContinuation?.finish()
+        sessionStateChangeContinuation = nil
     }
 
     func getAuthToken() async throws -> String {
@@ -293,5 +376,19 @@ final class MockAuthService: AuthServiceProtocol {
     func mockSignIn(userId: String = "mock-user-id") {
         isAuthenticated = true
         currentUserId = userId
+    }
+
+    /// For testing: simulate session invalidation
+    func mockSessionInvalidated(reason: SessionInvalidationReason = .revoked) {
+        isAuthenticated = false
+        currentUserId = nil
+        sessionStateChangeContinuation?.yield(.sessionInvalidated(reason: reason))
+    }
+
+    /// For testing: simulate session restoration
+    func mockSessionRestored(userId: String = "mock-user-id") {
+        isAuthenticated = true
+        currentUserId = userId
+        sessionStateChangeContinuation?.yield(.sessionRestored(userId: userId))
     }
 }

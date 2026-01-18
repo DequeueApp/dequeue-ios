@@ -224,6 +224,34 @@ struct RootView: View {
                 await notificationService.updateAppBadge()
             }
         }
+        .task {
+            // Observe session state changes for multi-device scenarios
+            // This handles cases where session is invalidated or restored asynchronously
+            await observeSessionStateChanges()
+        }
+    }
+
+    /// Observes session state changes and handles multi-device session scenarios.
+    ///
+    /// This handles cases where:
+    /// - Session is invalidated on server (e.g., password changed on another device)
+    /// - Session is restored after temporary network issues
+    private func observeSessionStateChanges() async {
+        for await change in authService.sessionStateChanges {
+            switch change {
+            case .sessionInvalidated(let reason):
+                os_log("[Auth] Session invalidated: \(String(describing: reason))")
+                // Disconnect sync when session is unexpectedly invalidated
+                await syncManager.disconnect()
+                // Reset consecutive failures since this is an auth issue, not connectivity
+                consecutiveSyncFailures = 0
+
+            case .sessionRestored(let userId):
+                os_log("[Auth] Session restored for userId: \(userId)")
+                // Re-establish sync connection with restored session
+                await connectSyncWithRetry(userId: userId, maxRetries: 3)
+            }
+        }
     }
 
     private func handleAuthStateChange(isAuthenticated: Bool) async {

@@ -326,6 +326,9 @@ private final class DefaultAuthService: AuthServiceProtocol, @unchecked Sendable
     var isAuthenticated: Bool { false }
     var isLoading: Bool { false }
     var currentUserId: String? { nil }
+    var sessionStateChanges: AsyncStream<SessionStateChange> {
+        AsyncStream { $0.finish() }
+    }
     func configure() async {}
     func signOut() async throws {}
     func getAuthToken() async throws -> String { throw AuthError.notAuthenticated }
