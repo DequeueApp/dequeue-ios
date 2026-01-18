@@ -124,6 +124,12 @@ actor SyncManager {
     }()
     // swiftlint:enable force_try
 
+    /// Generates a short sync ID for tracking sync operations in logs.
+    /// Uses first 8 characters of a UUID for brevity while maintaining uniqueness.
+    private static func generateSyncId() -> String {
+        String(UUID().uuidString.prefix(8))
+    }
+
     /// Parses ISO8601 timestamp, handling Go's RFC3339Nano format with nanosecond precision.
     /// Go sends timestamps like "2024-01-15T10:30:45.123456789Z" but Swift's ISO8601DateFormatter
     /// only handles milliseconds (3 decimal places). We truncate to milliseconds for parsing.
@@ -371,6 +377,9 @@ actor SyncManager {
 
     // swiftlint:disable:next function_body_length
     func pushEvents() async throws {
+        let startTime = Date()
+        let syncId = Self.generateSyncId()
+
         guard let token = try await refreshToken() else {
             throw SyncError.notAuthenticated
         }
@@ -394,6 +403,8 @@ actor SyncManager {
         }
 
         guard !pendingEventData.isEmpty else { return }
+
+        os_log("[Sync] Push started: syncId=\(syncId), events=\(pendingEventData.count)")
 
         // Use cached deviceId (falls back to fetching if not cached, e.g., during reconnect)
         let eventDeviceId: String
@@ -464,24 +475,56 @@ actor SyncManager {
             throw SyncError.pushFailed
         }
 
-        if httpResponse.statusCode == 401 {
-            // Token expired, try to refresh and retry
-            guard let newToken = try await refreshToken() else {
-                throw SyncError.notAuthenticated
-            }
-            request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-            let (retryData, retryResponse) = try await session.data(for: request)
+        do {
+            if httpResponse.statusCode == 401 {
+                // Token expired, try to refresh and retry
+                guard let newToken = try await refreshToken() else {
+                    throw SyncError.notAuthenticated
+                }
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                let (retryData, retryResponse) = try await session.data(for: request)
 
-            guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
-                  retryHttpResponse.statusCode == 200 else {
+                guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
+                      retryHttpResponse.statusCode == 200 else {
+                    throw SyncError.pushFailed
+                }
+
+                try await processPushResponse(retryData, eventIds: pendingEventData.map { $0.id })
+            } else if httpResponse.statusCode == 200 {
+                try await processPushResponse(data, eventIds: pendingEventData.map { $0.id })
+            } else {
+                // Log the HTTP error
+                await ErrorReportingService.logAPIResponse(
+                    endpoint: "/sync/push",
+                    statusCode: httpResponse.statusCode,
+                    responseSize: data.count,
+                    error: String(data: data, encoding: .utf8)
+                )
                 throw SyncError.pushFailed
             }
 
-            try await processPushResponse(retryData, eventIds: pendingEventData.map { $0.id })
-        } else if httpResponse.statusCode == 200 {
-            try await processPushResponse(data, eventIds: pendingEventData.map { $0.id })
-        } else {
-            throw SyncError.pushFailed
+            // Log successful push
+            let duration = Date().timeIntervalSince(startTime)
+            os_log("[Sync] Push completed: syncId=\(syncId), duration=\(String(format: "%.2f", duration))s")
+            await ErrorReportingService.logSyncComplete(
+                syncId: syncId,
+                duration: duration,
+                itemsUploaded: pendingEventData.count,
+                itemsDownloaded: 0
+            )
+        } catch {
+            // Classify the failure
+            let duration = Date().timeIntervalSince(startTime)
+            let failureReason = await NetworkReachability.classifyFailure(error: error)
+
+            await ErrorReportingService.logSyncFailure(
+                syncId: syncId,
+                duration: duration,
+                error: error,
+                failureReason: failureReason.description,
+                internetReachable: failureReason.isServerProblem
+            )
+            throw error
         }
     }
 
@@ -546,14 +589,18 @@ actor SyncManager {
 
     // MARK: - Pull Events
 
+    // swiftlint:disable:next function_body_length
     func pullEvents() async throws {
+        let startTime = Date()
+        let syncId = Self.generateSyncId()
+
         guard let token = try await refreshToken() else {
             os_log("[Sync] Pull failed: Not authenticated")
             throw SyncError.notAuthenticated
         }
 
         let since = await getLastSyncTimestamp()
-        os_log("[Sync] Pulling events since: \(since)")
+        os_log("[Sync] Pull started: syncId=\(syncId), since=\(since)")
 
         let pullURL = await MainActor.run { Configuration.syncAPIBaseURL.appendingPathComponent("sync/pull") }
         os_log("[Sync] Pull URL: \(pullURL.absoluteString)")
@@ -573,35 +620,74 @@ actor SyncManager {
 
         os_log("[Sync] Pull response status: \(httpResponse.statusCode)")
 
-        if httpResponse.statusCode == 401 {
-            os_log("[Sync] Token expired, refreshing...")
-            guard let newToken = try await refreshToken() else {
-                os_log("[Sync] Token refresh failed")
-                throw SyncError.notAuthenticated
-            }
-            request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-            let (retryData, retryResponse) = try await session.data(for: request)
+        do {
+            var pullData: Data
+            if httpResponse.statusCode == 401 {
+                os_log("[Sync] Token expired, refreshing...")
+                guard let newToken = try await refreshToken() else {
+                    os_log("[Sync] Token refresh failed")
+                    throw SyncError.notAuthenticated
+                }
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                let (retryData, retryResponse) = try await session.data(for: request)
 
-            guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
-                  retryHttpResponse.statusCode == 200 else {
-                os_log("[Sync] Retry failed with status: \((retryResponse as? HTTPURLResponse)?.statusCode ?? -1)")
+                guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
+                      retryHttpResponse.statusCode == 200 else {
+                    os_log("[Sync] Retry failed with status: \((retryResponse as? HTTPURLResponse)?.statusCode ?? -1)")
+                    throw SyncError.pullFailed
+                }
+
+                pullData = retryData
+            } else if httpResponse.statusCode == 200 {
+                pullData = data
+            } else {
+                // Log the response body for debugging
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    os_log("[Sync] Pull failed with status \(httpResponse.statusCode): \(responseBody)")
+                }
+                await ErrorReportingService.logAPIResponse(
+                    endpoint: "/sync/pull",
+                    statusCode: httpResponse.statusCode,
+                    responseSize: data.count,
+                    error: String(data: data, encoding: .utf8)
+                )
                 throw SyncError.pullFailed
             }
 
-            try await processPullResponse(retryData)
-        } else if httpResponse.statusCode == 200 {
-            try await processPullResponse(data)
-        } else {
-            // Log the response body for debugging
-            if let responseBody = String(data: data, encoding: .utf8) {
-                os_log("[Sync] Pull failed with status \(httpResponse.statusCode): \(responseBody)")
-            }
-            throw SyncError.pullFailed
+            let eventsDownloaded = try await processPullResponse(pullData)
+
+            // Log successful pull
+            let duration = Date().timeIntervalSince(startTime)
+            let durationStr = String(format: "%.2f", duration)
+            os_log(
+                "[Sync] Pull completed: syncId=\(syncId), duration=\(durationStr)s, events=\(eventsDownloaded)"
+            )
+            await ErrorReportingService.logSyncComplete(
+                syncId: syncId,
+                duration: duration,
+                itemsUploaded: 0,
+                itemsDownloaded: eventsDownloaded
+            )
+        } catch {
+            // Classify the failure
+            let duration = Date().timeIntervalSince(startTime)
+            let failureReason = await NetworkReachability.classifyFailure(error: error)
+
+            await ErrorReportingService.logSyncFailure(
+                syncId: syncId,
+                duration: duration,
+                error: error,
+                failureReason: failureReason.description,
+                internetReachable: failureReason.isServerProblem
+            )
+            throw error
         }
     }
 
+    /// Process the pull response and return the number of events downloaded
+    @discardableResult
     // swiftlint:disable:next function_body_length
-    private func processPullResponse(_ data: Data) async throws {
+    private func processPullResponse(_ data: Data) async throws -> Int {
         // Log raw response for debugging
         if let rawResponse = String(data: data, encoding: .utf8) {
             let preview = String(rawResponse.prefix(500))
@@ -610,7 +696,7 @@ actor SyncManager {
 
         guard let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             os_log("[Sync] Failed to parse pull response as JSON")
-            return
+            return 0
         }
 
         // Handle events being null or missing - treat as empty array
@@ -623,7 +709,7 @@ actor SyncManager {
             events = []
         } else {
             os_log("[Sync] Response 'events' has unexpected type. Keys: \(response.keys.joined(separator: ", "))")
-            return
+            return 0
         }
 
         let nextCheckpoint = response["nextCheckpoint"] as? String
@@ -680,13 +766,13 @@ actor SyncManager {
             os_log("[Sync] Checkpoint updated to \(nextCheckpoint)")
         }
 
-        await MainActor.run {
-            ErrorReportingService.addBreadcrumb(
-                category: "sync",
-                message: "Pulled \(processedCount) events",
-                data: ["total": totalCount, "processed": processedCount]
-            )
-        }
+        await ErrorReportingService.addBreadcrumb(
+            category: "sync",
+            message: "Pulled \(processedCount) events",
+            data: ["total": totalCount, "processed": processedCount]
+        )
+
+        return processedCount
     }
 
     private func getLastSyncTimestamp() async -> String {
@@ -886,9 +972,7 @@ actor SyncManager {
         do {
             try await processIncomingEvents([eventData])
         } catch {
-            await MainActor.run {
-                ErrorReportingService.capture(error: error, context: ["source": "websocket_message"])
-            }
+            await ErrorReportingService.capture(error: error, context: ["source": "websocket_message"])
         }
     }
 
@@ -898,13 +982,11 @@ actor SyncManager {
         let currentAttempts = reconnectAttempts
         guard currentAttempts < maxReconnectAttempts,
               token != nil else {
-            await MainActor.run {
-                ErrorReportingService.addBreadcrumb(
-                    category: "sync",
-                    message: "Max reconnect attempts reached",
-                    data: ["attempts": currentAttempts]
-                )
-            }
+            await ErrorReportingService.addBreadcrumb(
+                category: "sync",
+                message: "Max reconnect attempts reached",
+                data: ["attempts": currentAttempts]
+            )
             return
         }
 
@@ -917,13 +999,11 @@ actor SyncManager {
         let jitter = Double.random(in: 0...jitterRange)
         let delay = (baseDelay * 0.75) + jitter
 
-        await MainActor.run {
-            ErrorReportingService.addBreadcrumb(
-                category: "sync",
-                message: "Reconnecting with backoff",
-                data: ["attempt": attemptNumber, "delay_seconds": delay]
-            )
-        }
+        await ErrorReportingService.addBreadcrumb(
+            category: "sync",
+            message: "Reconnecting with backoff",
+            data: ["attempt": attemptNumber, "delay_seconds": delay]
+        )
 
         try? await Task.sleep(for: .seconds(delay))
 
@@ -962,13 +1042,11 @@ actor SyncManager {
                     let failures = await self.recordHeartbeatFailure()
 
                     if failures >= self.maxConsecutiveHeartbeatFailures {
-                        await MainActor.run {
-                            ErrorReportingService.addBreadcrumb(
-                                category: "sync",
-                                message: "Connection health degraded",
-                                data: ["consecutive_failures": failures]
-                            )
-                        }
+                        await ErrorReportingService.addBreadcrumb(
+                            category: "sync",
+                            message: "Connection health degraded",
+                            data: ["consecutive_failures": failures]
+                        )
                         await self.handleDisconnect()
                         break
                     }
@@ -1017,9 +1095,7 @@ actor SyncManager {
                 if needsInitialSync {
                     _isInitialSyncInProgress = false
                 }
-                await MainActor.run {
-                    ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
-                }
+                await ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
             }
         }
 
@@ -1035,9 +1111,7 @@ actor SyncManager {
                     try await self.pushEvents()
                     try await self.pullEvents()
                 } catch {
-                    await MainActor.run {
-                        ErrorReportingService.capture(error: error, context: ["source": "periodic_sync"])
-                    }
+                    await ErrorReportingService.capture(error: error, context: ["source": "periodic_sync"])
                 }
             }
         }

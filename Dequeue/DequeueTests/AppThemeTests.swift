@@ -89,7 +89,10 @@ struct AppThemeTests {
     /// Creates a test-isolated UserDefaults suite to avoid state contamination between parallel tests
     private static func makeTestDefaults() -> UserDefaults {
         // Use a UUID-based suite name to ensure complete isolation between test runs
-        UserDefaults(suiteName: "AppThemeTests-\(UUID().uuidString)")!
+        guard let defaults = UserDefaults(suiteName: "AppThemeTests-\(UUID().uuidString)") else {
+            fatalError("Failed to create UserDefaults with test suite name")
+        }
+        return defaults
     }
 
     @Test("AppTheme persists to UserDefaults correctly")

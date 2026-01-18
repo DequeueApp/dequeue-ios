@@ -109,6 +109,8 @@ struct DequeueApp: App {
                 .task {
                     // Configure error reporting first (runs on background thread)
                     await ErrorReportingService.configure()
+                    // Log app launch after Sentry is configured
+                    ErrorReportingService.logAppLaunch(isWarmLaunch: false)
                     await authService.configure()
                 }
         }
@@ -185,7 +187,9 @@ struct RootView: View {
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
+            switch newPhase {
+            case .active:
+                ErrorReportingService.logAppForeground()
                 Task {
                     // Refresh auth session when app becomes active
                     // This validates the session if we're back online after being offline
@@ -200,6 +204,18 @@ struct RootView: View {
                         await notificationService.updateAppBadge()
                     }
                 }
+            case .background:
+                // Use detached task with utility priority to avoid blocking the background transition.
+                // This is fire-and-forget logging that shouldn't delay the app's transition to background.
+                Task.detached(priority: .utility) { [self] in
+                    let pendingCount = await getPendingSyncItemCount()
+                    await ErrorReportingService.logAppBackground(pendingSyncItems: pendingCount)
+                }
+            case .inactive:
+                // No logging needed for inactive state
+                break
+            @unknown default:
+                break
             }
         }
         .task {
@@ -338,6 +354,17 @@ struct RootView: View {
                 error: error,
                 context: ["source": "device_activity_update"]
             )
+        }
+    }
+
+    /// Get the count of pending sync items for observability
+    private func getPendingSyncItemCount() async -> Int {
+        do {
+            let eventService = EventService.readOnly(modelContext: modelContext)
+            let pendingEvents = try eventService.fetchPendingEvents()
+            return pendingEvents.count
+        } catch {
+            return 0
         }
     }
 }

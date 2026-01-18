@@ -1,63 +1,12 @@
 {
-  "phase": 2,
-  "iteration": 3,
-  "currentIssue": "DEQ-87",
-  "currentRepo": "dequeue-ios-2",
-  "pr": null,
-  "completed": [
-    {"issue": "DEQ-72", "pr": 131, "mergedAt": "2026-01-15T23:42:00Z"},
-    {"issue": "DEQ-73", "pr": 131, "mergedAt": "2026-01-15T23:42:00Z"},
-    {"issue": "DEQ-74", "pr": 131, "mergedAt": "2026-01-15T23:42:00Z"},
-    {"issue": "DEQ-77", "pr": 134, "mergedAt": "2026-01-16T00:00:00Z"},
-    {"issue": "DEQ-78", "pr": 135, "mergedAt": "2026-01-16T00:05:00Z"},
-    {"issue": "DEQ-79", "pr": 136, "mergedAt": "2026-01-16T00:08:00Z"},
-    {"issue": "DEQ-88", "pr": 140, "mergedAt": "2026-01-16T00:10:00Z"},
-    {"issue": "DEQ-89", "pr": 141, "mergedAt": "2026-01-16T00:12:00Z"},
-    {"issue": "DEQ-90", "pr": 142, "mergedAt": "2026-01-16T00:14:00Z"},
-    {"issue": "DEQ-91", "pr": 145, "mergedAt": "2026-01-16T00:16:00Z"},
-    {"issue": "DEQ-93", "pr": 148, "mergedAt": "2026-01-16T00:18:00Z"},
-    {"issue": "DEQ-94", "pr": 151, "mergedAt": "2026-01-16T00:20:00Z"},
-    {"issue": "DEQ-80", "pr": 137, "mergedAt": "2026-01-16T02:00:00Z"},
-    {"issue": "DEQ-82", "pr": 139, "mergedAt": "2026-01-16T01:54:59Z"}
-  ],
+  "phase": 1,
+  "iteration": 1,
+  "currentPR": null,
+  "openPRs": [161, 162, 166, 167, 168],
+  "mergedPRs": [],
   "blocked": [],
-  "inReview": [
-    {
-      "issue": "DEQ-87",
-      "pr": 143,
-      "note": "Image thumbnail generation - rebasing after DEQ-80 and DEQ-82 merge"
-    }
-  ],
-  "lastAction": "DEQ-80 and DEQ-82 merged, rebasing DEQ-87",
-  "resolved": [
-    {
-      "issue": "DEQ-75",
-      "reason": "AttachmentService handles events, not ProjectorService"
-    }
-  ],
-  "ciHistory": [
-    {
-      "run": 21051685785,
-      "result": "success",
-      "reason": "Hotfix PR #152 fixed main branch"
-    }
-  ],
-  "feedbackAddressed": [
-    "Transaction safety - rollback file on save failure",
-    "File cleanup on copy failure",
-    "Actor isolation in DownloadManagerTests and UploadManagerTests",
-    "Swift 6 concurrency in AttachmentSettingsView",
-    "Disabled flaky deleteAttachmentSoftDeletes test (DEQ-199)",
-    "Test failures fixed (pixel vs point dimensions)"
-  ],
-  "feedbackPending": [],
-  "linearIssues": [
-    "DEQ-72", "DEQ-73", "DEQ-74", "DEQ-75", "DEQ-76", "DEQ-77", "DEQ-78", "DEQ-79", "DEQ-80",
-    "DEQ-81", "DEQ-82", "DEQ-83", "DEQ-84", "DEQ-85", "DEQ-86",
-    "DEQ-87", "DEQ-88", "DEQ-89", "DEQ-90",
-    "DEQ-91", "DEQ-92", "DEQ-93", "DEQ-94", "DEQ-95",
-    "DEQ-96", "DEQ-97", "DEQ-98"
-  ],
-  "projectId": "d2308309-8070-49c7-85c4-5f5f23279fb4",
-  "projectName": "File Attachments for Stacks and Tasks"
+  "lastAction": "Initialized with 5 open PRs",
+  "ciHistory": [],
+  "feedbackAddressed": [],
+  "feedbackPending": []
 }

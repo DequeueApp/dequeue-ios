@@ -63,7 +63,7 @@ final class Stack {
 
     /// Convenience computed property for tag names
     var tagNames: [String] {
-        tagObjects.filter { !$0.isDeleted }.map { $0.name }
+        tagObjects.filter { !$0.isDeleted }.map(\.name)
     }
 
     init(
