@@ -1,20 +1,19 @@
 {
   "phase": 1,
-  "iteration": 2,
-  "currentPR": 163,
-  "openPRs": [163, 162, 161, 160, 151],
-  "mergedPRs": [],
-  "blocked": [],
-  "lastAction": "PR #163: Addressed critical code review feedback (race condition & actor isolation). CI running. PR #161: Triggered new CI run to verify SwiftLint issues.",
+  "iteration": 4,
+  "currentPR": 161,
+  "openPRs": [162, 161, 160, 151],
+  "mergedPRs": [164, 163],
+  "blocked": [
+    "PR #162: Builds stuck in GitHub Actions queue (0s elapsed, infrastructure issue)"
+  ],
+  "lastAction": "PR #162 review feedback addressed, but builds stuck in GH Actions queue. Moving to PR #161.",
   "ciHistory": [
-    {"pr": 163, "commit": "27694d8", "status": "pending", "checks": ["SwiftLint: pass", "Claude Review: pass", "Builds/Tests: pending"]},
-    {"pr": 161, "commit": "cc4c5bd", "status": "pending", "checks": ["SwiftLint: pending", "Claude Review: pending"]}
+    "PR #163: All checks passed, merged at 2026-01-18T01:16:50Z",
+    "PR #164 Run 1: All checks passed, Claude review found 5 critical issues",
+    "PR #164 Run 2: All checks passed after addressing feedback, merged at 2026-01-18T01:40:11Z",
+    "PR #162: SwiftLint/Claude/Sonar passed, builds pending in queue for 5+ minutes with 0s elapsed"
   ],
-  "feedbackAddressed": [
-    {"pr": 163, "issue": "Critical race condition in SyncStatusViewModel initialization", "fix": "Added computed properties with safe defaults"},
-    {"pr": 163, "issue": "Actor isolation performance issue in processIncomingEvents", "fix": "Capture initial sync flag once before loop"}
-  ],
-  "feedbackPending": [
-    {"pr": 162, "type": "documentation", "status": "review needed - doc-only PR with Claude feedback"}
-  ]
+  "feedbackAddressed": [],
+  "feedbackPending": []
 }

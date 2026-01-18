@@ -116,7 +116,11 @@ internal struct AppearanceSettingsView: View {
         }
         .accessibilityIdentifier(AccessibilityIdentifier.themeButton(option))
         .accessibilityLabel("\(option.displayName) theme")
-        .accessibilityHint(theme == option ? "Currently selected" : "Double tap to select \(option.displayName) theme")
+        .accessibilityHint(
+            theme == option
+                ? "Currently selected"
+                : "Double tap to select \(option.displayName) theme"
+        )
     }
 
     // MARK: - Preview Section
