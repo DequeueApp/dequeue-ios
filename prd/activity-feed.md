@@ -5,6 +5,7 @@
 **Created**: 2026-01-18
 **Last Updated**: 2026-01-18
 **Issue**: TBD (Linear)
+**iOS Requirements**: iOS 17.0+ (MVP with templates), iOS 18.4+ (on-device LLM)
 
 ---
 
@@ -134,7 +135,9 @@ final class Event {
 }
 ```
 
-#### 3.1.2 New: Daily Summary Cache (Local Only)
+#### 3.1.2 New: Daily Summary Cache (Local Only, Not Synced)
+
+**Design Decision**: ActivitySummary is device-local and regenerated on each device rather than synced. See "Summary Sync Strategy" in Key Technical Decisions below for rationale.
 
 ```swift
 @Model
@@ -149,6 +152,9 @@ final class ActivitySummary {
     var generatedAt: Date                 // When summary was generated
     var modelVersion: String              // LLM model version for cache invalidation
     var isStale: Bool                     // True if new events added after generation
+
+    // NOT included: No relationship to Event entities (cache is ephemeral)
+    // NOT included: No sync fields (local cache only, not synced)
 }
 
 enum SummaryType: String, Codable {
@@ -159,17 +165,26 @@ enum SummaryType: String, Codable {
 
 #### 3.1.3 Event Types for Activity Feed
 
+**Note**: This table is synchronized with `EventType` enum in `Dequeue/Models/Enums.swift`.
+
 | Event Type | Activity Display | Include in Summary |
 |------------|------------------|-------------------|
 | `stack.completed` | "✓ Completed: [Stack Name]" | Yes |
+| `stack.closed` | "🔒 Closed: [Stack Name]" | Yes (distinct from completed) |
 | `stack.activated` | "▶ Started: [Stack Name]" | Yes |
-| `stack.deactivated` | — | No (not meaningful) |
+| `stack.deactivated` | "⏸ Paused: [Stack Name]" | Optional (useful when switching stacks) |
+| `stack.discarded` | — | No (draft stacks, not meaningful) |
 | `task.completed` | "✓ Completed task: [Task Title]" | Yes |
+| `task.closed` | "🔒 Closed task: [Task Title]" | Yes (distinct from completed) |
 | `task.activated` | "▶ Started task: [Task Title]" | Yes |
-| `task.deactivated` | — | No (not meaningful) |
 | `stack.created` | "➕ Created: [Stack Name]" | Optional |
 | `task.created` | — | No (too noisy) |
 | `attachment.added` | "📎 Added attachment to [Entity]" | Optional |
+| `attachment.removed` | "🗑 Removed attachment from [Entity]" | Optional |
+
+**Distinctions**:
+- **Completed vs. Closed**: "Completed" means finished with all tasks done; "Closed" means archived without necessarily completing all tasks
+- **Stack.deactivated**: Shows when switching between stacks (relevant for "exactly one active stack" model per PROJECT.md)
 
 ### 3.2 Activity Feed Architecture
 
@@ -224,28 +239,51 @@ The feature uses a tiered approach to summary generation:
 
 #### 3.3.2 On-Device LLM (iOS 18.4+)
 
+**Availability Note**: Apple's Foundation Models framework requires iOS 18.4+, which is in beta as of January 2026. For devices running iOS 17.0-18.3, the implementation will fall back to template-based summaries (Phase 1) or backend LLM (Phase 6).
+
+**Deployment Strategy**:
+- **Phase 1-2 (MVP)**: Template-based summaries work on all iOS 17.0+ devices
+- **Phase 3**: On-device LLM enabled conditionally for iOS 18.4+ devices
+- **Phase 6**: Backend LLM provides enhanced summaries for pre-18.4 devices
+
 ```swift
 import FoundationModels
 
 actor ActivitySummarizer {
     func generateDailySummary(events: [Event], for date: Date) async throws -> String {
-        let model = SystemLanguageModel.default
+        // Check iOS version availability
+        guard #available(iOS 18.4, *) else {
+            throw SummaryError.onDeviceLLMUnavailable
+        }
 
-        let prompt = """
-        Summarize this person's productivity for \(date.formatted()):
+        do {
+            let model = SystemLanguageModel.default
 
-        Completed:
-        \(formatCompletions(events))
+            let prompt = """
+            Summarize this person's productivity for \(date.formatted()):
 
-        Started:
-        \(formatActivations(events))
+            Completed:
+            \(formatCompletions(events))
 
-        Write 2-3 sentences highlighting key accomplishments. Be specific but concise.
-        """
+            Started:
+            \(formatActivations(events))
 
-        let response = try await model.generate(prompt: prompt)
-        return response.text
+            Write 2-3 sentences highlighting key accomplishments. Be specific but concise.
+            """
+
+            let response = try await model.generate(prompt: prompt)
+            return response.text
+        } catch {
+            // Log error and rethrow for fallback handling
+            logger.error("On-device LLM generation failed: \(error)")
+            throw error
+        }
     }
+}
+
+enum SummaryError: Error {
+    case onDeviceLLMUnavailable
+    case generationFailed
 }
 ```
 
@@ -319,21 +357,52 @@ enum IntegrationSource: String, CaseIterable {
 
 #### 3.6.1 Query Optimization
 
+**Note**: Use `EventType` enum values, not raw strings, per CLAUDE.md style guide.
+
 ```swift
 // Efficient query for daily events
+// For MVP (Phase 1), use simpler query and filter in ViewModel:
 @Query(
-    filter: #Predicate<Event> { event in
-        event.timestamp >= dayStart &&
-        event.timestamp < dayEnd &&
-        (event.type == "stack.completed" ||
-         event.type == "task.completed" ||
-         event.type == "stack.activated" ||
-         event.type == "task.activated")
+    filter: #Predicate<Event> {
+        $0.timestamp >= sevenDaysAgo
+    },
+    sort: \Event.timestamp,
+    order: .reverse
+) private var recentEvents: [Event]
+
+// Phase 2+: Add computed property to Event model for filtering
+// In Event.swift:
+extension Event {
+    var isActivityRelevant: Bool {
+        guard let eventType else { return false }
+
+        switch eventType {
+        case .stackCompleted, .stackClosed, .stackActivated, .stackDeactivated,
+             .taskCompleted, .taskClosed, .taskActivated,
+             .stackCreated, .attachmentAdded, .attachmentRemoved:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+// Then in query:
+@Query(
+    filter: #Predicate<Event> {
+        $0.timestamp >= dayStart &&
+        $0.timestamp < dayEnd &&
+        $0.isActivityRelevant
     },
     sort: \Event.timestamp,
     order: .reverse
 ) private var dayEvents: [Event]
 ```
+
+**Performance Considerations**:
+- Add index on `Event.timestamp` in SwiftData schema
+- Limit initial query to 7-30 days to prevent scanning entire event log
+- Use computed property `isActivityRelevant` instead of inline type checks for maintainability
 
 #### 3.6.2 Lazy Loading
 
@@ -348,6 +417,44 @@ enum IntegrationSource: String, CaseIterable {
 - Cache aggressively (past summaries don't change)
 - Background generation during idle time
 - Today's summary regenerates periodically (every hour or on significant events)
+
+---
+
+## 3.7 Key Technical Decisions
+
+### 3.7.1 Summary Sync Strategy: Local-Only Regeneration
+
+**Decision**: ActivitySummary data is NOT synced between devices. Each device regenerates summaries locally from synced Event data.
+
+**Rationale**:
+
+1. **Privacy Alignment**: On-device LLM is the primary summarization method. Syncing summaries would undermine the privacy benefit of local processing.
+
+2. **Conflict Avoidance**: Different devices may generate slightly different summaries due to:
+   - Different iOS versions (18.4+ with on-device LLM vs. older with templates)
+   - Different LLM model versions over time
+   - Timing differences in when summaries are generated
+
+   Last-Write-Wins (LWW) conflict resolution would cause confusing inconsistencies where Device A sees one summary and Device B sees another for the same day.
+
+3. **Source of Truth**: Events are the source of truth (per PROJECT.md event-first architecture). Summaries are derived views that can be regenerated at any time.
+
+4. **Cache Invalidation**: If synced, summary invalidation logic becomes complex:
+   - What if Event data changes after summary sync?
+   - What if entity names change (stack renamed)?
+   - Simpler to treat summaries as ephemeral local cache.
+
+5. **Bandwidth Efficiency**: Summary text is larger than event data. Regenerating locally saves sync bandwidth.
+
+**Implementation**:
+- `ActivitySummary` model has NO sync-related fields (no `serverId`, no `updatedAt`)
+- Summaries regenerated on-demand when missing or marked stale
+- Backend LLM fallback (Phase 6) generates summaries on-demand but does NOT store them centrally
+
+**Trade-off Accepted**: Devices will do duplicate work generating summaries. This is acceptable because:
+- Most summaries are generated once and cached indefinitely (past days don't change)
+- Only "Today" summary regenerates frequently
+- On-device LLM is fast (<3 seconds per summary)
 
 ---
 
@@ -611,11 +718,13 @@ Generated by Dequeue
 |---|----------|---------|----------------|
 | 1 | Summary tone | Professional vs. casual vs. enthusiastic | Slightly enthusiastic ("Great day!") |
 | 2 | Today's summary refresh | Hourly vs. on significant events vs. manual | On significant events + every 2 hours |
-| 3 | Cross-device summary sync | Sync summaries vs. regenerate locally | Sync from backend to ensure consistency |
-| 4 | Activity notifications | Daily summary notification option | Yes, opt-in "Your daily summary is ready" |
-| 5 | Widget support | Show yesterday's summary in widget | Yes, small and medium widgets |
-| 6 | Calendar view option | Timeline vs. calendar grid view | Timeline primary; calendar future enhancement |
-| 7 | Time tracking display | Show duration in cards | Yes, if time tracking data available |
+| 3 | Activity notifications | Daily summary notification option | Yes, opt-in "Your daily summary is ready" |
+| 4 | Widget support | Show yesterday's summary in widget | Yes, small and medium widgets |
+| 5 | Calendar view option | Timeline vs. calendar grid view | Timeline primary; calendar future enhancement |
+| 6 | Time tracking display | Show duration in cards | Yes, if time tracking data available |
+
+**Resolved Questions** (See Section 3.7 for decisions):
+- ~~Cross-device summary sync~~ → **DECIDED**: Local-only regeneration (not synced)
 
 ---
 
