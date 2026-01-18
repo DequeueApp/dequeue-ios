@@ -16,20 +16,24 @@ struct TaskDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.syncManager) private var syncManager
     @Environment(\.authService) private var authService
+    @Environment(\.attachmentUploadCoordinator) var attachmentUploadCoordinator
 
     @Bindable var task: QueueTask
 
     @State private var taskService: TaskService?
     @State private var notificationService: NotificationService?
     @State private var reminderActionHandler: ReminderActionHandler?
+    @State var attachmentService: AttachmentService?
     @State private var isEditingTitle = false
     @State private var editedTitle = ""
     @State private var isEditingDescription = false
     @State private var editedDescription = ""
     @State private var showCloseConfirmation = false
     @State private var showDeleteConfirmation = false
-    @State private var showError = false
-    @State private var errorMessage = ""
+    @State var showAttachmentPicker = false
+    @State private var attachmentPickerError: AttachmentPickerError?
+    @State var showError = false
+    @State var errorMessage = ""
     @State private var showAddReminder = false
     @State private var showSnoozePicker = false
     @State private var selectedReminderForSnooze: Reminder?
@@ -37,10 +41,6 @@ struct TaskDetailView: View {
     @State private var selectedReminderForEdit: Reminder?
     @State private var showDeleteReminderConfirmation = false
     @State private var reminderToDelete: Reminder?
-
-    // Attachment state
-    @State internal var showAttachmentPicker = false
-    @State internal var attachmentService: AttachmentService?
 
     var body: some View {
         List {
@@ -70,23 +70,24 @@ struct TaskDetailView: View {
         .task {
             guard taskService == nil else { return }
             let deviceId = await DeviceService.shared.getDeviceId()
+            let userId = authService.currentUserId ?? ""
             taskService = TaskService(
                 modelContext: modelContext,
-                userId: authService.currentUserId ?? "",
+                userId: userId,
                 deviceId: deviceId,
                 syncManager: syncManager
             )
             notificationService = NotificationService(modelContext: modelContext)
             reminderActionHandler = ReminderActionHandler(
                 modelContext: modelContext,
-                userId: authService.currentUserId ?? "",
+                userId: userId,
                 deviceId: deviceId,
                 onError: showError,
                 syncManager: syncManager
             )
             attachmentService = AttachmentService(
                 modelContext: modelContext,
-                userId: authService.currentUserId ?? "",
+                userId: userId,
                 deviceId: deviceId,
                 syncManager: syncManager
             )
@@ -166,9 +167,9 @@ struct TaskDetailView: View {
         }
         .attachmentPicker(
             isPresented: $showAttachmentPicker,
-            allowsMultipleSelection: true,
-            onFilesSelected: handleAttachmentFilesSelected,
+            onFilesSelected: handleFilesSelected,
             onError: { error in
+                attachmentPickerError = error
                 errorMessage = error.localizedDescription
                 showError = true
             }

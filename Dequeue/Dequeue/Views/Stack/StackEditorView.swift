@@ -42,11 +42,13 @@ struct StackEditorView: View {
     @Environment(\.syncManager) var syncManager
     @Environment(\.authService) var authService
     @Environment(\.undoCompletionManager) var undoCompletionManager
+    @Environment(\.attachmentUploadCoordinator) var attachmentUploadCoordinator
     @State var stackService: StackService?
     @State var taskService: TaskService?
     @State var notificationService: NotificationService?
     @State var reminderActionHandler: ReminderActionHandler?
     @State var tagService: TagService?
+    @State var attachmentService: AttachmentService?
 
     /// All available tags for autocomplete suggestions
     @Query(filter: #Predicate<Tag> { !$0.isDeleted }, sort: \.name)
@@ -96,6 +98,8 @@ struct StackEditorView: View {
     // Shared state
     @State var showError = false
     @State var errorMessage = ""
+    @State var showAttachmentPicker = false
+    @State private var attachmentPickerError: AttachmentPickerError?
     @State var showAddTask = false
     @State var newTaskTitle = ""
     @State var newTaskDescription = ""
@@ -106,11 +110,6 @@ struct StackEditorView: View {
     @State var selectedReminderForEdit: Reminder?
     @State var showDeleteReminderConfirmation = false
     @State var reminderToDelete: Reminder?
-
-    // Attachment state
-    @State var showAttachmentPicker = false
-    @State var attachmentService: AttachmentService?
-    @State var attachmentError: AttachmentPickerError?
 
     // MARK: - Computed Properties
 
@@ -181,35 +180,36 @@ struct StackEditorView: View {
             .task {
                 guard stackService == nil else { return }
                 let deviceId = await DeviceService.shared.getDeviceId()
+                let userId = authService.currentUserId ?? ""
                 stackService = StackService(
                     modelContext: modelContext,
-                    userId: authService.currentUserId ?? "",
+                    userId: userId,
                     deviceId: deviceId,
                     syncManager: syncManager
                 )
                 taskService = TaskService(
                     modelContext: modelContext,
-                    userId: authService.currentUserId ?? "",
+                    userId: userId,
                     deviceId: deviceId,
                     syncManager: syncManager
                 )
                 notificationService = NotificationService(modelContext: modelContext)
                 reminderActionHandler = ReminderActionHandler(
                     modelContext: modelContext,
-                    userId: authService.currentUserId ?? "",
+                    userId: userId,
                     deviceId: deviceId,
                     onError: handleError,
                     syncManager: syncManager
                 )
                 tagService = TagService(
                     modelContext: modelContext,
-                    userId: authService.currentUserId ?? "",
+                    userId: userId,
                     deviceId: deviceId,
                     syncManager: syncManager
                 )
                 attachmentService = AttachmentService(
                     modelContext: modelContext,
-                    userId: authService.currentUserId ?? "",
+                    userId: userId,
                     deviceId: deviceId,
                     syncManager: syncManager
                 )
@@ -309,10 +309,9 @@ struct StackEditorView: View {
             }
             .attachmentPicker(
                 isPresented: $showAttachmentPicker,
-                allowsMultipleSelection: true,
-                onFilesSelected: handleAttachmentFilesSelected,
+                onFilesSelected: handleFilesSelected,
                 onError: { error in
-                    attachmentError = error
+                    attachmentPickerError = error
                     errorMessage = error.localizedDescription
                     showError = true
                 }
