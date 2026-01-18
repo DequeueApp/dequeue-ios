@@ -28,7 +28,7 @@ extension StackEditorView {
     func handleAddAttachmentTap() {
         // If we already have a stack, proceed to file picker
         if currentStack != nil {
-            showFilePicker()
+            showAttachmentPicker = true
             return
         }
 
@@ -39,7 +39,54 @@ extension StackEditorView {
 
             // Show the file picker - draftStack is now set
             if draftStack != nil {
-                showFilePicker()
+                showAttachmentPicker = true
+            }
+        }
+    }
+
+    /// Handles files selected from the attachment picker.
+    /// Creates attachment records and triggers uploads.
+    func handleFilesSelected(_ urls: [URL]) {
+        guard let stack = currentStack else {
+            errorMessage = "No stack available for attachments"
+            showError = true
+            return
+        }
+
+        guard let service = attachmentService else {
+            errorMessage = "Attachment service not available"
+            showError = true
+            return
+        }
+
+        Task {
+            for url in urls {
+                defer {
+                    // Stop accessing the security-scoped resource when done
+                    url.stopAccessingSecurityScopedResource()
+                }
+
+                do {
+                    // Create the attachment record (copies file locally)
+                    let attachment = try service.createAttachment(
+                        for: stack.id,
+                        parentType: .stack,
+                        fileURL: url
+                    )
+
+                    // Upload to cloud storage
+                    if let coordinator = attachmentUploadCoordinator {
+                        try await coordinator.uploadAttachment(attachment)
+                    }
+                } catch {
+                    errorMessage = "Failed to add attachment: \(error.localizedDescription)"
+                    showError = true
+                    ErrorReportingService.capture(error: error, context: [
+                        "view": "StackEditorView",
+                        "action": "handleFilesSelected",
+                        "filename": url.lastPathComponent
+                    ])
+                }
             }
         }
     }
@@ -52,34 +99,6 @@ extension StackEditorView {
     func handleDeleteAttachment(_ attachment: Attachment) {
         // TODO: Delete attachment
         // For now, this is a placeholder - will be implemented with AttachmentService integration
-    }
-
-    func showFilePicker() {
-        showAttachmentPicker = true
-    }
-
-    /// Handles files selected from the attachment picker.
-    /// Creates attachment records for each selected file.
-    func handleAttachmentFilesSelected(_ urls: [URL]) {
-        guard let stack = currentStack,
-              let service = attachmentService else {
-            return
-        }
-
-        for url in urls {
-            // Security-scoped resource access is already started by DocumentPicker
-            defer { url.stopAccessingSecurityScopedResource() }
-
-            do {
-                _ = try service.createAttachment(
-                    for: stack.id,
-                    parentType: .stack,
-                    fileURL: url
-                )
-            } catch {
-                handleError(error)
-            }
-        }
     }
 }
 

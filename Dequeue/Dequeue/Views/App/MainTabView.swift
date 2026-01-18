@@ -19,6 +19,7 @@ struct MainTabView: View {
     @State private var showStackPicker = false
     @State private var activeStackForDetail: Stack?
     @State private var undoCompletionManager = UndoCompletionManager()
+    @State private var attachmentUploadCoordinator: AttachmentUploadCoordinator?
 
     var body: some View {
         #if os(macOS)
@@ -73,6 +74,7 @@ struct MainTabView: View {
             StackEditorView(mode: .edit(stack))
         }
         .environment(\.undoCompletionManager, undoCompletionManager)
+        .environment(\.attachmentUploadCoordinator, attachmentUploadCoordinator)
         .task {
             // Fetch device ID if not cached
             if cachedDeviceId.isEmpty {
@@ -85,6 +87,14 @@ struct MainTabView: View {
                 userId: authService.currentUserId ?? "",
                 deviceId: cachedDeviceId
             )
+            // Initialize attachment upload coordinator
+            if attachmentUploadCoordinator == nil {
+                let uploadService = AttachmentUploadService(authService: authService)
+                attachmentUploadCoordinator = AttachmentUploadCoordinator(
+                    modelContext: modelContext,
+                    uploadService: uploadService
+                )
+            }
         }
         #else
         EmptyView()
@@ -186,6 +196,7 @@ struct MainTabView: View {
             StackEditorView(mode: .edit(stack))
         }
         .environment(\.undoCompletionManager, undoCompletionManager)
+        .environment(\.attachmentUploadCoordinator, attachmentUploadCoordinator)
         .task {
             // Fetch device ID if not cached
             if cachedDeviceId.isEmpty {
@@ -198,6 +209,14 @@ struct MainTabView: View {
                 userId: authService.currentUserId ?? "",
                 deviceId: cachedDeviceId
             )
+            // Initialize attachment upload coordinator
+            if attachmentUploadCoordinator == nil {
+                let uploadService = AttachmentUploadService(authService: authService)
+                attachmentUploadCoordinator = AttachmentUploadCoordinator(
+                    modelContext: modelContext,
+                    uploadService: uploadService
+                )
+            }
         }
     }
 

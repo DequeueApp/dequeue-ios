@@ -70,6 +70,9 @@ enum AttachmentUploadError: LocalizedError, Equatable {
     case networkError(String)
     case serverError(statusCode: Int, message: String?)
     case uploadFailed(String)
+    case noLocalFile
+    case fileNotFound(String)
+    case uploadInProgress
 
     var errorDescription: String? {
         switch self {
@@ -94,6 +97,12 @@ enum AttachmentUploadError: LocalizedError, Equatable {
             return "Server error (\(statusCode))"
         case let .uploadFailed(message):
             return "Upload failed: \(message)"
+        case .noLocalFile:
+            return "Attachment has no local file path"
+        case let .fileNotFound(path):
+            return "File not found at path: \(path)"
+        case .uploadInProgress:
+            return "Upload is already in progress"
         }
     }
 
@@ -113,6 +122,12 @@ enum AttachmentUploadError: LocalizedError, Equatable {
             return c1 == c2 && m1 == m2
         case let (.uploadFailed(m1), .uploadFailed(m2)):
             return m1 == m2
+        case (.noLocalFile, .noLocalFile):
+            return true
+        case let (.fileNotFound(p1), .fileNotFound(p2)):
+            return p1 == p2
+        case (.uploadInProgress, .uploadInProgress):
+            return true
         default:
             return false
         }
@@ -290,7 +305,8 @@ final class AttachmentUploadService: AttachmentUploadServiceProtocol {
             } catch let error as AttachmentUploadError {
                 // Don't retry for non-transient errors
                 switch error {
-                case .notAuthenticated, .quotaExceeded, .fileTooLarge, .invalidResponse:
+                case .notAuthenticated, .quotaExceeded, .fileTooLarge, .invalidResponse,
+                     .noLocalFile, .fileNotFound, .uploadInProgress:
                     throw error
                 case .networkError, .serverError, .uploadFailed:
                     lastError = error

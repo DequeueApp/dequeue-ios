@@ -22,9 +22,50 @@ extension TaskDetailView {
         )
     }
 
-    /// Handles the add attachment button tap.
+    /// Handles the add attachment button tap - shows the file picker.
     func handleAddAttachmentTap() {
         showAttachmentPicker = true
+    }
+
+    /// Handles files selected from the attachment picker.
+    /// Creates attachment records and triggers uploads.
+    func handleFilesSelected(_ urls: [URL]) {
+        guard let service = attachmentService else {
+            errorMessage = "Attachment service not available"
+            showError = true
+            return
+        }
+
+        Task {
+            for url in urls {
+                defer {
+                    // Stop accessing the security-scoped resource when done
+                    url.stopAccessingSecurityScopedResource()
+                }
+
+                do {
+                    // Create the attachment record (copies file locally)
+                    let attachment = try service.createAttachment(
+                        for: task.id,
+                        parentType: .task,
+                        fileURL: url
+                    )
+
+                    // Upload to cloud storage
+                    if let coordinator = attachmentUploadCoordinator {
+                        try await coordinator.uploadAttachment(attachment)
+                    }
+                } catch {
+                    errorMessage = "Failed to add attachment: \(error.localizedDescription)"
+                    showError = true
+                    ErrorReportingService.capture(error: error, context: [
+                        "view": "TaskDetailView",
+                        "action": "handleFilesSelected",
+                        "filename": url.lastPathComponent
+                    ])
+                }
+            }
+        }
     }
 
     func handleAttachmentTap(_ attachment: Attachment) {
@@ -33,29 +74,6 @@ extension TaskDetailView {
 
     func handleDeleteAttachment(_ attachment: Attachment) {
         // TODO: Delete attachment (will be implemented with AttachmentService integration)
-    }
-
-    /// Handles files selected from the attachment picker.
-    /// Creates attachment records for each selected file.
-    func handleAttachmentFilesSelected(_ urls: [URL]) {
-        guard let service = attachmentService else {
-            return
-        }
-
-        for url in urls {
-            // Security-scoped resource access is already started by DocumentPicker
-            defer { url.stopAccessingSecurityScopedResource() }
-
-            do {
-                _ = try service.createAttachment(
-                    for: task.id,
-                    parentType: .task,
-                    fileURL: url
-                )
-            } catch {
-                showError(error)
-            }
-        }
     }
 }
 
