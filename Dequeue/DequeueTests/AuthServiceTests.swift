@@ -92,6 +92,69 @@ struct AuthServiceTests {
         #expect(mockAuth.isAuthenticated == false)
     }
 
+    @Test("MockAuthService can simulate session invalidation")
+    func testMockAuthServiceSessionInvalidation() async {
+        let mockAuth = MockAuthService()
+
+        // Sign in first
+        mockAuth.mockSignIn(userId: "test-user-123")
+        #expect(mockAuth.isAuthenticated == true)
+
+        // Simulate session invalidation
+        mockAuth.mockSessionInvalidated(reason: .revoked)
+
+        #expect(mockAuth.isAuthenticated == false)
+        #expect(mockAuth.currentUserId == nil)
+    }
+
+    @Test("MockAuthService can simulate session restoration")
+    func testMockAuthServiceSessionRestoration() async {
+        let mockAuth = MockAuthService()
+
+        // Start unauthenticated
+        #expect(mockAuth.isAuthenticated == false)
+
+        // Simulate session restoration
+        mockAuth.mockSessionRestored(userId: "restored-user-456")
+
+        #expect(mockAuth.isAuthenticated == true)
+        #expect(mockAuth.currentUserId == "restored-user-456")
+    }
+
+    @Test("MockAuthService sessionStateChanges stream emits invalidation event")
+    func testMockAuthServiceSessionStateChangesInvalidation() async {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn(userId: "test-user")
+
+        // Start listening to session changes
+        let changesTask = Task { () -> SessionStateChange? in
+            for await change in mockAuth.sessionStateChanges {
+                return change
+            }
+            return nil
+        }
+
+        // Give the stream time to start
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Trigger invalidation
+        mockAuth.mockSessionInvalidated(reason: .expired)
+
+        // Wait for the event
+        let change = await changesTask.value
+
+        guard let change else {
+            #expect(Bool(false), "Expected to receive a session state change")
+            return
+        }
+
+        if case .sessionInvalidated(let reason) = change {
+            #expect(reason == .expired)
+        } else {
+            #expect(Bool(false), "Expected sessionInvalidated event")
+        }
+    }
+
     // MARK: - ClerkAuthService Integration Test Notes
     //
     // The following scenarios require Clerk SDK configuration and network access,
