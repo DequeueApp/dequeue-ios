@@ -116,22 +116,8 @@ final class AttachmentUploadCoordinator {
 
             logger.info("Upload completed for attachment: \(attachmentId)")
         } catch {
-            // Handle upload failure - capture error before nested try/catch
-            let uploadError = error
-            logger.error("Upload failed for \(attachmentId): \(uploadError.localizedDescription)")
-            attachment.uploadState = .failed
-            attachment.updatedAt = Date()
-            do {
-                try modelContext.save()
-            } catch {
-                // Log save failure - attachment may be stuck in .uploading state
-                // This is a critical issue that needs visibility for debugging
-                logger.error(
-                    "Failed to save failed state for \(attachmentId): \(error.localizedDescription)"
-                )
-            }
-
-            throw uploadError
+            markUploadFailed(attachment: attachment, originalError: error)
+            throw error
         }
     }
 
@@ -147,5 +133,22 @@ final class AttachmentUploadCoordinator {
         try modelContext.save()
 
         try await uploadAttachment(attachment)
+    }
+
+    // MARK: - Private Helpers
+
+    /// Marks an attachment as failed and saves, logging any save errors
+    private func markUploadFailed(attachment: Attachment, originalError: Error) {
+        logger.error("Upload failed for \(attachment.id): \(originalError.localizedDescription)")
+        attachment.uploadState = .failed
+        attachment.updatedAt = Date()
+        do {
+            try modelContext.save()
+        } catch {
+            // Log save failure - attachment may be stuck in .uploading state
+            logger.error(
+                "Failed to save failed state for \(attachment.id): \(error.localizedDescription)"
+            )
+        }
     }
 }
