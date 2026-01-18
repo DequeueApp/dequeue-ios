@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import Clerk
 import UserNotifications
+import os.log
 
 // MARK: - Environment Key for SyncManager
 
@@ -27,9 +28,14 @@ extension EnvironmentValues {
 struct DequeueApp: App {
     @State private var authService = ClerkAuthService()
     @State private var attachmentSettings = AttachmentSettings()
+    @State private var consecutiveSyncFailures = 0
+    @State private var showSyncError = false
     let sharedModelContainer: ModelContainer
     let syncManager: SyncManager
     let notificationService: NotificationService
+
+    /// Threshold for showing user feedback about sync issues
+    private let syncFailureThreshold = 3
 
     init() {
         // Note: ErrorReportingService.configure() is now called asynchronously
@@ -94,7 +100,7 @@ struct DequeueApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(syncManager: syncManager)
+            RootView(syncManager: syncManager, showSyncError: $showSyncError)
                 .environment(\.authService, authService)
                 .environment(\.clerk, Clerk.shared)
                 .environment(\.syncManager, syncManager)
@@ -118,6 +124,10 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     let syncManager: SyncManager
+    @Binding var showSyncError: Bool
+
+    @State private var consecutiveSyncFailures = 0
+    private let syncFailureThreshold = 3
 
     @State private var syncStatusViewModel: SyncStatusViewModel?
 
@@ -150,6 +160,13 @@ struct RootView: View {
         .animation(.easeInOut, value: authService.isLoading)
         .animation(.easeInOut, value: authService.isAuthenticated)
         .animation(.easeInOut, value: syncStatusViewModel?.isInitialSyncInProgress)
+        .alert("Sync Connection Issue", isPresented: $showSyncError) {
+            Button("OK") {
+                showSyncError = false
+            }
+        } message: {
+            Text("Unable to connect to sync. Your changes are saved locally and will sync when connection is restored.")
+        }
         .onChange(of: authService.isAuthenticated) { _, isAuthenticated in
             Task {
                 await handleAuthStateChange(isAuthenticated: isAuthenticated)
@@ -163,6 +180,10 @@ struct RootView: View {
                     await authService.refreshSessionIfNeeded()
 
                     if authService.isAuthenticated {
+                        // Ensure sync is connected with fresh credentials
+                        // This handles cases where WebSocket disconnected in background
+                        // or user re-authenticated without triggering onChange
+                        await ensureSyncConnected()
                         await handleAppBecameActive()
                         await notificationService.updateAppBadge()
                     }
@@ -179,7 +200,12 @@ struct RootView: View {
 
     private func handleAuthStateChange(isAuthenticated: Bool) async {
         if isAuthenticated {
-            guard let userId = authService.currentUserId else { return }
+            guard let userId = authService.currentUserId else {
+                os_log("[Auth] handleAuthStateChange: No userId available")
+                return
+            }
+
+            os_log("[Auth] handleAuthStateChange: Authenticated, userId: \(userId)")
 
             // Ensure current device is discovered and registered
             do {
@@ -188,37 +214,106 @@ struct RootView: View {
                     userId: userId
                 )
             } catch {
+                os_log("[Auth] Device discovery failed: \(error.localizedDescription)")
                 ErrorReportingService.capture(
                     error: error,
                     context: ["source": "device_discovery"]
                 )
             }
 
-            // Connect to sync
-            do {
-                let token = try await authService.getAuthToken()
-                try await syncManager.connect(
-                    userId: userId,
-                    token: token,
-                    getToken: { @MainActor in try await authService.getAuthToken() }
-                )
-                ErrorReportingService.addBreadcrumb(
-                    category: "sync",
-                    message: "Sync connected",
-                    data: ["userId": userId]
-                )
-            } catch {
-                ErrorReportingService.capture(
-                    error: error,
-                    context: ["source": "sync_connect"]
-                )
-            }
+            // Connect to sync with retry
+            await connectSyncWithRetry(userId: userId, maxRetries: 3)
         } else {
+            os_log("[Auth] handleAuthStateChange: Not authenticated, disconnecting sync")
             await syncManager.disconnect()
             ErrorReportingService.addBreadcrumb(
                 category: "sync",
                 message: "Sync disconnected"
             )
+        }
+    }
+
+    /// Connects to sync with retry logic for transient failures
+    private func connectSyncWithRetry(userId: String, maxRetries: Int) async {
+        for attempt in 1...maxRetries {
+            do {
+                os_log("[Sync] Connection attempt \(attempt)/\(maxRetries)")
+                let token = try await authService.getAuthToken()
+                os_log("[Sync] Got auth token, connecting...")
+                try await syncManager.connect(
+                    userId: userId,
+                    token: token,
+                    getToken: { @MainActor in try await authService.getAuthToken() }
+                )
+                os_log("[Sync] Connected successfully on attempt \(attempt)")
+                ErrorReportingService.addBreadcrumb(
+                    category: "sync",
+                    message: "Sync connected",
+                    data: ["userId": userId, "attempt": attempt]
+                )
+                return // Success, exit retry loop
+            } catch {
+                os_log("[Sync] Connection attempt \(attempt) failed: \(error.localizedDescription)")
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["source": "sync_connect", "attempt": attempt, "maxRetries": maxRetries]
+                )
+
+                if attempt < maxRetries {
+                    // Wait before retrying (exponential backoff: 1s, 2s, 4s)
+                    let delay = pow(2.0, Double(attempt - 1))
+                    os_log("[Sync] Retrying in \(delay) seconds...")
+                    try? await Task.sleep(for: .seconds(delay))
+                } else {
+                    os_log("[Sync] All connection attempts failed")
+                }
+            }
+        }
+    }
+
+    /// Ensures sync is connected with fresh credentials.
+    /// Called when app becomes active to handle cases where:
+    /// - WebSocket disconnected while app was in background
+    /// - User re-authenticated without triggering onChange (session refresh)
+    /// - Initial connection failed and needs retry
+    private func ensureSyncConnected() async {
+        guard let userId = authService.currentUserId else { return }
+
+        // Efficient health check: skip connection attempt if already healthy
+        if await syncManager.isHealthyConnection {
+            os_log("[Sync] Connection already healthy, skipping reconnect")
+            return
+        }
+
+        os_log("[Sync] Connection not healthy, attempting to reconnect")
+
+        do {
+            let token = try await authService.getAuthToken()
+            try await syncManager.ensureConnected(
+                userId: userId,
+                token: token,
+                getToken: { @MainActor in try await authService.getAuthToken() }
+            )
+
+            // Success: reset failure counter
+            consecutiveSyncFailures = 0
+        } catch {
+            // Track consecutive failures
+            consecutiveSyncFailures += 1
+
+            ErrorReportingService.capture(
+                error: error,
+                context: [
+                    "source": "sync_ensure_connected",
+                    "consecutive_failures": consecutiveSyncFailures
+                ]
+            )
+
+            // Show user feedback after threshold
+            if consecutiveSyncFailures >= syncFailureThreshold {
+                os_log("[Sync] Consecutive failure threshold reached (\(consecutiveSyncFailures))")
+                showSyncError = true
+            }
         }
     }
 
@@ -249,7 +344,7 @@ struct RootView: View {
     )
     let syncManager = SyncManager(modelContainer: container)
 
-    return RootView(syncManager: syncManager)
+    return RootView(syncManager: syncManager, showSyncError: .constant(false))
         .environment(\.authService, mockAuth)
         .modelContainer(container)
 }
@@ -266,7 +361,7 @@ struct RootView: View {
     )
     let syncManager = SyncManager(modelContainer: container)
 
-    return RootView(syncManager: syncManager)
+    return RootView(syncManager: syncManager, showSyncError: .constant(false))
         .environment(\.authService, MockAuthService())
         .modelContainer(container)
 }
