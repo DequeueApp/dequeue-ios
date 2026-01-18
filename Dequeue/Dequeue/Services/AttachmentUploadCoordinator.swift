@@ -99,15 +99,13 @@ final class AttachmentUploadCoordinator {
                 sizeBytes: attachment.sizeBytes
             )
 
-            // Step 4: Read file data and upload
-            logger.debug("Reading file data from: \(localPath)")
-            let fileData = try Data(contentsOf: fileURL)
-
-            logger.debug("Uploading \(fileData.count) bytes to presigned URL")
+            // Step 4: Stream file to presigned URL (memory-efficient for large files)
+            logger.debug("Uploading file from: \(localPath) (\(attachment.sizeBytes) bytes)")
             try await uploadService.uploadToPresignedURL(
-                data: fileData,
+                fromFile: fileURL,
                 presignedURL: presignedInfo.uploadUrl,
-                mimeType: attachment.mimeType
+                mimeType: attachment.mimeType,
+                fileSize: attachment.sizeBytes
             )
 
             // Step 5: Update attachment with success state
@@ -118,13 +116,22 @@ final class AttachmentUploadCoordinator {
 
             logger.info("Upload completed for attachment: \(attachmentId)")
         } catch {
-            // Handle upload failure
-            logger.error("Upload failed for \(attachmentId): \(error.localizedDescription)")
+            // Handle upload failure - capture error before nested try/catch
+            let uploadError = error
+            logger.error("Upload failed for \(attachmentId): \(uploadError.localizedDescription)")
             attachment.uploadState = .failed
             attachment.updatedAt = Date()
-            try? modelContext.save()
+            do {
+                try modelContext.save()
+            } catch {
+                // Log save failure - attachment may be stuck in .uploading state
+                // This is a critical issue that needs visibility for debugging
+                logger.error(
+                    "Failed to save failed state for \(attachmentId): \(error.localizedDescription)"
+                )
+            }
 
-            throw error
+            throw uploadError
         }
     }
 
