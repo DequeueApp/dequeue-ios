@@ -40,6 +40,7 @@ enum ErrorReportingService {
         return false
     }
 
+    // swiftlint:disable function_body_length
     /// Configures Sentry SDK asynchronously to avoid blocking app launch.
     /// This should be called from a Task context, not during App init.
     ///
@@ -161,6 +162,7 @@ enum ErrorReportingService {
             }
         }
     }
+    // swiftlint:enable function_body_length
 
     // MARK: - User Context
 

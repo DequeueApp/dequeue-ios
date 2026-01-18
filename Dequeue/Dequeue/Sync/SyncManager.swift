@@ -589,6 +589,7 @@ actor SyncManager {
 
     // MARK: - Pull Events
 
+    // swiftlint:disable:next function_body_length
     func pullEvents() async throws {
         let startTime = Date()
         let syncId = String(UUID().uuidString.prefix(8))
@@ -659,8 +660,9 @@ actor SyncManager {
 
             // Log successful pull
             let duration = Date().timeIntervalSince(startTime)
+            let durationStr = String(format: "%.2f", duration)
             os_log(
-                "[Sync] Pull completed: syncId=\(syncId), duration=\(String(format: "%.2f", duration))s, events=\(eventsDownloaded)"
+                "[Sync] Pull completed: syncId=\(syncId), duration=\(durationStr)s, events=\(eventsDownloaded)"
             )
             await MainActor.run {
                 ErrorReportingService.logSyncComplete(
@@ -690,6 +692,7 @@ actor SyncManager {
 
     /// Process the pull response and return the number of events downloaded
     @discardableResult
+    // swiftlint:disable:next function_body_length
     private func processPullResponse(_ data: Data) async throws -> Int {
         // Log raw response for debugging
         if let rawResponse = String(data: data, encoding: .utf8) {
