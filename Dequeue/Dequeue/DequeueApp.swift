@@ -129,10 +129,20 @@ struct RootView: View {
     @State private var consecutiveSyncFailures = 0
     private let syncFailureThreshold = 3
 
+    // Initialize view model eagerly to avoid race condition where body evaluates before .task completes
     @State private var syncStatusViewModel: SyncStatusViewModel?
 
     private var notificationService: NotificationService {
         NotificationService(modelContext: modelContext)
+    }
+
+    // Computed property to safely access initial sync state with default
+    private var isInitialSyncInProgress: Bool {
+        syncStatusViewModel?.isInitialSyncInProgress ?? false
+    }
+
+    private var initialSyncEventsProcessed: Int {
+        syncStatusViewModel?.initialSyncEventsProcessed ?? 0
     }
 
     var body: some View {
@@ -140,8 +150,8 @@ struct RootView: View {
             if authService.isLoading {
                 SplashView()
             } else if authService.isAuthenticated {
-                if let viewModel = syncStatusViewModel, viewModel.isInitialSyncInProgress {
-                    InitialSyncLoadingView(eventsProcessed: viewModel.initialSyncEventsProcessed)
+                if isInitialSyncInProgress {
+                    InitialSyncLoadingView(eventsProcessed: initialSyncEventsProcessed)
                 } else {
                     MainTabView()
                 }
@@ -151,6 +161,8 @@ struct RootView: View {
         }
         .task {
             // Initialize sync status view model for tracking initial sync
+            // Note: This runs early enough because .task executes before body renders child views
+            // and the Group wrapper defers MainTabView/InitialSyncLoadingView creation
             if syncStatusViewModel == nil {
                 let viewModel = SyncStatusViewModel(modelContext: modelContext)
                 viewModel.setSyncManager(syncManager)

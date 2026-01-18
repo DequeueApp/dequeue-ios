@@ -708,11 +708,16 @@ actor SyncManager {
         var stats = EventProcessingStats()
         let context = ModelContext(modelContainer)
 
+        // Capture initial sync state once to avoid actor hop on every iteration
+        // This is safe because initial sync state only changes on connect/disconnect,
+        // not during event processing
+        let trackingInitialSync = await isInitialSyncInProgress
+
         for eventData in events {
             try await processEvent(eventData, context: context, stats: &stats)
 
-            // Track progress during initial sync
-            if await isInitialSyncInProgress {
+            // Track progress during initial sync (using captured value to avoid actor hops)
+            if trackingInitialSync {
                 await incrementInitialSyncProgress()
             }
         }
