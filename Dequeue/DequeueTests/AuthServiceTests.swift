@@ -127,11 +127,11 @@ struct AuthServiceTests {
         mockAuth.mockSignIn(userId: "test-user")
 
         // Start listening to session changes
-        let changesTask = Task {
+        let changesTask = Task { () -> SessionStateChange? in
             for await change in mockAuth.sessionStateChanges {
                 return change
             }
-            return nil as SessionStateChange?
+            return nil
         }
 
         // Give the stream time to start
