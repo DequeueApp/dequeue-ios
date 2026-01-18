@@ -175,6 +175,21 @@ FOREIGN KEY (user_id) REFERENCES users(id)
 ON DELETE RESTRICT;  -- Prevent deletion of users with attachments
 ```
 
+**Important Note on FK Constraints and Soft Delete**:
+
+The `ON DELETE RESTRICT` constraints above are **compatible** with soft delete:
+- **Soft delete** = `UPDATE users SET deleted_at = NOW() WHERE id = 'user_xxx'` (NOT a SQL DELETE)
+- **Hard delete** = `DELETE FROM users WHERE id = 'user_xxx'` (blocked by RESTRICT)
+
+The FK constraints prevent accidental hard deletes (which we never do anyway). Soft deletes are UPDATE operations and work fine with these constraints. The `deleted_at` column marks users as deleted while preserving referential integrity.
+
+If a hard delete is ever needed (e.g., GDPR request after retention period), it would require:
+1. Manually removing/anonymizing all dependent data first (events, attachments)
+2. Then removing the FK constraints temporarily
+3. Or using `ON DELETE CASCADE` (not recommended - loses audit trail)
+
+**Current Design**: We never hard delete users, only soft delete via UPDATE. FK constraints remain in place permanently.
+
 ### 2.3 Webhook Event Handling
 
 #### 2.3.1 Clerk Webhook Payload Structure
@@ -395,6 +410,87 @@ ON CONFLICT (id) DO UPDATE SET
 
 ---
 
+## 2.8 iOS Client Integration
+
+**Context**: While this PRD primarily describes backend implementation in `stacks-sync`, it's placed in the iOS repo because iOS clients will benefit from the improved user data model. This section clarifies the iOS integration story.
+
+### 2.8.1 Current iOS Authentication Flow
+
+iOS clients currently:
+1. Authenticate with Clerk (iOS SDK)
+2. Receive JWT with `user_id` claim
+3. Pass JWT to backend APIs
+4. Backend extracts `user_id` for authorization
+
+This flow **does not change** - JWTs remain the primary auth mechanism.
+
+### 2.8.2 New Backend API Endpoints (Future)
+
+Once user sync is implemented, the backend CAN expose new endpoints (not part of this PRD, but enabled by it):
+
+```go
+// Future endpoint examples (not implemented in this PRD)
+GET /api/v1/users/me
+// Returns current user's profile from users table
+
+GET /api/v1/users/{user_id}/profile
+// Returns another user's public profile (for collaboration features)
+```
+
+These endpoints would:
+- Validate JWT as usual
+- Query `users` table for enriched data
+- Return user profile with email, name, avatar
+
+### 2.8.3 iOS Model Updates (Future)
+
+When backend exposes user endpoints, iOS would add:
+
+```swift
+// Not part of this PRD - illustrative future work
+@Model
+final class User {
+    @Attribute(.unique) var id: String  // Clerk user_id
+    var email: String
+    var firstName: String?
+    var lastName: String?
+    var imageURL: URL?
+    var createdAt: Date
+}
+```
+
+### 2.8.4 Why This PRD is in iOS Repo
+
+**Short Answer**: This PRD documents prerequisite backend work that **enables** future iOS features.
+
+**Rationale**:
+1. **No iOS Code Changes**: This PRD requires zero iOS code changes. All work is in `stacks-sync` backend.
+
+2. **Enables Future iOS Features**: Once users table exists, iOS can implement:
+   - User profile views (show avatar, name, email)
+   - Collaboration features (share stacks with other users by email)
+   - User search and mentions
+   - "Shared with me" workflows
+
+3. **Database Foundation**: Proper FK constraints prevent data integrity issues that would affect iOS clients (e.g., orphaned events from deleted users).
+
+4. **Documentation Co-Location**: Keeping PRDs near the features they enable helps iOS developers understand backend capabilities.
+
+**Alternative**: This PRD could be moved to `stacks-sync` repo with a corresponding iOS PRD for consuming the new endpoints. However, since no immediate iOS work is required, we document it here as context.
+
+### 2.8.5 iOS Impact Summary
+
+| Aspect | Current State | After This PRD | Future (Separate PRD) |
+|--------|---------------|----------------|----------------------|
+| **Auth** | JWT with user_id | No change | No change |
+| **User Data** | None (user_id only) | None (backend only) | Profile API + Model |
+| **Code Changes** | N/A | None required | API client + UI |
+| **Dependencies** | Clerk iOS SDK | No change | Backend user endpoints |
+
+**Key Takeaway**: This PRD is "plumbing" work that creates the foundation for future iOS features, but requires no immediate iOS implementation.
+
+---
+
 ## 3. Implementation Phases
 
 ### Phase 1: Backend Webhook Infrastructure
@@ -445,20 +541,45 @@ When a user deletes their Clerk account:
 
 ### 4.2 Data Retention Considerations
 
-| Data Type | Retention Policy | Rationale |
-|-----------|-----------------|-----------|
-| Events | Indefinite (anonymize after 90 days) | Audit trail, analytics |
-| User Settings | Delete immediately | Personal preferences, no longer needed |
-| Attachment Files | 30 days, then cleanup | Allow grace period for reactivation |
-| User Record | Soft delete, hard delete after 1 year | Legal/compliance requirements |
+**Important Clarifications**:
+- **"Anonymize"** means removing PII from records while keeping structure intact for analytics
+- **"Soft delete"** means UPDATE (set deleted_at), not SQL DELETE
+- **"Hard delete"** means actual SQL DELETE (requires removing FK constraints or dependent data first)
+
+| Data Type | Retention Policy | Implementation Details |
+|-----------|-----------------|----------------------|
+| **Events** | Indefinite, **no anonymization** | Keep full audit trail. User FK remains valid even after user soft delete. Events preserved forever for historical accuracy. |
+| **User Settings** | Delete immediately on user deletion | CASCADE delete (FK allows this) - settings are user-specific and no longer needed. |
+| **Attachment Files** | 30 days after user deletion, then cleanup | Soft delete user → mark attachments for cleanup → background job removes files after grace period. |
+| **User Record** | Soft delete indefinitely, **no hard delete** | Soft delete on account deletion. Keep record permanently to maintain FK integrity with events. GDPR satisfied by soft delete (user no longer "active"). |
+
+**GDPR Note**: GDPR "right to erasure" is satisfied by:
+- Soft deleting the user (they can no longer log in or access data)
+- Removing from active user lists/searches
+- Marking as deleted in all systems
+
+Hard delete is NOT required by GDPR if the user is effectively removed from the system. Keeping soft-deleted records for FK integrity is a legitimate interest for maintaining system consistency.
 
 ### 4.3 GDPR Compliance
 
-For data deletion requests:
-1. Soft delete user immediately
-2. Anonymize user data in events (replace email with hash)
-3. Schedule hard delete of user record after retention period
-4. Delete attachments after 30-day grace period
+For data deletion requests (when user deletes Clerk account):
+1. **Soft delete user immediately** (set `deleted_at = NOW()`, `is_deleted = TRUE`)
+2. **User becomes inaccessible**: Can no longer log in, not returned in user lists/searches
+3. **Events remain unchanged**: Keep full event history with user_id FK intact for audit trail
+4. **Attachments cleanup**: Schedule deletion after 30-day grace period
+5. **User record persists**: Kept indefinitely in soft-deleted state to maintain FK integrity
+
+**Why No Hard Delete**:
+- GDPR "right to erasure" satisfied by soft delete (user effectively removed from system)
+- Maintaining FK integrity with historical events is a legitimate interest
+- No active user data accessible or displayed after soft delete
+
+**If Hard Delete Required** (e.g., explicit GDPR request from legal team):
+1. Manually review all dependent data (events, attachments)
+2. Decide on anonymization strategy (keep event structure, remove PII)
+3. Remove or modify FK constraints temporarily
+4. Perform hard delete
+5. This is an exceptional manual process, not automated
 
 ---
 
