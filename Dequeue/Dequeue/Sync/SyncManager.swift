@@ -758,7 +758,7 @@ actor SyncManager {
 
         let event = try createEvent(id: id, type: type, timestamp: timestamp, payload: payload, eventData: eventData)
 
-        if try applyAndInsertEvent(event, context: context) {
+        if try await applyAndInsertEvent(event, context: context) {
             stats.processed += 1
             if type.hasPrefix("reminder.") {
                 stats.hasReminderEvents = true
@@ -819,9 +819,9 @@ actor SyncManager {
     }
 
     @MainActor
-    private func applyAndInsertEvent(_ event: Event, context: ModelContext) throws -> Bool {
+    private func applyAndInsertEvent(_ event: Event, context: ModelContext) async throws -> Bool {
         do {
-            try ProjectorService.apply(event: event, context: context)
+            try await ProjectorService.apply(event: event, context: context)
             context.insert(event)
             return true
         } catch {

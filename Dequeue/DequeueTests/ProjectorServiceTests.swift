@@ -17,9 +17,9 @@ struct ProjectorServiceTests {
     // MARK: - Test Helpers
 
     /// Helper to apply multiple events in sequence
-    private func applyEvents(_ events: [Event], context: ModelContext) throws {
+    private func applyEvents(_ events: [Event], context: ModelContext) async throws {
         for event in events {
-            try ProjectorService.apply(event: event, context: context)
+            try await ProjectorService.apply(event: event, context: context)
         }
     }
 
@@ -84,7 +84,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try applyEvents([event], context: context)
+        try await applyEvents([event], context: context)
 
         // Verify isActive was restored
         #expect(stack.isActive == true)
@@ -105,7 +105,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try applyEvents([event], context: context)
+        try await applyEvents([event], context: context)
 
         // Verify the stack was created with isActive = true
         let predicate = #Predicate<Stack> { $0.id == stackId }
@@ -130,7 +130,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try applyEvents([event], context: context)
+        try await applyEvents([event], context: context)
 
         // Verify the stack was created with isActive = false
         let predicate = #Predicate<Stack> { $0.id == stackId }
@@ -162,7 +162,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try applyEvents([event], context: context)
+        try await applyEvents([event], context: context)
 
         // Verify isActive was set to true (not status changed)
         #expect(stack.isActive == true)
@@ -188,7 +188,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try applyEvents([event], context: context)
+        try await applyEvents([event], context: context)
 
         // Verify workflow status was NOT changed
         #expect(stack.status == .completed)
@@ -217,7 +217,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try applyEvents([event], context: context)
+        try await applyEvents([event], context: context)
 
         // Verify isActive was set to false (not status changed)
         #expect(stack.isActive == false)
@@ -243,7 +243,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try applyEvents([event], context: context)
+        try await applyEvents([event], context: context)
 
         // Verify workflow status was NOT changed
         #expect(stack.status == .active)
@@ -277,7 +277,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply events in order
-        try applyEvents([event1, event2, event3], context: context)
+        try await applyEvents([event1, event2, event3], context: context)
 
         // Verify only stack3 is active
         let descriptor = FetchDescriptor<Stack>()
@@ -317,7 +317,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply all events in order
-        try applyEvents([createEvent1, createEvent2, deactivateEvent, activateEvent], context: context)
+        try await applyEvents([createEvent1, createEvent2, deactivateEvent, activateEvent], context: context)
 
         // Verify only stack2 is active now
         let descriptor = FetchDescriptor<Stack>()
@@ -358,7 +358,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the activation event
-        try applyEvents([event], context: context)
+        try await applyEvents([event], context: context)
 
         // Verify constraint is now enforced: only stack2 should be active
         #expect(stack1.isActive == false)
@@ -408,7 +408,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply all events in order (create then activate, last activation wins)
-        try applyEvents([
+        try await applyEvents([
             createEvent1, createEvent2, createEvent3,
             activateEvent1, activateEvent2, activateEvent3
         ], context: context)
@@ -451,7 +451,7 @@ struct ProjectorServiceTests {
         let createEvent = Event(eventType: .stackCreated, payload: createPayload, timestamp: createTime, entityId: stackId, userId: "test-user", deviceId: "test-device", appId: "test-app")
         context.insert(createEvent)
         try context.save()
-        try applyEvents([createEvent], context: context)
+        try await applyEvents([createEvent], context: context)
 
         // Verify stack was created
         let predicate = #Predicate<Stack> { $0.id == stackId }
@@ -467,7 +467,7 @@ struct ProjectorServiceTests {
         let deleteEvent = Event(eventType: .stackDeleted, payload: deletePayloadData, timestamp: deleteTime, entityId: stackId, userId: "test-user", deviceId: "test-device", appId: "test-app")
         context.insert(deleteEvent)
         try context.save()
-        try applyEvents([deleteEvent], context: context)
+        try await applyEvents([deleteEvent], context: context)
 
         // Verify stack is now deleted
         stacks = try context.fetch(descriptor)
@@ -481,7 +481,7 @@ struct ProjectorServiceTests {
         let activateEvent = Event(eventType: .stackActivated, payload: activatePayloadData, timestamp: activateTime, entityId: stackId, userId: "test-user", deviceId: "test-device", appId: "test-app")
         context.insert(activateEvent)
         try context.save()
-        try applyEvents([activateEvent], context: context)
+        try await applyEvents([activateEvent], context: context)
 
         // Step 4: Verify the deleted stack was NOT activated (guard should prevent it)
         stacks = try context.fetch(descriptor)
@@ -516,7 +516,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the deletion event
-        try applyEvents([event], context: context)
+        try await applyEvents([event], context: context)
 
         // Verify the stack is now deleted and inactive
         #expect(stack.isDeleted == true)
@@ -582,7 +582,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the event
-        try applyEvents([event], context: context)
+        try await applyEvents([event], context: context)
 
         // Verify the task status was updated to completed
         // Before DEQ-139 fix, this would fail because EntityStatusPayload
@@ -648,7 +648,7 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Apply the events (simulating rehydration on device B)
-        try applyEvents([event1, event2, event3], context: context)
+        try await applyEvents([event1, event2, event3], context: context)
 
         // Verify all 3 tasks are now completed
         // This was the bug in DEQ-139: tasks remained pending after sync
