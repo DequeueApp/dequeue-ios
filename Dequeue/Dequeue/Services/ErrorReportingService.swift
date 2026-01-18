@@ -36,6 +36,9 @@ enum ErrorReportingService {
         set { configurationLock.withLock { $0.cachedDeviceIdentifier = newValue } }
     }
 
+    /// Maximum length for error messages to prevent excessively large log entries
+    private static let maxErrorMessageLength = 500
+
     /// Returns true if Sentry should be skipped (test/CI environments)
     private static var shouldSkipConfiguration: Bool {
         if isConfigured {
@@ -460,13 +463,13 @@ extension ErrorReportingService {
         } else if (400...499).contains(statusCode) {
             var warningAttrs = attributes
             if let error = error {
-                warningAttrs["error"] = String(error.prefix(500))
+                warningAttrs["error"] = String(error.prefix(maxErrorMessageLength))
             }
             logWarning("API client error", attributes: warningAttrs)
         } else if (500...599).contains(statusCode) {
             var errorAttrs = attributes
             if let error = error {
-                errorAttrs["error"] = String(error.prefix(500))
+                errorAttrs["error"] = String(error.prefix(maxErrorMessageLength))
             }
             logError("API server error", attributes: errorAttrs)
         }

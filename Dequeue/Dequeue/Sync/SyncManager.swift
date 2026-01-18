@@ -124,6 +124,12 @@ actor SyncManager {
     }()
     // swiftlint:enable force_try
 
+    /// Generates a short sync ID for tracking sync operations in logs.
+    /// Uses first 8 characters of a UUID for brevity while maintaining uniqueness.
+    private static func generateSyncId() -> String {
+        String(UUID().uuidString.prefix(8))
+    }
+
     /// Parses ISO8601 timestamp, handling Go's RFC3339Nano format with nanosecond precision.
     /// Go sends timestamps like "2024-01-15T10:30:45.123456789Z" but Swift's ISO8601DateFormatter
     /// only handles milliseconds (3 decimal places). We truncate to milliseconds for parsing.
@@ -372,7 +378,7 @@ actor SyncManager {
     // swiftlint:disable:next function_body_length
     func pushEvents() async throws {
         let startTime = Date()
-        let syncId = String(UUID().uuidString.prefix(8))
+        let syncId = Self.generateSyncId()
 
         guard let token = try await refreshToken() else {
             throw SyncError.notAuthenticated
@@ -586,7 +592,7 @@ actor SyncManager {
     // swiftlint:disable:next function_body_length
     func pullEvents() async throws {
         let startTime = Date()
-        let syncId = String(UUID().uuidString.prefix(8))
+        let syncId = Self.generateSyncId()
 
         guard let token = try await refreshToken() else {
             os_log("[Sync] Pull failed: Not authenticated")

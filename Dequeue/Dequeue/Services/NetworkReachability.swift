@@ -24,14 +24,67 @@ enum NetworkReachability {
     /// Timeout for reachability check (reduced from 5s to minimize delay on sync failures)
     private static let reachabilityTimeout: TimeInterval = 2.0
 
+    /// How long to consider a cached reachability result valid
+    private static let reachabilityCacheDuration: TimeInterval = 10.0
+
+    // MARK: - Cached State
+
+    /// Thread-safe cached reachability state to avoid blocking network calls on repeated failures
+    private struct CachedReachability {
+        var isReachable: Bool = false
+        var timestamp: Date = .distantPast
+    }
+
+    /// Lock for thread-safe access to cached reachability
+    private static let cacheLock = NSLock()
+    private static var cachedReachability = CachedReachability()
+
     /// Check if we can reach the general internet (not our specific server).
     ///
     /// Uses Apple's captive portal detection endpoint which is highly reliable
     /// and returns quickly. This tells us if the device has working internet
     /// connectivity independent of our backend status.
     ///
+    /// Results are cached for `reachabilityCacheDuration` to avoid blocking
+    /// network calls when multiple failures occur in rapid succession.
+    ///
     /// - Returns: `true` if internet is reachable, `false` otherwise
     static func canReachInternet() async -> Bool {
+        // Check cache first to avoid blocking network calls on repeated failures
+        let cached = getCachedReachability()
+        if let cached {
+            return cached
+        }
+
+        // Cache miss or expired - perform actual check
+        let isReachable = await performReachabilityCheck()
+        setCachedReachability(isReachable)
+        return isReachable
+    }
+
+    /// Returns cached reachability if still valid, nil if expired or not yet set
+    private static func getCachedReachability() -> Bool? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+
+        let age = Date().timeIntervalSince(cachedReachability.timestamp)
+        guard age < reachabilityCacheDuration else {
+            return nil
+        }
+        return cachedReachability.isReachable
+    }
+
+    /// Updates the cached reachability value
+    private static func setCachedReachability(_ isReachable: Bool) {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+
+        cachedReachability.isReachable = isReachable
+        cachedReachability.timestamp = Date()
+    }
+
+    /// Performs the actual network reachability check
+    private static func performReachabilityCheck() async -> Bool {
         guard let url = URL(string: "https://captive.apple.com") else { return false }
 
         var request = URLRequest(url: url)
