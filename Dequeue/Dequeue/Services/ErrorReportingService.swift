@@ -153,7 +153,7 @@ enum ErrorReportingService {
                     // SESSION TRACKING
                     // ============================================
                     options.enableAutoSessionTracking = true
-                    options.sessionTrackingIntervalMillis = 30000  // 30 second session timeout
+                    options.sessionTrackingIntervalMillis = 30_000  // 30 second session timeout
                 }
 
                 isConfigured = true

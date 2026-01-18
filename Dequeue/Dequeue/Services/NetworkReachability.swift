@@ -17,7 +17,6 @@ import Foundation
 /// This distinction is critical for proper error reporting - we only want
 /// to alert on server issues, not expected offline behavior.
 enum NetworkReachability {
-
     // MARK: - Internet Reachability
 
     /// Check if we can reach the general internet (not our specific server).

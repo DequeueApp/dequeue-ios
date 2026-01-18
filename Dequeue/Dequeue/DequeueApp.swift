@@ -186,7 +186,7 @@ struct RootView: View {
                 await handleAuthStateChange(isAuthenticated: isAuthenticated)
             }
         }
-        .onChange(of: scenePhase) { oldPhase, newPhase in
+        .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
                 ErrorReportingService.logAppForeground()
