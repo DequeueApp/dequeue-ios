@@ -233,6 +233,9 @@ struct PDFThumbnailGeneratorTests {
         UIGraphicsBeginPDFContextToData(data, pageRect, nil)
         for pageIndex in 0..<pageCount {
             UIGraphicsBeginPDFPage()
+            // Safety: UIGraphicsGetCurrentContext() is guaranteed to return a valid context
+            // immediately after UIGraphicsBeginPDFPage() within the same PDF context block.
+            // This is documented Apple API behavior - the context exists until EndPDFContext.
             guard let context = UIGraphicsGetCurrentContext() else {
                 fatalError("No graphics context available after UIGraphicsBeginPDFPage()")
             }

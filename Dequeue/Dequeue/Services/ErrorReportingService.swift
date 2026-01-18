@@ -36,7 +36,10 @@ enum ErrorReportingService {
         set { configurationLock.withLock { $0.cachedDeviceIdentifier = newValue } }
     }
 
-    /// Maximum length for error messages to prevent excessively large log entries
+    /// Maximum length for error messages to prevent excessively large log entries.
+    /// 500 characters chosen to balance completeness with Sentry's recommended payload limits
+    /// and UI readability in error dashboards. Sentry can handle larger messages but truncating
+    /// keeps log entries scannable and reduces storage costs.
     private static let maxErrorMessageLength = 500
 
     /// Suffix added to truncated error messages
@@ -90,8 +93,11 @@ enum ErrorReportingService {
         // Quick synchronous check to avoid async overhead in test environments
         guard !shouldSkipConfiguration else { return }
 
-        // Cache device identifier on main actor before going to background
-        // This ensures thread-safe access for logging from any context
+        // Cache device identifier on main actor before Sentry initialization.
+        // This ensures thread-safe access for logging from any context.
+        // Note: Any log() calls that occur BEFORE configure() completes will show
+        // device: "unknown" - this is acceptable for very early app startup logs
+        // and documenting this behavior is preferable to adding complexity.
         await MainActor.run {
             cachedDeviceId = buildDeviceIdentifier()
         }

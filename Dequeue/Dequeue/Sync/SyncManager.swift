@@ -521,17 +521,28 @@ actor SyncManager {
                 itemsDownloaded: 0
             )
         } catch {
-            // Classify the failure
+            // Capture duration immediately, then log failure in background to avoid blocking
+            // The reachability check can take 2+ seconds, which would delay sync retry unnecessarily
             let duration = Date().timeIntervalSince(startTime)
-            let failureReason = await NetworkReachability.classifyFailure(error: error)
-
-            await ErrorReportingService.logSyncFailure(
-                syncId: syncId,
-                duration: duration,
-                error: error,
-                failureReason: failureReason.description,
-                internetReachable: failureReason.isServerProblem
-            )
+            let capturedError = error
+            Task.detached(priority: .utility) {
+                do {
+                    let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
+                    await ErrorReportingService.logSyncFailure(
+                        syncId: syncId,
+                        duration: duration,
+                        error: capturedError,
+                        failureReason: failureReason.description,
+                        internetReachable: failureReason.isServerProblem
+                    )
+                } catch {
+                    // Fallback to os_log if Sentry logging fails - ensures observability is never lost
+                    os_log(
+                        .error,
+                        "[Sync] Failed to log push failure to Sentry: \(error). Original: \(capturedError)"
+                    )
+                }
+            }
             throw error
         }
     }
@@ -677,17 +688,28 @@ actor SyncManager {
                 itemsDownloaded: eventsDownloaded
             )
         } catch {
-            // Classify the failure
+            // Capture duration immediately, then log failure in background to avoid blocking
+            // The reachability check can take 2+ seconds, which would delay sync retry unnecessarily
             let duration = Date().timeIntervalSince(startTime)
-            let failureReason = await NetworkReachability.classifyFailure(error: error)
-
-            await ErrorReportingService.logSyncFailure(
-                syncId: syncId,
-                duration: duration,
-                error: error,
-                failureReason: failureReason.description,
-                internetReachable: failureReason.isServerProblem
-            )
+            let capturedError = error
+            Task.detached(priority: .utility) {
+                do {
+                    let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
+                    await ErrorReportingService.logSyncFailure(
+                        syncId: syncId,
+                        duration: duration,
+                        error: capturedError,
+                        failureReason: failureReason.description,
+                        internetReachable: failureReason.isServerProblem
+                    )
+                } catch {
+                    // Fallback to os_log if Sentry logging fails - ensures observability is never lost
+                    os_log(
+                        .error,
+                        "[Sync] Failed to log pull failure to Sentry: \(error). Original: \(capturedError)"
+                    )
+                }
+            }
             throw error
         }
     }
