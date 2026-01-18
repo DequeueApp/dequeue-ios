@@ -157,10 +157,25 @@ protocol AttachmentUploadServiceProtocol {
     ///   - presignedURL: The presigned upload URL
     ///   - mimeType: The MIME type of the file
     /// - Throws: `AttachmentUploadError` on failure
+    /// - Note: For large files, prefer `uploadToPresignedURL(fromFile:...)` to avoid memory issues
     func uploadToPresignedURL(
         data: Data,
         presignedURL: URL,
         mimeType: String
+    ) async throws
+
+    /// Uploads a file to a presigned URL using streaming (memory-efficient for large files)
+    /// - Parameters:
+    ///   - fileURL: The local file URL to upload
+    ///   - presignedURL: The presigned upload URL
+    ///   - mimeType: The MIME type of the file
+    ///   - fileSize: The size of the file in bytes (for Content-Length header)
+    /// - Throws: `AttachmentUploadError` on failure
+    func uploadToPresignedURL(
+        fromFile fileURL: URL,
+        presignedURL: URL,
+        mimeType: String,
+        fileSize: Int64
     ) async throws
 }
 
@@ -194,8 +209,8 @@ final class AttachmentUploadService: AttachmentUploadServiceProtocol {
 
         let body: [String: Any] = [
             "filename": filename,
-            "mime_type": mimeType,
-            "size_bytes": sizeBytes
+            "mimeType": mimeType,
+            "sizeBytes": sizeBytes
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -226,6 +241,37 @@ final class AttachmentUploadService: AttachmentUploadServiceProtocol {
                     "Upload returned status \(httpResponse.statusCode)"
                 )
             }
+        }
+    }
+
+    func uploadToPresignedURL(
+        fromFile fileURL: URL,
+        presignedURL: URL,
+        mimeType: String,
+        fileSize: Int64
+    ) async throws {
+        // Verify file exists before attempting upload
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            throw AttachmentUploadError.fileNotFound(fileURL.path)
+        }
+
+        var request = URLRequest(url: presignedURL)
+        request.httpMethod = "PUT"
+        request.setValue(mimeType, forHTTPHeaderField: "Content-Type")
+        request.setValue("\(fileSize)", forHTTPHeaderField: "Content-Length")
+
+        // Use upload(for:fromFile:) which streams the file without loading into memory
+        // This is critical for large files (videos, high-res images) that could cause OOM
+        let (_, response) = try await session.upload(for: request, fromFile: fileURL)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AttachmentUploadError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw AttachmentUploadError.uploadFailed(
+                "Upload returned status \(httpResponse.statusCode)"
+            )
         }
     }
 
@@ -378,6 +424,19 @@ final class MockAttachmentUploadService: AttachmentUploadServiceProtocol {
         data: Data,
         presignedURL: URL,
         mimeType: String
+    ) async throws {
+        uploadCallCount += 1
+
+        if let error = mockError {
+            throw error
+        }
+    }
+
+    func uploadToPresignedURL(
+        fromFile fileURL: URL,
+        presignedURL: URL,
+        mimeType: String,
+        fileSize: Int64
     ) async throws {
         uploadCallCount += 1
 
