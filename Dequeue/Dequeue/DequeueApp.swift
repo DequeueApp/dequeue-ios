@@ -205,10 +205,11 @@ struct RootView: View {
                     }
                 }
             case .background:
-                Task {
-                    // Get pending sync item count for observability
+                // Use detached task with utility priority to avoid blocking the background transition.
+                // This is fire-and-forget logging that shouldn't delay the app's transition to background.
+                Task.detached(priority: .utility) { [self] in
                     let pendingCount = await getPendingSyncItemCount()
-                    ErrorReportingService.logAppBackground(pendingSyncItems: pendingCount)
+                    await ErrorReportingService.logAppBackground(pendingSyncItems: pendingCount)
                 }
             case .inactive:
                 // No logging needed for inactive state

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os
 
 /// Utility for determining network reachability and classifying sync failures.
 ///
@@ -22,22 +23,23 @@ enum NetworkReachability {
     // MARK: - Constants
 
     /// Timeout for reachability check (reduced from 5s to minimize delay on sync failures)
-    private static let reachabilityTimeout: TimeInterval = 2.0
+    private static nonisolated(unsafe) let reachabilityTimeout: TimeInterval = 2.0
 
     /// How long to consider a cached reachability result valid
-    private static let reachabilityCacheDuration: TimeInterval = 10.0
+    private static nonisolated(unsafe) let reachabilityCacheDuration: TimeInterval = 10.0
 
     // MARK: - Cached State
 
-    /// Thread-safe cached reachability state to avoid blocking network calls on repeated failures
+    /// Thread-safe cached reachability state to avoid blocking network calls on repeated failures.
+    /// Uses OSAllocatedUnfairLock for Swift Concurrency safety - NSLock can cause thread-pool
+    /// exhaustion if held across suspension points.
     private struct CachedReachability {
         var isReachable: Bool = false
         var timestamp: Date = .distantPast
     }
 
-    /// Lock for thread-safe access to cached reachability
-    private static let cacheLock = NSLock()
-    private static var cachedReachability = CachedReachability()
+    /// Thread-safe lock for cached reachability state
+    private static let cacheLock = OSAllocatedUnfairLock(initialState: CachedReachability())
 
     /// Check if we can reach the general internet (not our specific server).
     ///
@@ -64,23 +66,21 @@ enum NetworkReachability {
 
     /// Returns cached reachability if still valid, nil if expired or not yet set
     private static func getCachedReachability() -> Bool? {
-        cacheLock.lock()
-        defer { cacheLock.unlock() }
-
-        let age = Date().timeIntervalSince(cachedReachability.timestamp)
-        guard age < reachabilityCacheDuration else {
-            return nil
+        cacheLock.withLock { state in
+            let age = Date().timeIntervalSince(state.timestamp)
+            guard age < reachabilityCacheDuration else {
+                return nil
+            }
+            return state.isReachable
         }
-        return cachedReachability.isReachable
     }
 
     /// Updates the cached reachability value
     private static func setCachedReachability(_ isReachable: Bool) {
-        cacheLock.lock()
-        defer { cacheLock.unlock() }
-
-        cachedReachability.isReachable = isReachable
-        cachedReachability.timestamp = Date()
+        cacheLock.withLock { state in
+            state.isReachable = isReachable
+            state.timestamp = Date()
+        }
     }
 
     /// Performs the actual network reachability check

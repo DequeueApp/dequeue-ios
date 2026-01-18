@@ -39,6 +39,19 @@ enum ErrorReportingService {
     /// Maximum length for error messages to prevent excessively large log entries
     private static let maxErrorMessageLength = 500
 
+    /// Suffix added to truncated error messages
+    private static let truncationIndicator = "...[truncated]"
+
+    /// Breadcrumb category for app-level log entries
+    private static let appLogCategory = "app.log"
+
+    /// Truncates a string to the maximum error message length, adding a truncation indicator if needed
+    private static func truncateErrorMessage(_ message: String) -> String {
+        guard message.count > maxErrorMessageLength else { return message }
+        let truncatedLength = maxErrorMessageLength - truncationIndicator.count
+        return String(message.prefix(truncatedLength)) + truncationIndicator
+    }
+
     /// Returns true if Sentry should be skipped (test/CI environments)
     private static var shouldSkipConfiguration: Bool {
         if isConfigured {
@@ -315,6 +328,25 @@ enum ErrorReportingService {
         function: String,
         line: Int
     ) {
+        // Skip Sentry logging if not configured (e.g., test/CI environments)
+        // Still output to console in debug builds for local development
+        guard isConfigured else {
+            #if DEBUG
+            let levelString: String
+            switch level {
+            case .debug: levelString = "DEBUG"
+            case .info: levelString = "INFO"
+            case .warning: levelString = "WARNING"
+            case .error: levelString = "ERROR"
+            case .fatal: levelString = "FATAL"
+            default: levelString = "LOG"
+            }
+            let attributeString = attributes.isEmpty ? "" : " \(attributes)"
+            os_log("[%{public}@] %{public}@%{public}@ (Sentry not configured)", levelString, message, attributeString)
+            #endif
+            return
+        }
+
         // Build enriched attributes
         var enrichedAttributes = attributes
         enrichedAttributes["file"] = URL(fileURLWithPath: file).lastPathComponent
@@ -346,7 +378,7 @@ enum ErrorReportingService {
         // Also add as breadcrumb for correlation with crashes
         let breadcrumb = Breadcrumb()
         breadcrumb.level = level
-        breadcrumb.category = "app.log"
+        breadcrumb.category = appLogCategory
         breadcrumb.message = message
         breadcrumb.data = stringAttributes
         SentrySDK.addBreadcrumb(breadcrumb)
@@ -463,13 +495,13 @@ extension ErrorReportingService {
         } else if (400...499).contains(statusCode) {
             var warningAttrs = attributes
             if let error = error {
-                warningAttrs["error"] = String(error.prefix(maxErrorMessageLength))
+                warningAttrs["error"] = truncateErrorMessage(error)
             }
             logWarning("API client error", attributes: warningAttrs)
         } else if (500...599).contains(statusCode) {
             var errorAttrs = attributes
             if let error = error {
-                errorAttrs["error"] = String(error.prefix(maxErrorMessageLength))
+                errorAttrs["error"] = truncateErrorMessage(error)
             }
             logError("API server error", attributes: errorAttrs)
         }
