@@ -7,6 +7,7 @@
 
 import Foundation
 import Sentry
+import os.log
 #if os(iOS)
 import UIKit
 #endif
@@ -317,7 +318,7 @@ enum ErrorReportingService {
         default: levelString = "LOG"
         }
         let attributeString = attributes.isEmpty ? "" : " \(attributes)"
-        print("[\(levelString)] \(message)\(attributeString)")
+        os_log("[%{public}@] %{public}@%{public}@", levelString, message, attributeString)
         #endif
     }
 
