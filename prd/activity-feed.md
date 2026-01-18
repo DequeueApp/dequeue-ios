@@ -3,9 +3,8 @@
 **Status**: Draft
 **Author**: Claude (with Victor)
 **Created**: 2026-01-18
-**Last Updated**: 2026-01-18
+**Last Updated**: 2026-01-18 (v2 - incorporated multi-model feedback)
 **Issue**: TBD (Linear)
-**iOS Requirements**: iOS 17.0+ (MVP with templates), iOS 18.4+ (on-device LLM)
 
 ---
 
@@ -135,9 +134,7 @@ final class Event {
 }
 ```
 
-#### 3.1.2 New: Daily Summary Cache (Local Only, Not Synced)
-
-**Design Decision**: ActivitySummary is device-local and regenerated on each device rather than synced. See "Summary Sync Strategy" in Key Technical Decisions below for rationale.
+#### 3.1.2 New: Daily Summary Cache (Local Only)
 
 ```swift
 @Model
@@ -152,9 +149,6 @@ final class ActivitySummary {
     var generatedAt: Date                 // When summary was generated
     var modelVersion: String              // LLM model version for cache invalidation
     var isStale: Bool                     // True if new events added after generation
-
-    // NOT included: No relationship to Event entities (cache is ephemeral)
-    // NOT included: No sync fields (local cache only, not synced)
 }
 
 enum SummaryType: String, Codable {
@@ -165,26 +159,17 @@ enum SummaryType: String, Codable {
 
 #### 3.1.3 Event Types for Activity Feed
 
-**Note**: This table is synchronized with `EventType` enum in `Dequeue/Models/Enums.swift`.
-
 | Event Type | Activity Display | Include in Summary |
 |------------|------------------|-------------------|
 | `stack.completed` | "✓ Completed: [Stack Name]" | Yes |
-| `stack.closed` | "🔒 Closed: [Stack Name]" | Yes (distinct from completed) |
 | `stack.activated` | "▶ Started: [Stack Name]" | Yes |
-| `stack.deactivated` | "⏸ Paused: [Stack Name]" | Optional (useful when switching stacks) |
-| `stack.discarded` | — | No (draft stacks, not meaningful) |
+| `stack.deactivated` | — | No (not meaningful) |
 | `task.completed` | "✓ Completed task: [Task Title]" | Yes |
-| `task.closed` | "🔒 Closed task: [Task Title]" | Yes (distinct from completed) |
 | `task.activated` | "▶ Started task: [Task Title]" | Yes |
+| `task.deactivated` | — | No (not meaningful) |
 | `stack.created` | "➕ Created: [Stack Name]" | Optional |
 | `task.created` | — | No (too noisy) |
 | `attachment.added` | "📎 Added attachment to [Entity]" | Optional |
-| `attachment.removed` | "🗑 Removed attachment from [Entity]" | Optional |
-
-**Distinctions**:
-- **Completed vs. Closed**: "Completed" means finished with all tasks done; "Closed" means archived without necessarily completing all tasks
-- **Stack.deactivated**: Shows when switching between stacks (relevant for "exactly one active stack" model per PROJECT.md)
 
 ### 3.2 Activity Feed Architecture
 
@@ -231,59 +216,60 @@ enum SummaryType: String, Codable {
 
 The feature uses a tiered approach to summary generation:
 
-1. **On-Device (Primary)**: Use Apple's Foundation Models framework (iOS 18.4+) for privacy-preserving, offline-capable summarization.
+1. **Template Fallback (Always Available)**: Generate structured template summary: "You completed X tasks across Y stacks, including [top completions]." This ensures the feature works on all devices, offline, with zero dependencies.
 
-2. **Backend Fallback**: If on-device unavailable or fails, request summary from backend LLM service.
+2. **On-Device LLM (Primary for Enhanced Summaries)**: Use Apple's Foundation Models framework (iOS 26+) for privacy-preserving, offline-capable natural language summarization.
 
-3. **Template Fallback**: If both fail, generate structured template summary: "You completed X tasks across Y stacks, including [top completions]."
+3. **Backend LLM (Cloud Fallback)**: If on-device unavailable or for weekly rollups exceeding on-device limits, request summary from backend LLM service (Claude).
 
-#### 3.3.2 On-Device LLM (iOS 18.4+)
+#### 3.3.2 On-Device LLM Constraints (iOS 26+)
 
-**Availability Note**: Apple's Foundation Models framework requires iOS 18.4+, which is in beta as of January 2026. For devices running iOS 17.0-18.3, the implementation will fall back to template-based summaries (Phase 1) or backend LLM (Phase 6).
+**Critical Limitations:**
+| Constraint | Value | Impact |
+|------------|-------|--------|
+| Context Window | **4,096 tokens** (input + output combined) | Limits daily summaries to ~50-60 events |
+| Model Size | 3 billion parameters | Less reasoning power than cloud models |
+| Device Support | Apple Intelligence-compatible only | Excludes older devices (iPhone 14 and earlier) |
+| iOS Version | iOS 26+ | Requires latest OS |
 
-**Deployment Strategy**:
-- **Phase 1-2 (MVP)**: Template-based summaries work on all iOS 17.0+ devices
-- **Phase 3**: On-device LLM enabled conditionally for iOS 18.4+ devices
-- **Phase 6**: Backend LLM provides enhanced summaries for pre-18.4 devices
+**Token Budget for Daily Summaries:**
+- System prompt: ~200 tokens
+- Event data (50 events): ~2,000-2,500 tokens
+- Output summary: ~200-300 tokens
+- **Buffer remaining**: ~1,000-1,500 tokens
+
+**Weekly Rollups**: Will likely exceed 4K token limit (7 days × 50 events). **Must use backend LLM (Claude) for weekly summaries.**
 
 ```swift
 import FoundationModels
 
 actor ActivitySummarizer {
+    private let maxEventsForOnDevice = 50  // Conservative limit to stay within 4K tokens
+
     func generateDailySummary(events: [Event], for date: Date) async throws -> String {
-        // Check iOS version availability
-        guard #available(iOS 18.4, *) else {
-            throw SummaryError.onDeviceLLMUnavailable
+        // Check if on-device is viable
+        guard events.count <= maxEventsForOnDevice else {
+            // Too many events, fall back to backend
+            return try await generateViaBackend(events: events, date: date)
         }
 
-        do {
-            let model = SystemLanguageModel.default
+        let session = LanguageModelSession()
 
-            let prompt = """
-            Summarize this person's productivity for \(date.formatted()):
+        let prompt = """
+        Summarize this person's productivity for \(date.formatted()):
 
-            Completed:
-            \(formatCompletions(events))
+        Completed:
+        \(formatCompletions(events))
 
-            Started:
-            \(formatActivations(events))
+        Started:
+        \(formatActivations(events))
 
-            Write 2-3 sentences highlighting key accomplishments. Be specific but concise.
-            """
+        Write 2-3 sentences highlighting key accomplishments. Be specific but concise.
+        """
 
-            let response = try await model.generate(prompt: prompt)
-            return response.text
-        } catch {
-            // Log error and rethrow for fallback handling
-            logger.error("On-device LLM generation failed: \(error)")
-            throw error
-        }
+        let response = try await session.respond(to: prompt)
+        return response.content
     }
-}
-
-enum SummaryError: Error {
-    case onDeviceLLMUnavailable
-    case generationFailed
 }
 ```
 
@@ -309,13 +295,29 @@ Response:
 }
 ```
 
-#### 3.3.4 Summary Caching
+#### 3.3.4 Summary Caching & Invalidation
 
-- Summaries are cached in `ActivitySummary` model
-- Cache key: date + summary type (daily/weekly)
-- Invalidation: Mark `isStale = true` when new events arrive for that period
-- Regeneration: On next view if stale, regenerate in background
-- TTL: None (summaries for past days rarely need regeneration)
+**Cache Storage:**
+- Summaries are cached in `ActivitySummary` SwiftData model
+- Cache key: date string (YYYY-MM-DD or YYYY-Www) + summary type
+
+**Precise Invalidation Rules:**
+| Trigger | Action | Rationale |
+|---------|--------|-----------|
+| New event in cached day | Mark `isStale = true` | Summary no longer reflects reality |
+| Event deleted/modified | Mark `isStale = true` | Summary references outdated info |
+| Model version changes | Invalidate all | New model may produce better summaries |
+| Day becomes "yesterday" | Keep valid | Past days don't change |
+| Manual refresh requested | Force regenerate | User wants fresh summary |
+
+**Staleness Definition:**
+A summary is stale when `eventCount` differs from actual events for that period, OR when the `generatedAt` timestamp is before the most recent event timestamp in that period.
+
+**Regeneration Strategy:**
+- Background regeneration triggered when stale summary scrolls into view
+- Prefetch upcoming summaries during idle time (see 3.6.4)
+- Never block UI on summary generation - show template fallback immediately
+- TTL: None for past days; Today's summary expires after 2 hours of inactivity
 
 ### 3.4 Filtering System
 
@@ -349,7 +351,7 @@ enum IntegrationSource: String, CaseIterable {
 
 1. **Event Storage**: All events stored locally via existing sync system
 2. **Summary Cache**: Generated summaries stored in local SwiftData
-3. **Offline Summary Generation**: On-device LLM works offline (iOS 18.4+)
+3. **Offline Summary Generation**: On-device LLM works offline (iOS 26+)
 4. **Fallback**: Template summaries always available offline
 5. **Sync**: No activity-specific sync needed—events sync via existing mechanism
 
@@ -357,52 +359,21 @@ enum IntegrationSource: String, CaseIterable {
 
 #### 3.6.1 Query Optimization
 
-**Note**: Use `EventType` enum values, not raw strings, per CLAUDE.md style guide.
-
 ```swift
 // Efficient query for daily events
-// For MVP (Phase 1), use simpler query and filter in ViewModel:
 @Query(
-    filter: #Predicate<Event> {
-        $0.timestamp >= sevenDaysAgo
-    },
-    sort: \Event.timestamp,
-    order: .reverse
-) private var recentEvents: [Event]
-
-// Phase 2+: Add computed property to Event model for filtering
-// In Event.swift:
-extension Event {
-    var isActivityRelevant: Bool {
-        guard let eventType else { return false }
-
-        switch eventType {
-        case .stackCompleted, .stackClosed, .stackActivated, .stackDeactivated,
-             .taskCompleted, .taskClosed, .taskActivated,
-             .stackCreated, .attachmentAdded, .attachmentRemoved:
-            return true
-        default:
-            return false
-        }
-    }
-}
-
-// Then in query:
-@Query(
-    filter: #Predicate<Event> {
-        $0.timestamp >= dayStart &&
-        $0.timestamp < dayEnd &&
-        $0.isActivityRelevant
+    filter: #Predicate<Event> { event in
+        event.timestamp >= dayStart &&
+        event.timestamp < dayEnd &&
+        (event.type == "stack.completed" ||
+         event.type == "task.completed" ||
+         event.type == "stack.activated" ||
+         event.type == "task.activated")
     },
     sort: \Event.timestamp,
     order: .reverse
 ) private var dayEvents: [Event]
 ```
-
-**Performance Considerations**:
-- Add index on `Event.timestamp` in SwiftData schema
-- Limit initial query to 7-30 days to prevent scanning entire event log
-- Use computed property `isActivityRelevant` instead of inline type checks for maintainability
 
 #### 3.6.2 Lazy Loading
 
@@ -413,48 +384,184 @@ extension Event {
 
 #### 3.6.3 Summary Generation Timing
 
-- Generate summaries on-demand when card first visible
+- **Never block UI**: Show template summary immediately, enhance with LLM async
 - Cache aggressively (past summaries don't change)
 - Background generation during idle time
-- Today's summary regenerates periodically (every hour or on significant events)
+- Today's summary regenerates on significant events or every 2 hours
 
----
+#### 3.6.4 Prefetch Strategy
 
-## 3.7 Key Technical Decisions
+To avoid jank when cards become visible, implement proactive prefetching:
 
-### 3.7.1 Summary Sync Strategy: Local-Only Regeneration
+```swift
+actor SummaryPrefetcher {
+    private var prefetchQueue: Set<String> = []  // Date strings
 
-**Decision**: ActivitySummary data is NOT synced between devices. Each device regenerates summaries locally from synced Event data.
+    /// Called when user opens Activity tab
+    func prefetchVisibleRange(dates: [Date]) async {
+        // Prefetch today + yesterday + next 3 visible days
+        let priorityDates = dates.prefix(5)
 
-**Rationale**:
+        for date in priorityDates {
+            let key = date.ISO8601DayString
+            guard !prefetchQueue.contains(key) else { continue }
+            prefetchQueue.insert(key)
 
-1. **Privacy Alignment**: On-device LLM is the primary summarization method. Syncing summaries would undermine the privacy benefit of local processing.
+            Task.detached(priority: .utility) {
+                await ActivitySummaryService.shared.ensureSummaryExists(for: date)
+            }
+        }
+    }
 
-2. **Conflict Avoidance**: Different devices may generate slightly different summaries due to:
-   - Different iOS versions (18.4+ with on-device LLM vs. older with templates)
-   - Different LLM model versions over time
-   - Timing differences in when summaries are generated
+    /// Called during scroll deceleration
+    func prefetchUpcoming(direction: ScrollDirection, visibleDates: [Date]) async {
+        let upcomingDates = direction == .down
+            ? visibleDates.suffix(2).map { $0.addingDays(-1) }  // Older dates
+            : visibleDates.prefix(2).map { $0.addingDays(1) }   // Newer dates
 
-   Last-Write-Wins (LWW) conflict resolution would cause confusing inconsistencies where Device A sees one summary and Device B sees another for the same day.
+        for date in upcomingDates {
+            await prefetchSingle(date: date)
+        }
+    }
+}
+```
 
-3. **Source of Truth**: Events are the source of truth (per PROJECT.md event-first architecture). Summaries are derived views that can be regenerated at any time.
+**Prefetch Triggers:**
+1. **Tab appearance**: Prefetch today + yesterday + next 3 days
+2. **Scroll deceleration**: Prefetch 2 days in scroll direction
+3. **App background**: Prefetch tomorrow's template (for next-day opening)
+4. **Idle detection**: After 30s idle, prefetch next week's templates
 
-4. **Cache Invalidation**: If synced, summary invalidation logic becomes complex:
-   - What if Event data changes after summary sync?
-   - What if entity names change (stack renamed)?
-   - Simpler to treat summaries as ephemeral local cache.
+### 3.7 Error Handling
 
-5. **Bandwidth Efficiency**: Summary text is larger than event data. Regenerating locally saves sync bandwidth.
+#### 3.7.1 Error Categories & Recovery
 
-**Implementation**:
-- `ActivitySummary` model has NO sync-related fields (no `serverId`, no `updatedAt`)
-- Summaries regenerated on-demand when missing or marked stale
-- Backend LLM fallback (Phase 6) generates summaries on-demand but does NOT store them centrally
+| Error Type | User Impact | Recovery Strategy | UX Treatment |
+|------------|-------------|-------------------|--------------|
+| On-device LLM unavailable | No enhanced summaries | Fall back to backend, then template | Silent fallback, no error shown |
+| Backend LLM timeout | Delayed enhanced summary | Retry with backoff, show template | "Generating summary..." → template |
+| Backend LLM error (500) | No enhanced summary | Log, show template, retry later | Silent fallback |
+| Network offline | No backend fallback | Use on-device or template | Offline indicator in toolbar |
+| SwiftData query fails | No activity shown | Retry, show error state if persistent | "Couldn't load activity. Tap to retry." |
+| Summary generation crash | Corrupted cache | Clear cache for that date, regenerate | Silent recovery |
 
-**Trade-off Accepted**: Devices will do duplicate work generating summaries. This is acceptable because:
-- Most summaries are generated once and cached indefinitely (past days don't change)
-- Only "Today" summary regenerates frequently
-- On-device LLM is fast (<3 seconds per summary)
+#### 3.7.2 Graceful Degradation Tiers
+
+```
+Tier 1 (Best): On-device LLM summary
+    ↓ fallback
+Tier 2: Backend LLM summary (Claude)
+    ↓ fallback
+Tier 3: Template summary ("You completed X tasks...")
+    ↓ fallback
+Tier 4: Raw event list (no summary)
+    ↓ fallback
+Tier 5: Error state with retry
+```
+
+**Critical Principle**: The user should ALWAYS see their activity data. Summary generation failures should never prevent viewing the timeline.
+
+#### 3.7.3 LLM-Specific Error Handling
+
+```swift
+actor ActivitySummarizer {
+    func generateSummary(for date: Date) async -> SummaryResult {
+        // Try on-device first
+        if let onDeviceResult = try? await generateOnDevice(date: date) {
+            return .success(onDeviceResult, source: .onDevice)
+        }
+
+        // Try backend
+        if networkMonitor.isConnected {
+            do {
+                let backendResult = try await generateViaBackend(date: date)
+                return .success(backendResult, source: .backend)
+            } catch {
+                logger.error("Backend LLM failed: \(error)")
+                // Continue to template fallback
+            }
+        }
+
+        // Template fallback (always works)
+        let template = generateTemplateSummary(for: date)
+        return .success(template, source: .template)
+    }
+}
+```
+
+### 3.8 Event Inclusion Rules
+
+#### 3.8.1 What Counts as an "Accomplishment"?
+
+| Event Type | Included | Rationale |
+|------------|----------|-----------|
+| `stack.completed` | **Yes** | Core accomplishment - finished a project |
+| `task.completed` | **Yes** | Core accomplishment - finished a unit of work |
+| `stack.activated` | **Yes** | Shows work started (context for what was in progress) |
+| `task.activated` | **Yes** | Shows task focus |
+| `stack.created` | **Optional** | Can indicate planning activity |
+| `task.created` | **No** | Too noisy, doesn't indicate accomplishment |
+| `stack.deactivated` | **No** | Pausing isn't an accomplishment |
+| `task.deactivated` | **No** | Pausing isn't an accomplishment |
+| `attachment.added` | **Optional** | Minor, but can be included for completeness |
+| `stack.deleted` | **No** | Negative action, not an accomplishment |
+
+#### 3.8.2 Filtering Logic
+
+```swift
+extension Event {
+    var isActivityFeedWorthy: Bool {
+        switch type {
+        case "stack.completed", "task.completed",
+             "stack.activated", "task.activated":
+            return true
+        case "stack.created", "attachment.added":
+            return UserDefaults.showMinorEvents  // User preference
+        default:
+            return false
+        }
+    }
+}
+```
+
+#### 3.8.3 Timezone Handling
+
+- **Day boundaries**: Determined by user's **current local timezone**
+- **Event timestamps**: Stored in UTC, converted to local for grouping
+- **Edge case**: If user changes timezone, historical groupings don't change retroactively
+- **Display**: Show times in local timezone with no UTC indicator
+
+### 3.9 Privacy & Compliance
+
+#### 3.9.1 Data Handling Principles
+
+| Principle | Implementation |
+|-----------|----------------|
+| **On-device by default** | All activity data stored locally in SwiftData |
+| **LLM privacy** | On-device LLM processes data locally, never transmitted |
+| **Backend opt-in** | Backend LLM only used when on-device unavailable |
+| **Minimal data to backend** | Only event types + entity names sent (no full descriptions) |
+| **No persistent server storage** | Backend LLM requests not logged beyond operational metrics |
+
+#### 3.9.2 Data Sent to Backend (When Fallback Used)
+
+```json
+{
+    "date": "2026-01-17",
+    "events": [
+        { "type": "stack.completed", "name": "API Integration" },
+        { "type": "task.completed", "name": "Fix login bug" }
+    ]
+    // Note: No descriptions, attachments, or detailed content
+}
+```
+
+#### 3.9.3 GDPR/Privacy Compliance
+
+- **Data minimization**: Only essential data for summary generation
+- **Right to erasure**: Deleting activity in app removes from all local caches
+- **Transparency**: Settings screen explains when backend LLM is used
+- **User control**: Option to disable backend LLM fallback entirely
 
 ---
 
@@ -718,113 +825,169 @@ Generated by Dequeue
 |---|----------|---------|----------------|
 | 1 | Summary tone | Professional vs. casual vs. enthusiastic | Slightly enthusiastic ("Great day!") |
 | 2 | Today's summary refresh | Hourly vs. on significant events vs. manual | On significant events + every 2 hours |
-| 3 | Activity notifications | Daily summary notification option | Yes, opt-in "Your daily summary is ready" |
-| 4 | Widget support | Show yesterday's summary in widget | Yes, small and medium widgets |
-| 5 | Calendar view option | Timeline vs. calendar grid view | Timeline primary; calendar future enhancement |
-| 6 | Time tracking display | Show duration in cards | Yes, if time tracking data available |
-
-**Resolved Questions** (See Section 3.7 for decisions):
-- ~~Cross-device summary sync~~ → **DECIDED**: Local-only regeneration (not synced)
+| 3 | Cross-device summary sync | Sync summaries vs. regenerate locally | Sync from backend to ensure consistency |
+| 4 | Activity notifications | Daily summary notification option | Yes, opt-in "Your daily summary is ready" |
+| 5 | Widget support | Show yesterday's summary in widget | Yes, small and medium widgets |
+| 6 | Calendar view option | Timeline vs. calendar grid view | Timeline primary; calendar future enhancement |
+| 7 | Time tracking display | Show duration in cards | Yes, if time tracking data available |
 
 ---
 
 ## 7. Success Metrics
 
 ### 7.1 Engagement Metrics
-- **Daily Active Viewers**: % of DAU who view Activity tab
-- **Card Tap Rate**: % of cards tapped for detail view
-- **Scroll Depth**: Average number of days scrolled back
-- **Share Rate**: % of users who share at least one summary
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| **Daily Active Viewers** | >40% of DAU | % of DAU who view Activity tab at least once |
+| **Card Tap Rate** | >25% | % of cards tapped for detail view |
+| **Scroll Depth** | Avg 5+ days | Average number of days scrolled back per session |
+| **Share Rate** | >10% | % of users who share at least one summary per week |
+| **Weekly Return Rate** | >60% | % of users who view Activity 3+ days per week |
 
 ### 7.2 Performance Metrics
-- **Initial Load Time**: <500ms for first 7 days
-- **Summary Generation**: <3 seconds for LLM summary
-- **Scroll Performance**: 60fps while scrolling
+| Metric | Target | Degradation Threshold |
+|--------|--------|----------------------|
+| **Initial Load Time** | <500ms | >1s triggers investigation |
+| **Template Summary** | <50ms | Always instant |
+| **On-Device LLM Summary** | <3s | >5s falls back to template |
+| **Backend LLM Summary** | <2s | >4s shows template while waiting |
+| **Scroll Performance** | 60fps | <45fps triggers optimization |
+| **Memory Usage** | <50MB | >100MB triggers investigation |
 
 ### 7.3 Satisfaction Metrics
-- **Standup Usefulness**: User survey on standup preparation
-- **Summary Quality**: Thumbs up/down on generated summaries
-- **Feature Retention**: Users returning to Activity tab over time
+| Metric | Target | Method |
+|--------|--------|--------|
+| **Standup Usefulness** | >4.0/5.0 | In-app survey: "Did Activity help with your standup?" |
+| **Summary Accuracy** | >80% positive | Thumbs up/down on generated summaries |
+| **Feature NPS** | >50 | Quarterly survey among Activity users |
+| **Feature Retention** | >50% at D30 | % of users still using Activity 30 days after first use |
+
+### 7.4 Quality Metrics (LLM-Specific)
+| Metric | Target | Method |
+|--------|--------|--------|
+| **Summary Relevance** | >85% relevant | User feedback + spot checks |
+| **Factual Accuracy** | 100% | Summary must match actual events |
+| **Tone Consistency** | Consistent | No jarring tone shifts between days |
+| **Fallback Rate** | <20% | % of summaries using template fallback |
 
 ---
 
 ## 8. Implementation Phases
 
+> **Note on Phase Ordering**: Template summaries are implemented early (Phase 2) to ensure the feature works on all devices from day one. Backend LLM (Phase 4) comes before weekly rollups (Phase 5) because weekly summaries exceed the on-device 4K token limit and require cloud processing.
+
 ### Phase 1: MVP - Event Timeline (Crawl)
-**Goal**: Basic activity visibility without LLM
+**Goal**: Basic activity visibility without any summarization
 
-**Backend:**
-- No backend changes required (uses existing events)
+**Deliverables:**
+- `ActivityFeedView` with sectioned list by day
+- `ActivityRowView` for individual events
+- `ActivityEmptyView` for empty/new user state
+- `Event` model query for relevant types (see Section 3.8)
+- Calendar day grouping (user's local timezone)
+- Navigation: tap row → stack/task detail
+- Activity tab in main navigation
 
-**iOS:**
-- Create `ActivityFeedView` with sectioned list by day
-- Create `ActivityRowView` for individual events
-- Create `ActivityEmptyView` for empty state
-- Query `Event` model for relevant types
-- Group events by calendar day
-- Tap row to navigate to stack/task
-- Add Activity tab to main navigation
-
-**No LLM yet**: Show structured list only ("Completed: X", "Started: Y")
+**Success Criteria:**
+- User can see all completions and activations grouped by day
+- Initial load <500ms for 7 days of activity
+- Empty state guides new users
 
 ### Phase 2: Daily Cards & Template Summaries (Walk)
-**Goal**: Card-based UI with template summaries
+**Goal**: Card-based UI with deterministic template summaries (no LLM)
 
-**iOS:**
-- Create `DailyActivityCard` view
-- Create `DayTimelineDetailView` for drill-down
-- Implement template summary generation (no LLM):
-  - "You completed X tasks across Y stacks"
-  - "Today: X completions, Y activations"
-- Add `ActivitySummary` model for caching
-- Add share functionality (copy as text)
-- Pull-to-refresh for today
+**Deliverables:**
+- `DailyActivityCard` view with summary + top items
+- `DayTimelineDetailView` for drill-down
+- Template summary engine:
+  ```
+  "You completed {n} tasks across {m} projects, including {top_item}."
+  "Today: {completions} completions, {activations} activations."
+  ```
+- `ActivitySummary` SwiftData model for caching
+- Share functionality (copy as text)
+- Pull-to-refresh for today's card
+- Prefetch strategy implementation
 
-### Phase 3: LLM Summaries - On-Device (Walk)
+**Success Criteria:**
+- Template summaries display immediately (no loading state needed)
+- Feature fully functional offline
+- Works on ALL devices (no iOS 26 requirement yet)
+
+### Phase 3: On-Device LLM Enhancement (Walk)
 **Goal**: Natural language summaries via Apple Foundation Models
 
-**iOS:**
-- Integrate Apple Foundation Models framework (iOS 18.4+)
-- Create `ActivitySummarizer` actor
-- Implement prompt engineering for quality summaries
-- Cache generated summaries
-- Graceful fallback to template if LLM unavailable
-- Background summary generation
+**Deliverables:**
+- `ActivitySummarizer` actor with Foundation Models integration
+- Token budget management (4K limit)
+- Prompt templates (see Appendix A)
+- Cache management with staleness detection
+- Graceful fallback to template on failure
+- Background summary generation with prefetch
 
-**Requires**: iOS 18.4+ for Foundation Models
+**Requirements:**
+- iOS 26+ with Apple Intelligence enabled
+- Apple Intelligence-compatible device (iPhone 15 Pro+, M-series Macs)
 
-### Phase 4: Weekly Rollups (Walk)
-**Goal**: Weekly summary cards on Mondays
+**Success Criteria:**
+- LLM summary generation <3 seconds
+- Silent fallback to template if LLM unavailable
+- No UI jank during generation
 
-**iOS:**
-- Generate weekly summaries on Sunday night / Monday morning
-- Create `WeeklyActivityCard` view
-- Drill-down shows daily cards for the week
-- Summary includes: total completions, top projects, time tracked
+### Phase 4: Backend LLM Service (Walk)
+**Goal**: Cloud LLM for devices without on-device capability and weekly rollups
 
-### Phase 5: Filtering & Polish (Walk)
+**Backend Deliverables:**
+- `POST /apps/{app_id}/activity/summarize` endpoint
+- Claude integration for summary generation
+- Rate limiting: 10 requests/user/hour
+- Response caching (24 hours for past days)
+- Cost monitoring and alerts
+
+**iOS Deliverables:**
+- Backend fallback when on-device unavailable
+- Network error handling with retry
+- Settings toggle: "Use cloud for enhanced summaries"
+
+**Success Criteria:**
+- Backend responds in <2 seconds
+- Graceful degradation when backend unavailable
+- Privacy disclosure in Settings
+
+### Phase 5: Weekly Rollups (Run)
+**Goal**: Weekly summary cards with cloud-powered aggregation
+
+**Deliverables:**
+- `WeeklyActivityCard` view
+- Weekly summary generation (via backend - exceeds on-device limits)
+- Sunday night background generation
+- Weekly drill-down → daily cards
+- Metrics: total completions, top projects, time tracked
+
+**Dependencies:**
+- Phase 4 (Backend LLM) - required for weekly summaries
+
+**Success Criteria:**
+- Weekly card appears Monday morning
+- Summary covers all 7 days accurately
+- Drill-down navigation works smoothly
+
+### Phase 6: Filtering & Polish (Run)
 **Goal**: Filter by tags, sources, time range
 
-**iOS:**
-- Create `ActivityFilterView` sheet
-- Implement tag filtering
-- Implement time range filtering
-- Source filtering (future: integration sources)
-- Event type filtering
+**Deliverables:**
+- `ActivityFilterView` sheet
+- Tag filtering
+- Time range filtering (This Week, This Month, Custom)
+- Event type filtering (completions, activations, etc.)
+- Active filter indicator
 - Clear filters action
+- Filter state persistence (session-only)
 
-### Phase 6: Backend LLM Fallback (Run)
-**Goal**: Server-side summary generation for older devices
-
-**Backend:**
-- `POST /activity/summarize` endpoint
-- LLM integration (OpenAI, Anthropic, or Claude)
-- Rate limiting and cost management
-- Response caching
-
-**iOS:**
-- Fallback to backend if on-device unavailable
-- Handle network errors gracefully
+**Success Criteria:**
+- Filters apply instantly (<100ms)
+- Clear visual indication of active filters
+- Summaries regenerate for filtered view
 
 ### Phase 7: Integration Sources (Run - Future)
 **Goal**: Include activity from linked external systems
@@ -850,33 +1013,52 @@ Generated by Dequeue
 
 ## 9. Dependencies
 
-### 9.1 Required
-- Existing `Event` model and sync system
-- SwiftUI List and ScrollView
-- SwiftData for summary caching
+### 9.1 Core (Required for MVP)
+| Dependency | Status | Notes |
+|------------|--------|-------|
+| `Event` model | ✅ Exists | Uses existing sync system |
+| SwiftUI List/ScrollView | ✅ Available | Standard iOS framework |
+| SwiftData | ✅ Available | For `ActivitySummary` caching |
+| Tab navigation | ✅ Exists | Add Activity tab |
 
-### 9.2 For LLM Features
-- Apple Foundation Models framework (iOS 18.4+)
-- OR Backend LLM service integration
+### 9.2 On-Device LLM (Phase 3)
+| Dependency | Requirement | Fallback |
+|------------|-------------|----------|
+| iOS 26+ | Required | Template summary |
+| Apple Intelligence enabled | Required | Template summary |
+| Compatible device | iPhone 15 Pro+, M-series Mac | Template summary |
+| Foundation Models framework | Xcode 26+ | N/A |
 
-### 9.3 For Future Integrations
+### 9.3 Backend LLM (Phase 4)
+| Dependency | Requirement | Notes |
+|------------|-------------|-------|
+| Backend API | `POST /activity/summarize` | New endpoint |
+| Claude API | Anthropic API key | For summary generation |
+| Rate limiting | Redis or similar | Prevent abuse |
+| Network connectivity | Required | Falls back to template offline |
+
+### 9.4 Future Integrations (Phase 7+)
 - External System Integrations feature (see ROADMAP Section 1)
 - Linear, GitHub OAuth connections
+- Webhook infrastructure for external events
 
 ---
 
 ## 10. Risks & Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| LLM summary quality varies | Medium | Template fallback; user feedback mechanism |
-| On-device LLM not available on all devices | Medium | Backend fallback; template fallback |
-| Large event history impacts performance | Medium | Lazy loading; limit initial query to 30 days |
-| Summary generation costs (backend) | Medium | Cache aggressively; rate limit per user |
-| Privacy concerns with backend LLM | High | On-device primary; clear disclosure if using backend |
-| Users don't discover the feature | Medium | Onboarding tooltip; tab badge for first week |
-| Summary doesn't match user's perception | Low | Show raw events; allow feedback |
-| Timezone edge cases | Low | Use local timezone; clear date headers |
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|------------|------------|
+| **On-device 4K token limit exceeded** | High | Medium | Cap events at 50/day; use backend for busy days |
+| **LLM summary quality varies** | Medium | Medium | Template fallback; user feedback mechanism |
+| **On-device LLM not available** | Medium | High | ~50% of users on older devices; backend + template fallback |
+| **iOS 26 adoption slow** | Medium | Medium | Template-first approach works on all iOS versions |
+| **Large event history impacts performance** | Medium | Low | Lazy loading; limit initial query to 30 days |
+| **Summary generation costs (backend)** | Medium | Medium | Cache aggressively; rate limit 10/user/hour |
+| **Privacy concerns with backend LLM** | High | Low | On-device primary; opt-in disclosure; minimal data sent |
+| **Users don't discover the feature** | Medium | Medium | Onboarding tooltip; tab badge for first week |
+| **Summary doesn't match user's perception** | Low | Low | Show raw events; allow feedback; template fallback |
+| **Weekly rollups require backend** | Medium | High | Design constraint—weekly always uses cloud LLM |
+| **Timezone edge cases** | Low | Low | Use local timezone; clear date headers |
 
 ---
 
