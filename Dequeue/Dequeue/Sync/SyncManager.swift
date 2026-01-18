@@ -526,14 +526,22 @@ actor SyncManager {
             let duration = Date().timeIntervalSince(startTime)
             let capturedError = error
             Task.detached(priority: .utility) {
-                let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
-                await ErrorReportingService.logSyncFailure(
-                    syncId: syncId,
-                    duration: duration,
-                    error: capturedError,
-                    failureReason: failureReason.description,
-                    internetReachable: failureReason.isServerProblem
-                )
+                do {
+                    let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
+                    await ErrorReportingService.logSyncFailure(
+                        syncId: syncId,
+                        duration: duration,
+                        error: capturedError,
+                        failureReason: failureReason.description,
+                        internetReachable: failureReason.isServerProblem
+                    )
+                } catch {
+                    // Fallback to os_log if Sentry logging fails - ensures observability is never lost
+                    os_log(
+                        .error,
+                        "[Sync] Failed to log push failure to Sentry: \(error). Original: \(capturedError)"
+                    )
+                }
             }
             throw error
         }
@@ -685,14 +693,22 @@ actor SyncManager {
             let duration = Date().timeIntervalSince(startTime)
             let capturedError = error
             Task.detached(priority: .utility) {
-                let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
-                await ErrorReportingService.logSyncFailure(
-                    syncId: syncId,
-                    duration: duration,
-                    error: capturedError,
-                    failureReason: failureReason.description,
-                    internetReachable: failureReason.isServerProblem
-                )
+                do {
+                    let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
+                    await ErrorReportingService.logSyncFailure(
+                        syncId: syncId,
+                        duration: duration,
+                        error: capturedError,
+                        failureReason: failureReason.description,
+                        internetReachable: failureReason.isServerProblem
+                    )
+                } catch {
+                    // Fallback to os_log if Sentry logging fails - ensures observability is never lost
+                    os_log(
+                        .error,
+                        "[Sync] Failed to log pull failure to Sentry: \(error). Original: \(capturedError)"
+                    )
+                }
             }
             throw error
         }
