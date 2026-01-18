@@ -381,9 +381,11 @@ enum ErrorReportingService {
         return "unknown"
         #endif
     }
+}
 
-    // MARK: - Sync-Specific Logging
+// MARK: - Sync-Specific Logging
 
+extension ErrorReportingService {
     /// Log a sync operation start
     static func logSyncStart(syncId: String, trigger: String) {
         logInfo("Sync started", attributes: [
