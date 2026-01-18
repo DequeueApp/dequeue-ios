@@ -39,8 +39,8 @@ struct TaskDetailView: View {
     @State private var reminderToDelete: Reminder?
 
     // Attachment state
-    @State private var showAttachmentPicker = false
-    @State private var attachmentService: AttachmentService?
+    @State fileprivate var showAttachmentPicker = false
+    @State fileprivate var attachmentService: AttachmentService?
 
     var body: some View {
         List {
@@ -570,7 +570,7 @@ struct TaskDetailView: View {
         }
     }
 
-    private func showError(_ error: Error) {
+    fileprivate func showError(_ error: Error) {
         errorMessage = error.localizedDescription
         showError = true
         ErrorReportingService.capture(error: error, context: ["view": "TaskDetailView"])
