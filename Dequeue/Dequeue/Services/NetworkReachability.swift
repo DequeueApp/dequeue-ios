@@ -23,10 +23,12 @@ enum NetworkReachability {
     // MARK: - Constants
 
     /// Timeout for reachability check (reduced from 5s to minimize delay on sync failures)
-    private static nonisolated(unsafe) let reachabilityTimeout: TimeInterval = 2.0
+    /// nonisolated(unsafe) required: accessed from Sendable closure in OSAllocatedUnfairLock.withLock
+    nonisolated(unsafe) private static let reachabilityTimeout: TimeInterval = 2.0
 
     /// How long to consider a cached reachability result valid
-    private static nonisolated(unsafe) let reachabilityCacheDuration: TimeInterval = 10.0
+    /// nonisolated(unsafe) required: accessed from Sendable closure in OSAllocatedUnfairLock.withLock
+    nonisolated(unsafe) private static let reachabilityCacheDuration: TimeInterval = 10.0
 
     // MARK: - Cached State
 
