@@ -37,6 +37,12 @@ internal final class SyncStatusViewModel {
     private(set) var lastSyncTime: Date?
     private(set) var connectionStatus: ConnectionStatus = .disconnected
 
+    /// Whether an initial sync is currently in progress (fresh device downloading events)
+    private(set) var isInitialSyncInProgress: Bool = false
+
+    /// Number of events processed during initial sync
+    private(set) var initialSyncEventsProcessed: Int = 0
+
     private let modelContext: ModelContext
     private let eventService: EventService
     private var syncManager: SyncManager?
@@ -89,6 +95,10 @@ internal final class SyncStatusViewModel {
         if let syncManager = syncManager {
             let status = await syncManager.connectionStatus
 
+            // Fetch initial sync state
+            let initialSyncActive = await syncManager.isInitialSyncInProgress
+            let eventsProcessed = await syncManager.initialSyncEventsProcessed
+
             // Fetch pending event count - do this AFTER connection status to minimize race window.
             // Note: There's an inherent race between status and count fetches, but this is
             // acceptable for a non-critical UI indicator that updates every few seconds.
@@ -111,6 +121,10 @@ internal final class SyncStatusViewModel {
 
             // Update connection status
             connectionStatus = status
+
+            // Update initial sync state
+            isInitialSyncInProgress = initialSyncActive
+            initialSyncEventsProcessed = eventsProcessed
 
             // Update pending count
             pendingEventCount = currentCount
