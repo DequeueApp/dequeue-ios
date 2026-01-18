@@ -21,7 +21,7 @@ enum SessionStateChange: Sendable {
 }
 
 /// Reasons why a session might be invalidated
-enum SessionInvalidationReason: Sendable {
+enum SessionInvalidationReason: Sendable, Equatable {
     /// Session expired on server
     case expired
     /// Session was revoked (e.g., password change, admin action)
@@ -68,14 +68,23 @@ final class ClerkAuthService: AuthServiceProtocol {
     private(set) var currentUserId: String?
 
     // Session state change stream for multi-device session handling
+    private let sessionStateChangesStream: AsyncStream<SessionStateChange>
     private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
 
     /// Stream of session state changes for observing unexpected auth events
     /// Use this to react to sessions being invalidated or restored in multi-device scenarios
     var sessionStateChanges: AsyncStream<SessionStateChange> {
-        AsyncStream { continuation in
-            self.sessionStateChangeContinuation = continuation
-        }
+        sessionStateChangesStream
+    }
+
+    init() {
+        let (stream, continuation) = AsyncStream.makeStream(of: SessionStateChange.self)
+        self.sessionStateChangesStream = stream
+        self.sessionStateChangeContinuation = continuation
+    }
+
+    deinit {
+        sessionStateChangeContinuation?.finish()
     }
 
     /// Configures auth service with offline-first approach.
@@ -342,12 +351,21 @@ final class MockAuthService: AuthServiceProtocol {
     var isLoading: Bool = false
     var currentUserId: String?
 
+    private let sessionStateChangesStream: AsyncStream<SessionStateChange>
     private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
 
     var sessionStateChanges: AsyncStream<SessionStateChange> {
-        AsyncStream { continuation in
-            self.sessionStateChangeContinuation = continuation
-        }
+        sessionStateChangesStream
+    }
+
+    init() {
+        let (stream, continuation) = AsyncStream.makeStream(of: SessionStateChange.self)
+        self.sessionStateChangesStream = stream
+        self.sessionStateChangeContinuation = continuation
+    }
+
+    deinit {
+        sessionStateChangeContinuation?.finish()
     }
 
     func configure() async {

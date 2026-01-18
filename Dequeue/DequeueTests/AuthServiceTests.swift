@@ -143,6 +143,11 @@ struct AuthServiceTests {
         // Wait for the event
         let change = await changesTask.value
 
+        guard let change else {
+            #expect(Bool(false), "Expected to receive a session state change")
+            return
+        }
+
         if case .sessionInvalidated(let reason) = change {
             #expect(reason == .expired)
         } else {
