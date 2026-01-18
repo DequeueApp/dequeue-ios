@@ -52,6 +52,35 @@ Dequeue is event-first by design, not just event-sourced internally.
 
 There is a single canonical source of truth: the event stream.
 
+### Event Recording (Implementation Details)
+
+Events are recorded via `EventService` with typed payloads:
+
+```swift
+// EventService records changes atomically
+func recordStackUpdated(_ stack: Stack) throws {
+    let payload = StackUpdatedPayload(
+        stackId: stack.id,
+        state: StackState.from(stack)
+    )
+    try recordEvent(type: .stackUpdated, payload: payload, entityId: stack.id)
+}
+```
+
+### Event Model Structure
+- **id**: Unique CUID
+- **type**: EventType enum
+- **payload**: JSON-encoded, versioned payload
+- **timestamp**: Server-authoritative ordering
+- **userId/deviceId/appId**: Origin tracking
+- **syncStatus**: pending → synced → failed
+- **entityId**: For efficient history queries
+
+### Payload Versioning
+- Current version: 2 (updated in DEQ-137)
+- Migrations handled in ProjectorService
+- Old events replayed through migration path
+
 -----
 
 ## Sync Model

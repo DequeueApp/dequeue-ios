@@ -34,7 +34,10 @@ We're building a production-quality native iOS/iPadOS/macOS app together. Your r
 - **NO Any type** - use specific types or generics
 - **NO stringly-typed code** - use enums and constants
 - **NO print() in production** - use proper logging (os.log or similar)
-- **NO @MainActor on entire classes** unless truly needed - be surgical
+- **NO @MainActor on entire classes** unless they interact with SwiftData ModelContext
+  - Services using ModelContext (StackService, EventService, etc.) require @MainActor
+  - Standalone actors (SyncManager, DeviceService) should NOT use @MainActor
+  - ViewModels that access SwiftData should use @MainActor
 - **NO blocking the main thread** - all heavy work must be async
 - **NO ignoring errors** - handle them or propagate them
 - **NO magic numbers** - use named constants
@@ -99,6 +102,54 @@ let date = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
 
 **NEVER use ISO8601/RFC3339 strings** for timestamps in APIs - only format dates as strings for display to users.
 
+### Service Naming Conventions
+- **XxxService** - Core business logic (StackService, TaskService, EventService)
+- **XxxManager** - Coordinates complex operations (SyncManager, UploadManager)
+- **XxxCoordinator** - UI-facing coordination (AttachmentDownloadCoordinator)
+- **XxxHandler** - Single-purpose handlers (StorageQuotaHandler)
+
+## Event-First Patterns
+
+All state changes go through events. Never mutate models directly.
+
+### Recording Events
+```swift
+// Good: Use EventService to record changes
+try eventService.recordStackCreated(stack)
+try eventService.recordTaskUpdated(task)
+
+// Bad: Direct model mutation without event
+stack.title = "New Title"  // NO - must emit event first
+```
+
+### Event Types
+- **Stack**: created, updated, deleted, discarded, activated, deactivated, completed, closed, reordered
+- **Task**: created, updated, deleted, activated, completed, closed, reordered
+- **Reminder**: created, updated, deleted, snoozed
+- **Tag**: created, updated, deleted
+- **Attachment**: added, removed
+
+> See PROJECT.md for complete event architecture details.
+
+## Sync Architecture
+
+### Key Components
+- **SyncManager** - Actor (not @MainActor) for WebSocket/HTTP sync coordination
+- **SyncStatusViewModel** - @Observable for UI sync status
+- **ProjectorService** - Applies events to derive model state
+
+### Sync Flow
+1. Events recorded locally via EventService
+2. SyncManager sends events via WebSocket
+3. HTTP confirms acknowledgment (authoritative)
+4. Events pushed to other devices
+5. ProjectorService applies incoming events
+
+### Initial Sync
+- Fresh devices download all events on first sync
+- Track progress via `SyncStatusViewModel.initialSyncProgress` (0.0 to 1.0)
+- Show loading state until initial sync completes
+
 ## Platform Considerations
 
 ### iOS/iPadOS
@@ -134,6 +185,26 @@ do {
 }
 ```
 
+## Logging
+
+Use `os.log` Logger - never `print()`.
+
+```swift
+import os
+
+private let logger = Logger(subsystem: "com.dequeue", category: "ServiceName")
+
+// Usage
+logger.info("Operation started: \(identifier)")
+logger.error("Failed to save: \(error)")
+logger.debug("Debug info: \(state)")
+```
+
+### Categories by Layer
+- **Services**: "StackService", "EventService", "SyncManager", etc.
+- **Views**: "TaskDetailView", "StackEditorView", etc.
+- **Coordinators**: "AttachmentDownloadCoordinator", etc.
+
 ## Testing Requirements
 
 - Unit tests for all Services
@@ -141,6 +212,24 @@ do {
 - Use Swift Testing framework (`@Test`, `#expect`)
 - Mock dependencies using protocols
 - Test on both iOS and macOS
+
+### Test Patterns
+```swift
+@Suite("ServiceName Tests", .serialized)
+struct ServiceNameTests {
+    @Test("descriptive test name")
+    @MainActor
+    func testMethod() throws {
+        let container = try makeTestContainer()
+        // ... test code
+    }
+}
+```
+
+### Test Utilities
+- `makeTestContainer()` - Creates in-memory ModelContainer for isolation
+- Always use `@MainActor` for tests touching SwiftData
+- Use `.serialized` on suites to prevent race conditions
 
 ## Git Workflow
 
