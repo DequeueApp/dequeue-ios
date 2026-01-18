@@ -194,8 +194,8 @@ final class AttachmentUploadService: AttachmentUploadServiceProtocol {
 
         let body: [String: Any] = [
             "filename": filename,
-            "mime_type": mimeType,
-            "size_bytes": sizeBytes
+            "mimeType": mimeType,
+            "sizeBytes": sizeBytes
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
