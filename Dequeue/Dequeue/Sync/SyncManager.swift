@@ -488,42 +488,36 @@ actor SyncManager {
                 try await processPushResponse(data, eventIds: pendingEventData.map { $0.id })
             } else {
                 // Log the HTTP error
-                await MainActor.run {
-                    ErrorReportingService.logAPIResponse(
-                        endpoint: "/sync/push",
-                        statusCode: httpResponse.statusCode,
-                        responseSize: data.count,
-                        error: String(data: data, encoding: .utf8)
-                    )
-                }
+                await ErrorReportingService.logAPIResponse(
+                    endpoint: "/sync/push",
+                    statusCode: httpResponse.statusCode,
+                    responseSize: data.count,
+                    error: String(data: data, encoding: .utf8)
+                )
                 throw SyncError.pushFailed
             }
 
             // Log successful push
             let duration = Date().timeIntervalSince(startTime)
             os_log("[Sync] Push completed: syncId=\(syncId), duration=\(String(format: "%.2f", duration))s")
-            await MainActor.run {
-                ErrorReportingService.logSyncComplete(
-                    syncId: syncId,
-                    duration: duration,
-                    itemsUploaded: pendingEventData.count,
-                    itemsDownloaded: 0
-                )
-            }
+            await ErrorReportingService.logSyncComplete(
+                syncId: syncId,
+                duration: duration,
+                itemsUploaded: pendingEventData.count,
+                itemsDownloaded: 0
+            )
         } catch {
             // Classify the failure
             let duration = Date().timeIntervalSince(startTime)
             let failureReason = await NetworkReachability.classifyFailure(error: error)
 
-            await MainActor.run {
-                ErrorReportingService.logSyncFailure(
-                    syncId: syncId,
-                    duration: duration,
-                    error: error,
-                    failureReason: failureReason.description,
-                    internetReachable: failureReason.isServerProblem
-                )
-            }
+            await ErrorReportingService.logSyncFailure(
+                syncId: syncId,
+                duration: duration,
+                error: error,
+                failureReason: failureReason.description,
+                internetReachable: failureReason.isServerProblem
+            )
             throw error
         }
     }
@@ -645,14 +639,12 @@ actor SyncManager {
                 if let responseBody = String(data: data, encoding: .utf8) {
                     os_log("[Sync] Pull failed with status \(httpResponse.statusCode): \(responseBody)")
                 }
-                await MainActor.run {
-                    ErrorReportingService.logAPIResponse(
-                        endpoint: "/sync/pull",
-                        statusCode: httpResponse.statusCode,
-                        responseSize: data.count,
-                        error: String(data: data, encoding: .utf8)
-                    )
-                }
+                await ErrorReportingService.logAPIResponse(
+                    endpoint: "/sync/pull",
+                    statusCode: httpResponse.statusCode,
+                    responseSize: data.count,
+                    error: String(data: data, encoding: .utf8)
+                )
                 throw SyncError.pullFailed
             }
 
@@ -664,28 +656,24 @@ actor SyncManager {
             os_log(
                 "[Sync] Pull completed: syncId=\(syncId), duration=\(durationStr)s, events=\(eventsDownloaded)"
             )
-            await MainActor.run {
-                ErrorReportingService.logSyncComplete(
-                    syncId: syncId,
-                    duration: duration,
-                    itemsUploaded: 0,
-                    itemsDownloaded: eventsDownloaded
-                )
-            }
+            await ErrorReportingService.logSyncComplete(
+                syncId: syncId,
+                duration: duration,
+                itemsUploaded: 0,
+                itemsDownloaded: eventsDownloaded
+            )
         } catch {
             // Classify the failure
             let duration = Date().timeIntervalSince(startTime)
             let failureReason = await NetworkReachability.classifyFailure(error: error)
 
-            await MainActor.run {
-                ErrorReportingService.logSyncFailure(
-                    syncId: syncId,
-                    duration: duration,
-                    error: error,
-                    failureReason: failureReason.description,
-                    internetReachable: failureReason.isServerProblem
-                )
-            }
+            await ErrorReportingService.logSyncFailure(
+                syncId: syncId,
+                duration: duration,
+                error: error,
+                failureReason: failureReason.description,
+                internetReachable: failureReason.isServerProblem
+            )
             throw error
         }
     }
@@ -772,13 +760,11 @@ actor SyncManager {
             os_log("[Sync] Checkpoint updated to \(nextCheckpoint)")
         }
 
-        await MainActor.run {
-            ErrorReportingService.addBreadcrumb(
-                category: "sync",
-                message: "Pulled \(processedCount) events",
-                data: ["total": totalCount, "processed": processedCount]
-            )
-        }
+        await ErrorReportingService.addBreadcrumb(
+            category: "sync",
+            message: "Pulled \(processedCount) events",
+            data: ["total": totalCount, "processed": processedCount]
+        )
 
         return processedCount
     }
@@ -980,9 +966,7 @@ actor SyncManager {
         do {
             try await processIncomingEvents([eventData])
         } catch {
-            await MainActor.run {
-                ErrorReportingService.capture(error: error, context: ["source": "websocket_message"])
-            }
+            await ErrorReportingService.capture(error: error, context: ["source": "websocket_message"])
         }
     }
 
@@ -992,13 +976,11 @@ actor SyncManager {
         let currentAttempts = reconnectAttempts
         guard currentAttempts < maxReconnectAttempts,
               token != nil else {
-            await MainActor.run {
-                ErrorReportingService.addBreadcrumb(
-                    category: "sync",
-                    message: "Max reconnect attempts reached",
-                    data: ["attempts": currentAttempts]
-                )
-            }
+            await ErrorReportingService.addBreadcrumb(
+                category: "sync",
+                message: "Max reconnect attempts reached",
+                data: ["attempts": currentAttempts]
+            )
             return
         }
 
@@ -1011,13 +993,11 @@ actor SyncManager {
         let jitter = Double.random(in: 0...jitterRange)
         let delay = (baseDelay * 0.75) + jitter
 
-        await MainActor.run {
-            ErrorReportingService.addBreadcrumb(
-                category: "sync",
-                message: "Reconnecting with backoff",
-                data: ["attempt": attemptNumber, "delay_seconds": delay]
-            )
-        }
+        await ErrorReportingService.addBreadcrumb(
+            category: "sync",
+            message: "Reconnecting with backoff",
+            data: ["attempt": attemptNumber, "delay_seconds": delay]
+        )
 
         try? await Task.sleep(for: .seconds(delay))
 
@@ -1056,13 +1036,11 @@ actor SyncManager {
                     let failures = await self.recordHeartbeatFailure()
 
                     if failures >= self.maxConsecutiveHeartbeatFailures {
-                        await MainActor.run {
-                            ErrorReportingService.addBreadcrumb(
-                                category: "sync",
-                                message: "Connection health degraded",
-                                data: ["consecutive_failures": failures]
-                            )
-                        }
+                        await ErrorReportingService.addBreadcrumb(
+                            category: "sync",
+                            message: "Connection health degraded",
+                            data: ["consecutive_failures": failures]
+                        )
                         await self.handleDisconnect()
                         break
                     }
@@ -1111,9 +1089,7 @@ actor SyncManager {
                 if needsInitialSync {
                     _isInitialSyncInProgress = false
                 }
-                await MainActor.run {
-                    ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
-                }
+                await ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
             }
         }
 
@@ -1129,9 +1105,7 @@ actor SyncManager {
                     try await self.pushEvents()
                     try await self.pullEvents()
                 } catch {
-                    await MainActor.run {
-                        ErrorReportingService.capture(error: error, context: ["source": "periodic_sync"])
-                    }
+                    await ErrorReportingService.capture(error: error, context: ["source": "periodic_sync"])
                 }
             }
         }

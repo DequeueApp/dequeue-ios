@@ -19,6 +19,11 @@ import Foundation
 enum NetworkReachability {
     // MARK: - Internet Reachability
 
+    // MARK: - Constants
+
+    /// Timeout for reachability check (reduced from 5s to minimize delay on sync failures)
+    private static let reachabilityTimeout: TimeInterval = 2.0
+
     /// Check if we can reach the general internet (not our specific server).
     ///
     /// Uses Apple's captive portal detection endpoint which is highly reliable
@@ -30,7 +35,7 @@ enum NetworkReachability {
         guard let url = URL(string: "https://captive.apple.com") else { return false }
 
         var request = URLRequest(url: url)
-        request.timeoutInterval = 5.0
+        request.timeoutInterval = reachabilityTimeout
         request.cachePolicy = .reloadIgnoringLocalCacheData
 
         do {
@@ -73,11 +78,6 @@ enum NetworkReachability {
                 }
             }
 
-            // Check for HTTP status code errors
-            if let httpError = error as? HTTPError {
-                return .httpError(httpError.statusCode)
-            }
-
             return .serverError(error.localizedDescription)
         } else {
             return .offline
@@ -103,9 +103,6 @@ enum NetworkReachability {
         /// Server returned an error
         case serverError(String)
 
-        /// HTTP error with specific status code
-        case httpError(Int)
-
         /// Whether this failure indicates a server-side problem.
         ///
         /// When `true`, this failure should be reported as an error/alert.
@@ -114,7 +111,7 @@ enum NetworkReachability {
             switch self {
             case .offline:
                 return false
-            case .serverUnreachable, .serverTimeout, .connectionLost, .serverError, .httpError:
+            case .serverUnreachable, .serverTimeout, .connectionLost, .serverError:
                 return true
             }
         }
@@ -132,22 +129,7 @@ enum NetworkReachability {
                 return "Connection lost during request"
             case .serverError(let msg):
                 return "Server error: \(msg)"
-            case .httpError(let code):
-                return "HTTP \(code)"
             }
         }
-    }
-}
-
-// MARK: - HTTP Error Helper
-
-/// Simple HTTP error type for classification
-struct HTTPError: Error {
-    let statusCode: Int
-    let message: String?
-
-    init(statusCode: Int, message: String? = nil) {
-        self.statusCode = statusCode
-        self.message = message
     }
 }

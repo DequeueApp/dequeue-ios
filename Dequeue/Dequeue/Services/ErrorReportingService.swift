@@ -6,8 +6,8 @@
 //
 
 import Foundation
+import os
 import Sentry
-import os.log
 #if os(iOS)
 import UIKit
 #endif
@@ -15,8 +15,26 @@ import UIKit
 enum ErrorReportingService {
     // MARK: - Configuration
 
-    // Note: Only set once during app initialization, read-only afterwards
-    nonisolated(unsafe) private static var isConfigured = false
+    /// Thread-safe state for configuration status and cached device identifier
+    private struct ConfigurationState {
+        var isConfigured = false
+        var cachedDeviceIdentifier: String?
+    }
+
+    /// Thread-safe lock for configuration state
+    private static let configurationLock = OSAllocatedUnfairLock(initialState: ConfigurationState())
+
+    /// Thread-safe check for whether Sentry is already configured
+    private static var isConfigured: Bool {
+        get { configurationLock.withLock { $0.isConfigured } }
+        set { configurationLock.withLock { $0.isConfigured = newValue } }
+    }
+
+    /// Cached device identifier for thread-safe access from any context
+    private static var cachedDeviceId: String? {
+        get { configurationLock.withLock { $0.cachedDeviceIdentifier } }
+        set { configurationLock.withLock { $0.cachedDeviceIdentifier = newValue } }
+    }
 
     /// Returns true if Sentry should be skipped (test/CI environments)
     private static var shouldSkipConfiguration: Bool {
@@ -54,6 +72,12 @@ enum ErrorReportingService {
     static func configure() async {
         // Quick synchronous check to avoid async overhead in test environments
         guard !shouldSkipConfiguration else { return }
+
+        // Cache device identifier on main actor before going to background
+        // This ensures thread-safe access for logging from any context
+        await MainActor.run {
+            cachedDeviceId = buildDeviceIdentifier()
+        }
 
         // Run Sentry initialization on a background thread to avoid blocking the main thread
         // Sentry SDK init can take 10+ seconds on first launch or when processing crash reports
@@ -123,9 +147,9 @@ enum ErrorReportingService {
                     // Note: Replay auto-masks sensitive content by default
 
                     // ============================================
-                    // EXPERIMENTAL LOGS
+                    // STRUCTURED LOGS (Sentry 9.x+)
                     // ============================================
-                    options.experimental.enableLogs = true
+                    options.enableLogs = true
 
                     // ============================================
                     // BREADCRUMBS (trail of events before errors)
@@ -293,12 +317,22 @@ enum ErrorReportingService {
         // Convert to string values for Sentry
         let stringAttributes = enrichedAttributes.mapValues { "\($0)" }
 
-        // Send to Sentry's experimental logger
-        SentrySDK.logger.log(
-            level: level,
-            message: message,
-            attributes: stringAttributes
-        )
+        // Send to Sentry's structured logger (9.x+ API)
+        let logger = SentrySDK.logger
+        switch level {
+        case .debug:
+            logger.debug(message, attributes: stringAttributes)
+        case .info:
+            logger.info(message, attributes: stringAttributes)
+        case .warning:
+            logger.warn(message, attributes: stringAttributes)
+        case .error:
+            logger.error(message, attributes: stringAttributes)
+        case .fatal:
+            logger.fatal(message, attributes: stringAttributes)
+        @unknown default:
+            logger.info(message, attributes: stringAttributes)
+        }
 
         // Also add as breadcrumb for correlation with crashes
         let breadcrumb = Breadcrumb()
@@ -326,11 +360,23 @@ enum ErrorReportingService {
 
     // MARK: - Device Identifier
 
+    /// Returns cached device identifier for thread-safe access from any context.
+    /// Falls back to "unknown" if not yet configured.
     private static var deviceIdentifier: String {
+        cachedDeviceId ?? "unknown"
+    }
+
+    /// Builds the device identifier string. Must be called from MainActor
+    /// due to UIDevice access. Called once during configure() and cached.
+    @MainActor
+    private static func buildDeviceIdentifier() -> String {
         #if os(iOS)
-        return "iOS-\(UIDevice.current.name)"
+        let model = UIDevice.current.model
+        let version = UIDevice.current.systemVersion
+        return "\(model)-iOS\(version)"
         #elseif os(macOS)
-        return "macOS-\(Host.current().localizedName ?? "unknown")"
+        let version = ProcessInfo.processInfo.operatingSystemVersionString
+        return "macOS-\(version)"
         #else
         return "unknown"
         #endif
