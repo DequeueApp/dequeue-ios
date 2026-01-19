@@ -110,6 +110,7 @@ struct StackEditorView: View {
     @State var selectedReminderForEdit: Reminder?
     @State var showDeleteReminderConfirmation = false
     @State var reminderToDelete: Reminder?
+    @State var previewCoordinator = AttachmentPreviewCoordinator()
 
     // MARK: - Computed Properties
 
@@ -316,6 +317,7 @@ struct StackEditorView: View {
                     showError = true
                 }
             )
+            .attachmentPreview(coordinator: previewCoordinator)
             // Prevent swipe-to-dismiss when there's unsaved content
             .interactiveDismissDisabled(hasUnsavedContent)
             #if os(iOS)
