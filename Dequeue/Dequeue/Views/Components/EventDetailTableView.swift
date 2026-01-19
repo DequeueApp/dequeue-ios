@@ -126,19 +126,26 @@ private struct PayloadRow: View {
 }
 
 #Preview {
-    // swiftlint:disable:next force_try
+    let samplePayload: [String: Any] = [
+        "stackId": "abc123",
+        "state": [
+            "id": "abc123",
+            "title": "My Stack",
+            "status": "active"
+        ]
+    ]
+    guard let payloadData = try? JSONSerialization.data(withJSONObject: samplePayload) else {
+        return EventDetailTableView(event: Event(
+            type: "stack.created",
+            payload: Data(),
+            userId: "user1",
+            deviceId: "device1",
+            appId: "com.dequeue"
+        ))
+    }
     let sampleEvent = Event(
         type: "stack.created",
-        payload: try! JSONSerialization.data(
-            withJSONObject: [
-                "stackId": "abc123",
-                "state": [
-                    "id": "abc123",
-                    "title": "My Stack",
-                    "status": "active"
-                ]
-            ]
-        ),
+        payload: payloadData,
         userId: "user1",
         deviceId: "device1",
         appId: "com.dequeue"
