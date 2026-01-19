@@ -25,12 +25,14 @@ struct AttachmentUploadServiceTests {
 
     @Test("PresignedUploadResponse decodes valid JSON")
     func presignedResponseDecodesValidJSON() throws {
+        // Unix milliseconds for 2026-01-15T12:00:00Z
+        let expiresAtMs: Int64 = 1_768_478_400_000
         let json = """
         {
-            "upload_url": "https://s3.amazonaws.com/bucket/key?signature=abc",
-            "download_url": "https://cdn.example.com/files/123",
-            "attachment_id": "att_123456",
-            "expires_at": "2026-01-15T12:00:00Z"
+            "uploadUrl": "https://s3.amazonaws.com/bucket/key?signature=abc",
+            "downloadUrl": "https://cdn.example.com/files/123",
+            "attachmentId": "att_123456",
+            "expiresAt": \(expiresAtMs)
         }
         """.data(using: .utf8)!
 
@@ -42,14 +44,15 @@ struct AttachmentUploadServiceTests {
         #expect(response.expiresAt > Date(timeIntervalSince1970: 0))
     }
 
-    @Test("PresignedUploadResponse throws on invalid date format")
+    @Test("PresignedUploadResponse throws on invalid expiresAt type")
     func presignedResponseThrowsOnInvalidDate() {
+        // expiresAt should be Int64 milliseconds, not a string
         let json = """
         {
-            "upload_url": "https://s3.amazonaws.com/bucket/key",
-            "download_url": "https://cdn.example.com/files/123",
-            "attachment_id": "att_123456",
-            "expires_at": "not-a-date"
+            "uploadUrl": "https://s3.amazonaws.com/bucket/key",
+            "downloadUrl": "https://cdn.example.com/files/123",
+            "attachmentId": "att_123456",
+            "expiresAt": "not-a-number"
         }
         """.data(using: .utf8)!
 
@@ -71,10 +74,12 @@ struct AttachmentUploadServiceTests {
         let data = try JSONEncoder().encode(response)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
-        #expect(json?["upload_url"] as? String == "https://s3.example.com/upload")
-        #expect(json?["download_url"] as? String == "https://cdn.example.com/download")
-        #expect(json?["attachment_id"] as? String == "att_123")
-        #expect(json?["expires_at"] != nil)
+        #expect(json?["uploadUrl"] as? String == "https://s3.example.com/upload")
+        #expect(json?["downloadUrl"] as? String == "https://cdn.example.com/download")
+        #expect(json?["attachmentId"] as? String == "att_123")
+        // Should encode as Unix milliseconds (Int64)
+        let expiresAtMs = json?["expiresAt"] as? Int64
+        #expect(expiresAtMs == 1_700_000_000_000) // 1_700_000_000 seconds * 1000
     }
 
     // MARK: - Error Type Tests

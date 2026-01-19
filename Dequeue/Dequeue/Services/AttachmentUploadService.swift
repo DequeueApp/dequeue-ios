@@ -18,29 +18,41 @@ struct PresignedUploadResponse: Codable, Sendable {
     let expiresAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case uploadUrl = "upload_url"
-        case downloadUrl = "download_url"
-        case attachmentId = "attachment_id"
-        case expiresAt = "expires_at"
+        case uploadUrl
+        case downloadUrl
+        case attachmentId
+        case expiresAt
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        uploadUrl = try container.decode(URL.self, forKey: .uploadUrl)
-        downloadUrl = try container.decode(URL.self, forKey: .downloadUrl)
-        attachmentId = try container.decode(String.self, forKey: .attachmentId)
 
-        // Handle ISO8601 date string
-        let expiresAtString = try container.decode(String.self, forKey: .expiresAt)
-        if let date = ISO8601DateFormatter().date(from: expiresAtString) {
-            expiresAt = date
-        } else {
+        // Decode URLs as strings first for better error messages
+        let uploadUrlString = try container.decode(String.self, forKey: .uploadUrl)
+        let downloadUrlString = try container.decode(String.self, forKey: .downloadUrl)
+
+        guard let upload = URL(string: uploadUrlString) else {
             throw DecodingError.dataCorruptedError(
-                forKey: .expiresAt,
+                forKey: .uploadUrl,
                 in: container,
-                debugDescription: "Invalid date format: \(expiresAtString)"
+                debugDescription: "Invalid upload URL: \(uploadUrlString)"
             )
         }
+        guard let download = URL(string: downloadUrlString) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .downloadUrl,
+                in: container,
+                debugDescription: "Invalid download URL: \(downloadUrlString)"
+            )
+        }
+
+        uploadUrl = upload
+        downloadUrl = download
+        attachmentId = try container.decode(String.self, forKey: .attachmentId)
+
+        // Handle Unix milliseconds timestamp (consistent with event timestamps)
+        let expiresAtMs = try container.decode(Int64.self, forKey: .expiresAt)
+        expiresAt = Date(timeIntervalSince1970: Double(expiresAtMs) / 1_000.0)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -48,7 +60,8 @@ struct PresignedUploadResponse: Codable, Sendable {
         try container.encode(uploadUrl, forKey: .uploadUrl)
         try container.encode(downloadUrl, forKey: .downloadUrl)
         try container.encode(attachmentId, forKey: .attachmentId)
-        try container.encode(ISO8601DateFormatter().string(from: expiresAt), forKey: .expiresAt)
+        // Encode as Unix milliseconds for consistency
+        try container.encode(Int64(expiresAt.timeIntervalSince1970 * 1_000), forKey: .expiresAt)
     }
 
     /// For testing - create directly without decoding
@@ -299,7 +312,13 @@ final class AttachmentUploadService: AttachmentUploadServiceProtocol {
         do {
             return try JSONDecoder().decode(PresignedUploadResponse.self, from: data)
         } catch {
-            os_log("[AttachmentUpload] Failed to decode response: \(error)")
+            // Log the raw response for debugging
+            let rawResponse = String(data: data, encoding: .utf8) ?? "Unable to decode as UTF-8"
+            os_log(
+                "[AttachmentUpload] Failed to decode response. Error: %{public}@, Raw response: %{public}@",
+                String(describing: error),
+                rawResponse
+            )
             throw AttachmentUploadError.invalidResponse
         }
     }
