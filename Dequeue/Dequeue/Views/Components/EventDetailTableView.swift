@@ -126,6 +126,7 @@ private struct PayloadRow: View {
 }
 
 #Preview {
+    // swiftlint:disable:next force_try
     let sampleEvent = Event(
         type: "stack.created",
         payload: try! JSONSerialization.data(
