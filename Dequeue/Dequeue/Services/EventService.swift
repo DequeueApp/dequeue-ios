@@ -332,7 +332,7 @@ final class EventService {
         return try modelContext.fetch(descriptor)
     }
 
-    /// Fetches all events related to a stack, including events for its tasks and reminders
+    /// Fetches all events related to a stack, including events for its tasks, reminders, and attachments
     func fetchStackHistoryWithRelated(for stack: Stack) throws -> [Event] {
         // Collect all entity IDs we need to query
         var entityIds: Set<String> = [stack.id]
@@ -354,10 +354,49 @@ final class EventService {
         )
         let allEvents = try modelContext.fetch(descriptor)
 
-        // Filter to only events for our entity IDs
+        // Filter to events for our entity IDs OR attachment events with parentId matching stack/task IDs
+        let stackAndTaskIds = entityIds  // All IDs including stack and tasks
         return allEvents.filter { event in
-            guard let eventEntityId = event.entityId else { return false }
-            return entityIds.contains(eventEntityId)
+            // Direct entity match
+            if let eventEntityId = event.entityId, entityIds.contains(eventEntityId) {
+                return true
+            }
+            // Attachment events - check if parentId matches stack or any of its tasks
+            if event.type == "attachment.added" || event.type == "attachment.removed" {
+                if let payload = try? event.decodePayload(AttachmentEventPayload.self) {
+                    return stackAndTaskIds.contains(payload.parentId)
+                }
+            }
+            return false
+        }
+    }
+
+    /// Fetches all events related to a task, including reminders and attachments
+    func fetchTaskHistoryWithRelated(for task: QueueTask) throws -> [Event] {
+        var entityIds: Set<String> = [task.id]
+
+        // Add reminder IDs for this task
+        for reminder in task.reminders {
+            entityIds.insert(reminder.id)
+        }
+
+        let descriptor = FetchDescriptor<Event>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        let allEvents = try modelContext.fetch(descriptor)
+
+        return allEvents.filter { event in
+            // Direct entity match
+            if let eventEntityId = event.entityId, entityIds.contains(eventEntityId) {
+                return true
+            }
+            // Attachment events - check if parentId matches this task
+            if event.type == "attachment.added" || event.type == "attachment.removed" {
+                if let payload = try? event.decodePayload(AttachmentEventPayload.self) {
+                    return payload.parentId == task.id
+                }
+            }
+            return false
         }
     }
 

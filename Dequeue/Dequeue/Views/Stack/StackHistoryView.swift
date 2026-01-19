@@ -14,6 +14,7 @@ struct StackHistoryView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.syncManager) private var syncManager
     @Environment(\.authService) private var authService
+    @AppStorage("developerModeEnabled") private var developerModeEnabled = false
     @State private var cachedDeviceId: String = ""
     @State private var events: [Event] = []
     @State private var isLoading = true
@@ -23,6 +24,7 @@ struct StackHistoryView: View {
     @State private var showRevertConfirmation = false
     @State private var revertError: Error?
     @State private var showRevertError = false
+    @State private var selectedEventForDetail: Event?
 
     var body: some View {
         Group {
@@ -103,6 +105,14 @@ struct StackHistoryView: View {
                     showRevertConfirmation = true
                 }
             )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard developerModeEnabled else { return }
+                selectedEventForDetail = event
+            }
+        }
+        .sheet(item: $selectedEventForDetail) { event in
+            EventDetailTableView(event: event)
         }
     }
 
@@ -187,6 +197,9 @@ struct StackHistoryRow: View {
         case "reminder.updated": return "Reminder Updated"
         case "reminder.deleted": return "Reminder Removed"
         case "reminder.snoozed": return "Reminder Snoozed"
+        // Attachment events
+        case "attachment.added": return "Attachment Added"
+        case "attachment.removed": return "Attachment Removed"
         default: return event.type
         }
     }
@@ -214,6 +227,9 @@ struct StackHistoryRow: View {
         case "reminder.updated": return "bell.badge"
         case "reminder.deleted": return "bell.slash"
         case "reminder.snoozed": return "moon.zzz.fill"
+        // Attachment events
+        case "attachment.added": return "paperclip.circle.fill"
+        case "attachment.removed": return "paperclip.badge.ellipsis"
         default: return "questionmark.circle.fill"
         }
     }
@@ -241,6 +257,9 @@ struct StackHistoryRow: View {
         case "reminder.updated": return .yellow
         case "reminder.deleted": return .red
         case "reminder.snoozed": return .indigo
+        // Attachment events
+        case "attachment.added": return .mint
+        case "attachment.removed": return .red
         default: return .secondary
         }
     }
@@ -262,6 +281,11 @@ struct StackHistoryRow: View {
            let payload = try? event.decodePayload(ReminderEventPayload.self) {
             let dateStr = payload.remindAt.formatted(date: .abbreviated, time: .shortened)
             return ("Reminder for \(dateStr)", nil)
+        }
+        // Attachment events
+        if event.type.hasPrefix("attachment."),
+           let payload = try? event.decodePayload(AttachmentEventPayload.self) {
+            return (payload.filename, payload.mimeType)
         }
         return nil
     }
