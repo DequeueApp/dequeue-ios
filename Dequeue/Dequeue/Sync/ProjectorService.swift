@@ -788,6 +788,9 @@ enum ProjectorService {
 
         // Check if attachment already exists
         if let existing = try findAttachment(id: payload.id, context: context) {
+            // LWW: Skip updates to deleted entities
+            guard !existing.isDeleted else { return }
+
             // LWW: Only update if this event is newer than current state
             guard shouldApplyEvent(
                 eventTimestamp: event.timestamp,
