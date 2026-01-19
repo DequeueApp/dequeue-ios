@@ -81,6 +81,24 @@ try modelContext.save()
 - Services are actors or have actor isolation where needed for thread safety
 - Views should be thin - just UI logic
 
+### Timestamp Convention (CRITICAL)
+**Always use Unix milliseconds (Int64) for timestamps** - both in API responses and data storage:
+```swift
+// Encoding: Date → Int64 milliseconds
+let timestamp = Int64(date.timeIntervalSince1970 * 1_000)
+
+// Decoding: Int64 milliseconds → Date
+let date = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+```
+
+**Why this matters:**
+- Consistent with event timestamps used throughout the sync system
+- No timezone ambiguity or parsing issues
+- Simple integer comparison and arithmetic
+- Works reliably across client/server boundaries
+
+**NEVER use ISO8601/RFC3339 strings** for timestamps in APIs - only format dates as strings for display to users.
+
 ## Platform Considerations
 
 ### iOS/iPadOS
