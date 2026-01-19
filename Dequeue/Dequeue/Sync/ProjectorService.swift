@@ -814,6 +814,8 @@ enum ProjectorService {
                 uploadState: payload.url != nil ? .completed : .pending,
                 lastSyncedAt: Date()
             )
+            // Use original createdAt from payload if available, otherwise fall back to event timestamp
+            attachment.createdAt = payload.createdAt ?? event.timestamp
             attachment.updatedAt = event.timestamp  // LWW: Use event timestamp
             attachment.isDeleted = payload.deleted
             context.insert(attachment)
