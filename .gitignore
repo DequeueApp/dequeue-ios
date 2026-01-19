@@ -60,7 +60,8 @@ coverage/
 # Archives
 *.xcarchive
 
-# Claude Code local config (user-specific)
-.claude/*.local.md
-.claude/*.local.json
-.claude/ralph-state.json
+# Claude Code local config (user-specific, any depth)
+**/.claude/*.local.md
+**/.claude/*.local.json
+**/.claude/ralph-state.json
+**/.claude/ralph-loop*.md
