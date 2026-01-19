@@ -69,7 +69,12 @@ extension TaskDetailView {
     }
 
     func handleAttachmentTap(_ attachment: Attachment) {
-        // TODO: Open file viewer/preview (will be implemented in DEQ-85)
+        Task {
+            await previewCoordinator.preview(
+                attachment: attachment,
+                downloadHandler: nil  // TODO: Add download handler for remote-only attachments
+            )
+        }
     }
 
     func handleDeleteAttachment(_ attachment: Attachment) {

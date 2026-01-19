@@ -41,6 +41,7 @@ struct TaskDetailView: View {
     @State private var selectedReminderForEdit: Reminder?
     @State private var showDeleteReminderConfirmation = false
     @State private var reminderToDelete: Reminder?
+    @State var previewCoordinator = AttachmentPreviewCoordinator()
 
     var body: some View {
         List {
@@ -174,6 +175,7 @@ struct TaskDetailView: View {
                 showError = true
             }
         )
+        .attachmentPreview(coordinator: previewCoordinator)
     }
 
     // MARK: - Sections

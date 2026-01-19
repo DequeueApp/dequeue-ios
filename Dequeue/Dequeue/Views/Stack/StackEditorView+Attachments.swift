@@ -92,8 +92,12 @@ extension StackEditorView {
     }
 
     func handleAttachmentTap(_ attachment: Attachment) {
-        // TODO: Open file viewer/preview
-        // For now, this is a placeholder - will be implemented in DEQ-85 (Attachment preview/viewer)
+        Task {
+            await previewCoordinator.preview(
+                attachment: attachment,
+                downloadHandler: nil  // TODO: Add download handler for remote-only attachments
+            )
+        }
     }
 
     func handleDeleteAttachment(_ attachment: Attachment) {
