@@ -950,10 +950,11 @@ struct AttachmentEventPayload: Codable {
     let mimeType: String
     let sizeBytes: Int64
     let url: String?
+    let createdAt: Date?  // Original creation timestamp from sync
     let deleted: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, parentId, parentType, filename, mimeType, sizeBytes, url, deleted
+        case id, parentId, parentType, filename, mimeType, sizeBytes, url, createdAt, deleted
     }
 
     init(from decoder: Decoder) throws {
@@ -973,6 +974,14 @@ struct AttachmentEventPayload: Codable {
         mimeType = try container.decode(String.self, forKey: .mimeType)
         sizeBytes = try container.decode(Int64.self, forKey: .sizeBytes)
         url = try container.decodeIfPresent(String.self, forKey: .url)
+
+        // Decode createdAt - handle Int64 timestamp (milliseconds) or Date
+        if let timestamp = try? container.decode(Int64.self, forKey: .createdAt) {
+            createdAt = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            createdAt = try? container.decode(Date.self, forKey: .createdAt)
+        }
+
         deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
     }
 
@@ -985,6 +994,9 @@ struct AttachmentEventPayload: Codable {
         try container.encode(mimeType, forKey: .mimeType)
         try container.encode(sizeBytes, forKey: .sizeBytes)
         try container.encodeIfPresent(url, forKey: .url)
+        if let createdAt {
+            try container.encode(Int64(createdAt.timeIntervalSince1970 * 1_000), forKey: .createdAt)
+        }
         try container.encode(deleted, forKey: .deleted)
     }
 }
