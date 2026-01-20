@@ -352,11 +352,10 @@ final class EventService {
         let entityIdArray = Array(entityIds)
 
         // Fetch events by entityId using database predicate
+        // Note: SwiftData predicates have limitations with optional contains,
+        // so we use flatMap to unwrap and check, returning nil (false) for nil entityId
         let entityPredicate = #Predicate<Event> { event in
-            if let eventEntityId = event.entityId {
-                return entityIdArray.contains(eventEntityId)
-            }
-            return false
+            event.entityId.flatMap { entityIdArray.contains($0) } ?? false
         }
         let entityDescriptor = FetchDescriptor<Event>(
             predicate: entityPredicate,
@@ -366,9 +365,8 @@ final class EventService {
 
         // Separately fetch attachment events (by type) and filter by parentId in memory
         // This is more efficient than fetching ALL events
-        let attachmentTypes = ["attachment.added", "attachment.removed"]
         let attachmentPredicate = #Predicate<Event> { event in
-            attachmentTypes.contains(event.type)
+            event.type == "attachment.added" || event.type == "attachment.removed"
         }
         let attachmentDescriptor = FetchDescriptor<Event>(
             predicate: attachmentPredicate,
@@ -403,10 +401,7 @@ final class EventService {
 
         // Fetch events by entityId using database predicate
         let entityPredicate = #Predicate<Event> { event in
-            if let eventEntityId = event.entityId {
-                return entityIdArray.contains(eventEntityId)
-            }
-            return false
+            event.entityId.flatMap { entityIdArray.contains($0) } ?? false
         }
         let entityDescriptor = FetchDescriptor<Event>(
             predicate: entityPredicate,
@@ -415,9 +410,8 @@ final class EventService {
         var result = try modelContext.fetch(entityDescriptor)
 
         // Separately fetch attachment events and filter by parentId
-        let attachmentTypes = ["attachment.added", "attachment.removed"]
         let attachmentPredicate = #Predicate<Event> { event in
-            attachmentTypes.contains(event.type)
+            event.type == "attachment.added" || event.type == "attachment.removed"
         }
         let attachmentDescriptor = FetchDescriptor<Event>(
             predicate: attachmentPredicate,
