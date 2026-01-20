@@ -586,11 +586,13 @@ struct TaskHistoryView: View {
     let task: QueueTask
 
     @Environment(\.modelContext) private var modelContext
+    @AppStorage("developerModeEnabled") private var developerModeEnabled = false
 
     @State private var events: [Event] = []
     @State private var isLoading = true
     @State private var loadError: Error?
     @State private var showLoadError = false
+    @State private var selectedEventForDetail: Event?
 
     var body: some View {
         Group {
@@ -603,22 +605,13 @@ struct TaskHistoryView: View {
                     Text("No events recorded for this task")
                 }
             } else {
-                List {
-                    ForEach(events) { event in
-                        EventRowView(event: event)
-                    }
-                }
+                historyList
             }
         }
         .navigationTitle("Event History")
         #if os(macOS)
-        // macOS sheets and navigation destinations need explicit frame sizing
-        // to render correctly within NavigationStack contexts
         .frame(minWidth: 500, minHeight: 400)
         #endif
-        // Use .task(id:) with updatedAt to:
-        // 1. Load reliably on both iOS and macOS (onAppear is unreliable on macOS in sheets)
-        // 2. Automatically refresh when the task is modified elsewhere
         .task(id: task.updatedAt) {
             await loadEvents()
         }
@@ -636,20 +629,29 @@ struct TaskHistoryView: View {
         }
     }
 
+    private var historyList: some View {
+        List {
+            ForEach(events) { event in
+                TaskHistoryRow(event: event)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard developerModeEnabled else { return }
+                        selectedEventForDetail = event
+                    }
+            }
+        }
+        .sheet(item: $selectedEventForDetail) { event in
+            EventDetailTableView(event: event)
+        }
+    }
+
     private func loadEvents() async {
         isLoading = true
         loadError = nil
 
-        let taskId = task.id
-        let descriptor = FetchDescriptor<Event>(
-            predicate: #Predicate<Event> { event in
-                event.entityId == taskId
-            },
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-        )
-
+        let service = EventService.readOnly(modelContext: modelContext)
         do {
-            events = try modelContext.fetch(descriptor)
+            events = try service.fetchTaskHistoryWithRelated(for: task)
         } catch {
             loadError = error
             showLoadError = true
@@ -660,48 +662,119 @@ struct TaskHistoryView: View {
     }
 }
 
-// MARK: - Event Row View
+// MARK: - Task History Row
 
-private struct EventRowView: View {
+private struct TaskHistoryRow: View {
     let event: Event
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(event.type)
-                    .font(.headline)
-                    .foregroundStyle(colorForEventType)
-
-                Spacer()
-
-                if event.isSynced {
-                    Image(systemName: "checkmark.icloud")
-                        .foregroundStyle(.green)
-                        .font(.caption)
-                } else {
-                    Image(systemName: "icloud.slash")
-                        .foregroundStyle(.orange)
-                        .font(.caption)
-                }
-            }
-
-            Text(event.timestamp, style: .relative)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    private var actionLabel: String {
+        switch event.type {
+        case "task.created": return "Task Created"
+        case "task.updated": return "Task Updated"
+        case "task.completed": return "Task Completed"
+        case "task.activated": return "Task Activated"
+        case "task.deleted": return "Task Deleted"
+        case "task.reordered": return "Tasks Reordered"
+        case "reminder.created": return "Reminder Set"
+        case "reminder.updated": return "Reminder Updated"
+        case "reminder.deleted": return "Reminder Removed"
+        case "reminder.snoozed": return "Reminder Snoozed"
+        case "attachment.added": return "Attachment Added"
+        case "attachment.removed": return "Attachment Removed"
+        default: return event.type
         }
-        .padding(.vertical, 4)
     }
 
-    private var colorForEventType: Color {
-        if event.type.contains("created") {
-            return .green
-        } else if event.type.contains("completed") {
-            return .blue
-        } else if event.type.contains("deleted") || event.type.contains("closed") {
-            return .red
-        } else {
-            return .primary
+    private var actionIcon: String {
+        switch event.type {
+        case "task.created": return "plus.circle.fill"
+        case "task.updated": return "pencil.circle.fill"
+        case "task.completed": return "checkmark.circle.fill"
+        case "task.activated": return "star.fill"
+        case "task.deleted": return "trash.circle.fill"
+        case "task.reordered": return "arrow.up.arrow.down"
+        case "reminder.created": return "bell.fill"
+        case "reminder.updated": return "bell.badge"
+        case "reminder.deleted": return "bell.slash"
+        case "reminder.snoozed": return "moon.zzz.fill"
+        case "attachment.added": return "paperclip.circle.fill"
+        case "attachment.removed": return "paperclip.badge.ellipsis"
+        default: return "questionmark.circle.fill"
         }
+    }
+
+    private var actionColor: Color {
+        switch event.type {
+        case "task.created": return .green
+        case "task.updated": return .blue
+        case "task.completed": return .purple
+        case "task.activated": return .cyan
+        case "task.deleted": return .red
+        case "task.reordered": return .secondary
+        case "reminder.created": return .yellow
+        case "reminder.updated": return .yellow
+        case "reminder.deleted": return .red
+        case "reminder.snoozed": return .indigo
+        case "attachment.added": return .mint
+        case "attachment.removed": return .red
+        default: return .secondary
+        }
+    }
+
+    private var eventDetails: (title: String?, subtitle: String?)? {
+        if event.type.hasPrefix("task."),
+           let payload = try? event.decodePayload(TaskEventPayload.self) {
+            return (payload.title, payload.description)
+        }
+        if event.type.hasPrefix("reminder."),
+           let payload = try? event.decodePayload(ReminderEventPayload.self) {
+            let dateStr = payload.remindAt.formatted(date: .abbreviated, time: .shortened)
+            return ("Reminder for \(dateStr)", nil)
+        }
+        if event.type.hasPrefix("attachment."),
+           let payload = try? event.decodePayload(AttachmentEventPayload.self) {
+            return (payload.filename, payload.mimeType)
+        }
+        return nil
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: actionIcon)
+                .font(.title2)
+                .foregroundStyle(actionColor)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(actionLabel)
+                        .font(.headline)
+                    Spacer()
+                    Text(event.timestamp, style: .relative)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if let details = eventDetails {
+                    if let title = details.title {
+                        Text(title)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    if let subtitle = details.subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(2)
+                    }
+                }
+
+                Text(event.timestamp.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
