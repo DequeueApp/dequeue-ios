@@ -95,7 +95,16 @@ extension StackEditorView {
         Task {
             await previewCoordinator.preview(
                 attachment: attachment,
-                downloadHandler: nil  // TODO: Add download handler for remote-only attachments
+                downloadHandler: { [attachmentService] attachment in
+                    guard let service = attachmentService else {
+                        throw AttachmentServiceError.operationFailed(
+                            underlying: NSError(domain: "StackEditorView", code: 1, userInfo: [
+                                NSLocalizedDescriptionKey: "Attachment service not available"
+                            ])
+                        )
+                    }
+                    return try await service.downloadAttachment(attachment)
+                }
             )
         }
     }

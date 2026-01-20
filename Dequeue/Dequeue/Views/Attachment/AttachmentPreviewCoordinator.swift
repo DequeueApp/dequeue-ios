@@ -48,8 +48,8 @@ final class AttachmentPreviewCoordinator {
         downloadProgress = 0
 
         // Check if file is available locally
-        if attachment.isAvailableLocally, let localPath = attachment.localPath {
-            let url = URL(fileURLWithPath: localPath)
+        if attachment.isAvailableLocally, let resolvedPath = attachment.resolvedLocalPath {
+            let url = URL(fileURLWithPath: resolvedPath)
             await MainActor.run {
                 self.previewURL = url
             }
@@ -247,10 +247,25 @@ struct AttachmentPreviewModifier: ViewModifier {
         content
             #if os(iOS)
             .fullScreenCover(item: $coordinator.previewURL) { url in
-                AttachmentQuickLookView(url: url) {
-                    coordinator.dismiss()
+                NavigationStack {
+                    AttachmentQuickLookView(url: url) {
+                        coordinator.dismiss()
+                    }
+                    .ignoresSafeArea()
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                coordinator.dismiss()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .symbolRenderingMode(.hierarchical)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .accessibilityLabel("Close preview")
+                        }
+                    }
                 }
-                .ignoresSafeArea()
             }
             #elseif os(macOS)
             .onChange(of: coordinator.previewURL) { _, newValue in

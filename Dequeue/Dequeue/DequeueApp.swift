@@ -277,6 +277,9 @@ struct RootView: View {
                 )
             }
 
+            // Run one-time data migrations (e.g., attachment path format)
+            await runMigrationsIfNeeded()
+
             // Connect to sync with retry
             await connectSyncWithRetry(userId: userId, maxRetries: 3)
         } else {
@@ -381,6 +384,42 @@ struct RootView: View {
             ErrorReportingService.capture(
                 error: error,
                 context: ["source": "device_activity_update"]
+            )
+        }
+    }
+
+    /// Runs one-time data migrations if needed.
+    /// Currently migrates attachment paths from absolute to relative format.
+    private func runMigrationsIfNeeded() async {
+        let migrationKey = "com.dequeue.migrations.attachmentRelativePaths"
+
+        // Skip if already migrated
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+
+        // Get current user's ID for AttachmentService
+        guard let userId = authService.currentUserId else { return }
+
+        // Get device ID from DeviceService
+        let deviceId = await DeviceService.shared.getDeviceId()
+
+        let attachmentService = AttachmentService(
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId
+        )
+
+        do {
+            let migratedCount = try attachmentService.migrateAttachmentPaths()
+            if migratedCount > 0 {
+                os_log("[Migration] Migrated \(migratedCount) attachment paths to relative format")
+            }
+            // Mark migration as complete
+            UserDefaults.standard.set(true, forKey: migrationKey)
+        } catch {
+            os_log("[Migration] Failed to migrate attachment paths: \(error.localizedDescription)")
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "attachment_path_migration"]
             )
         }
     }
