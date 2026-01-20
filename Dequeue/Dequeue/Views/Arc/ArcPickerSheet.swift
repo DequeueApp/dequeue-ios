@@ -65,7 +65,7 @@ struct ArcPickerSheet: View {
                 }
             }
             .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) { }
+                Button("OK", role: .cancel) { /* Dismiss handled by SwiftUI */ }
             } message: {
                 if let errorMessage {
                     Text(errorMessage)

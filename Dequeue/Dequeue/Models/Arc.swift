@@ -81,21 +81,21 @@ final class Arc {
 
     /// Stacks sorted by sort order
     var sortedStacks: [Stack] {
-        stacks
+        return stacks
             .filter { !$0.isDeleted }
             .sorted { $0.sortOrder < $1.sortOrder }
     }
 
     /// Active (non-completed) stacks sorted by sort order
     var pendingStacks: [Stack] {
-        stacks
+        return stacks
             .filter { !$0.isDeleted && $0.status == .active }
             .sorted { $0.sortOrder < $1.sortOrder }
     }
 
     /// Active reminders (not deleted, not fired) sorted by remindAt
     var activeReminders: [Reminder] {
-        reminders
+        return reminders
             .filter { !$0.isDeleted && $0.status == .active }
             .sorted { $0.remindAt < $1.remindAt }
     }

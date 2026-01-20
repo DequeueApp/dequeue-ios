@@ -126,23 +126,15 @@ struct ArcEditorView: View {
                     stacksSection(for: arc)
                 }
 
-                // Reminders section (edit mode only)
+                // Reminders and Attachments sections (edit mode only)
                 if editingArc != nil {
                     remindersSection
-                }
-
-                // Attachments section (edit mode only)
-                if editingArc != nil {
                     attachmentsSection
                 }
 
-                // Actions section (edit mode only)
+                // Actions and Event history sections (edit mode only)
                 if let arc = editingArc {
                     actionsSection(for: arc)
-                }
-
-                // Event history section (edit mode only)
-                if let arc = editingArc {
                     eventHistorySection(for: arc)
                 }
             }
@@ -163,7 +155,7 @@ struct ArcEditorView: View {
                 }
             }
             .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) {}
+                Button("OK", role: .cancel) { /* Dismiss handled by SwiftUI */ }
             } message: {
                 Text(errorMessage)
             }
@@ -175,7 +167,7 @@ struct ArcEditorView: View {
                 Button("Complete Arc") {
                     completeArc()
                 }
-                Button("Cancel", role: .cancel) {}
+                Button("Cancel", role: .cancel) { /* Dismiss handled by SwiftUI */ }
             } message: {
                 Text("Mark this arc as completed? You can reopen it later if needed.")
             }
@@ -187,7 +179,7 @@ struct ArcEditorView: View {
                 Button("Delete Arc", role: .destructive) {
                     deleteArc()
                 }
-                Button("Cancel", role: .cancel) {}
+                Button("Cancel", role: .cancel) { /* Dismiss handled by SwiftUI */ }
             } message: {
                 Text("Delete this arc? Stacks within this arc will not be deleted.")
             }
@@ -237,7 +229,7 @@ struct ArcEditorView: View {
                         reminderActionHandler?.delete(reminder)
                     }
                 }
-                Button("Cancel", role: .cancel) {}
+                Button("Cancel", role: .cancel) { /* Dismiss handled by SwiftUI */ }
             } message: {
                 Text("Are you sure you want to delete this reminder?")
             }
@@ -274,7 +266,7 @@ struct ArcEditorView: View {
                         }
                     }
                 }
-                Button("Cancel", role: .cancel) {}
+                Button("Cancel", role: .cancel) { /* Dismiss handled by SwiftUI */ }
             } message: {
                 Text("Are you sure you want to delete this attachment?")
             }

@@ -73,7 +73,7 @@ struct ArcHistoryView: View {
             }
         }
         .alert("Revert Failed", isPresented: $showRevertError) {
-            Button("OK", role: .cancel) { }
+            Button("OK", role: .cancel) { /* Dismiss handled by SwiftUI */ }
         } message: {
             if let error = revertError {
                 Text(error.localizedDescription)
@@ -85,7 +85,7 @@ struct ArcHistoryView: View {
                     await loadHistory()
                 }
             }
-            Button("OK", role: .cancel) { }
+            Button("OK", role: .cancel) { /* Dismiss handled by SwiftUI */ }
         } message: {
             if let error = loadError {
                 Text(error.localizedDescription)
