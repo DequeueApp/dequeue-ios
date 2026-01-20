@@ -821,10 +821,11 @@ struct StackEventPayload: Codable {
     let activeTaskId: String?
     let deleted: Bool
     let tagIds: [String]
+    let createdAt: Date?  // Original creation timestamp from sync
 
     // Handle status as string from server
     enum CodingKeys: String, CodingKey {
-        case id, title, description, status, priority, sortOrder, isDraft, isActive, activeTaskId, deleted, tagIds
+        case id, title, description, status, priority, sortOrder, isDraft, isActive, activeTaskId, deleted, tagIds, createdAt
     }
 
     init(from decoder: Decoder) throws {
@@ -848,6 +849,13 @@ struct StackEventPayload: Codable {
         activeTaskId = try container.decodeIfPresent(String.self, forKey: .activeTaskId)
         deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
         tagIds = try container.decodeIfPresent([String].self, forKey: .tagIds) ?? []
+
+        // Decode createdAt - handle Int64 timestamp (milliseconds) or Date
+        if let timestamp = try? container.decode(Int64.self, forKey: .createdAt) {
+            createdAt = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            createdAt = try? container.decode(Date.self, forKey: .createdAt)
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -863,6 +871,9 @@ struct StackEventPayload: Codable {
         try container.encodeIfPresent(activeTaskId, forKey: .activeTaskId)
         try container.encode(deleted, forKey: .deleted)
         try container.encode(tagIds, forKey: .tagIds)
+        if let createdAt {
+            try container.encode(Int64(createdAt.timeIntervalSince1970 * 1_000), forKey: .createdAt)
+        }
     }
 }
 
@@ -877,9 +888,10 @@ struct TaskEventPayload: Codable {
     let sortOrder: Int
     let lastActiveTime: Date?
     let deleted: Bool
+    let createdAt: Date?  // Original creation timestamp from sync
 
     enum CodingKeys: String, CodingKey {
-        case id, stackId, title, description, status, priority, sortOrder, lastActiveTime, deleted
+        case id, stackId, title, description, status, priority, sortOrder, lastActiveTime, deleted, createdAt
     }
 
     init(from decoder: Decoder) throws {
@@ -908,6 +920,13 @@ struct TaskEventPayload: Codable {
         }
 
         deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
+
+        // Decode createdAt - handle Int64 timestamp (milliseconds) or Date
+        if let timestamp = try? container.decode(Int64.self, forKey: .createdAt) {
+            createdAt = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            createdAt = try? container.decode(Date.self, forKey: .createdAt)
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -923,6 +942,9 @@ struct TaskEventPayload: Codable {
             try container.encode(Int64(lastActiveTime.timeIntervalSince1970 * 1_000), forKey: .lastActiveTime)
         }
         try container.encode(deleted, forKey: .deleted)
+        if let createdAt {
+            try container.encode(Int64(createdAt.timeIntervalSince1970 * 1_000), forKey: .createdAt)
+        }
     }
 }
 

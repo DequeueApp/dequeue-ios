@@ -192,6 +192,8 @@ enum ProjectorService {
                 syncState: .synced,
                 lastSyncedAt: Date()
             )
+            // Use original createdAt from payload if available, otherwise fall back to event timestamp
+            stack.createdAt = payload.createdAt ?? event.timestamp
             stack.updatedAt = event.timestamp  // LWW: Use event timestamp
             context.insert(stack)
 
@@ -428,6 +430,8 @@ enum ProjectorService {
                 syncState: .synced,
                 lastSyncedAt: Date()
             )
+            // Use original createdAt from payload if available, otherwise fall back to event timestamp
+            task.createdAt = payload.createdAt ?? event.timestamp
             task.updatedAt = event.timestamp  // LWW: Use event timestamp
 
             if let stackId = payload.stackId,
