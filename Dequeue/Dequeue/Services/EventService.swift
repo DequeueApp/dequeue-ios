@@ -35,6 +35,7 @@ struct EventContext {
     }
 }
 
+// swiftlint:disable type_body_length
 @MainActor
 final class EventService {
     private let modelContext: ModelContext
@@ -456,6 +457,7 @@ final class EventService {
         // This allows batching multiple events into a single disk write.
     }
 }
+// swiftlint:enable type_body_length
 
 // MARK: - State Objects (match React Native StackState, TaskState, etc.)
 
