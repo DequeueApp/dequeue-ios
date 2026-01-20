@@ -347,28 +347,45 @@ final class EventService {
             entityIds.insert(reminder.id)
         }
 
-        // Fetch all events (SwiftData predicates don't support complex contains with optionals)
-        // We'll filter in memory after fetching
-        let descriptor = FetchDescriptor<Event>(
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-        )
-        let allEvents = try modelContext.fetch(descriptor)
+        // Convert to array for predicate (predicates work with arrays)
+        let entityIdArray = Array(entityIds)
 
-        // Filter to events for our entity IDs OR attachment events with parentId matching stack/task IDs
-        let stackAndTaskIds = entityIds  // All IDs including stack and tasks
-        return allEvents.filter { event in
-            // Direct entity match
-            if let eventEntityId = event.entityId, entityIds.contains(eventEntityId) {
-                return true
-            }
-            // Attachment events - check if parentId matches stack or any of its tasks
-            if event.type == "attachment.added" || event.type == "attachment.removed" {
-                if let payload = try? event.decodePayload(AttachmentEventPayload.self) {
-                    return stackAndTaskIds.contains(payload.parentId)
-                }
+        // Fetch events by entityId using database predicate
+        let entityPredicate = #Predicate<Event> { event in
+            if let eventEntityId = event.entityId {
+                return entityIdArray.contains(eventEntityId)
             }
             return false
         }
+        let entityDescriptor = FetchDescriptor<Event>(
+            predicate: entityPredicate,
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        var result = try modelContext.fetch(entityDescriptor)
+
+        // Separately fetch attachment events (by type) and filter by parentId in memory
+        // This is more efficient than fetching ALL events
+        let attachmentTypes = ["attachment.added", "attachment.removed"]
+        let attachmentPredicate = #Predicate<Event> { event in
+            attachmentTypes.contains(event.type)
+        }
+        let attachmentDescriptor = FetchDescriptor<Event>(
+            predicate: attachmentPredicate,
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        let attachmentEvents = try modelContext.fetch(attachmentDescriptor)
+
+        // Filter attachment events by parentId matching stack or task IDs
+        let stackAndTaskIds = entityIds
+        for event in attachmentEvents {
+            if let payload = try? event.decodePayload(AttachmentEventPayload.self),
+               stackAndTaskIds.contains(payload.parentId) {
+                result.append(event)
+            }
+        }
+
+        // Sort combined results by timestamp descending
+        return result.sorted { $0.timestamp > $1.timestamp }
     }
 
     /// Fetches all events related to a task, including reminders and attachments
@@ -380,24 +397,44 @@ final class EventService {
             entityIds.insert(reminder.id)
         }
 
-        let descriptor = FetchDescriptor<Event>(
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-        )
-        let allEvents = try modelContext.fetch(descriptor)
+        // Convert to array for predicate
+        let entityIdArray = Array(entityIds)
 
-        return allEvents.filter { event in
-            // Direct entity match
-            if let eventEntityId = event.entityId, entityIds.contains(eventEntityId) {
-                return true
-            }
-            // Attachment events - check if parentId matches this task
-            if event.type == "attachment.added" || event.type == "attachment.removed" {
-                if let payload = try? event.decodePayload(AttachmentEventPayload.self) {
-                    return payload.parentId == task.id
-                }
+        // Fetch events by entityId using database predicate
+        let entityPredicate = #Predicate<Event> { event in
+            if let eventEntityId = event.entityId {
+                return entityIdArray.contains(eventEntityId)
             }
             return false
         }
+        let entityDescriptor = FetchDescriptor<Event>(
+            predicate: entityPredicate,
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        var result = try modelContext.fetch(entityDescriptor)
+
+        // Separately fetch attachment events and filter by parentId
+        let attachmentTypes = ["attachment.added", "attachment.removed"]
+        let attachmentPredicate = #Predicate<Event> { event in
+            attachmentTypes.contains(event.type)
+        }
+        let attachmentDescriptor = FetchDescriptor<Event>(
+            predicate: attachmentPredicate,
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        let attachmentEvents = try modelContext.fetch(attachmentDescriptor)
+
+        // Filter attachment events by parentId matching task ID
+        let taskId = task.id
+        for event in attachmentEvents {
+            if let payload = try? event.decodePayload(AttachmentEventPayload.self),
+               payload.parentId == taskId {
+                result.append(event)
+            }
+        }
+
+        // Sort combined results by timestamp descending
+        return result.sorted { $0.timestamp > $1.timestamp }
     }
 
     // MARK: - Private
