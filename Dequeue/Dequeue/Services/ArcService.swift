@@ -155,25 +155,33 @@ final class ArcService {
     }
 
     /// Soft-deletes an arc (sets isDeleted = true)
+    /// This operation atomically removes all stacks from the arc and marks the arc as deleted.
     func deleteArc(_ arc: Arc) throws {
-        // Remove all stacks from this arc before deleting
-        for stack in arc.stacks {
+        let arcId = arc.id
+        let stacksToRemove = Array(arc.stacks)
+
+        // Remove all stacks from this arc and record events for each
+        for stack in stacksToRemove {
             stack.arc = nil
             stack.arcId = nil
             stack.updatedAt = Date()
             stack.syncState = .pending
             stack.revision += 1
+            try eventService.recordStackRemovedFromArc(stack: stack, arcId: arcId)
         }
 
+        // Mark the arc as deleted
         arc.isDeleted = true
         arc.updatedAt = Date()
         arc.syncState = .pending
         arc.revision += 1
 
         try eventService.recordArcDeleted(arc)
+
+        // Save all changes atomically
         try modelContext.save()
 
-        logger.info("Deleted arc: \(arc.id)")
+        logger.info("Deleted arc: \(arc.id) (removed \(stacksToRemove.count) stacks)")
         triggerSync()
     }
 
@@ -211,10 +219,10 @@ final class ArcService {
         triggerSync()
     }
 
-    /// Resumes a paused arc
+    /// Resumes a paused or completed arc
     /// - Throws: If resuming would exceed the maximum active arcs
     func resume(_ arc: Arc) throws {
-        guard arc.status == .paused else { return }
+        guard arc.status == .paused || arc.status == .completed else { return }
 
         // Check if we can have another active arc
         guard try canCreateNewArc() else {
@@ -296,13 +304,11 @@ final class ArcService {
 
     /// Updates the sort order of arcs based on their position in the array
     func updateSortOrders(_ arcs: [Arc]) throws {
-        for (index, arc) in arcs.enumerated() {
-            if arc.sortOrder != index {
-                arc.sortOrder = index
-                arc.updatedAt = Date()
-                arc.syncState = .pending
-                arc.revision += 1
-            }
+        for (index, arc) in arcs.enumerated() where arc.sortOrder != index {
+            arc.sortOrder = index
+            arc.updatedAt = Date()
+            arc.syncState = .pending
+            arc.revision += 1
         }
 
         try eventService.recordArcReordered(arcs)
@@ -315,7 +321,7 @@ final class ArcService {
     // MARK: - Sync Support
 
     /// Creates or updates an arc from a sync event (used by ProjectorService)
-    func upsertFromSync(
+    func upsertFromSync( // swiftlint:disable:this function_parameter_count
         id: String,
         title: String,
         description: String?,

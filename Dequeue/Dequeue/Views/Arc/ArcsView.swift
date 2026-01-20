@@ -23,6 +23,7 @@ struct ArcsView: View {
     @State private var showStackPicker = false
     @State private var arcForStackPicker: Arc?
     @State private var cachedDeviceId: String = ""
+    @State private var arcService: ArcService?
 
     /// Maximum number of active arcs allowed
     private let maxActiveArcs = 5
@@ -66,6 +67,14 @@ struct ArcsView: View {
             if cachedDeviceId.isEmpty {
                 cachedDeviceId = await DeviceService.shared.getDeviceId()
             }
+            if arcService == nil {
+                arcService = ArcService(
+                    modelContext: modelContext,
+                    userId: authService.currentUserId,
+                    deviceId: cachedDeviceId,
+                    syncManager: syncManager
+                )
+            }
         }
     }
 
@@ -75,7 +84,10 @@ struct ArcsView: View {
         ContentUnavailableView {
             Label("No Arcs", systemImage: "rays")
         } description: {
-            Text("Arcs help you organize related stacks into higher-level goals.\nCreate your first arc to get started.")
+            Text("""
+                Arcs help you organize related stacks into higher-level goals.
+                Create your first arc to get started.
+                """)
         } actions: {
             Button {
                 showAddSheet = true
@@ -134,16 +146,8 @@ struct ArcsView: View {
         var reorderedArcs = arcs
         reorderedArcs.move(fromOffsets: source, toOffset: destination)
 
-        // Update sort orders
-        for (index, arc) in reorderedArcs.enumerated() {
-            arc.sortOrder = index
-            arc.updatedAt = Date()
-            arc.syncState = .pending
-        }
-
         do {
-            try modelContext.save()
-            syncManager?.triggerImmediatePush()
+            try arcService?.updateSortOrders(reorderedArcs)
         } catch {
             ErrorReportingService.capture(error: error, context: ["action": "move_arcs"])
         }

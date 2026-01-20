@@ -29,14 +29,14 @@ struct ArcEditorView: View {
         }
     }
 
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.syncManager) private var syncManager
-    @Environment(\.authService) private var authService
+    @Environment(\.modelContext) var modelContext
+    @Environment(\.dismiss) var dismiss
+    @Environment(\.syncManager) var syncManager
+    @Environment(\.authService) var authService
     @Environment(\.attachmentUploadCoordinator) var attachmentUploadCoordinator
 
-    @State private var arcService: ArcService?
-    @State private var cachedDeviceId: String = ""
+    @State var arcService: ArcService?
+    @State var cachedDeviceId: String = ""
 
     // Reminder and attachment services
     @State var attachmentService: AttachmentService?
@@ -49,16 +49,16 @@ struct ArcEditorView: View {
     let mode: Mode
 
     // Form fields
-    @State private var title: String = ""
-    @State private var arcDescription: String = ""
-    @State private var selectedColorHex: String = "5E5CE6" // Default indigo
+    @State var title: String = ""
+    @State var arcDescription: String = ""
+    @State var selectedColorHex: String = "5E5CE6" // Default indigo
 
     // UI state
     @State var showError = false
     @State var errorMessage = ""
-    @State private var showDeleteConfirmation = false
-    @State private var showCompleteConfirmation = false
-    @State private var showStackPicker = false
+    @State var showDeleteConfirmation = false
+    @State var showCompleteConfirmation = false
+    @State var showStackPicker = false
     @FocusState private var isTitleFocused: Bool
 
     // Reminder state
@@ -76,7 +76,7 @@ struct ArcEditorView: View {
     @State var showDeleteAttachmentConfirmation = false
 
     /// Preset colors for arc accent
-    private let colorPresets: [(name: String, hex: String)] = [
+    let colorPresets: [(name: String, hex: String)] = [
         ("Indigo", "5E5CE6"),
         ("Blue", "007AFF"),
         ("Cyan", "32ADE6"),
@@ -272,326 +272,6 @@ struct ArcEditorView: View {
             }
             .attachmentPreview(coordinator: previewCoordinator)
         }
-    }
-
-    // MARK: - Subviews
-
-    private var colorPicker: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44))], spacing: 12) {
-            ForEach(colorPresets, id: \.hex) { preset in
-                Button {
-                    selectedColorHex = preset.hex
-                } label: {
-                    Circle()
-                        .fill(Color(hex: preset.hex) ?? .indigo)
-                        .frame(width: 36, height: 36)
-                        .overlay {
-                            if selectedColorHex == preset.hex {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(preset.name)
-                .accessibilityAddTraits(selectedColorHex == preset.hex ? .isSelected : [])
-            }
-        }
-        .padding(.vertical, 8)
-    }
-
-    @ViewBuilder
-    private func stacksSection(for arc: Arc) -> some View {
-        Section {
-            if arc.sortedStacks.isEmpty {
-                Text("No stacks assigned")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(arc.sortedStacks) { stack in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(stack.title)
-                                .font(.body)
-                            if stack.status == .completed {
-                                Text("Completed")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Spacer()
-                        if stack.status == .completed {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        } else {
-                            // Remove from arc button
-                            Button {
-                                removeStack(stack, from: arc)
-                            } label: {
-                                Image(systemName: "minus.circle")
-                                    .foregroundStyle(.red)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-
-            // Add stack button
-            Button {
-                showStackPicker = true
-            } label: {
-                Label("Add Stack", systemImage: "plus.circle")
-            }
-        } header: {
-            HStack {
-                Text("Stacks")
-                Spacer()
-                Text("\(arc.completedStackCount)/\(arc.totalStackCount)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .sheet(isPresented: $showStackPicker) {
-            StackPickerForArcSheet(arc: arc)
-        }
-    }
-
-    private func removeStack(_ stack: Stack, from arc: Arc) {
-        do {
-            try arcService?.removeStack(stack, from: arc)
-            logger.info("Removed stack \(stack.id) from arc \(arc.id)")
-        } catch {
-            handleError(error, action: "remove_stack")
-        }
-    }
-
-    @ViewBuilder
-    private func actionsSection(for arc: Arc) -> some View {
-        Section {
-            // Status actions
-            switch arc.status {
-            case .active:
-                Button {
-                    pauseArc()
-                } label: {
-                    Label("Pause Arc", systemImage: "pause.circle")
-                }
-
-                Button {
-                    showCompleteConfirmation = true
-                } label: {
-                    Label("Complete Arc", systemImage: "checkmark.circle")
-                }
-                .foregroundStyle(.green)
-
-            case .paused:
-                Button {
-                    resumeArc()
-                } label: {
-                    Label("Resume Arc", systemImage: "play.circle")
-                }
-                .foregroundStyle(.blue)
-
-                Button {
-                    showCompleteConfirmation = true
-                } label: {
-                    Label("Complete Arc", systemImage: "checkmark.circle")
-                }
-                .foregroundStyle(.green)
-
-            case .completed:
-                Button {
-                    reopenArc()
-                } label: {
-                    Label("Reopen Arc", systemImage: "arrow.uturn.backward.circle")
-                }
-                .foregroundStyle(.blue)
-
-            case .archived:
-                Button {
-                    unarchiveArc()
-                } label: {
-                    Label("Unarchive Arc", systemImage: "tray.and.arrow.up")
-                }
-                .foregroundStyle(.blue)
-            }
-
-            // Delete action
-            Button(role: .destructive) {
-                showDeleteConfirmation = true
-            } label: {
-                Label("Delete Arc", systemImage: "trash")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func eventHistorySection(for arc: Arc) -> some View {
-        Section {
-            NavigationLink {
-                ArcHistoryView(arc: arc)
-            } label: {
-                Label("Event History", systemImage: "clock.arrow.circlepath")
-            }
-        } footer: {
-            Text("View the complete history of changes to this arc")
-        }
-    }
-
-    // MARK: - Initialization
-
-    private func initializeServices() async {
-        if cachedDeviceId.isEmpty {
-            cachedDeviceId = await DeviceService.shared.getDeviceId()
-        }
-
-        let userId = authService.currentUserId ?? ""
-
-        if arcService == nil {
-            arcService = ArcService(
-                modelContext: modelContext,
-                userId: userId,
-                deviceId: cachedDeviceId,
-                syncManager: syncManager
-            )
-        }
-
-        if attachmentService == nil {
-            attachmentService = AttachmentService(
-                modelContext: modelContext,
-                userId: userId,
-                deviceId: cachedDeviceId,
-                syncManager: syncManager
-            )
-        }
-
-        if reminderActionHandler == nil {
-            reminderActionHandler = ReminderActionHandler(
-                modelContext: modelContext,
-                userId: userId,
-                deviceId: cachedDeviceId,
-                onError: { [self] error in
-                    errorMessage = error.localizedDescription
-                    showError = true
-                },
-                syncManager: syncManager
-            )
-        }
-    }
-
-    private func loadArcData() {
-        if let arc = editingArc {
-            title = arc.title
-            arcDescription = arc.arcDescription ?? ""
-            selectedColorHex = arc.colorHex ?? "5E5CE6"
-        }
-    }
-
-    // MARK: - Actions
-
-    private func saveArc() {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return }
-
-        do {
-            if let arc = editingArc {
-                // Update existing arc
-                try arcService?.updateArc(
-                    arc,
-                    title: trimmedTitle,
-                    description: arcDescription.isEmpty ? nil : arcDescription,
-                    colorHex: selectedColorHex
-                )
-                logger.info("Updated arc: \(arc.id)")
-            } else {
-                // Create new arc
-                let arc = try arcService?.createArc(
-                    title: trimmedTitle,
-                    description: arcDescription.isEmpty ? nil : arcDescription,
-                    colorHex: selectedColorHex
-                )
-                logger.info("Created arc: \(arc?.id ?? "unknown")")
-            }
-            dismiss()
-        } catch ArcServiceError.maxActiveArcsExceeded(let limit) {
-            errorMessage = "You can have up to \(limit) active arcs. Complete or pause an existing arc first."
-            showError = true
-        } catch {
-            logger.error("Failed to save arc: \(error.localizedDescription)")
-            errorMessage = error.localizedDescription
-            showError = true
-            ErrorReportingService.capture(error: error, context: ["action": "save_arc"])
-        }
-    }
-
-    private func pauseArc() {
-        guard let arc = editingArc else { return }
-        do {
-            try arcService?.pause(arc)
-            logger.info("Paused arc: \(arc.id)")
-        } catch {
-            handleError(error, action: "pause_arc")
-        }
-    }
-
-    private func resumeArc() {
-        guard let arc = editingArc else { return }
-        do {
-            try arcService?.resume(arc)
-            logger.info("Resumed arc: \(arc.id)")
-        } catch {
-            handleError(error, action: "resume_arc")
-        }
-    }
-
-    private func completeArc() {
-        guard let arc = editingArc else { return }
-        do {
-            try arcService?.markAsCompleted(arc)
-            logger.info("Completed arc: \(arc.id)")
-            dismiss()
-        } catch {
-            handleError(error, action: "complete_arc")
-        }
-    }
-
-    private func reopenArc() {
-        guard let arc = editingArc else { return }
-        do {
-            try arcService?.resume(arc)
-            logger.info("Reopened arc: \(arc.id)")
-        } catch {
-            handleError(error, action: "reopen_arc")
-        }
-    }
-
-    private func unarchiveArc() {
-        guard let arc = editingArc else { return }
-        do {
-            try arcService?.resume(arc)
-            logger.info("Unarchived arc: \(arc.id)")
-        } catch {
-            handleError(error, action: "unarchive_arc")
-        }
-    }
-
-    private func deleteArc() {
-        guard let arc = editingArc else { return }
-        do {
-            try arcService?.deleteArc(arc)
-            logger.info("Deleted arc: \(arc.id)")
-            dismiss()
-        } catch {
-            handleError(error, action: "delete_arc")
-        }
-    }
-
-    private func handleError(_ error: Error, action: String) {
-        logger.error("Failed to \(action): \(error.localizedDescription)")
-        errorMessage = error.localizedDescription
-        showError = true
-        ErrorReportingService.capture(error: error, context: ["action": action])
     }
 }
 

@@ -228,7 +228,10 @@ private struct StackPill: View {
 // MARK: - Previews
 
 #Preview("Active Arc") {
-    let arc = Arc(title: "OEM Strategy for Conference", arcDescription: "Prepare all materials and demos for the upcoming tech conference")
+    let arc = Arc(
+        title: "OEM Strategy for Conference",
+        arcDescription: "Prepare all materials and demos for the upcoming tech conference"
+    )
     return ArcCardView(arc: arc, onTap: {}, onAddStackTap: {})
         .padding()
 }
