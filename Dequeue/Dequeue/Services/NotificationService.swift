@@ -286,6 +286,8 @@ final class NotificationService: NSObject {
             return try fetchTaskTitle(id: reminder.parentId)
         case .stack:
             return try fetchStackTitle(id: reminder.parentId)
+        case .arc:
+            return try fetchArcTitle(id: reminder.parentId)
         }
     }
 
@@ -305,6 +307,15 @@ final class NotificationService: NSObject {
         let descriptor = FetchDescriptor<Stack>(predicate: predicate)
         let stacks = try modelContext.fetch(descriptor)
         return stacks.first?.title
+    }
+
+    private func fetchArcTitle(id: String) throws -> String? {
+        let predicate = #Predicate<Arc> { arc in
+            arc.id == id
+        }
+        let descriptor = FetchDescriptor<Arc>(predicate: predicate)
+        let arcs = try modelContext.fetch(descriptor)
+        return arcs.first?.title
     }
 
     private func fetchActiveUpcomingReminders() throws -> [Reminder] {

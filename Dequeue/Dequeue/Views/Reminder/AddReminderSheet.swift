@@ -15,11 +15,13 @@ import UserNotifications
 enum ReminderParent {
     case task(QueueTask)
     case stack(Stack)
+    case arc(Arc)
 
     var title: String {
         switch self {
         case .task(let task): return task.title
         case .stack(let stack): return stack.title
+        case .arc(let arc): return arc.title
         }
     }
 
@@ -27,6 +29,7 @@ enum ReminderParent {
         switch self {
         case .task: return "doc.text"
         case .stack: return "square.stack.3d.up"
+        case .arc: return "rays"
         }
     }
 
@@ -34,6 +37,7 @@ enum ReminderParent {
         switch self {
         case .task: return "Task"
         case .stack: return "Stack"
+        case .arc: return "Arc"
         }
     }
 }
@@ -331,6 +335,8 @@ struct AddReminderSheet: View {
                         reminder = try service.createReminder(for: task, at: selectedDate)
                     case .stack(let stack):
                         reminder = try service.createReminder(for: stack, at: selectedDate)
+                    case .arc(let arc):
+                        reminder = try service.createReminder(for: arc, at: selectedDate)
                     }
                     try await notificationService.scheduleNotification(for: reminder)
                 }

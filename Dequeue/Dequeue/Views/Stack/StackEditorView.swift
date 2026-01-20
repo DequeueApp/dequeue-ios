@@ -111,6 +111,7 @@ struct StackEditorView: View {
     @State var showDeleteReminderConfirmation = false
     @State var reminderToDelete: Reminder?
     @State var previewCoordinator = AttachmentPreviewCoordinator()
+    @State var showArcPicker = false
 
     // MARK: - Computed Properties
 

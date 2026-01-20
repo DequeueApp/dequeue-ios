@@ -54,6 +54,22 @@ final class ReminderService {
         return reminder
     }
 
+    func createReminder(for arc: Arc, at remindAt: Date) throws -> Reminder {
+        let reminder = Reminder(
+            parentId: arc.id,
+            parentType: .arc,
+            remindAt: remindAt
+        )
+
+        modelContext.insert(reminder)
+        arc.reminders.append(reminder)
+        try eventService.recordReminderCreated(reminder)
+        try modelContext.save()
+        syncManager?.triggerImmediatePush()
+
+        return reminder
+    }
+
     // MARK: - Update
 
     func updateReminder(_ reminder: Reminder, remindAt: Date) throws {
@@ -152,6 +168,20 @@ final class ReminderService {
         )
         return try modelContext.fetch(descriptor)
             .filter { $0.parentType == .stack }
+    }
+
+    func getReminders(for arc: Arc) throws -> [Reminder] {
+        let arcId = arc.id
+        let predicate = #Predicate<Reminder> { reminder in
+            reminder.parentId == arcId &&
+            reminder.isDeleted == false
+        }
+        let descriptor = FetchDescriptor<Reminder>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.remindAt)]
+        )
+        return try modelContext.fetch(descriptor)
+            .filter { $0.parentType == .arc }
     }
 
     // MARK: - Private Helpers

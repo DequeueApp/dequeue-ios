@@ -27,9 +27,22 @@ enum ReminderStatus: String, Codable, CaseIterable {
     case fired
 }
 
+/// Status of an Arc - higher-level organizational container
+enum ArcStatus: String, Codable, CaseIterable {
+    /// Currently being worked on
+    case active
+    /// All work finished successfully
+    case completed
+    /// Temporarily on hold
+    case paused
+    /// Historical, no longer relevant
+    case archived
+}
+
 enum ParentType: String, Codable, CaseIterable {
     case stack
     case task
+    case arc
 }
 
 enum SyncState: String, Codable, CaseIterable {
@@ -94,4 +107,16 @@ enum EventType: String, Codable, CaseIterable {
     // Attachment events
     case attachmentAdded = "attachment.added"
     case attachmentRemoved = "attachment.removed"
+
+    // Arc events
+    case arcCreated = "arc.created"
+    case arcUpdated = "arc.updated"
+    case arcDeleted = "arc.deleted"
+    case arcActivated = "arc.activated"
+    case arcDeactivated = "arc.deactivated"
+    case arcCompleted = "arc.completed"
+    case arcPaused = "arc.paused"
+    case arcReordered = "arc.reordered"
+    case stackAssignedToArc = "stack.assignedToArc"
+    case stackRemovedFromArc = "stack.removedFromArc"
 }

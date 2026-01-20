@@ -49,7 +49,8 @@ struct DequeueApp: App {
             Device.self,
             SyncConflict.self,
             Attachment.self,
-            Tag.self
+            Tag.self,
+            Arc.self
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
@@ -410,6 +411,7 @@ struct RootView: View {
         Reminder.self,
         Event.self,
         Attachment.self,
+        Arc.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let syncManager = SyncManager(modelContainer: container)
@@ -427,6 +429,7 @@ struct RootView: View {
         Reminder.self,
         Event.self,
         Attachment.self,
+        Arc.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
     let syncManager = SyncManager(modelContainer: container)

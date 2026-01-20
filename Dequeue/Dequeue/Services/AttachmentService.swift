@@ -296,6 +296,15 @@ final class AttachmentService {
             guard results.first != nil else {
                 throw AttachmentServiceError.parentNotFound(id: parentId, type: parentType)
             }
+        case .arc:
+            let predicate = #Predicate<Arc> { arc in
+                arc.id == parentId && arc.isDeleted == false
+            }
+            let descriptor = FetchDescriptor<Arc>(predicate: predicate)
+            let results = try modelContext.fetch(descriptor)
+            guard results.first != nil else {
+                throw AttachmentServiceError.parentNotFound(id: parentId, type: parentType)
+            }
         }
     }
 

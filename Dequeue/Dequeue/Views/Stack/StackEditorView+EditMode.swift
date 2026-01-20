@@ -17,6 +17,7 @@ extension StackEditorView {
         List {
             descriptionSection
             editModeTagsSection
+            arcSection
             pendingTasksSection
 
             if case .edit(let stack) = mode, !stack.completedTasks.isEmpty {
@@ -97,6 +98,53 @@ extension StackEditorView {
             handleError(error)
             return nil
         }
+    }
+
+    // MARK: - Arc Section
+
+    @ViewBuilder
+    var arcSection: some View {
+        if case .edit(let stack) = mode, !isReadOnly {
+            Section("Arc") {
+                Button {
+                    showArcPicker = true
+                } label: {
+                    HStack {
+                        if let arc = stack.arc {
+                            HStack(spacing: 8) {
+                                // Color indicator
+                                Circle()
+                                    .fill(arcColor(for: arc))
+                                    .frame(width: 12, height: 12)
+
+                                Text(arc.title)
+                                    .foregroundStyle(.primary)
+                            }
+                        } else {
+                            Text("None")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .sheet(isPresented: $showArcPicker) {
+                ArcPickerSheet(stack: stack)
+            }
+        }
+    }
+
+    private func arcColor(for arc: Arc) -> Color {
+        if let hex = arc.colorHex {
+            return Color(hex: hex) ?? .indigo
+        }
+        return .indigo
     }
 
     // MARK: - Description Section
