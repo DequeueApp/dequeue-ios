@@ -26,6 +26,7 @@ private func makeTestContainer() throws -> ModelContainer {
 }
 
 /// Creates a test attachment event payload
+@MainActor
 private func makeAttachmentPayload(
     attachmentId: String,
     parentId: String,
