@@ -45,23 +45,29 @@ struct MainTabView: View {
         ZStack(alignment: .bottom) {
             // Native TabView with Liquid Glass (automatic in iOS 26)
             TabView(selection: $selectedTab) {
+                ArcsView()
+                    .tabItem {
+                        Label("Arcs", systemImage: "rays")
+                    }
+                    .tag(0)
+
                 StacksView()
                     .tabItem {
                         Label("Stacks", systemImage: "square.stack.3d.up")
                     }
-                    .tag(0)
+                    .tag(1)
 
                 ActivityFeedView()
                     .tabItem {
                         Label("Activity", systemImage: "clock.arrow.circlepath")
                     }
-                    .tag(1)
+                    .tag(2)
 
                 SettingsView()
                     .tabItem {
                         Label("Settings", systemImage: "gear")
                     }
-                    .tag(2)
+                    .tag(3)
             }
 
             // Floating banners positioned above tab bar
@@ -148,9 +154,12 @@ struct MainTabView: View {
         NavigationSplitView {
             List(selection: $selectedTab) {
                 NavigationLink(value: 0) {
-                    Label("Stacks", systemImage: "square.stack.3d.up")
+                    Label("Arcs", systemImage: "rays")
                 }
                 NavigationLink(value: 1) {
+                    Label("Stacks", systemImage: "square.stack.3d.up")
+                }
+                NavigationLink(value: 2) {
                     Label("Activity", systemImage: "clock.arrow.circlepath")
                 }
                 NavigationLink(value: 3) {
@@ -224,13 +233,15 @@ struct MainTabView: View {
     private var detailContent: some View {
         switch selectedTab {
         case 0:
-            StacksView()
+            ArcsView()
         case 1:
+            StacksView()
+        case 2:
             ActivityFeedView()
         case 3:
             SettingsView()
         default:
-            StacksView()
+            ArcsView()
         }
     }
     #endif

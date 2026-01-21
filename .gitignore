@@ -65,3 +65,4 @@ coverage/
 **/.claude/*.local.json
 **/.claude/ralph-state.json
 **/.claude/ralph-loop*.md
+.claude/

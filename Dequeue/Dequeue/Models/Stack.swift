@@ -55,6 +55,11 @@ final class Stack {
     @Relationship(deleteRule: .nullify)
     var tagObjects: [Tag] = []
 
+    // Arc relationship (a Stack can belong to at most one Arc)
+    var arc: Arc?
+    /// For sync compatibility - stores the arc ID for server sync
+    var arcId: String?
+
     /// Computed property for type-safe status access
     var status: StackStatus {
         get { StackStatus(rawValue: statusRawValue) ?? .active }
@@ -86,6 +91,8 @@ final class Stack {
         isDraft: Bool = false,
         isActive: Bool = false,
         activeTaskId: String? = nil,
+        arc: Arc? = nil,
+        arcId: String? = nil,
         userId: String? = nil,
         deviceId: String? = nil,
         syncState: SyncState = .pending,
@@ -112,6 +119,8 @@ final class Stack {
         self.isDraft = isDraft
         self.isActive = isActive
         self.activeTaskId = activeTaskId
+        self.arc = arc
+        self.arcId = arcId
         self.userId = userId
         self.deviceId = deviceId
         self.syncState = syncState

@@ -279,6 +279,90 @@ final class EventService {
         try recordEvent(type: .attachmentRemoved, payload: payload, entityId: attachment.id)
     }
 
+    // MARK: - Arc Events
+
+    func recordArcCreated(_ arc: Arc) throws {
+        let payload = ArcCreatedPayload(
+            arcId: arc.id,
+            state: ArcState.from(arc)
+        )
+        try recordEvent(type: .arcCreated, payload: payload, entityId: arc.id)
+    }
+
+    func recordArcUpdated(_ arc: Arc, changes: [String: Any] = [:]) throws {
+        let payload = ArcUpdatedPayload(
+            arcId: arc.id,
+            changes: changes,
+            fullState: ArcState.from(arc)
+        )
+        try recordEvent(type: .arcUpdated, payload: payload, entityId: arc.id)
+    }
+
+    func recordArcDeleted(_ arc: Arc) throws {
+        let payload = ArcDeletedPayload(arcId: arc.id)
+        try recordEvent(type: .arcDeleted, payload: payload, entityId: arc.id)
+    }
+
+    func recordArcCompleted(_ arc: Arc) throws {
+        let payload = ArcStatusPayload(
+            arcId: arc.id,
+            status: ArcStatus.completed.rawValue,
+            fullState: ArcState.from(arc)
+        )
+        try recordEvent(type: .arcCompleted, payload: payload, entityId: arc.id)
+    }
+
+    func recordArcPaused(_ arc: Arc) throws {
+        let payload = ArcStatusPayload(
+            arcId: arc.id,
+            status: ArcStatus.paused.rawValue,
+            fullState: ArcState.from(arc)
+        )
+        try recordEvent(type: .arcPaused, payload: payload, entityId: arc.id)
+    }
+
+    func recordArcActivated(_ arc: Arc) throws {
+        let payload = ArcStatusPayload(
+            arcId: arc.id,
+            status: ArcStatus.active.rawValue,
+            fullState: ArcState.from(arc)
+        )
+        try recordEvent(type: .arcActivated, payload: payload, entityId: arc.id)
+    }
+
+    func recordArcDeactivated(_ arc: Arc) throws {
+        let payload = ArcStatusPayload(
+            arcId: arc.id,
+            status: ArcStatus.archived.rawValue,
+            fullState: ArcState.from(arc)
+        )
+        try recordEvent(type: .arcDeactivated, payload: payload, entityId: arc.id)
+    }
+
+    func recordArcReordered(_ arcs: [Arc]) throws {
+        let payload = ArcReorderedPayload(
+            arcIds: arcs.map { $0.id },
+            sortOrders: arcs.map { $0.sortOrder }
+        )
+        try recordEvent(type: .arcReordered, payload: payload)
+    }
+
+    func recordStackAssignedToArc(stack: Stack, arc: Arc) throws {
+        let payload = StackArcAssignmentPayload(
+            stackId: stack.id,
+            arcId: arc.id
+        )
+        try recordEvent(type: .stackAssignedToArc, payload: payload, entityId: stack.id)
+    }
+
+    func recordStackRemovedFromArc(stack: Stack, arcId: String) throws {
+        let payload = StackArcAssignmentPayload(
+            stackId: stack.id,
+            arcId: arcId
+        )
+        try recordEvent(type: .stackRemovedFromArc, payload: payload, entityId: stack.id)
+    }
+
     // MARK: - Query
 
     func fetchPendingEvents() throws -> [Event] {
@@ -430,6 +514,52 @@ final class EventService {
 
         // Sort combined results by timestamp descending
         return result.sorted { $0.timestamp > $1.timestamp }
+    }
+
+    /// Fetches all events related to an arc and its direct children (stacks, reminders, attachments).
+    /// Returns events sorted by timestamp (newest first).
+    func fetchArcHistoryWithRelated(for arc: Arc) throws -> [Event] {
+        // Collect all entity IDs we need to query
+        var entityIds: Set<String> = [arc.id]
+
+        // Add stack IDs (direct children)
+        for stack in arc.stacks where !stack.isDeleted {
+            entityIds.insert(stack.id)
+        }
+
+        // Add reminder IDs (arc reminders)
+        for reminder in arc.reminders where !reminder.isDeleted {
+            entityIds.insert(reminder.id)
+        }
+
+        // Add attachment IDs (arc attachments)
+        // Query attachments by parentId since Arc doesn't have a direct relationship
+        let arcId = arc.id
+        let arcParentType = ParentType.arc.rawValue
+        let attachmentDescriptor = FetchDescriptor<Attachment>(
+            predicate: #Predicate<Attachment> { attachment in
+                attachment.parentId == arcId &&
+                attachment.parentTypeRawValue == arcParentType &&
+                attachment.isDeleted == false
+            }
+        )
+        let attachments = try modelContext.fetch(attachmentDescriptor)
+        for attachment in attachments {
+            entityIds.insert(attachment.id)
+        }
+
+        // Fetch all events (SwiftData predicates don't support complex contains with optionals)
+        // We'll filter in memory after fetching
+        let descriptor = FetchDescriptor<Event>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        let allEvents = try modelContext.fetch(descriptor)
+
+        // Filter to only events for our entity IDs
+        return allEvents.filter { event in
+            guard let eventEntityId = event.entityId else { return false }
+            return entityIds.contains(eventEntityId)
+        }
     }
 
     // MARK: - Private
@@ -627,6 +757,35 @@ struct AttachmentState: Codable {
     }
 }
 
+/// Full arc state snapshot - higher-level organizational container
+struct ArcState: Codable {
+    let id: String
+    let title: String
+    let description: String?
+    let status: String
+    let sortOrder: Int
+    let colorHex: String?
+    let createdAt: Int64  // Unix timestamp in milliseconds
+    let updatedAt: Int64
+    let deleted: Bool
+    let stackIds: [String]
+
+    static func from(_ arc: Arc) -> ArcState {
+        ArcState(
+            id: arc.id,
+            title: arc.title,
+            description: arc.arcDescription,
+            status: arc.status.rawValue,
+            sortOrder: arc.sortOrder,
+            colorHex: arc.colorHex,
+            createdAt: Int64(arc.createdAt.timeIntervalSince1970 * 1_000),
+            updatedAt: Int64(arc.updatedAt.timeIntervalSince1970 * 1_000),
+            deleted: arc.isDeleted,
+            stackIds: arc.stacks.filter { !$0.isDeleted }.map { $0.id }
+        )
+    }
+}
+
 // MARK: - Event Payloads (match React Native EventService payload interfaces)
 
 // Stack payloads
@@ -790,6 +949,51 @@ struct AttachmentRemovedPayload: Codable {
     let attachmentId: String
     let parentId: String
     let parentType: String
+}
+
+// Arc payloads
+struct ArcCreatedPayload: Codable {
+    let arcId: String
+    let state: ArcState
+}
+
+struct ArcUpdatedPayload: Encodable {
+    let arcId: String
+    let changes: [String: Any]
+    let fullState: ArcState
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(arcId, forKey: .arcId)
+        try container.encode(fullState, forKey: .fullState)
+        let changesData = try JSONSerialization.data(withJSONObject: changes)
+        let changesDict = try JSONDecoder().decode([String: AnyCodable].self, from: changesData)
+        try container.encode(changesDict, forKey: .changes)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case arcId, changes, fullState
+    }
+}
+
+struct ArcDeletedPayload: Codable {
+    let arcId: String
+}
+
+struct ArcStatusPayload: Codable {
+    let arcId: String
+    let status: String
+    let fullState: ArcState
+}
+
+struct ArcReorderedPayload: Codable {
+    let arcIds: [String]
+    let sortOrders: [Int]
+}
+
+struct StackArcAssignmentPayload: Codable {
+    let stackId: String
+    let arcId: String
 }
 
 // MARK: - Reading Payloads (for ProjectorService to decode incoming events)
@@ -1073,6 +1277,54 @@ struct AttachmentEventPayload: Codable {
     }
 }
 
+/// Payload for reading arc events - extracts data from state object
+struct ArcEventPayload: Codable {
+    let id: String
+    let title: String
+    let description: String?
+    let status: ArcStatus
+    let sortOrder: Int
+    let colorHex: String?
+    let deleted: Bool
+    let stackIds: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, status, sortOrder, colorHex, deleted, stackIds
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+
+        // Decode status - try ArcStatus first, then String
+        if let statusValue = try? container.decode(ArcStatus.self, forKey: .status) {
+            status = statusValue
+        } else {
+            let statusString = try container.decode(String.self, forKey: .status)
+            status = ArcStatus(rawValue: statusString) ?? .active
+        }
+
+        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        colorHex = try container.decodeIfPresent(String.self, forKey: .colorHex)
+        deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
+        stackIds = try container.decodeIfPresent([String].self, forKey: .stackIds) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encode(status.rawValue, forKey: .status)
+        try container.encode(sortOrder, forKey: .sortOrder)
+        try container.encodeIfPresent(colorHex, forKey: .colorHex)
+        try container.encode(deleted, forKey: .deleted)
+        try container.encode(stackIds, forKey: .stackIds)
+    }
+}
+
 /// Payload for entity deletion events
 struct EntityDeletedPayload: Codable {
     let id: String
@@ -1084,6 +1336,7 @@ struct EntityDeletedPayload: Codable {
         case reminderId  // For reminder.deleted
         case tagId  // For tag.deleted
         case attachmentId  // For attachment.removed
+        case arcId  // For arc.deleted
     }
 
     init(from decoder: Decoder) throws {
@@ -1099,6 +1352,8 @@ struct EntityDeletedPayload: Codable {
             id = tagId
         } else if let attachmentId = try? container.decode(String.self, forKey: .attachmentId) {
             id = attachmentId
+        } else if let arcId = try? container.decode(String.self, forKey: .arcId) {
+            id = arcId
         } else {
             id = try container.decode(String.self, forKey: .id)
         }
@@ -1119,6 +1374,7 @@ struct EntityStatusPayload: Codable {
         case id, status
         case stackId  // For stack status events
         case taskId   // For task status events
+        case arcId    // For arc status events
     }
 
     init(from decoder: Decoder) throws {
@@ -1130,6 +1386,8 @@ struct EntityStatusPayload: Codable {
             id = taskId
         } else if let stackId = try? container.decode(String.self, forKey: .stackId) {
             id = stackId
+        } else if let arcId = try? container.decode(String.self, forKey: .arcId) {
+            id = arcId
         } else {
             id = try container.decode(String.self, forKey: .id)
         }
@@ -1153,6 +1411,7 @@ struct ReorderPayload: Codable {
         case sortOrders
         case stackIds  // For stack reorder
         case taskIds   // For task reorder
+        case arcIds    // For arc reorder
     }
 
     init(from decoder: Decoder) throws {
@@ -1162,6 +1421,8 @@ struct ReorderPayload: Codable {
             ids = stackIds
         } else if let taskIds = try? container.decode([String].self, forKey: .taskIds) {
             ids = taskIds
+        } else if let arcIds = try? container.decode([String].self, forKey: .arcIds) {
+            ids = arcIds
         } else {
             ids = try container.decode([String].self, forKey: .ids)
         }

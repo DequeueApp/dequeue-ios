@@ -16,9 +16,25 @@ struct StackRowView: View {
         stack.tagObjects.filter { !$0.isDeleted }
     }
 
+    /// Returns the color for an arc, falling back to indigo
+    private func arcColor(for arc: Arc) -> Color {
+        if let hex = arc.colorHex {
+            return Color(hex: hex) ?? .indigo
+        }
+        return .indigo
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
+                // Arc indicator
+                if let arc = stack.arc {
+                    Circle()
+                        .fill(arcColor(for: arc))
+                        .frame(width: 8, height: 8)
+                        .accessibilityLabel("Arc: \(arc.title)")
+                }
+
                 Text(stack.title)
                     .font(.headline)
 
@@ -79,6 +95,15 @@ struct StackRowView: View {
 #Preview("Active Stack") {
     let stack = Stack(title: "Active Stack", stackDescription: nil, status: .active, sortOrder: 0)
     stack.isActive = true
+    return StackRowView(stack: stack)
+        .padding()
+}
+
+#Preview("Stack with Arc") {
+    let arc = Arc(title: "OEM Strategy", colorHex: "FF6B6B")
+    let stack = Stack(title: "Stack in Arc", stackDescription: nil, status: .active, sortOrder: 0)
+    stack.arc = arc
+    stack.arcId = arc.id
     return StackRowView(stack: stack)
         .padding()
 }

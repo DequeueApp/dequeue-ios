@@ -117,6 +117,28 @@ enum ProjectorService {
             try applyAttachmentAdded(event: event, context: context)
         case .attachmentRemoved:
             try applyAttachmentRemoved(event: event, context: context)
+
+        // Arc events
+        case .arcCreated:
+            try applyArcCreated(event: event, context: context)
+        case .arcUpdated:
+            try applyArcUpdated(event: event, context: context)
+        case .arcDeleted:
+            try applyArcDeleted(event: event, context: context)
+        case .arcCompleted:
+            try applyArcCompleted(event: event, context: context)
+        case .arcActivated:
+            try applyArcActivated(event: event, context: context)
+        case .arcDeactivated:
+            try applyArcDeactivated(event: event, context: context)
+        case .arcPaused:
+            try applyArcPaused(event: event, context: context)
+        case .arcReordered:
+            try applyArcReordered(event: event, context: context)
+        case .stackAssignedToArc:
+            try applyStackAssignedToArc(event: event, context: context)
+        case .stackRemovedFromArc:
+            try applyStackRemovedFromArc(event: event, context: context)
         }
     }
 
@@ -622,6 +644,10 @@ enum ProjectorService {
                 if let task = try findTask(id: payload.parentId, context: context) {
                     task.reminders.append(reminder)
                 }
+            case .arc:
+                if let arc = try findArc(id: payload.parentId, context: context) {
+                    arc.reminders.append(reminder)
+                }
             }
         }
     }
@@ -870,6 +896,268 @@ enum ProjectorService {
         return try context.fetch(descriptor).first
     }
 
+    // MARK: - Arc Events
+
+    private static func applyArcCreated(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(ArcEventPayload.self)
+
+        if let existing = try findArc(id: payload.id, context: context) {
+            // LWW: Only update if this event is newer than current state
+            guard shouldApplyEvent(
+                eventTimestamp: event.timestamp,
+                localTimestamp: existing.updatedAt,
+                entityType: .arc,
+                entityId: payload.id,
+                conflictType: .update,
+                context: context
+            ) else { return }
+            updateArc(existing, from: payload, eventTimestamp: event.timestamp)
+        } else {
+            let arc = Arc(
+                id: payload.id,
+                title: payload.title,
+                arcDescription: payload.description,
+                status: payload.status,
+                sortOrder: payload.sortOrder,
+                colorHex: payload.colorHex,
+                syncState: .synced,
+                lastSyncedAt: Date()
+            )
+            arc.updatedAt = event.timestamp  // LWW: Use event timestamp
+            context.insert(arc)
+        }
+    }
+
+    private static func applyArcUpdated(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(ArcEventPayload.self)
+        guard let arc = try findArc(id: payload.id, context: context) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !arc.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: arc.updatedAt,
+            entityType: .arc,
+            entityId: payload.id,
+            conflictType: .update,
+            context: context
+        ) else { return }
+
+        updateArc(arc, from: payload, eventTimestamp: event.timestamp)
+    }
+
+    private static func applyArcDeleted(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(EntityDeletedPayload.self)
+        guard let arc = try findArc(id: payload.id, context: context) else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: arc.updatedAt,
+            entityType: .arc,
+            entityId: payload.id,
+            conflictType: .delete,
+            context: context
+        ) else { return }
+
+        // Remove all stacks from this arc before marking as deleted
+        for stack in arc.stacks {
+            stack.arc = nil
+            stack.arcId = nil
+            stack.updatedAt = event.timestamp
+            stack.syncState = .synced
+            stack.lastSyncedAt = Date()
+        }
+
+        arc.isDeleted = true
+        arc.updatedAt = event.timestamp  // LWW: Use event timestamp
+        arc.syncState = .synced
+        arc.lastSyncedAt = Date()
+    }
+
+    private static func applyArcCompleted(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(EntityStatusPayload.self)
+        guard let arc = try findArc(id: payload.id, context: context) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !arc.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: arc.updatedAt,
+            entityType: .arc,
+            entityId: payload.id,
+            conflictType: .statusChange,
+            context: context
+        ) else { return }
+
+        arc.status = .completed
+        arc.updatedAt = event.timestamp  // LWW: Use event timestamp
+        arc.syncState = .synced
+        arc.lastSyncedAt = Date()
+    }
+
+    private static func applyArcActivated(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(EntityStatusPayload.self)
+        guard let arc = try findArc(id: payload.id, context: context) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !arc.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: arc.updatedAt,
+            entityType: .arc,
+            entityId: payload.id,
+            conflictType: .statusChange,
+            context: context
+        ) else { return }
+
+        arc.status = .active
+        arc.updatedAt = event.timestamp  // LWW: Use event timestamp
+        arc.syncState = .synced
+        arc.lastSyncedAt = Date()
+    }
+
+    private static func applyArcDeactivated(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(EntityStatusPayload.self)
+        guard let arc = try findArc(id: payload.id, context: context) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !arc.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: arc.updatedAt,
+            entityType: .arc,
+            entityId: payload.id,
+            conflictType: .statusChange,
+            context: context
+        ) else { return }
+
+        arc.status = .archived
+        arc.updatedAt = event.timestamp  // LWW: Use event timestamp
+        arc.syncState = .synced
+        arc.lastSyncedAt = Date()
+    }
+
+    private static func applyArcPaused(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(EntityStatusPayload.self)
+        guard let arc = try findArc(id: payload.id, context: context) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !arc.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: arc.updatedAt,
+            entityType: .arc,
+            entityId: payload.id,
+            conflictType: .statusChange,
+            context: context
+        ) else { return }
+
+        arc.status = .paused
+        arc.updatedAt = event.timestamp  // LWW: Use event timestamp
+        arc.syncState = .synced
+        arc.lastSyncedAt = Date()
+    }
+
+    private static func applyArcReordered(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(ReorderPayload.self)
+
+        for (index, id) in payload.ids.enumerated() {
+            guard let arc = try findArc(id: id, context: context) else { continue }
+
+            // LWW: Skip updates to deleted entities
+            guard !arc.isDeleted else { continue }
+
+            // LWW: Only apply if this event is newer than current state (per entity)
+            guard shouldApplyEvent(
+                eventTimestamp: event.timestamp,
+                localTimestamp: arc.updatedAt,
+                entityType: .arc,
+                entityId: id,
+                conflictType: .reorder,
+                context: context
+            ) else { continue }
+
+            arc.sortOrder = payload.sortOrders[index]
+            arc.updatedAt = event.timestamp  // LWW: Use event timestamp
+            arc.syncState = .synced
+            arc.lastSyncedAt = Date()
+        }
+    }
+
+    private static func applyStackAssignedToArc(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(StackArcAssignmentPayload.self)
+
+        guard let stack = try findStack(id: payload.stackId, context: context) else { return }
+        guard let arc = try findArc(id: payload.arcId, context: context) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !stack.isDeleted && !arc.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: stack.updatedAt,
+            entityType: .stack,
+            entityId: payload.stackId,
+            conflictType: .update,
+            context: context
+        ) else { return }
+
+        stack.arc = arc
+        stack.arcId = arc.id
+        stack.updatedAt = event.timestamp  // LWW: Use event timestamp
+        stack.syncState = .synced
+        stack.lastSyncedAt = Date()
+    }
+
+    private static func applyStackRemovedFromArc(event: Event, context: ModelContext) throws {
+        let payload = try event.decodePayload(StackArcAssignmentPayload.self)
+
+        guard let stack = try findStack(id: payload.stackId, context: context) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !stack.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: stack.updatedAt,
+            entityType: .stack,
+            entityId: payload.stackId,
+            conflictType: .update,
+            context: context
+        ) else { return }
+
+        stack.arc = nil
+        stack.arcId = nil
+        stack.updatedAt = event.timestamp  // LWW: Use event timestamp
+        stack.syncState = .synced
+        stack.lastSyncedAt = Date()
+    }
+
+    /// Updates arc fields from payload. Uses event timestamp for deterministic LWW.
+    private static func updateArc(_ arc: Arc, from payload: ArcEventPayload, eventTimestamp: Date) {
+        arc.title = payload.title
+        arc.arcDescription = payload.description
+        arc.status = payload.status
+        arc.sortOrder = payload.sortOrder
+        arc.colorHex = payload.colorHex
+        arc.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
+        arc.syncState = .synced
+        arc.lastSyncedAt = Date()
+    }
+
     // MARK: - Helpers
 
     private static func findStack(id: String, context: ModelContext) throws -> Stack? {
@@ -893,6 +1181,12 @@ enum ProjectorService {
     private static func findTag(id: String, context: ModelContext) throws -> Tag? {
         let predicate = #Predicate<Tag> { $0.id == id }
         let descriptor = FetchDescriptor<Tag>(predicate: predicate)
+        return try context.fetch(descriptor).first
+    }
+
+    private static func findArc(id: String, context: ModelContext) throws -> Arc? {
+        let predicate = #Predicate<Arc> { $0.id == id }
+        let descriptor = FetchDescriptor<Arc>(predicate: predicate)
         return try context.fetch(descriptor).first
     }
 

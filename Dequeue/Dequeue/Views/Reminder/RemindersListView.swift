@@ -17,6 +17,7 @@ struct RemindersListView: View {
     @Query private var reminders: [Reminder]
     @Query private var stacks: [Stack]
     @Query private var tasks: [QueueTask]
+    @Query private var arcs: [Arc]
 
     @State private var reminderActionHandler: ReminderActionHandler?
 
@@ -37,9 +38,10 @@ struct RemindersListView: View {
             sort: \Reminder.remindAt
         )
 
-        // Fetch all stacks and tasks for parent title lookup
+        // Fetch all stacks, tasks, and arcs for parent title lookup
         _stacks = Query(filter: #Predicate<Stack> { !$0.isDeleted })
         _tasks = Query(filter: #Predicate<QueueTask> { !$0.isDeleted })
+        _arcs = Query(filter: #Predicate<Arc> { !$0.isDeleted })
     }
 
     @State private var showSnoozePicker = false
@@ -279,6 +281,8 @@ struct RemindersListView: View {
             return stacks.first { $0.id == reminder.parentId }?.title
         case .task:
             return tasks.first { $0.id == reminder.parentId }?.title
+        case .arc:
+            return arcs.first { $0.id == reminder.parentId }?.title
         }
     }
 
