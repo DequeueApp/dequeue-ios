@@ -510,4 +510,58 @@ struct ArcServiceTests {
         // Should be able to create more since 1 is completed
         #expect(try service.canCreateNewArc() == true)
     }
+
+    // MARK: - History Revert Tests
+
+    @Test("revertToHistoricalState restores arc to previous state")
+    @MainActor
+    func revertToHistoricalStateRestoresPreviousState() throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        // Create an arc with initial state
+        let arc = try service.createArc(
+            title: "Original Title",
+            description: "Original Description",
+            colorHex: "FF0000"
+        )
+        let arcId = arc.id
+
+        // Fetch the creation event
+        let descriptor = FetchDescriptor<Event>(
+            predicate: #Predicate<Event> { $0.entityId == arcId && $0.type == "arc.created" }
+        )
+        let events = try context.fetch(descriptor)
+        guard let creationEvent = events.first else {
+            Issue.record("Creation event not found")
+            return
+        }
+
+        // Update the arc to a new state
+        try service.updateArc(
+            arc,
+            title: "Modified Title",
+            description: "Modified Description",
+            colorHex: "00FF00"
+        )
+
+        // Verify the arc was modified
+        #expect(arc.title == "Modified Title")
+        #expect(arc.arcDescription == "Modified Description")
+        #expect(arc.colorHex == "00FF00")
+
+        // Revert to the historical state from the creation event
+        try service.revertToHistoricalState(arc, from: creationEvent)
+
+        // Verify the arc was reverted to original values
+        #expect(arc.title == "Original Title")
+        #expect(arc.arcDescription == "Original Description")
+        #expect(arc.colorHex == "FF0000")
+        #expect(arc.syncState == .pending) // Should be marked for sync
+    }
 }
