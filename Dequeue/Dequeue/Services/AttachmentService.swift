@@ -81,6 +81,10 @@ enum AttachmentServiceError: LocalizedError, Equatable {
 
 // MARK: - Attachment Service
 
+// Note: @MainActor is required on the entire class because SwiftData's ModelContext
+// requires main actor isolation for all operations. File I/O operations (which could
+// theoretically be async) are minimal and fast enough that the main actor overhead
+// is acceptable. The EventService also requires main actor access.
 @MainActor
 final class AttachmentService {
     /// Maximum file size in bytes (50 MB)

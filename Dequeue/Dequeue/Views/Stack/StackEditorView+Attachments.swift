@@ -112,8 +112,23 @@ extension StackEditorView {
     }
 
     func handleDeleteAttachment(_ attachment: Attachment) {
-        // TODO: Delete attachment
-        // For now, this is a placeholder - will be implemented with AttachmentService integration
+        guard let service = attachmentService else {
+            errorMessage = "Attachment service not available"
+            showError = true
+            return
+        }
+
+        do {
+            try service.deleteAttachment(attachment)
+        } catch {
+            errorMessage = "Failed to delete attachment: \(error.localizedDescription)"
+            showError = true
+            ErrorReportingService.capture(error: error, context: [
+                "view": "StackEditorView",
+                "action": "handleDeleteAttachment",
+                "attachmentId": attachment.id
+            ])
+        }
     }
 }
 
