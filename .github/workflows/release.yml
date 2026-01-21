@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  XCODE_VERSION: "16.2"
+  XCODE_VERSION: "26.2"
 
 jobs:
   # Wait for version bump to complete if triggered by a regular push
@@ -60,6 +60,7 @@ jobs:
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
         run: |
           xcodebuild archive \
+            -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Dequeue-iOS.xcarchive \
@@ -136,6 +137,7 @@ jobs:
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
         run: |
           xcodebuild archive \
+            -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Dequeue-macOS.xcarchive \
@@ -216,6 +218,7 @@ jobs:
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
         run: |
           xcodebuild archive \
+            -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Dequeue-visionOS.xcarchive \
