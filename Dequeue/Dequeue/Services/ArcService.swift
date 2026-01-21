@@ -140,12 +140,16 @@ final class ArcService {
 
     /// Updates an existing arc's basic properties.
     ///
-    /// Only properties with non-nil values are updated. The title is trimmed before being saved.
+    /// This method performs a **partial update**: only properties with non-nil values are modified.
+    /// Pass `nil` to leave a property unchanged. The title is trimmed before being saved.
+    ///
+    /// Note: To clear optional fields (description, colorHex), pass an empty string rather than nil.
+    ///
     /// - Parameters:
     ///   - arc: The arc to update
-    ///   - title: New title (trimmed, must not be empty/whitespace-only)
-    ///   - description: New description
-    ///   - colorHex: New color hex value
+    ///   - title: New title (trimmed, must not be empty/whitespace-only), or nil to keep current
+    ///   - description: New description, or nil to keep current
+    ///   - colorHex: New color hex value, or nil to keep current
     /// - Throws: `ArcServiceError.invalidTitle` if title is provided but empty or whitespace-only
     func updateArc(
         _ arc: Arc,
@@ -196,6 +200,9 @@ final class ArcService {
     /// Soft-deletes an arc (sets isDeleted = true).
     ///
     /// This operation atomically removes all stacks from the arc and marks the arc as deleted.
+    /// All changes are batched and committed in a single `modelContext.save()` call, ensuring
+    /// that either all modifications succeed or none are persisted.
+    ///
     /// Note: Stacks are removed from the arc but NOT deleted - this preserves user data
     /// while cleaning up the relationship.
     /// - Parameter arc: The arc to delete
