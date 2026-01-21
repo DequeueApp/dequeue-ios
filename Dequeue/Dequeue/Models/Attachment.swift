@@ -210,7 +210,8 @@ extension Attachment {
 
         // Extract the relative portion: Attachments/attachment-id/filename
         // We want just: attachment-id/filename
-        if let attachmentsRange = currentPath.range(of: "/Attachments/") {
+        // Use lastRange to handle edge cases where path might contain multiple /Attachments/
+        if let attachmentsRange = currentPath.range(of: "/Attachments/", options: .backwards) {
             let relativePath = String(currentPath[attachmentsRange.upperBound...])
             localPath = relativePath
             return true

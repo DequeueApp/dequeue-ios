@@ -421,4 +421,212 @@ struct AttachmentTests {
 
         #expect(fetched.count == 2)
     }
+
+}
+
+// MARK: - Path Migration & Resolution Tests
+
+@Suite("Attachment Path Migration Tests")
+struct AttachmentPathMigrationTests {
+    @Test("migrateToRelativePath converts absolute path to relative")
+    func migrateToRelativePathConvertsAbsolutePath() {
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "/var/mobile/Containers/Data/Application/ABC-123/Documents/Attachments/att-456/document.pdf"
+        )
+
+        let migrated = attachment.migrateToRelativePath()
+
+        #expect(migrated == true)
+        #expect(attachment.localPath == "att-456/document.pdf")
+    }
+
+    @Test("migrateToRelativePath does not modify already relative path")
+    func migrateToRelativePathSkipsRelativePath() {
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "att-456/document.pdf"
+        )
+
+        let migrated = attachment.migrateToRelativePath()
+
+        #expect(migrated == false)
+        #expect(attachment.localPath == "att-456/document.pdf")
+    }
+
+    @Test("migrateToRelativePath returns false for nil localPath")
+    func migrateToRelativePathHandlesNil() {
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024
+        )
+
+        let migrated = attachment.migrateToRelativePath()
+
+        #expect(migrated == false)
+        #expect(attachment.localPath == nil)
+    }
+
+    @Test("migrateToRelativePath handles path with multiple Attachments directories")
+    func migrateToRelativePathHandlesMultipleAttachmentsDirectories() {
+        // Edge case: path contains /Attachments/ multiple times (e.g., nested backup scenario)
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "/Users/backup/Attachments/old/restore/Documents/Attachments/att-789/document.pdf"
+        )
+
+        let migrated = attachment.migrateToRelativePath()
+
+        #expect(migrated == true)
+        // Should use the LAST /Attachments/ occurrence (the actual attachments directory)
+        #expect(attachment.localPath == "att-789/document.pdf")
+    }
+
+    @Test("migrateToRelativePath returns false for path without Attachments directory")
+    func migrateToRelativePathHandlesNoAttachmentsDir() {
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "/var/mobile/Documents/Other/document.pdf"
+        )
+
+        let migrated = attachment.migrateToRelativePath()
+
+        #expect(migrated == false)
+        #expect(attachment.localPath == "/var/mobile/Documents/Other/document.pdf")
+    }
+
+    @Test("resolvedLocalPath resolves relative path to full path")
+    func resolvedLocalPathResolvesRelativePath() {
+        guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "att-123/document.pdf"
+        )
+
+        let expectedPath = documentsDir
+            .appendingPathComponent("Attachments")
+            .appendingPathComponent("att-123/document.pdf")
+            .path
+
+        #expect(attachment.resolvedLocalPath == expectedPath)
+    }
+
+    @Test("resolvedLocalPath returns absolute path unchanged")
+    func resolvedLocalPathReturnsAbsolutePathUnchanged() {
+        let absolutePath = "/var/mobile/Documents/Attachments/att-123/document.pdf"
+
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: absolutePath
+        )
+
+        #expect(attachment.resolvedLocalPath == absolutePath)
+    }
+
+    @Test("resolvedLocalPath returns nil for nil localPath")
+    func resolvedLocalPathReturnsNilForNilPath() {
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024
+        )
+
+        #expect(attachment.resolvedLocalPath == nil)
+    }
+
+    @Test("resolvedLocalPath blocks path traversal attempts")
+    func resolvedLocalPathBlocksPathTraversal() {
+        // Security: Attempt to escape attachments directory with ..
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "../../../etc/passwd"
+        )
+
+        #expect(attachment.resolvedLocalPath == nil)
+    }
+
+    @Test("resolvedLocalPath blocks embedded path traversal")
+    func resolvedLocalPathBlocksEmbeddedPathTraversal() {
+        // Security: Path traversal embedded in middle of path
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "att-123/../../../etc/passwd"
+        )
+
+        #expect(attachment.resolvedLocalPath == nil)
+    }
+
+    @Test("isAvailableLocally works with relative paths")
+    func isAvailableLocallyWorksWithRelativePaths() throws {
+        let fileManager = FileManager.default
+
+        guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            Issue.record("Could not get documents directory")
+            return
+        }
+
+        let attachmentsDir = documentsDir.appendingPathComponent("Attachments")
+        let testDir = attachmentsDir.appendingPathComponent("relative-test")
+
+        try fileManager.createDirectory(at: testDir, withIntermediateDirectories: true)
+
+        let testFile = testDir.appendingPathComponent("test-file.pdf")
+        try Data("test content".utf8).write(to: testFile)
+
+        defer {
+            try? fileManager.removeItem(at: testDir)
+        }
+
+        // Use relative path (new format)
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "test-file.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "relative-test/test-file.pdf"
+        )
+
+        #expect(attachment.isAvailableLocally == true)
+    }
 }
