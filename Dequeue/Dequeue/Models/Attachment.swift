@@ -40,7 +40,8 @@ final class Attachment {
     var sizeBytes: Int64
     var remoteUrl: String?
 
-    /// Absolute path to the locally cached file in Documents/Attachments/
+    /// Path to the locally cached file (relative for new attachments, absolute for legacy).
+    /// Use `resolvedLocalPath` to get the full absolute path at runtime.
     var localPath: String?
 
     // Preview
@@ -133,8 +134,16 @@ extension Attachment {
 
         // If it's a relative path (doesn't start with /), resolve it against attachments directory
         if !localPath.hasPrefix("/") {
+            // Security: Validate no path traversal attempts
+            guard !localPath.contains("..") else { return nil }
+
             guard let attachmentsDir = Self.attachmentsDirectoryURL else { return nil }
-            return attachmentsDir.appendingPathComponent(localPath).path
+            let resolved = attachmentsDir.appendingPathComponent(localPath).path
+
+            // Security: Double-check resolved path is within attachments directory
+            guard resolved.hasPrefix(attachmentsDir.path) else { return nil }
+
+            return resolved
         }
 
         // Legacy: absolute path from older code - return as-is

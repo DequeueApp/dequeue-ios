@@ -413,9 +413,10 @@ struct RootView: View {
             if migratedCount > 0 {
                 os_log("[Migration] Migrated \(migratedCount) attachment paths to relative format")
             }
-            // Mark migration as complete
+            // Mark migration as complete only on success - failures will retry on next launch
             UserDefaults.standard.set(true, forKey: migrationKey)
         } catch {
+            // Don't mark migration as complete - allow retry on next app launch
             os_log("[Migration] Failed to migrate attachment paths: \(error.localizedDescription)")
             ErrorReportingService.capture(
                 error: error,
