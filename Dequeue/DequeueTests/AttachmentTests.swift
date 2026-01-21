@@ -629,4 +629,126 @@ struct AttachmentPathMigrationTests {
 
         #expect(attachment.isAvailableLocally == true)
     }
+
+    // MARK: - Edge Case Path Handling Tests
+
+    @Test("resolvedLocalPath handles empty string")
+    func resolvedLocalPathHandlesEmptyString() {
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: ""
+        )
+
+        // Empty string should return nil since there's no valid path
+        #expect(attachment.resolvedLocalPath == nil)
+    }
+
+    @Test("resolvedLocalPath handles whitespace-only paths")
+    func resolvedLocalPathHandlesWhitespaceOnlyPaths() {
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "   "
+        )
+
+        // Whitespace-only path should return nil or be invalid
+        // The file won't exist, so isAvailableLocally should be false
+        #expect(attachment.isAvailableLocally == false)
+    }
+
+    @Test("resolvedLocalPath handles unicode filenames")
+    func resolvedLocalPathHandlesUnicodeFilenames() throws {
+        let fileManager = FileManager.default
+
+        guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            Issue.record("Could not get documents directory")
+            return
+        }
+
+        let attachmentsDir = documentsDir.appendingPathComponent("Attachments")
+        let testDir = attachmentsDir.appendingPathComponent("unicode-test")
+
+        try fileManager.createDirectory(at: testDir, withIntermediateDirectories: true)
+
+        // Create file with unicode characters in name
+        let testFile = testDir.appendingPathComponent("文档.pdf")
+        try Data("test content".utf8).write(to: testFile)
+
+        defer {
+            try? fileManager.removeItem(at: testDir)
+        }
+
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "文档.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "unicode-test/文档.pdf"
+        )
+
+        // Unicode filenames should resolve correctly
+        #expect(attachment.resolvedLocalPath != nil)
+        #expect(attachment.isAvailableLocally == true)
+    }
+
+    @Test("resolvedLocalPath handles emoji in filenames")
+    func resolvedLocalPathHandlesEmojiInFilenames() throws {
+        let fileManager = FileManager.default
+
+        guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            Issue.record("Could not get documents directory")
+            return
+        }
+
+        let attachmentsDir = documentsDir.appendingPathComponent("Attachments")
+        let testDir = attachmentsDir.appendingPathComponent("emoji-test")
+
+        try fileManager.createDirectory(at: testDir, withIntermediateDirectories: true)
+
+        // Create file with emoji in name
+        let testFile = testDir.appendingPathComponent("📄document.pdf")
+        try Data("test content".utf8).write(to: testFile)
+
+        defer {
+            try? fileManager.removeItem(at: testDir)
+        }
+
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "📄document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024,
+            localPath: "emoji-test/📄document.pdf"
+        )
+
+        // Emoji filenames should resolve correctly
+        #expect(attachment.resolvedLocalPath != nil)
+        #expect(attachment.isAvailableLocally == true)
+    }
+
+    @Test("resolvedLocalPath handles nil localPath")
+    func resolvedLocalPathHandlesNilLocalPath() {
+        let attachment = Attachment(
+            parentId: "stack-1",
+            parentType: .stack,
+            filename: "document.pdf",
+            mimeType: "application/pdf",
+            sizeBytes: 1024
+            // localPath is nil by default
+        )
+
+        // nil localPath should return nil for resolvedLocalPath
+        #expect(attachment.localPath == nil)
+        #expect(attachment.resolvedLocalPath == nil)
+        #expect(attachment.isAvailableLocally == false)
+    }
 }

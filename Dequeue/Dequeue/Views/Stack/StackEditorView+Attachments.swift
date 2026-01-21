@@ -95,8 +95,10 @@ extension StackEditorView {
         Task {
             await previewCoordinator.preview(
                 attachment: attachment,
-                downloadHandler: { [attachmentService] attachment in
-                    guard let service = attachmentService else {
+                // Use weak capture to prevent potential retain cycle if the closure
+                // is retained longer than expected by the preview coordinator.
+                downloadHandler: { [weak service = attachmentService] attachment in
+                    guard let service else {
                         throw AttachmentServiceError.operationFailed(
                             underlying: NSError(domain: "StackEditorView", code: 1, userInfo: [
                                 NSLocalizedDescriptionKey: "Attachment service not available"
