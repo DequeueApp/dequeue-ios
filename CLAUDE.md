@@ -144,6 +144,15 @@ do {
 
 ## Git Workflow
 
+### CRITICAL: Always Start From Main
+**Before starting ANY new work, you MUST:**
+1. `git fetch origin`
+2. `git checkout main`
+3. `git pull origin main`
+4. Create a new branch from this fresh main: `git checkout -b <branch-name>`
+
+**NEVER make changes on an existing feature branch for unrelated work.** If you're on branch `deq-123/some-feature` and asked to do something unrelated, you MUST switch to main first and create a new branch.
+
 ### Branching Strategy
 - We follow **trunk-based development** with short-lived feature branches
 - Branch names MUST include the Linear issue ID
