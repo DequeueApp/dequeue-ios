@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  XCODE_VERSION: "16.2"
+  XCODE_VERSION: "26.2"
 
 jobs:
   # Wait for version bump to complete if triggered by a regular push
