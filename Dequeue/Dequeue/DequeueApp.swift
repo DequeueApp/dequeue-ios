@@ -278,6 +278,9 @@ struct RootView: View {
                 )
             }
 
+            // Run one-time data migrations (e.g., attachment path format)
+            await runMigrationsIfNeeded()
+
             // Connect to sync with retry
             await connectSyncWithRetry(userId: userId, maxRetries: 3)
         } else {
@@ -382,6 +385,54 @@ struct RootView: View {
             ErrorReportingService.capture(
                 error: error,
                 context: ["source": "device_activity_update"]
+            )
+        }
+    }
+
+    /// Runs one-time data migrations if needed.
+    /// Currently migrates attachment paths from absolute to relative format.
+    ///
+    /// - Note: **Known limitation**: Migration runs before sync connection is established.
+    ///   If an older client creates attachments with absolute paths and syncs them to another device
+    ///   after migration has run, those new attachments won't be migrated until app restart.
+    ///   This is acceptable because:
+    ///   1. `migrateToRelativePath()` is idempotent and safe to run multiple times
+    ///   2. New attachments created by this version always use relative paths
+    ///   3. Once all clients are updated, no new absolute paths will be created
+    private func runMigrationsIfNeeded() async {
+        let migrationKey = "com.dequeue.migrations.attachmentRelativePaths"
+
+        // Skip if already migrated
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+
+        // Get current user's ID for AttachmentService
+        guard let userId = authService.currentUserId else { return }
+
+        // Get device ID from DeviceService
+        let deviceId = await DeviceService.shared.getDeviceId()
+
+        // Note: modelContext is non-optional here because @Environment(\.modelContext) is injected
+        // via .modelContainer() on the WindowGroup in DequeueApp.body, guaranteeing availability
+        // when this view is in the hierarchy.
+        let attachmentService = AttachmentService(
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId
+        )
+
+        do {
+            let migratedCount = try attachmentService.migrateAttachmentPaths()
+            if migratedCount > 0 {
+                os_log("[Migration] Migrated \(migratedCount) attachment paths to relative format")
+            }
+            // Mark migration as complete only on success - failures will retry on next launch
+            UserDefaults.standard.set(true, forKey: migrationKey)
+        } catch {
+            // Don't mark migration as complete - allow retry on next app launch
+            os_log("[Migration] Failed to migrate attachment paths: \(error.localizedDescription)")
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "attachment_path_migration"]
             )
         }
     }

@@ -40,7 +40,8 @@ final class Attachment {
     var sizeBytes: Int64
     var remoteUrl: String?
 
-    /// Absolute path to the locally cached file in Documents/Attachments/
+    /// Path to the locally cached file (relative for new attachments, absolute for legacy).
+    /// Use `resolvedLocalPath` to get the full absolute path at runtime.
     var localPath: String?
 
     // Preview
@@ -109,11 +110,57 @@ final class Attachment {
 // MARK: - Convenience
 
 extension Attachment {
-    /// Returns the expected Attachments directory path
-    private static var attachmentsDirectory: String? {
+    /// Returns the expected Attachments directory URL
+    private static var attachmentsDirectoryURL: URL? {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
             .appendingPathComponent("Attachments")
-            .path
+    }
+
+    /// Returns the expected Attachments directory path
+    private static var attachmentsDirectory: String? {
+        attachmentsDirectoryURL?.path
+    }
+
+    /// Resolves the stored localPath to an absolute path.
+    ///
+    /// The stored path may be:
+    /// - A relative path (e.g., "attachment-id/filename.pdf") - preferred, container-relocation safe
+    /// - An absolute path from older versions - supported for backward compatibility
+    ///
+    /// For relative paths, this reconstructs the full path using the current Documents directory.
+    /// For absolute paths, returns them as-is (may fail if container was relocated).
+    var resolvedLocalPath: String? {
+        // Handle nil or empty/whitespace-only paths
+        guard let localPath, !localPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        // If it's a relative path (doesn't start with /), resolve it against attachments directory
+        if !localPath.hasPrefix("/") {
+            // Security: Validate no path traversal attempts
+            guard !localPath.contains("..") else { return nil }
+
+            guard let attachmentsDir = Self.attachmentsDirectoryURL else { return nil }
+            let resolved = attachmentsDir.appendingPathComponent(localPath).path
+
+            // Security: Double-check resolved path is within attachments directory
+            guard resolved.hasPrefix(attachmentsDir.path) else { return nil }
+
+            return resolved
+        }
+
+        // Legacy: absolute path from older code
+        // Security: Validate absolute paths don't contain path traversal
+        guard !localPath.contains("..") else { return nil }
+
+        // Security: Verify absolute path is within expected Attachments directory
+        // This protects against malformed paths that could point elsewhere
+        guard let expectedPrefix = Self.attachmentsDirectory,
+              localPath.hasPrefix(expectedPrefix) else {
+            return nil
+        }
+
+        return localPath
     }
 
     /// Returns a human-readable file size string
@@ -125,17 +172,17 @@ extension Attachment {
     }
 
     /// Returns true if the file is available locally and within the expected directory
-    /// - Note: Path must be an absolute path within Documents/Attachments/
+    /// - Note: Handles both relative paths (new) and absolute paths (legacy)
     var isAvailableLocally: Bool {
-        guard let localPath else { return false }
+        guard let resolvedPath = resolvedLocalPath else { return false }
 
-        // Security: Validate path is within expected Attachments directory
+        // Security: Validate resolved path is within expected Attachments directory
         guard let expectedPrefix = Self.attachmentsDirectory,
-              localPath.hasPrefix(expectedPrefix) else {
+              resolvedPath.hasPrefix(expectedPrefix) else {
             return false
         }
 
-        return FileManager.default.fileExists(atPath: localPath)
+        return FileManager.default.fileExists(atPath: resolvedPath)
     }
 
     /// Returns true if the file has been uploaded to remote storage
@@ -158,5 +205,31 @@ extension Attachment {
         let components = filename.components(separatedBy: ".")
         guard components.count > 1 else { return nil }
         return components.last?.lowercased()
+    }
+
+    /// Migrates an absolute localPath to a relative path if needed.
+    ///
+    /// This is used to fix attachments that were stored with absolute paths
+    /// (which break when iOS relocates the container). After migration,
+    /// paths are stored as relative paths like "attachment-id/filename.pdf".
+    ///
+    /// - Returns: `true` if the path was migrated, `false` if no migration was needed
+    @discardableResult
+    func migrateToRelativePath() -> Bool {
+        guard let currentPath = localPath else { return false }
+
+        // Already a relative path - no migration needed
+        guard currentPath.hasPrefix("/") else { return false }
+
+        // Extract the relative portion: Attachments/attachment-id/filename
+        // We want just: attachment-id/filename
+        // Use lastRange to handle edge cases where path might contain multiple /Attachments/
+        if let attachmentsRange = currentPath.range(of: "/Attachments/", options: .backwards) {
+            let relativePath = String(currentPath[attachmentsRange.upperBound...])
+            localPath = relativePath
+            return true
+        }
+
+        return false
     }
 }

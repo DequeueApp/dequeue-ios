@@ -27,6 +27,8 @@ enum AttachmentServiceError: LocalizedError, Equatable {
     case attachmentNotFound(id: String)
     /// Operation failed and changes were not saved
     case operationFailed(underlying: Error)
+    /// Attachment has no remote URL for download
+    case noRemoteUrl(attachmentId: String)
 
     var errorDescription: String? {
         switch self {
@@ -48,6 +50,8 @@ enum AttachmentServiceError: LocalizedError, Equatable {
             return "Attachment not found: \(id)"
         case .operationFailed(let underlying):
             return "Attachment operation failed: \(underlying.localizedDescription)"
+        case .noRemoteUrl(let attachmentId):
+            return "Attachment \(attachmentId) has no remote URL for download"
         }
     }
 
@@ -67,6 +71,8 @@ enum AttachmentServiceError: LocalizedError, Equatable {
             return lhsId == rhsId
         case let (.operationFailed(lhsError), .operationFailed(rhsError)):
             return lhsError.localizedDescription == rhsError.localizedDescription
+        case let (.noRemoteUrl(lhsId), .noRemoteUrl(rhsId)):
+            return lhsId == rhsId
         default:
             return false
         }
@@ -75,6 +81,10 @@ enum AttachmentServiceError: LocalizedError, Equatable {
 
 // MARK: - Attachment Service
 
+// Note: @MainActor is required on the entire class because SwiftData's ModelContext
+// requires main actor isolation for all operations. File I/O operations (which could
+// theoretically be async) are minimal and fast enough that the main actor overhead
+// is acceptable. The EventService also requires main actor access.
 @MainActor
 final class AttachmentService {
     /// Maximum file size in bytes (50 MB)
@@ -86,13 +96,15 @@ final class AttachmentService {
     private let deviceId: String
     private let syncManager: SyncManager?
     private let fileManager: FileManager
+    private let downloadManager: DownloadManager
 
     init(
         modelContext: ModelContext,
         userId: String,
         deviceId: String,
         syncManager: SyncManager? = nil,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        downloadManager: DownloadManager = DownloadManager()
     ) {
         self.modelContext = modelContext
         self.userId = userId
@@ -100,6 +112,7 @@ final class AttachmentService {
         self.eventService = EventService(modelContext: modelContext, userId: userId, deviceId: deviceId)
         self.syncManager = syncManager
         self.fileManager = fileManager
+        self.downloadManager = downloadManager
     }
 
     // MARK: - Create
@@ -241,6 +254,45 @@ final class AttachmentService {
         try modelContext.save()
     }
 
+    // MARK: - Download
+
+    /// Downloads an attachment from its remote URL to local storage.
+    ///
+    /// - Parameter attachment: The attachment to download (must have a remoteUrl)
+    /// - Returns: The local URL where the file was saved
+    /// - Throws: AttachmentServiceError if download fails or no remote URL exists
+    func downloadAttachment(_ attachment: Attachment) async throws -> URL {
+        guard let remoteUrlString = attachment.remoteUrl,
+              let remoteUrl = URL(string: remoteUrlString) else {
+            throw AttachmentServiceError.noRemoteUrl(attachmentId: attachment.id)
+        }
+
+        // Start the download
+        let (_, _) = try await downloadManager.downloadFile(
+            from: remoteUrl,
+            attachmentId: attachment.id,
+            filename: attachment.filename
+        )
+
+        // Wait for download to complete
+        let localURL = try await downloadManager.waitForCompletion(attachmentId: attachment.id)
+
+        // Update attachment with relative path (container-relocation safe)
+        // DownloadManager saves to: Attachments/attachment-id/filename
+        attachment.localPath = "\(attachment.id)/\(attachment.filename)"
+        attachment.updatedAt = Date()
+
+        do {
+            try modelContext.save()
+        } catch {
+            // Clean up downloaded file if DB save fails to maintain consistency
+            try? fileManager.removeItem(at: localURL.deletingLastPathComponent())
+            throw AttachmentServiceError.operationFailed(underlying: error)
+        }
+
+        return localURL
+    }
+
     // MARK: - Delete
 
     /// Soft deletes an attachment.
@@ -255,9 +307,9 @@ final class AttachmentService {
         try modelContext.save()
         syncManager?.triggerImmediatePush()
 
-        // Clean up local file
-        if let localPath = attachment.localPath {
-            try? fileManager.removeItem(atPath: localPath)
+        // Clean up local file using resolved path
+        if let resolvedPath = attachment.resolvedLocalPath {
+            try? fileManager.removeItem(atPath: resolvedPath)
         }
     }
 
@@ -271,6 +323,31 @@ final class AttachmentService {
         for attachment in attachments {
             try deleteAttachment(attachment)
         }
+    }
+
+    // MARK: - Migration
+
+    /// Migrates all attachments from absolute paths to relative paths.
+    ///
+    /// This should be called once on app startup to fix attachments that were
+    /// stored with absolute paths (which break when iOS relocates the container).
+    ///
+    /// - Returns: The number of attachments that were migrated
+    @discardableResult
+    func migrateAttachmentPaths() throws -> Int {
+        let descriptor = FetchDescriptor<Attachment>()
+        let attachments = try modelContext.fetch(descriptor)
+
+        var migratedCount = 0
+        for attachment in attachments where attachment.migrateToRelativePath() {
+            migratedCount += 1
+        }
+
+        if migratedCount > 0 {
+            try modelContext.save()
+        }
+
+        return migratedCount
     }
 
     // MARK: - Private Helpers
@@ -313,7 +390,9 @@ final class AttachmentService {
     /// - Parameters:
     ///   - fileURL: The source file URL
     ///   - attachmentId: The attachment ID (used for directory naming)
-    /// - Returns: The absolute path to the copied file
+    /// - Returns: The relative path to the copied file (e.g., "attachment-id/filename.pdf")
+    /// - Note: Returns a relative path to be resilient to iOS container relocation.
+    ///         Use `Attachment.resolvedLocalPath` to get the full absolute path at runtime.
     private func copyFileToAttachmentsDirectory(fileURL: URL, attachmentId: String) throws -> String {
         let attachmentsDir = try attachmentsDirectory()
         let attachmentDir = attachmentsDir.appendingPathComponent(attachmentId)
@@ -322,7 +401,8 @@ final class AttachmentService {
         try fileManager.createDirectory(at: attachmentDir, withIntermediateDirectories: true)
 
         // Copy file
-        let destinationURL = attachmentDir.appendingPathComponent(fileURL.lastPathComponent)
+        let filename = fileURL.lastPathComponent
+        let destinationURL = attachmentDir.appendingPathComponent(filename)
         do {
             try fileManager.copyItem(at: fileURL, to: destinationURL)
         } catch {
@@ -331,14 +411,25 @@ final class AttachmentService {
             throw AttachmentServiceError.fileCopyFailed(underlying: error.localizedDescription)
         }
 
-        return destinationURL.path
+        // Return relative path (container-relocation safe)
+        return "\(attachmentId)/\(filename)"
     }
 
     /// Cleans up a copied file if database operations fail.
     ///
-    /// - Parameter localPath: The path to the file to clean up
+    /// - Parameter localPath: The relative path to the file to clean up
     private func cleanupCopiedFile(at localPath: String) {
-        let fileURL = URL(fileURLWithPath: localPath)
+        guard let attachmentsDir = try? attachmentsDirectory() else { return }
+
+        // Resolve relative path to absolute path
+        let absolutePath: String
+        if localPath.hasPrefix("/") {
+            absolutePath = localPath
+        } else {
+            absolutePath = attachmentsDir.appendingPathComponent(localPath).path
+        }
+
+        let fileURL = URL(fileURLWithPath: absolutePath)
         // Remove the file and its parent directory (attachment-specific directory)
         try? fileManager.removeItem(at: fileURL.deletingLastPathComponent())
     }

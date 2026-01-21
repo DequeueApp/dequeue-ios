@@ -95,14 +95,40 @@ extension StackEditorView {
         Task {
             await previewCoordinator.preview(
                 attachment: attachment,
-                downloadHandler: nil  // TODO: Add download handler for remote-only attachments
+                // Use weak capture to prevent potential retain cycle if the closure
+                // is retained longer than expected by the preview coordinator.
+                downloadHandler: { [weak service = attachmentService] attachment in
+                    guard let service else {
+                        throw AttachmentServiceError.operationFailed(
+                            underlying: NSError(domain: "StackEditorView", code: 1, userInfo: [
+                                NSLocalizedDescriptionKey: "Attachment service not available"
+                            ])
+                        )
+                    }
+                    return try await service.downloadAttachment(attachment)
+                }
             )
         }
     }
 
     func handleDeleteAttachment(_ attachment: Attachment) {
-        // TODO: Delete attachment
-        // For now, this is a placeholder - will be implemented with AttachmentService integration
+        guard let service = attachmentService else {
+            errorMessage = "Attachment service not available"
+            showError = true
+            return
+        }
+
+        do {
+            try service.deleteAttachment(attachment)
+        } catch {
+            errorMessage = "Failed to delete attachment: \(error.localizedDescription)"
+            showError = true
+            ErrorReportingService.capture(error: error, context: [
+                "view": "StackEditorView",
+                "action": "handleDeleteAttachment",
+                "attachmentId": attachment.id
+            ])
+        }
     }
 }
 
