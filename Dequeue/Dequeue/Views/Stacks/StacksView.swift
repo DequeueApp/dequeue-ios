@@ -15,8 +15,23 @@ struct StacksView: View {
         case completed = "Completed"
     }
 
+    @Query(filter: #Predicate<Reminder> { reminder in
+        reminder.isDeleted == false
+    }) private var allReminders: [Reminder]
+
     @State private var selectedFilter: StackFilter = .inProgress
     @State private var showAddSheet = false
+    @State private var showRemindersSheet = false
+
+    /// Count of reminders needing attention (overdue or due today)
+    private var urgentReminderCount: Int {
+        let calendar = Calendar.current
+        return allReminders.filter { reminder in
+            guard reminder.status == .active else { return false }
+            // Overdue or due today
+            return reminder.isPastDue || calendar.isDateInToday(reminder.remindAt)
+        }.count
+    }
 
     var body: some View {
         NavigationStack {
@@ -46,21 +61,58 @@ struct StacksView: View {
             .navigationTitle("Stacks")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showAddSheet = true
-                    } label: {
-                        Label("Add Stack", systemImage: "plus")
+                    HStack(spacing: 16) {
+                        // Reminders button with badge
+                        Button {
+                            showRemindersSheet = true
+                        } label: {
+                            remindersButtonLabel
+                        }
+                        .accessibilityLabel("Reminders")
+                        .accessibilityHint(urgentReminderCount > 0
+                            ? "\(urgentReminderCount) reminders need attention"
+                            : "View all reminders")
+
+                        // Add stack button
+                        Button {
+                            showAddSheet = true
+                        } label: {
+                            Label("Add Stack", systemImage: "plus")
+                        }
+                        #if os(macOS)
+                        .keyboardShortcut("n", modifiers: .command)
+                        #endif
+                        .accessibilityLabel("Add new stack")
+                        .accessibilityHint("Creates a new stack")
                     }
-                    #if os(macOS)
-                    .keyboardShortcut("n", modifiers: .command)
-                    #endif
-                    .accessibilityLabel("Add new stack")
-                    .accessibilityHint("Creates a new stack")
                 }
             }
         }
         .sheet(isPresented: $showAddSheet) {
             StackEditorView(mode: .create)
+        }
+        .sheet(isPresented: $showRemindersSheet) {
+            RemindersListView()
+        }
+    }
+
+    @ViewBuilder
+    private var remindersButtonLabel: some View {
+        if urgentReminderCount > 0 {
+            // Show badge with count
+            Image(systemName: "bell.badge.fill")
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(.red, .primary)
+                .overlay(alignment: .topTrailing) {
+                    Text("\(min(urgentReminderCount, 99))")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(3)
+                        .background(.red, in: Circle())
+                        .offset(x: 6, y: -6)
+                }
+        } else {
+            Image(systemName: "bell")
         }
     }
 }
