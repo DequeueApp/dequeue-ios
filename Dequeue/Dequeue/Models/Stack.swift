@@ -49,7 +49,7 @@ final class Stack {
     @Relationship(deleteRule: .cascade, inverse: \QueueTask.stack)
     var tasks: [QueueTask] = []
 
-    @Relationship(deleteRule: .cascade)
+    @Relationship(deleteRule: .cascade, inverse: \Reminder.stack)
     var reminders: [Reminder] = []
 
     @Relationship(deleteRule: .nullify)
