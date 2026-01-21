@@ -277,7 +277,14 @@ final class AttachmentService {
         // DownloadManager saves to: Attachments/attachment-id/filename
         attachment.localPath = "\(attachment.id)/\(attachment.filename)"
         attachment.updatedAt = Date()
-        try modelContext.save()
+
+        do {
+            try modelContext.save()
+        } catch {
+            // Clean up downloaded file if DB save fails to maintain consistency
+            try? fileManager.removeItem(at: localURL.deletingLastPathComponent())
+            throw AttachmentServiceError.operationFailed(underlying: error)
+        }
 
         return localURL
     }

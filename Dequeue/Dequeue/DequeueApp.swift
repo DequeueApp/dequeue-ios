@@ -390,6 +390,14 @@ struct RootView: View {
 
     /// Runs one-time data migrations if needed.
     /// Currently migrates attachment paths from absolute to relative format.
+    ///
+    /// - Note: **Known limitation**: Migration runs before sync connection is established.
+    ///   If an older client creates attachments with absolute paths and syncs them to another device
+    ///   after migration has run, those new attachments won't be migrated until app restart.
+    ///   This is acceptable because:
+    ///   1. `migrateToRelativePath()` is idempotent and safe to run multiple times
+    ///   2. New attachments created by this version always use relative paths
+    ///   3. Once all clients are updated, no new absolute paths will be created
     private func runMigrationsIfNeeded() async {
         let migrationKey = "com.dequeue.migrations.attachmentRelativePaths"
 
