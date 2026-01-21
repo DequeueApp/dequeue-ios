@@ -658,8 +658,8 @@ struct AttachmentPathMigrationTests {
             localPath: "   "
         )
 
-        // Whitespace-only path should return nil or be invalid
-        // The file won't exist, so isAvailableLocally should be false
+        // Whitespace-only path should return nil
+        #expect(attachment.resolvedLocalPath == nil)
         #expect(attachment.isAvailableLocally == false)
     }
 

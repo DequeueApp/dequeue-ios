@@ -130,7 +130,10 @@ extension Attachment {
     /// For relative paths, this reconstructs the full path using the current Documents directory.
     /// For absolute paths, returns them as-is (may fail if container was relocated).
     var resolvedLocalPath: String? {
-        guard let localPath else { return nil }
+        // Handle nil or empty/whitespace-only paths
+        guard let localPath, !localPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
 
         // If it's a relative path (doesn't start with /), resolve it against attachments directory
         if !localPath.hasPrefix("/") {
