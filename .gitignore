@@ -42,6 +42,7 @@ iOSInjectionProject/
 *.moved-aside
 *.hmap
 *.ipa
+*.pkg
 *.dSYM.zip
 *.dSYM
 
