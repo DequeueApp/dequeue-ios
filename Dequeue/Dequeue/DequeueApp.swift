@@ -410,6 +410,9 @@ struct RootView: View {
         // Get device ID from DeviceService
         let deviceId = await DeviceService.shared.getDeviceId()
 
+        // Note: modelContext is non-optional here because @Environment(\.modelContext) is injected
+        // via .modelContainer() on the WindowGroup in DequeueApp.body, guaranteeing availability
+        // when this view is in the hierarchy.
         let attachmentService = AttachmentService(
             modelContext: modelContext,
             userId: userId,
