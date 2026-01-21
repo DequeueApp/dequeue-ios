@@ -14,6 +14,15 @@ private let logger = Logger(subsystem: "com.ardonos.dequeue", category: "ArcServ
 /// Maximum number of active arcs allowed at any time
 private let maxActiveArcs = 5
 
+/// Service layer for managing Arc entities (higher-level organizational containers).
+///
+/// ArcService handles all CRUD operations, status transitions, and stack associations for Arcs.
+/// Thread safety: All operations are serialized on the MainActor.
+///
+/// Business rules:
+/// - Maximum of 5 active arcs allowed at any time
+/// - Arcs can contain multiple stacks
+/// - Deleting an arc removes stacks from it but doesn't delete them
 @MainActor
 final class ArcService {
     private let modelContext: ModelContext
@@ -22,6 +31,12 @@ final class ArcService {
     private let deviceId: String
     private weak var syncManager: SyncManager?
 
+    /// Creates a new ArcService instance.
+    /// - Parameters:
+    ///   - modelContext: The SwiftData model context for database operations
+    ///   - userId: Optional user ID for sync attribution
+    ///   - deviceId: Device ID for sync attribution
+    ///   - syncManager: Optional sync manager for triggering immediate pushes
     init(
         modelContext: ModelContext,
         userId: String? = nil,
@@ -75,8 +90,14 @@ final class ArcService {
 
     // MARK: - CRUD Operations
 
-    /// Creates a new arc
-    /// - Throws: If the maximum number of active arcs would be exceeded
+    /// Creates a new arc with the specified properties.
+    /// - Parameters:
+    ///   - title: The arc's title (required)
+    ///   - description: Optional description text
+    ///   - colorHex: Optional hex color for visual accent (e.g., "FF6B6B")
+    ///   - status: Initial status (defaults to .active)
+    /// - Returns: The newly created Arc
+    /// - Throws: `ArcServiceError.maxActiveArcsExceeded` if creating an active arc would exceed the 5-arc limit
     @discardableResult
     func createArc(
         title: String,
@@ -117,7 +138,14 @@ final class ArcService {
         return arc
     }
 
-    /// Updates an existing arc's basic properties
+    /// Updates an existing arc's basic properties.
+    ///
+    /// Only properties with non-nil values are updated. The title is trimmed before being saved.
+    /// - Parameters:
+    ///   - arc: The arc to update
+    ///   - title: New title (trimmed, must not be empty/whitespace-only)
+    ///   - description: New description
+    ///   - colorHex: New color hex value
     /// - Throws: `ArcServiceError.invalidTitle` if title is provided but empty or whitespace-only
     func updateArc(
         _ arc: Arc,
@@ -125,19 +153,21 @@ final class ArcService {
         description: String? = nil,
         colorHex: String? = nil
     ) throws {
-        // Validate title if provided
+        // Validate and normalize title if provided
+        var normalizedTitle: String?
         if let title = title {
             let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmedTitle.isEmpty else {
                 throw ArcServiceError.invalidTitle
             }
+            normalizedTitle = trimmedTitle
         }
 
         var changes: [String: Any] = [:]
 
-        if let title = title, title != arc.title {
-            changes["title"] = ["from": arc.title, "to": title]
-            arc.title = title
+        if let newTitle = normalizedTitle, newTitle != arc.title {
+            changes["title"] = ["from": arc.title, "to": newTitle]
+            arc.title = newTitle
         }
 
         if let description = description, description != arc.arcDescription {
@@ -163,8 +193,12 @@ final class ArcService {
         triggerSync()
     }
 
-    /// Soft-deletes an arc (sets isDeleted = true)
+    /// Soft-deletes an arc (sets isDeleted = true).
+    ///
     /// This operation atomically removes all stacks from the arc and marks the arc as deleted.
+    /// Note: Stacks are removed from the arc but NOT deleted - this preserves user data
+    /// while cleaning up the relationship.
+    /// - Parameter arc: The arc to delete
     func deleteArc(_ arc: Arc) throws {
         let arcId = arc.id
         let stacksToRemove = Array(arc.stacks)
