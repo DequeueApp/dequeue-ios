@@ -139,7 +139,9 @@ struct ArcEditorView: View {
                 }
             }
             .navigationTitle(mode == .create ? "New Arc" : "Edit Arc")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
