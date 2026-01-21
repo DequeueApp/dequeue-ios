@@ -118,12 +118,21 @@ final class ArcService {
     }
 
     /// Updates an existing arc's basic properties
+    /// - Throws: `ArcServiceError.invalidTitle` if title is provided but empty or whitespace-only
     func updateArc(
         _ arc: Arc,
         title: String? = nil,
         description: String? = nil,
         colorHex: String? = nil
     ) throws {
+        // Validate title if provided
+        if let title = title {
+            let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedTitle.isEmpty else {
+                throw ArcServiceError.invalidTitle
+            }
+        }
+
         var changes: [String: Any] = [:]
 
         if let title = title, title != arc.title {
@@ -424,6 +433,7 @@ final class ArcService {
 enum ArcServiceError: LocalizedError {
     case maxActiveArcsExceeded(limit: Int)
     case arcNotFound(id: String)
+    case invalidTitle
 
     var errorDescription: String? {
         switch self {
@@ -431,6 +441,8 @@ enum ArcServiceError: LocalizedError {
             return "Maximum of \(limit) active arcs allowed. Complete or archive an existing arc first."
         case .arcNotFound(let id):
             return "Arc not found: \(id)"
+        case .invalidTitle:
+            return "Title cannot be empty"
         }
     }
 }

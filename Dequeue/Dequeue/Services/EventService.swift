@@ -333,7 +333,7 @@ final class EventService {
     func recordArcDeactivated(_ arc: Arc) throws {
         let payload = ArcStatusPayload(
             arcId: arc.id,
-            status: ArcStatus.active.rawValue,
+            status: ArcStatus.archived.rawValue,
             fullState: ArcState.from(arc)
         )
         try recordEvent(type: .arcDeactivated, payload: payload, entityId: arc.id)
