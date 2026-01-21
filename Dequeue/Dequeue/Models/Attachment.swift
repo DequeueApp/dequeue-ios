@@ -149,7 +149,17 @@ extension Attachment {
             return resolved
         }
 
-        // Legacy: absolute path from older code - return as-is
+        // Legacy: absolute path from older code
+        // Security: Validate absolute paths don't contain path traversal
+        guard !localPath.contains("..") else { return nil }
+
+        // Security: Verify absolute path is within expected Attachments directory
+        // This protects against malformed paths that could point elsewhere
+        guard let expectedPrefix = Self.attachmentsDirectory,
+              localPath.hasPrefix(expectedPrefix) else {
+            return nil
+        }
+
         return localPath
     }
 
