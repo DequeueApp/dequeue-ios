@@ -825,7 +825,8 @@ struct StackEventPayload: Codable {
 
     // Handle status as string from server
     enum CodingKeys: String, CodingKey {
-        case id, title, description, status, priority, sortOrder, isDraft, isActive, activeTaskId, deleted, tagIds, createdAt
+        case id, title, description, status, priority, sortOrder
+        case isDraft, isActive, activeTaskId, deleted, tagIds, createdAt
     }
 
     init(from decoder: Decoder) throws {
@@ -891,7 +892,8 @@ struct TaskEventPayload: Codable {
     let createdAt: Date?  // Original creation timestamp from sync
 
     enum CodingKeys: String, CodingKey {
-        case id, stackId, title, description, status, priority, sortOrder, lastActiveTime, deleted, createdAt
+        case id, stackId, title, description, status, priority
+        case sortOrder, lastActiveTime, deleted, createdAt
     }
 
     init(from decoder: Decoder) throws {
