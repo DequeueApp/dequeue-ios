@@ -260,11 +260,13 @@ struct ArcEditorView: View {
             ) {
                 Button("Delete", role: .destructive) {
                     if let attachment = attachmentToDelete {
-                        do {
-                            try attachmentService?.deleteAttachment(attachment)
-                        } catch {
-                            errorMessage = error.localizedDescription
-                            showError = true
+                        Task {
+                            do {
+                                try await attachmentService?.deleteAttachment(attachment)
+                            } catch {
+                                errorMessage = error.localizedDescription
+                                showError = true
+                            }
                         }
                     }
                 }

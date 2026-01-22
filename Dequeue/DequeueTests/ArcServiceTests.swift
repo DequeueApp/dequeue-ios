@@ -34,7 +34,7 @@ struct ArcServiceTests {
 
     @Test("createArc creates arc with correct title")
     @MainActor
-    func createArcSetsTitle() throws {
+    func createArcSetsTitle() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -43,14 +43,14 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
+        let arc = try await service.createArc(title: "Test Arc")
 
         #expect(arc.title == "Test Arc")
     }
 
     @Test("createArc creates arc with description")
     @MainActor
-    func createArcSetsDescription() throws {
+    func createArcSetsDescription() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -59,14 +59,14 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc", description: "Test description")
+        let arc = try await service.createArc(title: "Test Arc", description: "Test description")
 
         #expect(arc.arcDescription == "Test description")
     }
 
     @Test("createArc creates arc with color")
     @MainActor
-    func createArcSetsColor() throws {
+    func createArcSetsColor() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -75,14 +75,14 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc", colorHex: "FF0000")
+        let arc = try await service.createArc(title: "Test Arc", colorHex: "FF0000")
 
         #expect(arc.colorHex == "FF0000")
     }
 
     @Test("createArc sets initial status to active")
     @MainActor
-    func createArcSetsActiveStatus() throws {
+    func createArcSetsActiveStatus() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -91,14 +91,14 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
+        let arc = try await service.createArc(title: "Test Arc")
 
         #expect(arc.status == .active)
     }
 
     @Test("createArc sets syncState to pending")
     @MainActor
-    func createArcSetsSyncState() throws {
+    func createArcSetsSyncState() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -107,14 +107,14 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
+        let arc = try await service.createArc(title: "Test Arc")
 
         #expect(arc.syncState == .pending)
     }
 
     @Test("createArc enforces max active arcs limit")
     @MainActor
-    func createArcEnforcesLimit() throws {
+    func createArcEnforcesLimit() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -125,12 +125,12 @@ struct ArcServiceTests {
 
         // Create 5 active arcs (the limit)
         for index in 0..<5 {
-            _ = try service.createArc(title: "Arc \(index)")
+            _ = try await service.createArc(title: "Arc \(index)")
         }
 
         // Trying to create a 6th should throw
-        #expect(throws: ArcServiceError.self) {
-            _ = try service.createArc(title: "Arc 6")
+        await #expect(throws: ArcServiceError.self) {
+            _ = try await service.createArc(title: "Arc 6")
         }
     }
 
@@ -138,7 +138,7 @@ struct ArcServiceTests {
 
     @Test("updateArc changes title")
     @MainActor
-    func updateArcChangesTitle() throws {
+    func updateArcChangesTitle() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -147,15 +147,15 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Original Title")
-        try service.updateArc(arc, title: "New Title")
+        let arc = try await service.createArc(title: "Original Title")
+        try await service.updateArc(arc, title: "New Title")
 
         #expect(arc.title == "New Title")
     }
 
     @Test("updateArc changes description")
     @MainActor
-    func updateArcChangesDescription() throws {
+    func updateArcChangesDescription() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -164,15 +164,15 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc", description: "Original")
-        try service.updateArc(arc, description: "Updated")
+        let arc = try await service.createArc(title: "Test Arc", description: "Original")
+        try await service.updateArc(arc, description: "Updated")
 
         #expect(arc.arcDescription == "Updated")
     }
 
     @Test("updateArc changes color")
     @MainActor
-    func updateArcChangesColor() throws {
+    func updateArcChangesColor() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -181,8 +181,8 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc", colorHex: "FF0000")
-        try service.updateArc(arc, colorHex: "00FF00")
+        let arc = try await service.createArc(title: "Test Arc", colorHex: "FF0000")
+        try await service.updateArc(arc, colorHex: "00FF00")
 
         #expect(arc.colorHex == "00FF00")
     }
@@ -191,7 +191,7 @@ struct ArcServiceTests {
 
     @Test("deleteArc removes stacks from arc")
     @MainActor
-    func deleteArcRemovesStacks() throws {
+    func deleteArcRemovesStacks() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -200,22 +200,22 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
+        let arc = try await service.createArc(title: "Test Arc")
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
         try context.save()
 
-        try service.assignStack(stack, to: arc)
+        try await service.assignStack(stack, to: arc)
         #expect(stack.arc?.id == arc.id)
 
-        try service.deleteArc(arc)
+        try await service.deleteArc(arc)
         #expect(stack.arc == nil)
         #expect(stack.arcId == nil)
     }
 
     @Test("deleteArc updates arc metadata")
     @MainActor
-    func deleteArcUpdatesMetadata() throws {
+    func deleteArcUpdatesMetadata() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -224,11 +224,11 @@ struct ArcServiceTests {
             deviceId: "test-device-delete"
         )
 
-        let arc = try service.createArc(title: "Test Arc For Delete")
+        let arc = try await service.createArc(title: "Test Arc For Delete")
         let originalUpdatedAt = arc.updatedAt
         let originalRevision = arc.revision
 
-        try service.deleteArc(arc)
+        try await service.deleteArc(arc)
 
         // Verify deletion updates metadata fields
         #expect(arc.syncState == .pending)
@@ -240,7 +240,7 @@ struct ArcServiceTests {
 
     @Test("markAsCompleted sets status to completed")
     @MainActor
-    func markAsCompletedSetsStatus() throws {
+    func markAsCompletedSetsStatus() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -249,15 +249,15 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
-        try service.markAsCompleted(arc)
+        let arc = try await service.createArc(title: "Test Arc")
+        try await service.markAsCompleted(arc)
 
         #expect(arc.status == .completed)
     }
 
     @Test("pause sets status to paused")
     @MainActor
-    func pauseSetsStatus() throws {
+    func pauseSetsStatus() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -266,15 +266,15 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
-        try service.pause(arc)
+        let arc = try await service.createArc(title: "Test Arc")
+        try await service.pause(arc)
 
         #expect(arc.status == .paused)
     }
 
     @Test("resume sets status to active")
     @MainActor
-    func resumeSetsStatus() throws {
+    func resumeSetsStatus() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -283,16 +283,16 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
-        try service.pause(arc)
-        try service.resume(arc)
+        let arc = try await service.createArc(title: "Test Arc")
+        try await service.pause(arc)
+        try await service.resume(arc)
 
         #expect(arc.status == .active)
     }
 
     @Test("resume from completed sets status to active")
     @MainActor
-    func resumeFromCompletedSetsStatus() throws {
+    func resumeFromCompletedSetsStatus() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -301,9 +301,9 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
-        try service.markAsCompleted(arc)
-        try service.resume(arc)
+        let arc = try await service.createArc(title: "Test Arc")
+        try await service.markAsCompleted(arc)
+        try await service.resume(arc)
 
         #expect(arc.status == .active)
     }
@@ -312,7 +312,7 @@ struct ArcServiceTests {
 
     @Test("assignStack sets stack's arc property")
     @MainActor
-    func assignStackSetsArcProperty() throws {
+    func assignStackSetsArcProperty() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -321,12 +321,12 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
+        let arc = try await service.createArc(title: "Test Arc")
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
         try context.save()
 
-        try service.assignStack(stack, to: arc)
+        try await service.assignStack(stack, to: arc)
 
         #expect(stack.arc?.id == arc.id)
         #expect(stack.arcId == arc.id)
@@ -334,7 +334,7 @@ struct ArcServiceTests {
 
     @Test("assignStack adds stack to arc's stacks array")
     @MainActor
-    func assignStackAddsToArray() throws {
+    func assignStackAddsToArray() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -343,19 +343,19 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
+        let arc = try await service.createArc(title: "Test Arc")
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
         try context.save()
 
-        try service.assignStack(stack, to: arc)
+        try await service.assignStack(stack, to: arc)
 
         #expect(arc.stacks.contains { $0.id == stack.id })
     }
 
     @Test("removeStack clears stack's arc property")
     @MainActor
-    func removeStackClearsArcProperty() throws {
+    func removeStackClearsArcProperty() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -364,13 +364,13 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc = try service.createArc(title: "Test Arc")
+        let arc = try await service.createArc(title: "Test Arc")
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
         try context.save()
 
-        try service.assignStack(stack, to: arc)
-        try service.removeStack(stack, from: arc)
+        try await service.assignStack(stack, to: arc)
+        try await service.removeStack(stack, from: arc)
 
         #expect(stack.arc == nil)
         #expect(stack.arcId == nil)
@@ -380,7 +380,7 @@ struct ArcServiceTests {
 
     @Test("updateSortOrders updates arc sort orders")
     @MainActor
-    func updateSortOrdersChangesOrder() throws {
+    func updateSortOrdersChangesOrder() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -389,13 +389,13 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc1 = try service.createArc(title: "Arc 1")
-        let arc2 = try service.createArc(title: "Arc 2")
-        let arc3 = try service.createArc(title: "Arc 3")
+        let arc1 = try await service.createArc(title: "Arc 1")
+        let arc2 = try await service.createArc(title: "Arc 2")
+        let arc3 = try await service.createArc(title: "Arc 3")
 
         // Reverse the order
         let reordered = [arc3, arc2, arc1]
-        try service.updateSortOrders(reordered)
+        try await service.updateSortOrders(reordered)
 
         #expect(arc3.sortOrder == 0)
         #expect(arc2.sortOrder == 1)
@@ -404,7 +404,7 @@ struct ArcServiceTests {
 
     @Test("updateSortOrders sets syncState to pending")
     @MainActor
-    func updateSortOrdersSetsSyncState() throws {
+    func updateSortOrdersSetsSyncState() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -413,8 +413,8 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        let arc1 = try service.createArc(title: "Arc 1")
-        let arc2 = try service.createArc(title: "Arc 2")
+        let arc1 = try await service.createArc(title: "Arc 1")
+        let arc2 = try await service.createArc(title: "Arc 2")
 
         // Mark as synced first
         arc1.syncState = .synced
@@ -422,7 +422,7 @@ struct ArcServiceTests {
 
         // Swap order
         let reordered = [arc2, arc1]
-        try service.updateSortOrders(reordered)
+        try await service.updateSortOrders(reordered)
 
         #expect(arc1.syncState == .pending)
         #expect(arc2.syncState == .pending)
@@ -432,7 +432,7 @@ struct ArcServiceTests {
 
     @Test("canCreateNewArc returns true when under limit")
     @MainActor
-    func canCreateNewArcUnderLimit() throws {
+    func canCreateNewArcUnderLimit() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -441,15 +441,15 @@ struct ArcServiceTests {
             deviceId: "test-device"
         )
 
-        _ = try service.createArc(title: "Arc 1")
-        _ = try service.createArc(title: "Arc 2")
+        _ = try await service.createArc(title: "Arc 1")
+        _ = try await service.createArc(title: "Arc 2")
 
-        #expect(try service.canCreateNewArc() == true)
+        #expect(try await service.canCreateNewArc() == true)
     }
 
     @Test("canCreateNewArc returns false when at limit")
     @MainActor
-    func canCreateNewArcAtLimit() throws {
+    func canCreateNewArcAtLimit() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -459,15 +459,15 @@ struct ArcServiceTests {
         )
 
         for index in 0..<5 {
-            _ = try service.createArc(title: "Arc \(index)")
+            _ = try await service.createArc(title: "Arc \(index)")
         }
 
-        #expect(try service.canCreateNewArc() == false)
+        #expect(try await service.canCreateNewArc() == false)
     }
 
     @Test("paused arcs don't count toward limit")
     @MainActor
-    func pausedArcsDontCountTowardLimit() throws {
+    func pausedArcsDontCountTowardLimit() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -478,19 +478,19 @@ struct ArcServiceTests {
 
         // Create 5 arcs and pause 2
         for index in 0..<5 {
-            let arc = try service.createArc(title: "Arc \(index)")
+            let arc = try await service.createArc(title: "Arc \(index)")
             if index < 2 {
-                try service.pause(arc)
+                try await service.pause(arc)
             }
         }
 
         // Should be able to create more since 2 are paused
-        #expect(try service.canCreateNewArc() == true)
+        #expect(try await service.canCreateNewArc() == true)
     }
 
     @Test("completed arcs don't count toward limit")
     @MainActor
-    func completedArcsDontCountTowardLimit() throws {
+    func completedArcsDontCountTowardLimit() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -501,21 +501,21 @@ struct ArcServiceTests {
 
         // Create 5 arcs and complete 1
         for index in 0..<5 {
-            let arc = try service.createArc(title: "Arc \(index)")
+            let arc = try await service.createArc(title: "Arc \(index)")
             if index == 0 {
-                try service.markAsCompleted(arc)
+                try await service.markAsCompleted(arc)
             }
         }
 
         // Should be able to create more since 1 is completed
-        #expect(try service.canCreateNewArc() == true)
+        #expect(try await service.canCreateNewArc() == true)
     }
 
     // MARK: - History Revert Tests
 
     @Test("revertToHistoricalState restores arc to previous state")
     @MainActor
-    func revertToHistoricalStateRestoresPreviousState() throws {
+    func revertToHistoricalStateRestoresPreviousState() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
         let service = ArcService(
@@ -525,7 +525,7 @@ struct ArcServiceTests {
         )
 
         // Create an arc with initial state
-        let arc = try service.createArc(
+        let arc = try await service.createArc(
             title: "Original Title",
             description: "Original Description",
             colorHex: "FF0000"
@@ -543,7 +543,7 @@ struct ArcServiceTests {
         }
 
         // Update the arc to a new state
-        try service.updateArc(
+        try await service.updateArc(
             arc,
             title: "Modified Title",
             description: "Modified Description",
@@ -556,7 +556,7 @@ struct ArcServiceTests {
         #expect(arc.colorHex == "00FF00")
 
         // Revert to the historical state from the creation event
-        try service.revertToHistoricalState(arc, from: creationEvent)
+        try await service.revertToHistoricalState(arc, from: creationEvent)
 
         // Verify the arc was reverted to original values
         #expect(arc.title == "Original Title")

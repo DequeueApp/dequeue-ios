@@ -30,7 +30,7 @@ struct TaskServiceTests {
 
     @Test("createTask creates a new task with title")
     @MainActor
-    func createTaskWithTitle() throws {
+    func createTaskWithTitle() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -38,7 +38,7 @@ struct TaskServiceTests {
         try context.save()
 
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let task = try taskService.createTask(title: "New Task", stack: stack)
+        let task = try await taskService.createTask(title: "New Task", stack: stack)
 
         #expect(task.title == "New Task")
         #expect(task.status == .pending)
@@ -48,7 +48,7 @@ struct TaskServiceTests {
 
     @Test("createTask creates a task with description")
     @MainActor
-    func createTaskWithDescription() throws {
+    func createTaskWithDescription() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -56,7 +56,7 @@ struct TaskServiceTests {
         try context.save()
 
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let task = try taskService.createTask(
+        let task = try await taskService.createTask(
             title: "Task with Description",
             description: "This is a test description",
             stack: stack
@@ -69,7 +69,7 @@ struct TaskServiceTests {
 
     @Test("createTask assigns correct sort order")
     @MainActor
-    func createTaskAssignsSortOrder() throws {
+    func createTaskAssignsSortOrder() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -77,9 +77,9 @@ struct TaskServiceTests {
         try context.save()
 
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let task1 = try taskService.createTask(title: "First Task", stack: stack)
-        let task2 = try taskService.createTask(title: "Second Task", stack: stack)
-        let task3 = try taskService.createTask(title: "Third Task", stack: stack)
+        let task1 = try await taskService.createTask(title: "First Task", stack: stack)
+        let task2 = try await taskService.createTask(title: "Second Task", stack: stack)
+        let task3 = try await taskService.createTask(title: "Third Task", stack: stack)
 
         #expect(task1.sortOrder == 0)
         #expect(task2.sortOrder == 1)
@@ -88,7 +88,7 @@ struct TaskServiceTests {
 
     @Test("createTask allows custom sort order")
     @MainActor
-    func createTaskWithCustomSortOrder() throws {
+    func createTaskWithCustomSortOrder() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -96,14 +96,14 @@ struct TaskServiceTests {
         try context.save()
 
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let task = try taskService.createTask(title: "Custom Order Task", stack: stack, sortOrder: 5)
+        let task = try await taskService.createTask(title: "Custom Order Task", stack: stack, sortOrder: 5)
 
         #expect(task.sortOrder == 5)
     }
 
     @Test("createTask sets sync state to pending")
     @MainActor
-    func createTaskSetsSyncState() throws {
+    func createTaskSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -111,14 +111,14 @@ struct TaskServiceTests {
         try context.save()
 
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let task = try taskService.createTask(title: "New Task", stack: stack)
+        let task = try await taskService.createTask(title: "New Task", stack: stack)
 
         #expect(task.syncState == .pending)
     }
 
     @Test("created task appears in stack's pendingTasks")
     @MainActor
-    func createdTaskAppearsInPendingTasks() throws {
+    func createdTaskAppearsInPendingTasks() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -126,7 +126,7 @@ struct TaskServiceTests {
         try context.save()
 
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        _ = try taskService.createTask(title: "New Task", stack: stack)
+        _ = try await taskService.createTask(title: "New Task", stack: stack)
 
         #expect(stack.pendingTasks.count == 1)
         #expect(stack.pendingTasks.first?.title == "New Task")
@@ -136,7 +136,7 @@ struct TaskServiceTests {
 
     @Test("markAsCompleted changes task status")
     @MainActor
-    func markAsCompletedChangesStatus() throws {
+    func markAsCompletedChangesStatus() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -147,14 +147,14 @@ struct TaskServiceTests {
         try context.save()
 
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        try taskService.markAsCompleted(task)
+        try await taskService.markAsCompleted(task)
 
         #expect(task.status == .completed)
     }
 
     @Test("completed task moves from pendingTasks to completedTasks")
     @MainActor
-    func completedTaskMovesToCompletedList() throws {
+    func completedTaskMovesToCompletedList() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -168,7 +168,7 @@ struct TaskServiceTests {
         #expect(stack.completedTasks.isEmpty)
 
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        try taskService.markAsCompleted(task)
+        try await taskService.markAsCompleted(task)
 
         #expect(stack.pendingTasks.isEmpty)
         #expect(stack.completedTasks.count == 1)

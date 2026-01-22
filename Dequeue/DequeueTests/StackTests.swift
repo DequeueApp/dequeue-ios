@@ -142,23 +142,23 @@ struct StackTests {
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create stack
-        let stack = try stackService.createStack(
+        let stack = try await stackService.createStack(
             title: "Test Stack",
             description: "Stack with multiple tasks"
         )
 
         // Create multiple tasks (simulating the create mode flow)
-        let task1 = try taskService.createTask(
+        let task1 = try await taskService.createTask(
             title: "First Task",
             description: "Description 1",
             stack: stack
         )
-        let task2 = try taskService.createTask(
+        let task2 = try await taskService.createTask(
             title: "Second Task",
             description: nil,
             stack: stack
         )
-        let task3 = try taskService.createTask(
+        let task3 = try await taskService.createTask(
             title: "Third Task",
             description: "Description 3",
             stack: stack
@@ -192,7 +192,7 @@ struct StackTests {
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create stack without tasks
-        let stack = try stackService.createStack(
+        let stack = try await stackService.createStack(
             title: "Empty Stack",
             description: nil
         )
@@ -215,11 +215,11 @@ struct StackTests {
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try stackService.createStack(title: "Test Stack")
+        let stack = try await stackService.createStack(title: "Test Stack")
 
         // Create 5 tasks
         for index in 1...5 {
-            _ = try taskService.createTask(
+            _ = try await taskService.createTask(
                 title: "Task \(index)",
                 stack: stack
             )

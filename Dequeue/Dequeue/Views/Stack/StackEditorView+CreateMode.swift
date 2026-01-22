@@ -49,16 +49,21 @@ extension StackEditorView {
                 onTagAdded: { _ in },
                 onTagRemoved: { _ in },
                 onNewTagCreated: { name in
-                    guard let service = tagService else {
-                        logger.error("TagService not initialized when creating tag '\(name)'")
-                        return nil
+                    Task { @MainActor in
+                        guard let service = tagService else {
+                            logger.error("TagService not initialized when creating tag '\(name)'")
+                            return
+                        }
+                        do {
+                            let tag = try await service.findOrCreateTag(name: name)
+                            if !selectedTags.contains(where: { $0.id == tag.id }) {
+                                selectedTags.append(tag)
+                            }
+                        } catch {
+                            logger.error("Failed to create tag '\(name)': \(error.localizedDescription)")
+                        }
                     }
-                    do {
-                        return try service.findOrCreateTag(name: name)
-                    } catch {
-                        logger.error("Failed to create tag '\(name)': \(error.localizedDescription)")
-                        return nil
-                    }
+                    return nil
                 }
             )
         }
@@ -182,22 +187,24 @@ extension StackEditorView {
         }
         isCreatingDraft = true
 
-        do {
-            let draft = try service.createStack(
-                title: title,
-                description: stackDescription.isEmpty ? nil : stackDescription,
-                isDraft: true
-            )
-            draftStack = draft
-            logger.info("Auto-created draft: \(draft.id)")
-            syncManager?.triggerImmediatePush()
-        } catch {
-            logger.error("Failed to create draft: \(error.localizedDescription)")
-            errorMessage = "Failed to save draft: \(error.localizedDescription)"
-            showError = true
-        }
+        Task {
+            do {
+                let draft = try await service.createStack(
+                    title: title,
+                    description: stackDescription.isEmpty ? nil : stackDescription,
+                    isDraft: true
+                )
+                draftStack = draft
+                logger.info("Auto-created draft: \(draft.id)")
+                syncManager?.triggerImmediatePush()
+            } catch {
+                logger.error("Failed to create draft: \(error.localizedDescription)")
+                errorMessage = "Failed to save draft: \(error.localizedDescription)"
+                showError = true
+            }
 
-        isCreatingDraft = false
+            isCreatingDraft = false
+        }
     }
 
     func updateDraft(_ draft: Stack, title: String, description: String) {
@@ -214,16 +221,18 @@ extension StackEditorView {
             return
         }
 
-        do {
-            try service.updateDraft(
-                draft,
-                title: title.isEmpty ? "Untitled" : title,
-                description: description.isEmpty ? nil : description
-            )
-            logger.debug("Auto-updated draft: \(draft.id)")
-            syncManager?.triggerImmediatePush()
-        } catch {
-            logger.error("Failed to update draft: \(error.localizedDescription)")
+        Task {
+            do {
+                try await service.updateDraft(
+                    draft,
+                    title: title.isEmpty ? "Untitled" : title,
+                    description: description.isEmpty ? nil : description
+                )
+                logger.debug("Auto-updated draft: \(draft.id)")
+                syncManager?.triggerImmediatePush()
+            } catch {
+                logger.error("Failed to update draft: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -246,12 +255,14 @@ extension StackEditorView {
 
     func discardDraftAndDismiss() {
         if let draft = draftStack, let service = stackService {
-            do {
-                try service.discardDraft(draft)
-                logger.info("Draft discarded: \(draft.id)")
-                syncManager?.triggerImmediatePush()
-            } catch {
-                logger.error("Failed to discard draft: \(error.localizedDescription)")
+            Task {
+                do {
+                    try await service.discardDraft(draft)
+                    logger.info("Draft discarded: \(draft.id)")
+                    syncManager?.triggerImmediatePush()
+                } catch {
+                    logger.error("Failed to discard draft: \(error.localizedDescription)")
+                }
             }
         }
         dismiss()
@@ -264,34 +275,36 @@ extension StackEditorView {
             return
         }
 
-        do {
-            let stack = try createOrPublishStack(using: stackSvc)
-            associateTagsWithStack(stack)
+        Task {
+            do {
+                let stack = try await createOrPublishStack(using: stackSvc)
+                associateTagsWithStack(stack)
 
-            let failedTasks = createPendingTasks(for: stack)
-            if !failedTasks.isEmpty {
-                showTaskCreationError(failedTasks: failedTasks)
-                return
+                let failedTasks = await createPendingTasks(for: stack)
+                if !failedTasks.isEmpty {
+                    showTaskCreationError(failedTasks: failedTasks)
+                    return
+                }
+
+                syncManager?.triggerImmediatePush()
+                dismiss()
+            } catch {
+                logger.error("Failed to create stack: \(error.localizedDescription)")
+                errorMessage = "Failed to create stack: \(error.localizedDescription)"
+                showError = true
             }
-
-            syncManager?.triggerImmediatePush()
-            dismiss()
-        } catch {
-            logger.error("Failed to create stack: \(error.localizedDescription)")
-            errorMessage = "Failed to create stack: \(error.localizedDescription)"
-            showError = true
         }
     }
 
-    private func createOrPublishStack(using stackSvc: StackService) throws -> Stack {
+    private func createOrPublishStack(using stackSvc: StackService) async throws -> Stack {
         if let existingDraft = draftStack {
             existingDraft.title = title
             existingDraft.stackDescription = stackDescription.isEmpty ? nil : stackDescription
-            try stackSvc.publishDraft(existingDraft)
+            try await stackSvc.publishDraft(existingDraft)
             logger.info("Draft published as stack: \(existingDraft.id)")
             return existingDraft
         } else {
-            let stack = try stackSvc.createStack(
+            let stack = try await stackSvc.createStack(
                 title: title,
                 description: stackDescription.isEmpty ? nil : stackDescription
             )
@@ -307,12 +320,12 @@ extension StackEditorView {
         }
     }
 
-    private func createPendingTasks(for stack: Stack) -> [String] {
+    private func createPendingTasks(for stack: Stack) async -> [String] {
         guard let taskSvc = taskService else { return [] }
         var failedTasks: [String] = []
         for pendingTask in pendingTasks {
             do {
-                let task = try taskSvc.createTask(
+                let task = try await taskSvc.createTask(
                     title: pendingTask.title,
                     description: pendingTask.description,
                     stack: stack
@@ -346,35 +359,37 @@ extension StackEditorView {
             return
         }
 
-        if draftStack == nil && !title.isEmpty {
-            // Create draft with current content
-            do {
-                let draft = try service.createStack(
-                    title: title,
-                    description: stackDescription.isEmpty ? nil : stackDescription,
-                    isDraft: true
-                )
-                draftStack = draft
-                logger.info("Background save: created draft \(draft.id)")
-                syncManager?.triggerImmediatePush()
-            } catch {
-                logger.error("Background save failed to create draft: \(error.localizedDescription)")
-            }
-        } else if let draft = draftStack {
-            // Update draft if there are pending changes
-            let titleChanged = draft.title != title
-            let descriptionChanged = draft.stackDescription != stackDescription
-            if titleChanged || descriptionChanged {
+        Task {
+            if draftStack == nil && !title.isEmpty {
+                // Create draft with current content
                 do {
-                    try service.updateDraft(
-                        draft,
-                        title: title.isEmpty ? "Untitled" : title,
-                        description: stackDescription.isEmpty ? nil : stackDescription
+                    let draft = try await service.createStack(
+                        title: title,
+                        description: stackDescription.isEmpty ? nil : stackDescription,
+                        isDraft: true
                     )
-                    logger.info("Background save: updated draft \(draft.id)")
+                    draftStack = draft
+                    logger.info("Background save: created draft \(draft.id)")
                     syncManager?.triggerImmediatePush()
                 } catch {
-                    logger.error("Background save failed to update draft: \(error.localizedDescription)")
+                    logger.error("Background save failed to create draft: \(error.localizedDescription)")
+                }
+            } else if let draft = draftStack {
+                // Update draft if there are pending changes
+                let titleChanged = draft.title != title
+                let descriptionChanged = draft.stackDescription != stackDescription
+                if titleChanged || descriptionChanged {
+                    do {
+                        try await service.updateDraft(
+                            draft,
+                            title: title.isEmpty ? "Untitled" : title,
+                            description: stackDescription.isEmpty ? nil : stackDescription
+                        )
+                        logger.info("Background save: updated draft \(draft.id)")
+                        syncManager?.triggerImmediatePush()
+                    } catch {
+                        logger.error("Background save failed to update draft: \(error.localizedDescription)")
+                    }
                 }
             }
         }

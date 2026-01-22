@@ -68,7 +68,7 @@ extension StackEditorView {
 
                 do {
                     // Create the attachment record (copies file locally)
-                    let attachment = try service.createAttachment(
+                    let attachment = try await service.createAttachment(
                         for: stack.id,
                         parentType: .stack,
                         fileURL: url
@@ -118,16 +118,18 @@ extension StackEditorView {
             return
         }
 
-        do {
-            try service.deleteAttachment(attachment)
-        } catch {
-            errorMessage = "Failed to delete attachment: \(error.localizedDescription)"
-            showError = true
-            ErrorReportingService.capture(error: error, context: [
-                "view": "StackEditorView",
-                "action": "handleDeleteAttachment",
-                "attachmentId": attachment.id
-            ])
+        Task {
+            do {
+                try await service.deleteAttachment(attachment)
+            } catch {
+                errorMessage = "Failed to delete attachment: \(error.localizedDescription)"
+                showError = true
+                ErrorReportingService.capture(error: error, context: [
+                    "view": "StackEditorView",
+                    "action": "handleDeleteAttachment",
+                    "attachmentId": attachment.id
+                ])
+            }
         }
     }
 }

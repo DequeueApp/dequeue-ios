@@ -146,21 +146,22 @@ struct StackHistoryView: View {
     private func performRevert() {
         guard let event = eventToRevert else { return }
 
-        do {
-            let stackService = StackService(
-                modelContext: modelContext,
-                userId: authService.currentUserId ?? "",
-                deviceId: cachedDeviceId,
-                syncManager: syncManager
-            )
-            try stackService.revertToHistoricalState(stack, from: event)
-            // Refresh history to show the new revert event
-            Task {
+        let stackService = StackService(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: cachedDeviceId,
+            syncManager: syncManager
+        )
+
+        Task {
+            do {
+                try await stackService.revertToHistoricalState(stack, from: event)
+                // Refresh history to show the new revert event
                 await loadHistory()
+            } catch {
+                revertError = error
+                showRevertError = true
             }
-        } catch {
-            revertError = error
-            showRevertError = true
         }
 
         eventToRevert = nil

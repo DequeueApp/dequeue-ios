@@ -135,25 +135,30 @@ final class UndoCompletionManager {
 
         logger.info("Completing stack after grace period: \(stack.title)")
 
-        do {
-            let stackService = StackService(
-                modelContext: modelContext,
-                userId: userId,
-                deviceId: deviceId,
-                syncManager: syncManager
-            )
-            try stackService.markAsCompleted(stack, completeAllTasks: true)
-            syncManager?.triggerImmediatePush()
-        } catch {
-            logger.error("Failed to complete stack: \(error.localizedDescription)")
-            ErrorReportingService.capture(error: error, context: ["action": "delayedStackComplete"])
-        }
+        let stackService = StackService(
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
 
-        // Clear the pending state
-        pendingStack = nil
-        progress = 0.0
-        completionTask = nil
-        progressTask = nil
+        Task { [weak self] in
+            do {
+                try await stackService.markAsCompleted(stack, completeAllTasks: true)
+                self?.syncManager?.triggerImmediatePush()
+            } catch {
+                logger.error("Failed to complete stack: \(error.localizedDescription)")
+                ErrorReportingService.capture(error: error, context: ["action": "delayedStackComplete"])
+            }
+
+            // Clear the pending state AFTER the async operation completes
+            await MainActor.run {
+                self?.pendingStack = nil
+                self?.progress = 0.0
+                self?.completionTask = nil
+                self?.progressTask = nil
+            }
+        }
     }
 }
 

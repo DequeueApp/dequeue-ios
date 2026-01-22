@@ -51,7 +51,7 @@ struct AttachmentServiceTests {
 
     @Test("createAttachment creates attachment for stack")
     @MainActor
-    func createAttachmentForStack() throws {
+    func createAttachmentForStack() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -62,7 +62,7 @@ struct AttachmentServiceTests {
         defer { cleanupTemporaryFile(fileURL) }
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let attachment = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
+        let attachment = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
 
         #expect(attachment.parentId == stack.id)
         #expect(attachment.parentType == .stack)
@@ -76,7 +76,7 @@ struct AttachmentServiceTests {
 
     @Test("createAttachment creates attachment for task")
     @MainActor
-    func createAttachmentForTask() throws {
+    func createAttachmentForTask() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -89,7 +89,7 @@ struct AttachmentServiceTests {
         defer { cleanupTemporaryFile(fileURL) }
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let attachment = try service.createAttachment(for: task.id, parentType: .task, fileURL: fileURL)
+        let attachment = try await service.createAttachment(for: task.id, parentType: .task, fileURL: fileURL)
 
         #expect(attachment.parentId == task.id)
         #expect(attachment.parentType == .task)
@@ -98,7 +98,7 @@ struct AttachmentServiceTests {
 
     @Test("createAttachment throws for non-existent parent stack")
     @MainActor
-    func createAttachmentThrowsForMissingStack() throws {
+    func createAttachmentThrowsForMissingStack() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
 
@@ -107,14 +107,14 @@ struct AttachmentServiceTests {
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        #expect(throws: AttachmentServiceError.self) {
-            _ = try service.createAttachment(for: "non-existent-id", parentType: .stack, fileURL: fileURL)
+        await #expect(throws: AttachmentServiceError.self) {
+            _ = try await service.createAttachment(for: "non-existent-id", parentType: .stack, fileURL: fileURL)
         }
     }
 
     @Test("createAttachment throws for non-existent parent task")
     @MainActor
-    func createAttachmentThrowsForMissingTask() throws {
+    func createAttachmentThrowsForMissingTask() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
 
@@ -123,14 +123,14 @@ struct AttachmentServiceTests {
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        #expect(throws: AttachmentServiceError.self) {
-            _ = try service.createAttachment(for: "non-existent-id", parentType: .task, fileURL: fileURL)
+        await #expect(throws: AttachmentServiceError.self) {
+            _ = try await service.createAttachment(for: "non-existent-id", parentType: .task, fileURL: fileURL)
         }
     }
 
     @Test("createAttachment throws for missing file")
     @MainActor
-    func createAttachmentThrowsForMissingFile() throws {
+    func createAttachmentThrowsForMissingFile() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -140,14 +140,14 @@ struct AttachmentServiceTests {
         let nonExistentURL = URL(fileURLWithPath: "/tmp/non-existent-file.txt")
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        #expect(throws: AttachmentServiceError.self) {
-            _ = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: nonExistentURL)
+        await #expect(throws: AttachmentServiceError.self) {
+            _ = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: nonExistentURL)
         }
     }
 
     @Test("createAttachment throws for file exceeding size limit")
     @MainActor
-    func createAttachmentThrowsForOversizedFile() throws {
+    func createAttachmentThrowsForOversizedFile() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -168,14 +168,14 @@ struct AttachmentServiceTests {
         defer { cleanupTemporaryFile(fileURL) }
         mockFileManager.existingPaths.insert(fileURL.path)
 
-        #expect(throws: AttachmentServiceError.self) {
-            _ = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
+        await #expect(throws: AttachmentServiceError.self) {
+            _ = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
         }
     }
 
     @Test("createAttachment records event")
     @MainActor
-    func createAttachmentRecordsEvent() throws {
+    func createAttachmentRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -186,7 +186,7 @@ struct AttachmentServiceTests {
         defer { cleanupTemporaryFile(fileURL) }
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let attachment = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
+        let attachment = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
         let attachmentId = attachment.id
 
         // Check that an event was recorded
@@ -202,7 +202,7 @@ struct AttachmentServiceTests {
 
     @Test("getAttachments returns attachments for parent")
     @MainActor
-    func getAttachmentsForParent() throws {
+    func getAttachmentsForParent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -219,16 +219,16 @@ struct AttachmentServiceTests {
             cleanupTemporaryFile(file2)
         }
 
-        _ = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: file1)
-        _ = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: file2)
+        _ = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: file1)
+        _ = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: file2)
 
-        let attachments = try service.getAttachments(for: stack.id, parentType: .stack)
+        let attachments = try await service.getAttachments(for: stack.id, parentType: .stack)
         #expect(attachments.count == 2)
     }
 
     @Test("getAttachments excludes deleted attachments")
     @MainActor
-    func getAttachmentsExcludesDeleted() throws {
+    func getAttachmentsExcludesDeleted() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -244,19 +244,19 @@ struct AttachmentServiceTests {
             cleanupTemporaryFile(file2)
         }
 
-        let attachment1 = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: file1)
-        _ = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: file2)
+        let attachment1 = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: file1)
+        _ = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: file2)
 
         // Delete one attachment
-        try service.deleteAttachment(attachment1)
+        try await service.deleteAttachment(attachment1)
 
-        let attachments = try service.getAttachments(for: stack.id, parentType: .stack)
+        let attachments = try await service.getAttachments(for: stack.id, parentType: .stack)
         #expect(attachments.count == 1)
     }
 
     @Test("getAttachment returns attachment by ID")
     @MainActor
-    func getAttachmentById() throws {
+    func getAttachmentById() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -267,22 +267,22 @@ struct AttachmentServiceTests {
         defer { cleanupTemporaryFile(fileURL) }
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let created = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
+        let created = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
 
-        let fetched = try service.getAttachment(byId: created.id)
+        let fetched = try await service.getAttachment(byId: created.id)
         #expect(fetched.id == created.id)
     }
 
     @Test("getAttachment throws for non-existent ID")
     @MainActor
-    func getAttachmentThrowsForMissingId() throws {
+    func getAttachmentThrowsForMissingId() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        #expect(throws: AttachmentServiceError.self) {
-            _ = try service.getAttachment(byId: "non-existent-id")
+        await #expect(throws: AttachmentServiceError.self) {
+            _ = try await service.getAttachment(byId: "non-existent-id")
         }
     }
 
@@ -290,7 +290,7 @@ struct AttachmentServiceTests {
 
     @Test("updateUploadState updates state correctly")
     @MainActor
-    func updateUploadState() throws {
+    func updateUploadState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -301,12 +301,12 @@ struct AttachmentServiceTests {
         defer { cleanupTemporaryFile(fileURL) }
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let attachment = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
+        let attachment = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
 
-        try service.updateUploadState(attachment, state: .uploading)
+        try await service.updateUploadState(attachment, state: .uploading)
         #expect(attachment.uploadState == .uploading)
 
-        try service.updateUploadState(attachment, state: .completed, remoteUrl: "https://example.com/file.txt")
+        try await service.updateUploadState(attachment, state: .completed, remoteUrl: "https://example.com/file.txt")
         #expect(attachment.uploadState == .completed)
         #expect(attachment.remoteUrl == "https://example.com/file.txt")
     }
@@ -315,7 +315,7 @@ struct AttachmentServiceTests {
 
     @Test("deleteAttachment soft deletes attachment", .disabled("Flaky test - needs investigation. See DEQ-199"))
     @MainActor
-    func deleteAttachmentSoftDeletes() throws {
+    func deleteAttachmentSoftDeletes() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -326,16 +326,16 @@ struct AttachmentServiceTests {
         defer { cleanupTemporaryFile(fileURL) }
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let attachment = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
+        let attachment = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
 
-        try service.deleteAttachment(attachment)
+        try await service.deleteAttachment(attachment)
 
         #expect(attachment.isDeleted == true)
     }
 
     @Test("deleteAttachment records event")
     @MainActor
-    func deleteAttachmentRecordsEvent() throws {
+    func deleteAttachmentRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -346,10 +346,10 @@ struct AttachmentServiceTests {
         defer { cleanupTemporaryFile(fileURL) }
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let attachment = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
+        let attachment = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
         let attachmentId = attachment.id
 
-        try service.deleteAttachment(attachment)
+        try await service.deleteAttachment(attachment)
 
         // Check for removal event
         let eventDescriptor = FetchDescriptor<Event>(
@@ -361,7 +361,7 @@ struct AttachmentServiceTests {
 
     @Test("deleteAttachments deletes all attachments for parent")
     @MainActor
-    func deleteAttachmentsForParent() throws {
+    func deleteAttachmentsForParent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -377,12 +377,12 @@ struct AttachmentServiceTests {
             cleanupTemporaryFile(file2)
         }
 
-        _ = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: file1)
-        _ = try service.createAttachment(for: stack.id, parentType: .stack, fileURL: file2)
+        _ = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: file1)
+        _ = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: file2)
 
-        try service.deleteAttachments(for: stack.id, parentType: .stack)
+        try await service.deleteAttachments(for: stack.id, parentType: .stack)
 
-        let attachments = try service.getAttachments(for: stack.id, parentType: .stack)
+        let attachments = try await service.getAttachments(for: stack.id, parentType: .stack)
         #expect(attachments.isEmpty)
     }
 

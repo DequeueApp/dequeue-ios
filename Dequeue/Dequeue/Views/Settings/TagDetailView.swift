@@ -174,13 +174,15 @@ struct TagDetailView: View {
             showError = true
             return
         }
-        do {
-            try service.updateTag(tag, name: editedName)
-            isEditing = false
-        } catch {
-            errorMessage = error.localizedDescription
-            showError = true
-            ErrorReportingService.capture(error: error, context: ["action": "rename_tag"])
+        Task {
+            do {
+                try await service.updateTag(tag, name: editedName)
+                isEditing = false
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+                ErrorReportingService.capture(error: error, context: ["action": "rename_tag"])
+            }
         }
     }
 
@@ -190,13 +192,15 @@ struct TagDetailView: View {
             showError = true
             return
         }
-        do {
-            try service.deleteTag(tag)
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-            showError = true
-            ErrorReportingService.capture(error: error, context: ["action": "delete_tag"])
+        Task {
+            do {
+                try await service.deleteTag(tag)
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+                showError = true
+                ErrorReportingService.capture(error: error, context: ["action": "delete_tag"])
+            }
         }
     }
 }

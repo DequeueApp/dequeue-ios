@@ -146,10 +146,12 @@ struct ArcsView: View {
         var reorderedArcs = arcs
         reorderedArcs.move(fromOffsets: source, toOffset: destination)
 
-        do {
-            try arcService?.updateSortOrders(reorderedArcs)
-        } catch {
-            ErrorReportingService.capture(error: error, context: ["action": "move_arcs"])
+        Task {
+            do {
+                try await arcService?.updateSortOrders(reorderedArcs)
+            } catch {
+                ErrorReportingService.capture(error: error, context: ["action": "move_arcs"])
+            }
         }
     }
 

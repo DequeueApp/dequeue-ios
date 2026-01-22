@@ -84,7 +84,7 @@ final class TagService {
     /// - Throws: `TagServiceError.emptyTagName` if name is empty after trimming
     /// - Throws: `TagServiceError.tagNameTooLong` if name exceeds max length
     /// - Throws: `TagServiceError.duplicateTagName` if a tag with same normalized name exists
-    func createTag(name: String, colorHex: String? = nil) throws -> Tag {
+    func createTag(name: String, colorHex: String? = nil) async throws -> Tag {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Validate name is not empty
@@ -110,7 +110,7 @@ final class TagService {
         )
 
         modelContext.insert(tag)
-        try eventService.recordTagCreated(tag)
+        try await eventService.recordTagCreated(tag)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
 
@@ -125,7 +125,7 @@ final class TagService {
     ///   - name: The display name for the tag
     ///   - colorHex: Optional color (only used if creating new tag)
     /// - Returns: The existing or newly created tag
-    func findOrCreateTag(name: String, colorHex: String? = nil) throws -> Tag {
+    func findOrCreateTag(name: String, colorHex: String? = nil) async throws -> Tag {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedName.isEmpty else {
@@ -151,7 +151,7 @@ final class TagService {
         )
 
         modelContext.insert(tag)
-        try eventService.recordTagCreated(tag)
+        try await eventService.recordTagCreated(tag)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
 
@@ -233,7 +233,7 @@ final class TagService {
     /// - Throws: `TagServiceError.emptyTagName` if new name is empty after trimming
     /// - Throws: `TagServiceError.tagNameTooLong` if new name exceeds max length
     /// - Throws: `TagServiceError.duplicateTagName` if new name conflicts with existing tag
-    func updateTag(_ tag: Tag, name: String? = nil, colorHex: String?? = nil) throws {
+    func updateTag(_ tag: Tag, name: String? = nil, colorHex: String?? = nil) async throws {
         var hasChanges = false
 
         // Update name if provided
@@ -275,7 +275,7 @@ final class TagService {
             tag.syncState = .pending
             tag.revision += 1
 
-            try eventService.recordTagUpdated(tag)
+            try await eventService.recordTagUpdated(tag)
             try modelContext.save()
             syncManager?.triggerImmediatePush()
         }
@@ -289,13 +289,13 @@ final class TagService {
     /// The tag will be automatically removed from all stack associations.
     ///
     /// - Parameter tag: The tag to delete
-    func deleteTag(_ tag: Tag) throws {
+    func deleteTag(_ tag: Tag) async throws {
         tag.isDeleted = true
         tag.updatedAt = Date()
         tag.syncState = .pending
         tag.revision += 1
 
-        try eventService.recordTagDeleted(tag)
+        try await eventService.recordTagDeleted(tag)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }

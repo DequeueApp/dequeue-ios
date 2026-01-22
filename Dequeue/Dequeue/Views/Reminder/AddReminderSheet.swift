@@ -325,18 +325,18 @@ struct AddReminderSheet: View {
                 if let existingReminder {
                     // Edit mode: update existing reminder
                     await notificationService.cancelNotification(for: existingReminder)
-                    try service.updateReminder(existingReminder, remindAt: selectedDate)
+                    try await service.updateReminder(existingReminder, remindAt: selectedDate)
                     try await notificationService.scheduleNotification(for: existingReminder)
                 } else {
                     // Create mode: create new reminder
                     let reminder: Reminder
                     switch parent {
                     case .task(let task):
-                        reminder = try service.createReminder(for: task, at: selectedDate)
+                        reminder = try await service.createReminder(for: task, at: selectedDate)
                     case .stack(let stack):
-                        reminder = try service.createReminder(for: stack, at: selectedDate)
+                        reminder = try await service.createReminder(for: stack, at: selectedDate)
                     case .arc(let arc):
-                        reminder = try service.createReminder(for: arc, at: selectedDate)
+                        reminder = try await service.createReminder(for: arc, at: selectedDate)
                     }
                     try await notificationService.scheduleNotification(for: reminder)
                 }

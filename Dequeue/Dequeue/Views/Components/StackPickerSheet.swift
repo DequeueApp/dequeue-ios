@@ -142,13 +142,15 @@ struct StackPickerSheet: View {
             return
         }
 
-        do {
-            try service.setAsActive(stack)
-            // Note: syncManager?.triggerImmediatePush() is called internally by setAsActive()
-            dismiss()
-        } catch {
-            errorMessage = "Failed to set stack as active: \(error.localizedDescription)"
-            showError = true
+        Task {
+            do {
+                try await service.setAsActive(stack)
+                // Note: syncManager?.triggerImmediatePush() is called internally by setAsActive()
+                dismiss()
+            } catch {
+                errorMessage = "Failed to set stack as active: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 }

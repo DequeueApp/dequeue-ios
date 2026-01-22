@@ -136,21 +136,21 @@ struct ArcHistoryView: View {
     private func performRevert() {
         guard let event = eventToRevert else { return }
 
-        do {
-            let arcService = ArcService(
-                modelContext: modelContext,
-                userId: authService.currentUserId ?? "",
-                deviceId: cachedDeviceId,
-                syncManager: syncManager
-            )
-            try arcService.revertToHistoricalState(arc, from: event)
-            // Refresh history to show the new revert event
-            Task {
+        Task {
+            do {
+                let arcService = ArcService(
+                    modelContext: modelContext,
+                    userId: authService.currentUserId ?? "",
+                    deviceId: cachedDeviceId,
+                    syncManager: syncManager
+                )
+                try await arcService.revertToHistoricalState(arc, from: event)
+                // Refresh history to show the new revert event
                 await loadHistory()
+            } catch {
+                revertError = error
+                showRevertError = true
             }
-        } catch {
-            revertError = error
-            showRevertError = true
         }
 
         eventToRevert = nil

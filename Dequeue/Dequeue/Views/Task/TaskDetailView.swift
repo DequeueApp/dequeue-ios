@@ -467,11 +467,13 @@ struct TaskDetailView: View {
             return
         }
 
-        do {
-            try service.updateTask(task, title: editedTitle, description: task.taskDescription)
-            isEditingTitle = false
-        } catch {
-            showError(error)
+        Task {
+            do {
+                try await service.updateTask(task, title: editedTitle, description: task.taskDescription)
+                isEditingTitle = false
+            } catch {
+                showError(error)
+            }
         }
     }
 
@@ -481,15 +483,17 @@ struct TaskDetailView: View {
             showError = true
             return
         }
-        do {
-            try service.updateTask(
-                task,
-                title: task.title,
-                description: editedDescription.isEmpty ? nil : editedDescription
-            )
-            isEditingDescription = false
-        } catch {
-            showError(error)
+        Task {
+            do {
+                try await service.updateTask(
+                    task,
+                    title: task.title,
+                    description: editedDescription.isEmpty ? nil : editedDescription
+                )
+                isEditingDescription = false
+            } catch {
+                showError(error)
+            }
         }
     }
 
@@ -499,10 +503,12 @@ struct TaskDetailView: View {
             showError = true
             return
         }
-        do {
-            try service.markAsCompleted(task)
-        } catch {
-            showError(error)
+        Task {
+            do {
+                try await service.markAsCompleted(task)
+            } catch {
+                showError(error)
+            }
         }
     }
 
@@ -512,10 +518,12 @@ struct TaskDetailView: View {
             showError = true
             return
         }
-        do {
-            try service.markAsBlocked(task, reason: nil)
-        } catch {
-            showError(error)
+        Task {
+            do {
+                try await service.markAsBlocked(task, reason: nil)
+            } catch {
+                showError(error)
+            }
         }
     }
 
@@ -525,10 +533,12 @@ struct TaskDetailView: View {
             showError = true
             return
         }
-        do {
-            try service.unblock(task)
-        } catch {
-            showError(error)
+        Task {
+            do {
+                try await service.unblock(task)
+            } catch {
+                showError(error)
+            }
         }
     }
 
@@ -538,10 +548,12 @@ struct TaskDetailView: View {
             showError = true
             return
         }
-        do {
-            try service.activateTask(task)
-        } catch {
-            showError(error)
+        Task {
+            do {
+                try await service.activateTask(task)
+            } catch {
+                showError(error)
+            }
         }
     }
 
@@ -551,11 +563,13 @@ struct TaskDetailView: View {
             showError = true
             return
         }
-        do {
-            try service.closeTask(task)
-            dismiss()
-        } catch {
-            showError(error)
+        Task {
+            do {
+                try await service.closeTask(task)
+                dismiss()
+            } catch {
+                showError(error)
+            }
         }
     }
 
@@ -565,11 +579,13 @@ struct TaskDetailView: View {
             showError = true
             return
         }
-        do {
-            try service.deleteTask(task)
-            dismiss()
-        } catch {
-            showError(error)
+        Task {
+            do {
+                try await service.deleteTask(task)
+                dismiss()
+            } catch {
+                showError(error)
+            }
         }
     }
 

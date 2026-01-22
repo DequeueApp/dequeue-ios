@@ -44,7 +44,7 @@ extension ArcEditorView {
                 }
 
                 do {
-                    let attachment = try service.createAttachment(
+                    let attachment = try await service.createAttachment(
                         for: arc.id,
                         parentType: .arc,
                         fileURL: url

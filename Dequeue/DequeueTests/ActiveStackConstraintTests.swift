@@ -45,7 +45,7 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try service.createStack(title: "First Stack")
+        let stack = try await service.createStack(title: "First Stack")
 
         #expect(stack.isActive == true)
     }
@@ -57,7 +57,7 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let draft = try service.createStack(title: "Draft Stack", isDraft: true)
+        let draft = try await service.createStack(title: "Draft Stack", isDraft: true)
 
         #expect(draft.isActive == false)
     }
@@ -69,8 +69,8 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let first = try service.createStack(title: "First Stack")
-        let second = try service.createStack(title: "Second Stack")
+        let first = try await service.createStack(title: "First Stack")
+        let second = try await service.createStack(title: "Second Stack")
 
         #expect(first.isActive == true)
         #expect(second.isActive == false)
@@ -85,13 +85,13 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let first = try service.createStack(title: "First Stack")
-        let second = try service.createStack(title: "Second Stack")
+        let first = try await service.createStack(title: "First Stack")
+        let second = try await service.createStack(title: "Second Stack")
 
         #expect(first.isActive == true)
         #expect(second.isActive == false)
 
-        try service.setAsActive(second)
+        try await service.setAsActive(second)
 
         #expect(first.isActive == false)
         #expect(second.isActive == true)
@@ -104,9 +104,9 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let first = try service.createStack(title: "First Stack")
-        let second = try service.createStack(title: "Second Stack")
-        let third = try service.createStack(title: "Third Stack")
+        let first = try await service.createStack(title: "First Stack")
+        let second = try await service.createStack(title: "Second Stack")
+        let third = try await service.createStack(title: "Third Stack")
 
         // Manually set all to active to test deactivation
         first.isActive = true
@@ -114,7 +114,7 @@ struct ActiveStackConstraintTests {
         third.isActive = true
         try context.save()
 
-        try service.setAsActive(third)
+        try await service.setAsActive(third)
 
         #expect(first.isActive == false)
         #expect(second.isActive == false)
@@ -128,14 +128,14 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let first = try service.createStack(title: "First Stack")
-        let second = try service.createStack(title: "Second Stack")
-        let third = try service.createStack(title: "Third Stack")
+        let first = try await service.createStack(title: "First Stack")
+        let second = try await service.createStack(title: "Second Stack")
+        let third = try await service.createStack(title: "Third Stack")
 
-        try service.setAsActive(second)
-        try service.setAsActive(first)
-        try service.setAsActive(third)
-        try service.setAsActive(second)
+        try await service.setAsActive(second)
+        try await service.setAsActive(first)
+        try await service.setAsActive(third)
+        try await service.setAsActive(second)
 
         let activeCount = [first, second, third].filter { $0.isActive }.count
         #expect(activeCount == 1)
@@ -151,10 +151,10 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let first = try service.createStack(title: "First Stack")
-        _ = try service.createStack(title: "Second Stack")
+        let first = try await service.createStack(title: "First Stack")
+        _ = try await service.createStack(title: "Second Stack")
 
-        let active = try service.getCurrentActiveStack()
+        let active = try await service.getCurrentActiveStack()
         #expect(active?.id == first.id)
     }
 
@@ -166,10 +166,10 @@ struct ActiveStackConstraintTests {
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create only drafts
-        _ = try service.createStack(title: "Draft 1", isDraft: true)
-        _ = try service.createStack(title: "Draft 2", isDraft: true)
+        _ = try await service.createStack(title: "Draft 1", isDraft: true)
+        _ = try await service.createStack(title: "Draft 2", isDraft: true)
 
-        let active = try service.getCurrentActiveStack()
+        let active = try await service.getCurrentActiveStack()
         #expect(active == nil)
     }
 
@@ -192,7 +192,7 @@ struct ActiveStackConstraintTests {
         try context.save()
 
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        try service.migrateActiveStackState()
+        try await service.migrateActiveStackState()
 
         // Stack with sortOrder 0 should become active
         #expect(stack2.isActive == true)
@@ -214,7 +214,7 @@ struct ActiveStackConstraintTests {
         try context.save()
 
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        try service.migrateActiveStackState()
+        try await service.migrateActiveStackState()
 
         #expect(stack1.isActive == false)
         #expect(stack2.isActive == true)
@@ -236,7 +236,7 @@ struct ActiveStackConstraintTests {
         try context.save()
 
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        try service.migrateActiveStackState()
+        try await service.migrateActiveStackState()
 
         // Only stack with lowest sortOrder should remain active
         let activeCount = [stack1, stack2, stack3].filter { $0.isActive }.count
@@ -253,7 +253,7 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try service.createStack(title: "Test Stack")
+        let stack = try await service.createStack(title: "Test Stack")
         let stackId = stack.id
 
         #expect(stack.isActive == true)
@@ -275,8 +275,8 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let first = try service.createStack(title: "First Stack")
-        let second = try service.createStack(title: "Second Stack")
+        let first = try await service.createStack(title: "First Stack")
+        let second = try await service.createStack(title: "Second Stack")
 
         // Get event count before activation change
         let eventDescriptor = FetchDescriptor<Event>()
@@ -284,7 +284,7 @@ struct ActiveStackConstraintTests {
         let countBefore = eventsBefore.count
 
         // Activate second stack (should deactivate first)
-        try service.setAsActive(second)
+        try await service.setAsActive(second)
 
         // Fetch events after
         let eventsAfter = try context.fetch(eventDescriptor)
@@ -310,11 +310,11 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        _ = try service.createStack(title: "First Stack")
-        let second = try service.createStack(title: "Second Stack")
+        _ = try await service.createStack(title: "First Stack")
+        let second = try await service.createStack(title: "Second Stack")
 
         // Activate second stack
-        try service.setAsActive(second)
+        try await service.setAsActive(second)
 
         // Fetch all events sorted by timestamp
         let sortedDescriptor = FetchDescriptor<Event>(
@@ -343,8 +343,8 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let first = try service.createStack(title: "First Stack")
-        _ = try service.createStack(title: "Second Stack")
+        let first = try await service.createStack(title: "First Stack")
+        _ = try await service.createStack(title: "Second Stack")
 
         // Count deactivation events before
         let eventDescriptor = FetchDescriptor<Event>()
@@ -352,7 +352,7 @@ struct ActiveStackConstraintTests {
         let deactivationCountBefore = eventsBefore.filter { $0.eventType == .stackDeactivated }.count
 
         // Activate the same stack that's already active
-        try service.setAsActive(first)
+        try await service.setAsActive(first)
 
         // Count deactivation events after
         let eventsAfter = try context.fetch(eventDescriptor)
@@ -369,12 +369,12 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let first = try service.createStack(title: "First Stack")
-        let second = try service.createStack(title: "Second Stack")
+        let first = try await service.createStack(title: "First Stack")
+        let second = try await service.createStack(title: "Second Stack")
         let firstId = first.id
 
         // Activate second stack (deactivates first)
-        try service.setAsActive(second)
+        try await service.setAsActive(second)
 
         // Find deactivation event for first stack
         let eventDescriptor = FetchDescriptor<Event>()
@@ -403,10 +403,10 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try service.createStack(title: "Active Stack")
+        let stack = try await service.createStack(title: "Active Stack")
         #expect(stack.isActive == true)
 
-        try service.markAsCompleted(stack)
+        try await service.markAsCompleted(stack)
 
         #expect(stack.isActive == false)
         #expect(stack.status == .completed)
@@ -419,7 +419,7 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try service.createStack(title: "Active Stack")
+        let stack = try await service.createStack(title: "Active Stack")
         let stackId = stack.id
 
         // Count deactivation events before
@@ -427,7 +427,7 @@ struct ActiveStackConstraintTests {
         let eventsBefore = try context.fetch(eventDescriptor)
         let deactivationCountBefore = eventsBefore.filter { $0.eventType == .stackDeactivated }.count
 
-        try service.markAsCompleted(stack)
+        try await service.markAsCompleted(stack)
 
         // Count deactivation events after
         let eventsAfter = try context.fetch(eventDescriptor)
@@ -450,8 +450,8 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        _ = try service.createStack(title: "First Stack")
-        let second = try service.createStack(title: "Second Stack")
+        _ = try await service.createStack(title: "First Stack")
+        let second = try await service.createStack(title: "Second Stack")
 
         // Second stack is not active
         #expect(second.isActive == false)
@@ -461,7 +461,7 @@ struct ActiveStackConstraintTests {
         let eventsBefore = try context.fetch(eventDescriptor)
         let deactivationCountBefore = eventsBefore.filter { $0.eventType == .stackDeactivated }.count
 
-        try service.markAsCompleted(second)
+        try await service.markAsCompleted(second)
 
         // Count deactivation events after
         let eventsAfter = try context.fetch(eventDescriptor)
@@ -479,19 +479,19 @@ struct ActiveStackConstraintTests {
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try stackService.createStack(title: "Stack with Tasks")
-        let task1 = try taskService.createTask(title: "Task 1", stack: stack)
-        let task2 = try taskService.createTask(title: "Task 2", stack: stack)
-        let task3 = try taskService.createTask(title: "Task 3", stack: stack)
+        let stack = try await stackService.createStack(title: "Stack with Tasks")
+        let task1 = try await taskService.createTask(title: "Task 1", stack: stack)
+        let task2 = try await taskService.createTask(title: "Task 2", stack: stack)
+        let task3 = try await taskService.createTask(title: "Task 3", stack: stack)
 
         // Mark one task as already completed
-        try taskService.markAsCompleted(task2)
+        try await taskService.markAsCompleted(task2)
 
         #expect(task1.status == .pending)
         #expect(task2.status == .completed)
         #expect(task3.status == .pending)
 
-        try stackService.markAsCompleted(stack, completeAllTasks: true)
+        try await stackService.markAsCompleted(stack, completeAllTasks: true)
 
         // All tasks should now be completed
         #expect(task1.status == .completed)
@@ -507,11 +507,11 @@ struct ActiveStackConstraintTests {
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let taskService = TaskService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try stackService.createStack(title: "Stack with Tasks")
-        let task1 = try taskService.createTask(title: "Task 1", stack: stack)
-        let task2 = try taskService.createTask(title: "Task 2", stack: stack)
+        let stack = try await stackService.createStack(title: "Stack with Tasks")
+        let task1 = try await taskService.createTask(title: "Task 1", stack: stack)
+        let task2 = try await taskService.createTask(title: "Task 2", stack: stack)
 
-        try stackService.markAsCompleted(stack, completeAllTasks: false)
+        try await stackService.markAsCompleted(stack, completeAllTasks: false)
 
         // Tasks should remain pending
         #expect(task1.status == .pending)
@@ -528,10 +528,10 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try service.createStack(title: "Active Stack")
+        let stack = try await service.createStack(title: "Active Stack")
         #expect(stack.isActive == true)
 
-        try service.deactivateStack(stack)
+        try await service.deactivateStack(stack)
 
         #expect(stack.isActive == false)
     }
@@ -544,14 +544,14 @@ struct ActiveStackConstraintTests {
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create two stacks - first is active, second is not
-        let first = try service.createStack(title: "First Stack")
-        let second = try service.createStack(title: "Second Stack")
+        let first = try await service.createStack(title: "First Stack")
+        let second = try await service.createStack(title: "Second Stack")
 
         #expect(first.isActive == true)
         #expect(second.isActive == false)
 
         // Deactivating already non-active stack should be a no-op
-        try service.deactivateStack(second)
+        try await service.deactivateStack(second)
 
         #expect(second.isActive == false)
         #expect(first.isActive == true) // First should remain active
@@ -564,12 +564,12 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try service.createStack(title: "Only Stack")
-        #expect(try service.getCurrentActiveStack() != nil)
+        let stack = try await service.createStack(title: "Only Stack")
+        #expect(try await service.getCurrentActiveStack() != nil)
 
-        try service.deactivateStack(stack)
+        try await service.deactivateStack(stack)
 
-        #expect(try service.getCurrentActiveStack() == nil)
+        #expect(try await service.getCurrentActiveStack() == nil)
     }
 
     @Test("deactivateStack creates a stack.deactivated event")
@@ -579,13 +579,13 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try service.createStack(title: "Stack to Deactivate")
+        let stack = try await service.createStack(title: "Stack to Deactivate")
 
         // Get event count before deactivation
         let eventsBefore = try context.fetch(FetchDescriptor<Event>())
         let beforeCount = eventsBefore.filter { $0.entityId == stack.id }.count
 
-        try service.deactivateStack(stack)
+        try await service.deactivateStack(stack)
 
         // Check for new event
         let eventsAfter = try context.fetch(FetchDescriptor<Event>())
@@ -606,13 +606,13 @@ struct ActiveStackConstraintTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try service.createStack(title: "Toggle Stack")
+        let stack = try await service.createStack(title: "Toggle Stack")
         #expect(stack.isActive == true)
 
-        try service.deactivateStack(stack)
+        try await service.deactivateStack(stack)
         #expect(stack.isActive == false)
 
-        try service.setAsActive(stack)
+        try await service.setAsActive(stack)
         #expect(stack.isActive == true)
     }
 
@@ -624,18 +624,18 @@ struct ActiveStackConstraintTests {
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create multiple stacks - only first should be active
-        let first = try service.createStack(title: "First")
-        _ = try service.createStack(title: "Second")
-        _ = try service.createStack(title: "Third")
+        let first = try await service.createStack(title: "First")
+        _ = try await service.createStack(title: "Second")
+        _ = try await service.createStack(title: "Third")
 
         #expect(first.isActive == true)
 
         // Deactivate the only active stack
-        try service.deactivateStack(first)
+        try await service.deactivateStack(first)
 
         // Should now have zero active stacks
-        #expect(try service.getCurrentActiveStack() == nil)
-        let allActiveStacks = try service.getAllStacksWithIsActiveTrue()
+        #expect(try await service.getCurrentActiveStack() == nil)
+        let allActiveStacks = try await service.getAllStacksWithIsActiveTrue()
         #expect(allActiveStacks.isEmpty)
     }
 }
