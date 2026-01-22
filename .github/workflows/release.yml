@@ -192,7 +192,8 @@ jobs:
     name: Build visionOS
     runs-on: macos-15
     needs: wait-for-version-bump
-    if: needs.wait-for-version-bump.outputs.should_build == 'true'
+    # Temporarily disabled - visionOS code has platform compatibility issues
+    if: false
 
     steps:
       - name: Checkout (latest after version bump)
@@ -263,8 +264,8 @@ jobs:
   sentry-release:
     name: Create Sentry Release
     runs-on: ubuntu-latest
-    needs: [build-ios, build-macos, build-visionos]
-    if: always() && (needs.build-ios.result == 'success' || needs.build-macos.result == 'success' || needs.build-visionos.result == 'success')
+    needs: [build-ios, build-macos]
+    if: always() && (needs.build-ios.result == 'success' || needs.build-macos.result == 'success')
 
     steps:
       - name: Checkout
