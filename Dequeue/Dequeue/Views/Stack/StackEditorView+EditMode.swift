@@ -310,20 +310,10 @@ extension StackEditorView {
     // MARK: - Edit Mode Actions
 
     func saveStackTitle() {
-        logger.info("saveStackTitle: editedTitle='\(self.editedTitle)'")
         let trimmedTitle = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        logger.info("saveStackTitle: trimmedTitle='\(trimmedTitle)'")
-        guard !trimmedTitle.isEmpty else {
-            logger.warning("saveStackTitle: trimmedTitle is empty, returning")
-            return
-        }
-        guard case .edit(let stack) = mode else {
-            logger.warning("saveStackTitle: not in edit mode, returning")
-            return
-        }
-        logger.info("saveStackTitle: current stack.title='\(stack.title)'")
+        guard !trimmedTitle.isEmpty else { return }
+        guard case .edit(let stack) = mode else { return }
         guard let service = stackService else {
-            logger.error("saveStackTitle: stackService is nil")
             errorMessage = "Initializing... please try again."
             showError = true
             return
@@ -331,16 +321,9 @@ extension StackEditorView {
 
         Task {
             do {
-                logger.info("saveStackTitle: calling updateStack with title='\(trimmedTitle)'")
-                try await service.updateStack(
-                    stack,
-                    title: trimmedTitle,
-                    description: stack.stackDescription
-                )
-                logger.info("saveStackTitle: after updateStack, stack.title='\(stack.title)'")
+                try await service.updateStack(stack, title: trimmedTitle, description: stack.stackDescription)
                 editedTitle = ""
             } catch {
-                logger.error("saveStackTitle: error - \(error.localizedDescription)")
                 handleError(error)
             }
         }

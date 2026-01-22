@@ -281,41 +281,18 @@ final class NotificationService: NSObject {
     // MARK: - Private Helpers
 
     private func fetchParentTitle(for reminder: Reminder) throws -> String? {
+        let id = reminder.parentId
         switch reminder.parentType {
         case .task:
-            return try fetchTaskTitle(id: reminder.parentId)
+            let pred = #Predicate<QueueTask> { $0.id == id }
+            return try modelContext.fetch(FetchDescriptor<QueueTask>(predicate: pred)).first?.title
         case .stack:
-            return try fetchStackTitle(id: reminder.parentId)
+            let pred = #Predicate<Stack> { $0.id == id }
+            return try modelContext.fetch(FetchDescriptor<Stack>(predicate: pred)).first?.title
         case .arc:
-            return try fetchArcTitle(id: reminder.parentId)
+            let pred = #Predicate<Arc> { $0.id == id }
+            return try modelContext.fetch(FetchDescriptor<Arc>(predicate: pred)).first?.title
         }
-    }
-
-    private func fetchTaskTitle(id: String) throws -> String? {
-        let predicate = #Predicate<QueueTask> { task in
-            task.id == id
-        }
-        let descriptor = FetchDescriptor<QueueTask>(predicate: predicate)
-        let tasks = try modelContext.fetch(descriptor)
-        return tasks.first?.title
-    }
-
-    private func fetchStackTitle(id: String) throws -> String? {
-        let predicate = #Predicate<Stack> { stack in
-            stack.id == id
-        }
-        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
-        let stacks = try modelContext.fetch(descriptor)
-        return stacks.first?.title
-    }
-
-    private func fetchArcTitle(id: String) throws -> String? {
-        let predicate = #Predicate<Arc> { arc in
-            arc.id == id
-        }
-        let descriptor = FetchDescriptor<Arc>(predicate: predicate)
-        let arcs = try modelContext.fetch(descriptor)
-        return arcs.first?.title
     }
 
     private func fetchActiveUpcomingReminders() throws -> [Reminder] {
