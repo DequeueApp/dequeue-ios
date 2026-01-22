@@ -371,15 +371,17 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         let userId = await MainActor.run { Clerk.shared.user?.id ?? "" }
         let deviceId = await DeviceService.shared.getDeviceId()
 
-        await MainActor.run {
-            do {
+        // All SwiftData operations must stay on MainActor - models aren't Sendable
+        do {
+            try await MainActor.run {
                 let taskService = TaskService(
                     modelContext: modelContext,
                     userId: userId,
                     deviceId: deviceId
                 )
                 if let task = try fetchTask(id: parentId) {
-                    Task {
+                    // Schedule async completion - inherits MainActor isolation
+                    Task { @MainActor in
                         do {
                             try await taskService.markAsCompleted(task)
                         } catch {
@@ -390,7 +392,9 @@ extension NotificationService: UNUserNotificationCenterDelegate {
                         }
                     }
                 }
-            } catch {
+            }
+        } catch {
+            await MainActor.run {
                 ErrorReportingService.capture(
                     error: error,
                     context: ["action": "notification_complete_task"]
@@ -412,8 +416,9 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         let userId = await MainActor.run { Clerk.shared.user?.id ?? "" }
         let deviceId = await DeviceService.shared.getDeviceId()
 
-        await MainActor.run {
-            do {
+        // All SwiftData operations must stay on MainActor - models aren't Sendable
+        do {
+            try await MainActor.run {
                 let reminderService = ReminderService(
                     modelContext: modelContext,
                     userId: userId,
@@ -421,11 +426,12 @@ extension NotificationService: UNUserNotificationCenterDelegate {
                 )
                 if let reminder = try fetchReminder(id: reminderId) {
                     let snoozeUntil = Date().addingTimeInterval(duration)
-                    Task {
+                    // Schedule async snooze - inherits MainActor isolation
+                    Task { @MainActor [self] in
                         do {
                             try await reminderService.snoozeReminder(reminder, until: snoozeUntil)
                             // Reschedule notification for snoozed time
-                            try? await scheduleNotification(for: reminder)
+                            try? await self.scheduleNotification(for: reminder)
                         } catch {
                             ErrorReportingService.capture(
                                 error: error,
@@ -434,7 +440,9 @@ extension NotificationService: UNUserNotificationCenterDelegate {
                         }
                     }
                 }
-            } catch {
+            }
+        } catch {
+            await MainActor.run {
                 ErrorReportingService.capture(
                     error: error,
                     context: ["action": "notification_snooze_reminder", "duration": "\(duration)"]
