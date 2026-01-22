@@ -289,12 +289,14 @@ extension InProgressStacksListView {
             showError = true
             return
         }
-        do {
-            try service.setAsActive(stack)
-        } catch {
-            ErrorReportingService.capture(error: error, context: ["action": "setAsActive"])
-            errorMessage = "Failed to set stack as active: \(error.localizedDescription)"
-            showError = true
+        Task {
+            do {
+                try await service.setAsActive(stack)
+            } catch {
+                ErrorReportingService.capture(error: error, context: ["action": "setAsActive"])
+                errorMessage = "Failed to set stack as active: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 
@@ -304,12 +306,14 @@ extension InProgressStacksListView {
             showError = true
             return
         }
-        do {
-            try service.deactivateStack(stack)
-        } catch {
-            ErrorReportingService.capture(error: error, context: ["action": "deactivateStack"])
-            errorMessage = "Failed to deactivate stack: \(error.localizedDescription)"
-            showError = true
+        Task {
+            do {
+                try await service.deactivateStack(stack)
+            } catch {
+                ErrorReportingService.capture(error: error, context: ["action": "deactivateStack"])
+                errorMessage = "Failed to deactivate stack: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 
@@ -332,12 +336,14 @@ extension InProgressStacksListView {
             showError = true
             return
         }
-        do {
-            try service.markAsCompleted(stack, completeAllTasks: true)
-        } catch {
-            ErrorReportingService.capture(error: error, context: ["action": "completeStack"])
-            errorMessage = "Failed to complete stack: \(error.localizedDescription)"
-            showError = true
+        Task {
+            do {
+                try await service.markAsCompleted(stack, completeAllTasks: true)
+            } catch {
+                ErrorReportingService.capture(error: error, context: ["action": "completeStack"])
+                errorMessage = "Failed to complete stack: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 
@@ -347,12 +353,14 @@ extension InProgressStacksListView {
             showError = true
             return
         }
-        do {
-            try service.deleteStack(stack)
-        } catch {
-            ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
-            errorMessage = "Failed to delete stack: \(error.localizedDescription)"
-            showError = true
+        Task {
+            do {
+                try await service.deleteStack(stack)
+            } catch {
+                ErrorReportingService.capture(error: error, context: ["action": "deleteStack"])
+                errorMessage = "Failed to delete stack: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 }

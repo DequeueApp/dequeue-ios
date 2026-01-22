@@ -402,7 +402,16 @@ extension NotificationService: UNUserNotificationCenterDelegate {
                     deviceId: deviceId
                 )
                 if let task = try fetchTask(id: parentId) {
-                    try taskService.markAsCompleted(task)
+                    Task {
+                        do {
+                            try await taskService.markAsCompleted(task)
+                        } catch {
+                            ErrorReportingService.capture(
+                                error: error,
+                                context: ["action": "notification_complete_task"]
+                            )
+                        }
+                    }
                 }
             } catch {
                 ErrorReportingService.capture(
@@ -435,10 +444,17 @@ extension NotificationService: UNUserNotificationCenterDelegate {
                 )
                 if let reminder = try fetchReminder(id: reminderId) {
                     let snoozeUntil = Date().addingTimeInterval(duration)
-                    try reminderService.snoozeReminder(reminder, until: snoozeUntil)
-                    // Reschedule notification for snoozed time
                     Task {
-                        try? await scheduleNotification(for: reminder)
+                        do {
+                            try await reminderService.snoozeReminder(reminder, until: snoozeUntil)
+                            // Reschedule notification for snoozed time
+                            try? await scheduleNotification(for: reminder)
+                        } catch {
+                            ErrorReportingService.capture(
+                                error: error,
+                                context: ["action": "notification_snooze_reminder", "duration": "\(duration)"]
+                            )
+                        }
                     }
                 }
             } catch {

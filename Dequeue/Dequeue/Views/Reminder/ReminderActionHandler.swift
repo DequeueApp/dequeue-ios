@@ -34,61 +34,55 @@ struct ReminderActionHandler {
     /// Snoozes a reminder until the specified date.
     /// Cancels existing notification and schedules a new one.
     func snooze(_ reminder: Reminder, until date: Date) {
-        do {
-            // Cancel existing notification
-            Task {
+        Task {
+            do {
+                // Cancel existing notification
                 await notificationService.cancelNotification(for: reminder)
-            }
 
-            // Snooze the reminder
-            try reminderService.snoozeReminder(reminder, until: date)
+                // Snooze the reminder
+                try await reminderService.snoozeReminder(reminder, until: date)
 
-            // Schedule new notification and update badge
-            Task {
+                // Schedule new notification and update badge
                 try? await notificationService.scheduleNotification(for: reminder)
                 await notificationService.updateAppBadge()
+            } catch {
+                onError(error)
             }
-        } catch {
-            onError(error)
         }
     }
 
     /// Deletes a reminder and cancels its notification.
     func delete(_ reminder: Reminder) {
-        do {
-            // Cancel notification
-            Task {
+        Task {
+            do {
+                // Cancel notification
                 await notificationService.cancelNotification(for: reminder)
-            }
 
-            try reminderService.deleteReminder(reminder)
+                try await reminderService.deleteReminder(reminder)
 
-            // Update app badge
-            Task {
+                // Update app badge
                 await notificationService.updateAppBadge()
+            } catch {
+                onError(error)
             }
-        } catch {
-            onError(error)
         }
     }
 
     /// Dismisses an overdue reminder, marking it as handled.
     /// This removes it from the active/overdue list without deleting it.
     func dismiss(_ reminder: Reminder) {
-        do {
-            // Cancel notification (if any)
-            Task {
+        Task {
+            do {
+                // Cancel notification (if any)
                 await notificationService.cancelNotification(for: reminder)
-            }
 
-            try reminderService.dismissReminder(reminder)
+                try await reminderService.dismissReminder(reminder)
 
-            // Update app badge
-            Task {
+                // Update app badge
                 await notificationService.updateAppBadge()
+            } catch {
+                onError(error)
             }
-        } catch {
-            onError(error)
         }
     }
 }

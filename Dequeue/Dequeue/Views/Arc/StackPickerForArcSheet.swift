@@ -143,12 +143,14 @@ struct StackPickerForArcSheet: View {
             return
         }
 
-        do {
-            try service.assignStack(stack, to: arc)
-            dismiss()
-        } catch {
-            errorMessage = "Failed to add stack to arc: \(error.localizedDescription)"
-            showError = true
+        Task {
+            do {
+                try await service.assignStack(stack, to: arc)
+                dismiss()
+            } catch {
+                errorMessage = "Failed to add stack to arc: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 }

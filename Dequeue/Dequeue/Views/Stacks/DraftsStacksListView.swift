@@ -105,15 +105,19 @@ struct DraftsStacksListView: View {
             return
         }
 
-        for index in offsets {
-            let draft = drafts[index]
-            do {
-                try service.discardDraft(draft)
-                logger.info("Draft discarded via swipe: \(draft.id)")
-            } catch {
-                logger.error("Failed to discard draft: \(error.localizedDescription)")
-                deleteErrorMessage = "Could not delete draft. Please try again."
-                showDeleteError = true
+        // Capture drafts to delete before entering Task (offsets may change)
+        let draftsToDelete = offsets.map { drafts[$0] }
+
+        Task {
+            for draft in draftsToDelete {
+                do {
+                    try await service.discardDraft(draft)
+                    logger.info("Draft discarded via swipe: \(draft.id)")
+                } catch {
+                    logger.error("Failed to discard draft: \(error.localizedDescription)")
+                    deleteErrorMessage = "Could not delete draft. Please try again."
+                    showDeleteError = true
+                }
             }
         }
     }

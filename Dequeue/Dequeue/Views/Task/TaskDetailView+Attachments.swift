@@ -45,7 +45,7 @@ extension TaskDetailView {
 
                 do {
                     // Create the attachment record (copies file locally)
-                    let attachment = try service.createAttachment(
+                    let attachment = try await service.createAttachment(
                         for: task.id,
                         parentType: .task,
                         fileURL: url

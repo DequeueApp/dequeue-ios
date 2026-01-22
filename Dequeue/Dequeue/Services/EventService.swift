@@ -65,15 +65,15 @@ final class EventService {
 
     // MARK: - Stack Events
 
-    func recordStackCreated(_ stack: Stack) throws {
+    func recordStackCreated(_ stack: Stack) async throws {
         let payload = StackCreatedPayload(
             stackId: stack.id,
             state: StackState.from(stack)
         )
-        try recordEvent(type: .stackCreated, payload: payload, entityId: stack.id)
+        try await recordEvent(type: .stackCreated, payload: payload, entityId: stack.id)
     }
 
-    func recordStackUpdated(_ stack: Stack, changes: [String: Any] = [:]) throws {
+    func recordStackUpdated(_ stack: Stack, changes: [String: Any] = [:]) async throws {
         logger.info("recordStackUpdated: stack.id='\(stack.id)', stack.title='\(stack.title)'")
         let state = StackState.from(stack)
         logger.info("recordStackUpdated: StackState.title='\(state.title)'")
@@ -82,137 +82,137 @@ final class EventService {
             changes: changes,
             fullState: state
         )
-        try recordEvent(type: .stackUpdated, payload: payload, entityId: stack.id)
+        try await recordEvent(type: .stackUpdated, payload: payload, entityId: stack.id)
         logger.info("recordStackUpdated: event recorded with title='\(state.title)'")
     }
 
-    func recordStackDeleted(_ stack: Stack) throws {
+    func recordStackDeleted(_ stack: Stack) async throws {
         let payload = StackDeletedPayload(stackId: stack.id)
-        try recordEvent(type: .stackDeleted, payload: payload, entityId: stack.id)
+        try await recordEvent(type: .stackDeleted, payload: payload, entityId: stack.id)
     }
 
-    func recordStackDiscarded(_ stack: Stack) throws {
+    func recordStackDiscarded(_ stack: Stack) async throws {
         let payload = StackDeletedPayload(stackId: stack.id)
-        try recordEvent(type: .stackDiscarded, payload: payload, entityId: stack.id)
+        try await recordEvent(type: .stackDiscarded, payload: payload, entityId: stack.id)
     }
 
-    func recordStackCompleted(_ stack: Stack) throws {
+    func recordStackCompleted(_ stack: Stack) async throws {
         let payload = StackStatusPayload(
             stackId: stack.id,
             status: StackStatus.completed.rawValue,
             fullState: StackState.from(stack)
         )
-        try recordEvent(type: .stackCompleted, payload: payload, entityId: stack.id)
+        try await recordEvent(type: .stackCompleted, payload: payload, entityId: stack.id)
     }
 
-    func recordStackActivated(_ stack: Stack) throws {
+    func recordStackActivated(_ stack: Stack) async throws {
         let payload = StackStatusPayload(
             stackId: stack.id,
             status: StackStatus.active.rawValue,
             fullState: StackState.from(stack)
         )
-        try recordEvent(type: .stackActivated, payload: payload, entityId: stack.id)
+        try await recordEvent(type: .stackActivated, payload: payload, entityId: stack.id)
     }
 
-    func recordStackDeactivated(_ stack: Stack) throws {
+    func recordStackDeactivated(_ stack: Stack) async throws {
         let payload = StackStatusPayload(
             stackId: stack.id,
             status: StackStatus.active.rawValue,  // Captures state before deactivation
             fullState: StackState.from(stack)
         )
-        try recordEvent(type: .stackDeactivated, payload: payload, entityId: stack.id)
+        try await recordEvent(type: .stackDeactivated, payload: payload, entityId: stack.id)
     }
 
-    func recordStackReordered(_ stacks: [Stack]) throws {
+    func recordStackReordered(_ stacks: [Stack]) async throws {
         let payload = StackReorderedPayload(
             stackIds: stacks.map { $0.id },
             sortOrders: stacks.map { $0.sortOrder }
         )
-        try recordEvent(type: .stackReordered, payload: payload)
+        try await recordEvent(type: .stackReordered, payload: payload)
     }
 
     // MARK: - Task Events
 
-    func recordTaskCreated(_ task: QueueTask) throws {
+    func recordTaskCreated(_ task: QueueTask) async throws {
         let payload = TaskCreatedPayload(
             taskId: task.id,
             stackId: task.stack?.id ?? "",
             state: TaskState.from(task)
         )
-        try recordEvent(type: .taskCreated, payload: payload, entityId: task.id)
+        try await recordEvent(type: .taskCreated, payload: payload, entityId: task.id)
     }
 
-    func recordTaskUpdated(_ task: QueueTask, changes: [String: Any] = [:]) throws {
+    func recordTaskUpdated(_ task: QueueTask, changes: [String: Any] = [:]) async throws {
         let payload = TaskUpdatedPayload(
             taskId: task.id,
             stackId: task.stack?.id ?? "",
             changes: changes,
             fullState: TaskState.from(task)
         )
-        try recordEvent(type: .taskUpdated, payload: payload, entityId: task.id)
+        try await recordEvent(type: .taskUpdated, payload: payload, entityId: task.id)
     }
 
-    func recordTaskDeleted(_ task: QueueTask) throws {
+    func recordTaskDeleted(_ task: QueueTask) async throws {
         let payload = TaskDeletedPayload(taskId: task.id, stackId: task.stack?.id ?? "")
-        try recordEvent(type: .taskDeleted, payload: payload, entityId: task.id)
+        try await recordEvent(type: .taskDeleted, payload: payload, entityId: task.id)
     }
 
-    func recordTaskCompleted(_ task: QueueTask) throws {
+    func recordTaskCompleted(_ task: QueueTask) async throws {
         let payload = TaskStatusPayload(
             taskId: task.id,
             stackId: task.stack?.id ?? "",
             status: TaskStatus.completed.rawValue,
             fullState: TaskState.from(task)
         )
-        try recordEvent(type: .taskCompleted, payload: payload, entityId: task.id)
+        try await recordEvent(type: .taskCompleted, payload: payload, entityId: task.id)
     }
 
-    func recordTaskActivated(_ task: QueueTask) throws {
+    func recordTaskActivated(_ task: QueueTask) async throws {
         let payload = TaskStatusPayload(
             taskId: task.id,
             stackId: task.stack?.id ?? "",
             status: TaskStatus.pending.rawValue,
             fullState: TaskState.from(task)
         )
-        try recordEvent(type: .taskActivated, payload: payload, entityId: task.id)
+        try await recordEvent(type: .taskActivated, payload: payload, entityId: task.id)
     }
 
-    func recordTaskReordered(_ tasks: [QueueTask]) throws {
+    func recordTaskReordered(_ tasks: [QueueTask]) async throws {
         let payload = TaskReorderedPayload(
             taskIds: tasks.map { $0.id },
             sortOrders: tasks.map { $0.sortOrder }
         )
-        try recordEvent(type: .taskReordered, payload: payload)
+        try await recordEvent(type: .taskReordered, payload: payload)
     }
 
     // MARK: - Reminder Events
 
-    func recordReminderCreated(_ reminder: Reminder) throws {
+    func recordReminderCreated(_ reminder: Reminder) async throws {
         let payload = ReminderCreatedPayload(
             reminderId: reminder.id,
             parentId: reminder.parentId,
             parentType: reminder.parentType.rawValue,
             state: ReminderState.from(reminder)
         )
-        try recordEvent(type: .reminderCreated, payload: payload, entityId: reminder.id)
+        try await recordEvent(type: .reminderCreated, payload: payload, entityId: reminder.id)
     }
 
-    func recordReminderUpdated(_ reminder: Reminder) throws {
+    func recordReminderUpdated(_ reminder: Reminder) async throws {
         let payload = ReminderUpdatedPayload(
             reminderId: reminder.id,
             parentId: reminder.parentId,
             parentType: reminder.parentType.rawValue,
             fullState: ReminderState.from(reminder)
         )
-        try recordEvent(type: .reminderUpdated, payload: payload, entityId: reminder.id)
+        try await recordEvent(type: .reminderUpdated, payload: payload, entityId: reminder.id)
     }
 
-    func recordReminderDeleted(_ reminder: Reminder) throws {
+    func recordReminderDeleted(_ reminder: Reminder) async throws {
         let payload = ReminderDeletedPayload(reminderId: reminder.id)
-        try recordEvent(type: .reminderDeleted, payload: payload, entityId: reminder.id)
+        try await recordEvent(type: .reminderDeleted, payload: payload, entityId: reminder.id)
     }
 
-    func recordReminderSnoozed(_ reminder: Reminder) throws {
+    func recordReminderSnoozed(_ reminder: Reminder) async throws {
         let payload = ReminderSnoozedPayload(
             reminderId: reminder.id,
             parentId: reminder.parentId,
@@ -221,146 +221,146 @@ final class EventService {
             snoozedUntil: Int64(reminder.remindAt.timeIntervalSince1970 * 1_000),
             fullState: ReminderState.from(reminder)
         )
-        try recordEvent(type: .reminderSnoozed, payload: payload, entityId: reminder.id)
+        try await recordEvent(type: .reminderSnoozed, payload: payload, entityId: reminder.id)
     }
 
     // MARK: - Tag Events
 
-    func recordTagCreated(_ tag: Tag) throws {
+    func recordTagCreated(_ tag: Tag) async throws {
         let payload = TagCreatedPayload(
             tagId: tag.id,
             state: TagState.from(tag)
         )
-        try recordEvent(type: .tagCreated, payload: payload, entityId: tag.id)
+        try await recordEvent(type: .tagCreated, payload: payload, entityId: tag.id)
     }
 
-    func recordTagUpdated(_ tag: Tag, changes: [String: Any] = [:]) throws {
+    func recordTagUpdated(_ tag: Tag, changes: [String: Any] = [:]) async throws {
         let payload = TagUpdatedPayload(
             tagId: tag.id,
             changes: changes,
             fullState: TagState.from(tag)
         )
-        try recordEvent(type: .tagUpdated, payload: payload, entityId: tag.id)
+        try await recordEvent(type: .tagUpdated, payload: payload, entityId: tag.id)
     }
 
-    func recordTagDeleted(_ tag: Tag) throws {
+    func recordTagDeleted(_ tag: Tag) async throws {
         let payload = TagDeletedPayload(tagId: tag.id)
-        try recordEvent(type: .tagDeleted, payload: payload, entityId: tag.id)
+        try await recordEvent(type: .tagDeleted, payload: payload, entityId: tag.id)
     }
 
     // MARK: - Device Events
 
-    func recordDeviceDiscovered(_ device: Device) throws {
+    func recordDeviceDiscovered(_ device: Device) async throws {
         let payload = DeviceDiscoveredPayload(
             deviceId: device.deviceId,
             state: DeviceState.from(device)
         )
-        try recordEvent(type: .deviceDiscovered, payload: payload, entityId: device.id)
+        try await recordEvent(type: .deviceDiscovered, payload: payload, entityId: device.id)
     }
 
     // MARK: - Attachment Events
 
-    func recordAttachmentAdded(_ attachment: Attachment) throws {
+    func recordAttachmentAdded(_ attachment: Attachment) async throws {
         let payload = AttachmentAddedPayload(
             attachmentId: attachment.id,
             parentId: attachment.parentId,
             parentType: attachment.parentType.rawValue,
             state: AttachmentState.from(attachment)
         )
-        try recordEvent(type: .attachmentAdded, payload: payload, entityId: attachment.id)
+        try await recordEvent(type: .attachmentAdded, payload: payload, entityId: attachment.id)
     }
 
-    func recordAttachmentRemoved(_ attachment: Attachment) throws {
+    func recordAttachmentRemoved(_ attachment: Attachment) async throws {
         let payload = AttachmentRemovedPayload(
             attachmentId: attachment.id,
             parentId: attachment.parentId,
             parentType: attachment.parentType.rawValue
         )
-        try recordEvent(type: .attachmentRemoved, payload: payload, entityId: attachment.id)
+        try await recordEvent(type: .attachmentRemoved, payload: payload, entityId: attachment.id)
     }
 
     // MARK: - Arc Events
 
-    func recordArcCreated(_ arc: Arc) throws {
+    func recordArcCreated(_ arc: Arc) async throws {
         let payload = ArcCreatedPayload(
             arcId: arc.id,
             state: ArcState.from(arc)
         )
-        try recordEvent(type: .arcCreated, payload: payload, entityId: arc.id)
+        try await recordEvent(type: .arcCreated, payload: payload, entityId: arc.id)
     }
 
-    func recordArcUpdated(_ arc: Arc, changes: [String: Any] = [:]) throws {
+    func recordArcUpdated(_ arc: Arc, changes: [String: Any] = [:]) async throws {
         let payload = ArcUpdatedPayload(
             arcId: arc.id,
             changes: changes,
             fullState: ArcState.from(arc)
         )
-        try recordEvent(type: .arcUpdated, payload: payload, entityId: arc.id)
+        try await recordEvent(type: .arcUpdated, payload: payload, entityId: arc.id)
     }
 
-    func recordArcDeleted(_ arc: Arc) throws {
+    func recordArcDeleted(_ arc: Arc) async throws {
         let payload = ArcDeletedPayload(arcId: arc.id)
-        try recordEvent(type: .arcDeleted, payload: payload, entityId: arc.id)
+        try await recordEvent(type: .arcDeleted, payload: payload, entityId: arc.id)
     }
 
-    func recordArcCompleted(_ arc: Arc) throws {
+    func recordArcCompleted(_ arc: Arc) async throws {
         let payload = ArcStatusPayload(
             arcId: arc.id,
             status: ArcStatus.completed.rawValue,
             fullState: ArcState.from(arc)
         )
-        try recordEvent(type: .arcCompleted, payload: payload, entityId: arc.id)
+        try await recordEvent(type: .arcCompleted, payload: payload, entityId: arc.id)
     }
 
-    func recordArcPaused(_ arc: Arc) throws {
+    func recordArcPaused(_ arc: Arc) async throws {
         let payload = ArcStatusPayload(
             arcId: arc.id,
             status: ArcStatus.paused.rawValue,
             fullState: ArcState.from(arc)
         )
-        try recordEvent(type: .arcPaused, payload: payload, entityId: arc.id)
+        try await recordEvent(type: .arcPaused, payload: payload, entityId: arc.id)
     }
 
-    func recordArcActivated(_ arc: Arc) throws {
+    func recordArcActivated(_ arc: Arc) async throws {
         let payload = ArcStatusPayload(
             arcId: arc.id,
             status: ArcStatus.active.rawValue,
             fullState: ArcState.from(arc)
         )
-        try recordEvent(type: .arcActivated, payload: payload, entityId: arc.id)
+        try await recordEvent(type: .arcActivated, payload: payload, entityId: arc.id)
     }
 
-    func recordArcDeactivated(_ arc: Arc) throws {
+    func recordArcDeactivated(_ arc: Arc) async throws {
         let payload = ArcStatusPayload(
             arcId: arc.id,
             status: ArcStatus.archived.rawValue,
             fullState: ArcState.from(arc)
         )
-        try recordEvent(type: .arcDeactivated, payload: payload, entityId: arc.id)
+        try await recordEvent(type: .arcDeactivated, payload: payload, entityId: arc.id)
     }
 
-    func recordArcReordered(_ arcs: [Arc]) throws {
+    func recordArcReordered(_ arcs: [Arc]) async throws {
         let payload = ArcReorderedPayload(
             arcIds: arcs.map { $0.id },
             sortOrders: arcs.map { $0.sortOrder }
         )
-        try recordEvent(type: .arcReordered, payload: payload)
+        try await recordEvent(type: .arcReordered, payload: payload)
     }
 
-    func recordStackAssignedToArc(stack: Stack, arc: Arc) throws {
+    func recordStackAssignedToArc(stack: Stack, arc: Arc) async throws {
         let payload = StackArcAssignmentPayload(
             stackId: stack.id,
             arcId: arc.id
         )
-        try recordEvent(type: .stackAssignedToArc, payload: payload, entityId: stack.id)
+        try await recordEvent(type: .stackAssignedToArc, payload: payload, entityId: stack.id)
     }
 
-    func recordStackRemovedFromArc(stack: Stack, arcId: String) throws {
+    func recordStackRemovedFromArc(stack: Stack, arcId: String) async throws {
         let payload = StackArcAssignmentPayload(
             stackId: stack.id,
             arcId: arcId
         )
-        try recordEvent(type: .stackRemovedFromArc, payload: payload, entityId: stack.id)
+        try await recordEvent(type: .stackRemovedFromArc, payload: payload, entityId: stack.id)
     }
 
     // MARK: - Query
@@ -566,8 +566,16 @@ final class EventService {
 
     /// Records an event without saving - caller is responsible for batching saves.
     /// This improves performance by avoiding multiple disk writes per operation.
-    private func recordEvent<T: Encodable>(type: EventType, payload: T, entityId: String? = nil) throws {
+    ///
+    /// JSON encoding is performed off the main thread to prevent UI blocking.
+    /// The modelContext.insert() still happens on @MainActor as required by SwiftData.
+    private func recordEvent<T: Encodable>(type: EventType, payload: T, entityId: String? = nil) async throws {
+        // Encode JSON on main thread first (payload may not be Sendable due to [String: Any])
+        // then the heavy work is already done. For truly large payloads, consider
+        // converting to a Sendable representation first.
         let payloadData = try JSONEncoder().encode(payload)
+
+        // Insert event on main thread (required by SwiftData @MainActor)
         let event = Event(
             eventType: type,
             payload: payloadData,

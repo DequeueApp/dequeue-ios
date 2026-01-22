@@ -22,7 +22,7 @@ final class ReminderService {
 
     // MARK: - Create
 
-    func createReminder(for task: QueueTask, at remindAt: Date) throws -> Reminder {
+    func createReminder(for task: QueueTask, at remindAt: Date) async throws -> Reminder {
         let reminder = Reminder(
             parentId: task.id,
             parentType: .task,
@@ -31,14 +31,14 @@ final class ReminderService {
 
         modelContext.insert(reminder)
         task.reminders.append(reminder)
-        try eventService.recordReminderCreated(reminder)
+        try await eventService.recordReminderCreated(reminder)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
 
         return reminder
     }
 
-    func createReminder(for stack: Stack, at remindAt: Date) throws -> Reminder {
+    func createReminder(for stack: Stack, at remindAt: Date) async throws -> Reminder {
         let reminder = Reminder(
             parentId: stack.id,
             parentType: .stack,
@@ -47,14 +47,14 @@ final class ReminderService {
 
         modelContext.insert(reminder)
         stack.reminders.append(reminder)
-        try eventService.recordReminderCreated(reminder)
+        try await eventService.recordReminderCreated(reminder)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
 
         return reminder
     }
 
-    func createReminder(for arc: Arc, at remindAt: Date) throws -> Reminder {
+    func createReminder(for arc: Arc, at remindAt: Date) async throws -> Reminder {
         let reminder = Reminder(
             parentId: arc.id,
             parentType: .arc,
@@ -63,7 +63,7 @@ final class ReminderService {
 
         modelContext.insert(reminder)
         arc.reminders.append(reminder)
-        try eventService.recordReminderCreated(reminder)
+        try await eventService.recordReminderCreated(reminder)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
 
@@ -72,26 +72,26 @@ final class ReminderService {
 
     // MARK: - Update
 
-    func updateReminder(_ reminder: Reminder, remindAt: Date) throws {
+    func updateReminder(_ reminder: Reminder, remindAt: Date) async throws {
         reminder.remindAt = remindAt
         reminder.updatedAt = Date()
         reminder.syncState = .pending
 
-        try eventService.recordReminderUpdated(reminder)
+        try await eventService.recordReminderUpdated(reminder)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Snooze
 
-    func snoozeReminder(_ reminder: Reminder, until: Date) throws {
+    func snoozeReminder(_ reminder: Reminder, until: Date) async throws {
         reminder.snoozedFrom = reminder.remindAt
         reminder.remindAt = until
         reminder.status = .snoozed
         reminder.updatedAt = Date()
         reminder.syncState = .pending
 
-        try eventService.recordReminderSnoozed(reminder)
+        try await eventService.recordReminderSnoozed(reminder)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
@@ -100,24 +100,24 @@ final class ReminderService {
 
     /// Dismisses an overdue reminder, marking it as handled without deleting it.
     /// This removes it from the active/overdue lists and decreases the badge count.
-    func dismissReminder(_ reminder: Reminder) throws {
+    func dismissReminder(_ reminder: Reminder) async throws {
         reminder.status = .fired
         reminder.updatedAt = Date()
         reminder.syncState = .pending
 
-        try eventService.recordReminderUpdated(reminder)
+        try await eventService.recordReminderUpdated(reminder)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Delete
 
-    func deleteReminder(_ reminder: Reminder) throws {
+    func deleteReminder(_ reminder: Reminder) async throws {
         reminder.isDeleted = true
         reminder.updatedAt = Date()
         reminder.syncState = .pending
 
-        try eventService.recordReminderDeleted(reminder)
+        try await eventService.recordReminderDeleted(reminder)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }

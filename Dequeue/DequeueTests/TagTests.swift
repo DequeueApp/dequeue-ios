@@ -113,7 +113,7 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.createTag(name: "Swift")
+        let tag = try await service.createTag(name: "Swift")
 
         #expect(tag.name == "Swift")
         #expect(tag.normalizedName == "swift")
@@ -128,7 +128,7 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.createTag(name: "  Swift  ")
+        let tag = try await service.createTag(name: "  Swift  ")
 
         #expect(tag.name == "Swift")
         #expect(tag.normalizedName == "swift")
@@ -141,7 +141,7 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.createTag(name: "Urgent", colorHex: "#FF0000")
+        let tag = try await service.createTag(name: "Urgent", colorHex: "#FF0000")
 
         #expect(tag.name == "Urgent")
         #expect(tag.colorHex == "#FF0000")
@@ -154,8 +154,8 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        #expect(throws: TagServiceError.emptyTagName) {
-            _ = try service.createTag(name: "")
+        await #expect(throws: TagServiceError.emptyTagName) {
+            _ = try await service.createTag(name: "")
         }
     }
 
@@ -166,8 +166,8 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        #expect(throws: TagServiceError.emptyTagName) {
-            _ = try service.createTag(name: "   ")
+        await #expect(throws: TagServiceError.emptyTagName) {
+            _ = try await service.createTag(name: "   ")
         }
     }
 
@@ -180,8 +180,8 @@ struct TagServiceTests {
 
         let longName = String(repeating: "a", count: 51)
 
-        #expect(throws: TagServiceError.tagNameTooLong(maxLength: 50)) {
-            _ = try service.createTag(name: longName)
+        await #expect(throws: TagServiceError.tagNameTooLong(maxLength: 50)) {
+            _ = try await service.createTag(name: longName)
         }
     }
 
@@ -192,10 +192,10 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        _ = try service.createTag(name: "Swift")
+        _ = try await service.createTag(name: "Swift")
 
-        #expect(throws: TagServiceError.duplicateTagName(existingName: "Swift")) {
-            _ = try service.createTag(name: "swift")
+        await #expect(throws: TagServiceError.duplicateTagName(existingName: "Swift")) {
+            _ = try await service.createTag(name: "swift")
         }
     }
 
@@ -206,10 +206,10 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        _ = try service.createTag(name: "Frontend")
+        _ = try await service.createTag(name: "Frontend")
 
-        #expect(throws: TagServiceError.duplicateTagName(existingName: "Frontend")) {
-            _ = try service.createTag(name: "FRONTEND")
+        await #expect(throws: TagServiceError.duplicateTagName(existingName: "Frontend")) {
+            _ = try await service.createTag(name: "FRONTEND")
         }
     }
 
@@ -220,8 +220,8 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let original = try service.createTag(name: "Swift")
-        let found = try service.findOrCreateTag(name: "swift")
+        let original = try await service.createTag(name: "Swift")
+        let found = try await service.findOrCreateTag(name: "swift")
 
         #expect(original.id == found.id)
     }
@@ -233,7 +233,7 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.findOrCreateTag(name: "NewTag")
+        let tag = try await service.findOrCreateTag(name: "NewTag")
 
         #expect(tag.name == "NewTag")
     }
@@ -245,12 +245,12 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        _ = try service.createTag(name: "Swift")
-        _ = try service.createTag(name: "Kotlin")
-        let deletedTag = try service.createTag(name: "Deleted")
-        try service.deleteTag(deletedTag)
+        _ = try await service.createTag(name: "Swift")
+        _ = try await service.createTag(name: "Kotlin")
+        let deletedTag = try await service.createTag(name: "Deleted")
+        try await service.deleteTag(deletedTag)
 
-        let tags = try service.getAllTags()
+        let tags = try await service.getAllTags()
 
         #expect(tags.count == 2)
         #expect(tags.contains { $0.name == "Swift" })
@@ -265,11 +265,11 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        _ = try service.createTag(name: "Swift")
-        _ = try service.createTag(name: "SwiftUI")
-        _ = try service.createTag(name: "Kotlin")
+        _ = try await service.createTag(name: "Swift")
+        _ = try await service.createTag(name: "SwiftUI")
+        _ = try await service.createTag(name: "Kotlin")
 
-        let results = try service.searchTags(query: "swift")
+        let results = try await service.searchTags(query: "swift")
 
         #expect(results.count == 2)
         #expect(results.contains { $0.name == "Swift" })
@@ -283,10 +283,10 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        _ = try service.createTag(name: "Swift")
-        _ = try service.createTag(name: "Kotlin")
+        _ = try await service.createTag(name: "Swift")
+        _ = try await service.createTag(name: "Kotlin")
 
-        let results = try service.searchTags(query: "")
+        let results = try await service.searchTags(query: "")
 
         #expect(results.count == 2)
     }
@@ -298,10 +298,10 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.createTag(name: "Swift")
+        let tag = try await service.createTag(name: "Swift")
         let originalRevision = tag.revision
 
-        try service.updateTag(tag, name: "SwiftUI")
+        try await service.updateTag(tag, name: "SwiftUI")
 
         #expect(tag.name == "SwiftUI")
         #expect(tag.normalizedName == "swiftui")
@@ -315,8 +315,8 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.createTag(name: "Urgent")
-        try service.updateTag(tag, colorHex: "#FF0000")
+        let tag = try await service.createTag(name: "Urgent")
+        try await service.updateTag(tag, colorHex: "#FF0000")
 
         #expect(tag.colorHex == "#FF0000")
     }
@@ -328,8 +328,8 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.createTag(name: "Urgent", colorHex: "#FF0000")
-        try service.updateTag(tag, colorHex: Optional<String?>.some(nil))
+        let tag = try await service.createTag(name: "Urgent", colorHex: "#FF0000")
+        try await service.updateTag(tag, colorHex: Optional<String?>.some(nil))
 
         #expect(tag.colorHex == nil)
     }
@@ -341,11 +341,11 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        _ = try service.createTag(name: "Swift")
-        let kotlinTag = try service.createTag(name: "Kotlin")
+        _ = try await service.createTag(name: "Swift")
+        let kotlinTag = try await service.createTag(name: "Kotlin")
 
-        #expect(throws: TagServiceError.duplicateTagName(existingName: "Swift")) {
-            try service.updateTag(kotlinTag, name: "swift")
+        await #expect(throws: TagServiceError.duplicateTagName(existingName: "Swift")) {
+            try await service.updateTag(kotlinTag, name: "swift")
         }
     }
 
@@ -356,10 +356,10 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.createTag(name: "Swift")
+        let tag = try await service.createTag(name: "Swift")
 
         // Changing casing should be allowed for the same tag
-        try service.updateTag(tag, name: "SWIFT")
+        try await service.updateTag(tag, name: "SWIFT")
 
         #expect(tag.name == "SWIFT")
         #expect(tag.normalizedName == "swift")
@@ -372,8 +372,8 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.createTag(name: "Swift")
-        let found = try service.findTagById(tag.id)
+        let tag = try await service.createTag(name: "Swift")
+        let found = try await service.findTagById(tag.id)
 
         #expect(found?.id == tag.id)
         #expect(found?.name == "Swift")
@@ -386,11 +386,11 @@ struct TagServiceTests {
         let context = ModelContext(container)
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let tag = try service.createTag(name: "Swift")
+        let tag = try await service.createTag(name: "Swift")
         let tagId = tag.id
-        try service.deleteTag(tag)
+        try await service.deleteTag(tag)
 
-        let found = try service.findTagById(tagId)
+        let found = try await service.findTagById(tagId)
 
         #expect(found == nil)
     }

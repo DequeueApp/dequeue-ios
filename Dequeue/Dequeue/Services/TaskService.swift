@@ -27,7 +27,7 @@ final class TaskService {
         description: String? = nil,
         stack: Stack,
         sortOrder: Int? = nil
-    ) throws -> QueueTask {
+    ) async throws -> QueueTask {
         let order = sortOrder ?? stack.pendingTasks.count
 
         let task = QueueTask(
@@ -41,7 +41,7 @@ final class TaskService {
         modelContext.insert(task)
         stack.tasks.append(task)
 
-        try eventService.recordTaskCreated(task)
+        try await eventService.recordTaskCreated(task)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
 
@@ -50,90 +50,90 @@ final class TaskService {
 
     // MARK: - Update
 
-    func updateTask(_ task: QueueTask, title: String, description: String?) throws {
+    func updateTask(_ task: QueueTask, title: String, description: String?) async throws {
         task.title = title
         task.taskDescription = description
         task.updatedAt = Date()
         task.syncState = .pending
 
-        try eventService.recordTaskUpdated(task)
+        try await eventService.recordTaskUpdated(task)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Status Changes
 
-    func markAsCompleted(_ task: QueueTask) throws {
+    func markAsCompleted(_ task: QueueTask) async throws {
         task.status = .completed
         task.updatedAt = Date()
         task.syncState = .pending
 
-        try eventService.recordTaskCompleted(task)
+        try await eventService.recordTaskCompleted(task)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
-    func markAsBlocked(_ task: QueueTask, reason: String?) throws {
+    func markAsBlocked(_ task: QueueTask, reason: String?) async throws {
         task.status = .blocked
         task.blockedReason = reason
         task.updatedAt = Date()
         task.syncState = .pending
 
-        try eventService.recordTaskUpdated(task)
+        try await eventService.recordTaskUpdated(task)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
-    func unblock(_ task: QueueTask) throws {
+    func unblock(_ task: QueueTask) async throws {
         task.status = .pending
         task.blockedReason = nil
         task.updatedAt = Date()
         task.syncState = .pending
 
-        try eventService.recordTaskUpdated(task)
+        try await eventService.recordTaskUpdated(task)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
-    func closeTask(_ task: QueueTask) throws {
+    func closeTask(_ task: QueueTask) async throws {
         task.status = .closed
         task.updatedAt = Date()
         task.syncState = .pending
 
-        try eventService.recordTaskUpdated(task)
+        try await eventService.recordTaskUpdated(task)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Delete
 
-    func deleteTask(_ task: QueueTask) throws {
+    func deleteTask(_ task: QueueTask) async throws {
         task.isDeleted = true
         task.updatedAt = Date()
         task.syncState = .pending
 
-        try eventService.recordTaskDeleted(task)
+        try await eventService.recordTaskDeleted(task)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Reorder
 
-    func updateSortOrders(_ tasks: [QueueTask]) throws {
+    func updateSortOrders(_ tasks: [QueueTask]) async throws {
         for (index, task) in tasks.enumerated() {
             task.sortOrder = index
             task.updatedAt = Date()
             task.syncState = .pending
         }
 
-        try eventService.recordTaskReordered(tasks)
+        try await eventService.recordTaskReordered(tasks)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Activate (move to top)
 
-    func activateTask(_ task: QueueTask) throws {
+    func activateTask(_ task: QueueTask) async throws {
         guard let stack = task.stack else { return }
 
         // Set explicit active task tracking
@@ -156,8 +156,8 @@ final class TaskService {
         }
 
         // Record events
-        try eventService.recordTaskActivated(task)
-        try eventService.recordTaskReordered(reorderedTasks)
+        try await eventService.recordTaskActivated(task)
+        try await eventService.recordTaskReordered(reorderedTasks)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }

@@ -34,10 +34,10 @@ struct StackConstraintValidationTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let draft = try service.createStack(title: "Draft Stack", isDraft: true)
+        let draft = try await service.createStack(title: "Draft Stack", isDraft: true)
 
-        #expect(throws: StackServiceError.cannotActivateDraftStack) {
-            try service.setAsActive(draft)
+        await #expect(throws: StackServiceError.cannotActivateDraftStack) {
+            try await service.setAsActive(draft)
         }
     }
 
@@ -51,8 +51,8 @@ struct StackConstraintValidationTests {
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Only create drafts - no active stacks
-        _ = try service.createStack(title: "Draft 1", isDraft: true)
-        _ = try service.createStack(title: "Draft 2", isDraft: true)
+        _ = try await service.createStack(title: "Draft 1", isDraft: true)
+        _ = try await service.createStack(title: "Draft 2", isDraft: true)
 
         // Should return true
         let result = try service.validateAndFixSingleActiveConstraint()
@@ -66,7 +66,7 @@ struct StackConstraintValidationTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        _ = try service.createStack(title: "Active Stack")
+        _ = try await service.createStack(title: "Active Stack")
 
         // Should return true
         let result = try service.validateAndFixSingleActiveConstraint()
@@ -81,8 +81,8 @@ struct StackConstraintValidationTests {
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create stacks normally
-        let stack1 = try service.createStack(title: "Stack 1")
-        let stack2 = try service.createStack(title: "Stack 2")
+        let stack1 = try await service.createStack(title: "Stack 1")
+        let stack2 = try await service.createStack(title: "Stack 2")
 
         // Manually corrupt state to simulate constraint violation (e.g., from sync)
         stack1.isActive = true
@@ -104,8 +104,8 @@ struct StackConstraintValidationTests {
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create stacks normally
-        let stack1 = try service.createStack(title: "Stack 1")
-        let stack2 = try service.createStack(title: "Stack 2")
+        let stack1 = try await service.createStack(title: "Stack 1")
+        let stack2 = try await service.createStack(title: "Stack 2")
 
         // Manually corrupt state to simulate constraint violation
         stack1.isActive = true
@@ -126,9 +126,9 @@ struct StackConstraintValidationTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack1 = try service.createStack(title: "Stack 1")
-        let stack2 = try service.createStack(title: "Stack 2")
-        let stack3 = try service.createStack(title: "Stack 3")
+        let stack1 = try await service.createStack(title: "Stack 1")
+        let stack2 = try await service.createStack(title: "Stack 2")
+        let stack3 = try await service.createStack(title: "Stack 3")
 
         // Manually set all to active to simulate corrupted state
         stack1.isActive = true
@@ -137,7 +137,7 @@ struct StackConstraintValidationTests {
         try context.save()
 
         // setAsActive should fix the corruption
-        try service.setAsActive(stack2)
+        try await service.setAsActive(stack2)
 
         let activeCount = [stack1, stack2, stack3].filter { $0.isActive }.count
         #expect(activeCount == 1)
@@ -153,21 +153,21 @@ struct StackConstraintValidationTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let first = try service.createStack(title: "First Stack")
-        let second = try service.createStack(title: "Second Stack")
-        let third = try service.createStack(title: "Third Stack")
+        let first = try await service.createStack(title: "First Stack")
+        let second = try await service.createStack(title: "Second Stack")
+        let third = try await service.createStack(title: "Third Stack")
 
         #expect(first.isActive == true)
         #expect(second.isActive == false)
         #expect(third.isActive == false)
 
-        try service.setAsActive(second)
+        try await service.setAsActive(second)
 
         #expect(first.isActive == false)
         #expect(second.isActive == true)
         #expect(third.isActive == false)
 
-        try service.setAsActive(third)
+        try await service.setAsActive(third)
 
         #expect(first.isActive == false)
         #expect(second.isActive == false)
@@ -181,15 +181,15 @@ struct StackConstraintValidationTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack1 = try service.createStack(title: "Stack 1")
-        let stack2 = try service.createStack(title: "Stack 2")
-        let stack3 = try service.createStack(title: "Stack 3")
+        let stack1 = try await service.createStack(title: "Stack 1")
+        let stack2 = try await service.createStack(title: "Stack 2")
+        let stack3 = try await service.createStack(title: "Stack 3")
 
         // Rapidly switch between stacks
         for _ in 0..<10 {
-            try service.setAsActive(stack1)
-            try service.setAsActive(stack2)
-            try service.setAsActive(stack3)
+            try await service.setAsActive(stack1)
+            try await service.setAsActive(stack2)
+            try await service.setAsActive(stack3)
         }
 
         // Constraint should still hold
@@ -229,11 +229,11 @@ struct StackConstraintValidationTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try service.createStack(title: "Test Stack")
+        let stack = try await service.createStack(title: "Test Stack")
         #expect(stack.isActive == true)
 
         // Activating the same stack should not throw
-        try service.setAsActive(stack)
+        try await service.setAsActive(stack)
         #expect(stack.isActive == true)
 
         // Constraint should still hold
@@ -248,11 +248,11 @@ struct StackConstraintValidationTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack1 = try service.createStack(title: "Stack 1")
-        let stack2 = try service.createStack(title: "Stack 2")
+        let stack1 = try await service.createStack(title: "Stack 1")
+        let stack2 = try await service.createStack(title: "Stack 2")
 
         // Make stack2 active
-        try service.setAsActive(stack2)
+        try await service.setAsActive(stack2)
 
         // Delete stack1 but leave isActive = true (simulating corrupted deleted state)
         stack1.isDeleted = true
@@ -271,8 +271,8 @@ struct StackConstraintValidationTests {
         let context = ModelContext(container)
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
-        let stack = try service.createStack(title: "Active Stack")
-        let draft = try service.createStack(title: "Draft Stack", isDraft: true)
+        _ = try await service.createStack(title: "Active Stack")
+        let draft = try await service.createStack(title: "Draft Stack", isDraft: true)
 
         // Manually set draft as active (should be ignored)
         draft.isActive = true
@@ -293,9 +293,9 @@ struct StackConstraintValidationTests {
         let service = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create stacks
-        let stack1 = try service.createStack(title: "Stack 1")
-        let stack2 = try service.createStack(title: "Stack 2")
-        let stack3 = try service.createStack(title: "Stack 3")
+        let stack1 = try await service.createStack(title: "Stack 1")
+        let stack2 = try await service.createStack(title: "Stack 2")
+        let stack3 = try await service.createStack(title: "Stack 3")
 
         // Simulate sync setting multiple stacks as active (constraint violation)
         stack1.isActive = true
@@ -304,7 +304,7 @@ struct StackConstraintValidationTests {
         try context.save()
 
         // setAsActive should silently fix this by deactivating all others
-        try service.setAsActive(stack2)
+        try await service.setAsActive(stack2)
 
         #expect(stack1.isActive == false)
         #expect(stack2.isActive == true)

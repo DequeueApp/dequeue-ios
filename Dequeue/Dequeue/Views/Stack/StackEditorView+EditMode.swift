@@ -64,10 +64,12 @@ extension StackEditorView {
             showError = true
             return
         }
-        do {
-            try service.addTag(tag, to: stack)
-        } catch {
-            handleError(error)
+        Task {
+            do {
+                try await service.addTag(tag, to: stack)
+            } catch {
+                handleError(error)
+            }
         }
     }
 
@@ -77,27 +79,30 @@ extension StackEditorView {
             showError = true
             return
         }
-        do {
-            try service.removeTag(tag, from: stack)
-        } catch {
-            handleError(error)
+        Task {
+            do {
+                try await service.removeTag(tag, from: stack)
+            } catch {
+                handleError(error)
+            }
         }
     }
 
     private func createAndAddTag(name: String, stack: Stack) -> Tag? {
-        guard let service = tagService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return nil
+        Task { @MainActor in
+            guard let service = tagService else {
+                errorMessage = "Initializing... please try again."
+                showError = true
+                return
+            }
+            do {
+                let tag = try await service.findOrCreateTag(name: name)
+                addTagToStack(tag, stack: stack)
+            } catch {
+                handleError(error)
+            }
         }
-        do {
-            let tag = try service.findOrCreateTag(name: name)
-            addTagToStack(tag, stack: stack)
-            return tag
-        } catch {
-            handleError(error)
-            return nil
-        }
+        return nil
     }
 
     // MARK: - Arc Section
@@ -251,11 +256,13 @@ extension StackEditorView {
             return
         }
 
-        do {
-            try service.setAsActive(stack)
-            dismiss()
-        } catch {
-            handleError(error)
+        Task {
+            do {
+                try await service.setAsActive(stack)
+                dismiss()
+            } catch {
+                handleError(error)
+            }
         }
     }
 
@@ -267,11 +274,13 @@ extension StackEditorView {
             return
         }
 
-        do {
-            try service.deactivateStack(stack)
-            dismiss()
-        } catch {
-            handleError(error)
+        Task {
+            do {
+                try await service.deactivateStack(stack)
+                dismiss()
+            } catch {
+                handleError(error)
+            }
         }
     }
 
@@ -320,18 +329,20 @@ extension StackEditorView {
             return
         }
 
-        do {
-            logger.info("saveStackTitle: calling updateStack with title='\(trimmedTitle)'")
-            try service.updateStack(
-                stack,
-                title: trimmedTitle,
-                description: stack.stackDescription
-            )
-            logger.info("saveStackTitle: after updateStack, stack.title='\(stack.title)'")
-            editedTitle = ""
-        } catch {
-            logger.error("saveStackTitle: error - \(error.localizedDescription)")
-            handleError(error)
+        Task {
+            do {
+                logger.info("saveStackTitle: calling updateStack with title='\(trimmedTitle)'")
+                try await service.updateStack(
+                    stack,
+                    title: trimmedTitle,
+                    description: stack.stackDescription
+                )
+                logger.info("saveStackTitle: after updateStack, stack.title='\(stack.title)'")
+                editedTitle = ""
+            } catch {
+                logger.error("saveStackTitle: error - \(error.localizedDescription)")
+                handleError(error)
+            }
         }
     }
 
@@ -343,15 +354,17 @@ extension StackEditorView {
             return
         }
 
-        do {
-            try service.updateStack(
-                stack,
-                title: stack.title,
-                description: editedDescription.isEmpty ? nil : editedDescription
-            )
-            isEditingDescription = false
-        } catch {
-            handleError(error)
+        Task {
+            do {
+                try await service.updateStack(
+                    stack,
+                    title: stack.title,
+                    description: editedDescription.isEmpty ? nil : editedDescription
+                )
+                isEditingDescription = false
+            } catch {
+                handleError(error)
+            }
         }
     }
 
@@ -361,12 +374,14 @@ extension StackEditorView {
             showError = true
             return
         }
-        do {
-            if task.status != .completed {
-                try service.markAsCompleted(task)
+        Task {
+            do {
+                if task.status != .completed {
+                    try await service.markAsCompleted(task)
+                }
+            } catch {
+                handleError(error)
             }
-        } catch {
-            handleError(error)
         }
     }
 
@@ -376,10 +391,12 @@ extension StackEditorView {
             showError = true
             return
         }
-        do {
-            try service.activateTask(task)
-        } catch {
-            handleError(error)
+        Task {
+            do {
+                try await service.activateTask(task)
+            } catch {
+                handleError(error)
+            }
         }
     }
 
@@ -394,10 +411,12 @@ extension StackEditorView {
         var tasks = stack.pendingTasks
         tasks.move(fromOffsets: source, toOffset: destination)
 
-        do {
-            try service.updateSortOrders(tasks)
-        } catch {
-            handleError(error)
+        Task {
+            do {
+                try await service.updateSortOrders(tasks)
+            } catch {
+                handleError(error)
+            }
         }
     }
 
@@ -409,11 +428,13 @@ extension StackEditorView {
             return
         }
 
-        do {
-            try service.markAsCompleted(stack, completeAllTasks: completeAllTasks)
-            dismiss()
-        } catch {
-            handleError(error)
+        Task {
+            do {
+                try await service.markAsCompleted(stack, completeAllTasks: completeAllTasks)
+                dismiss()
+            } catch {
+                handleError(error)
+            }
         }
     }
 
@@ -425,11 +446,13 @@ extension StackEditorView {
             return
         }
 
-        do {
-            try service.closeStack(stack)
-            dismiss()
-        } catch {
-            handleError(error)
+        Task {
+            do {
+                try await service.closeStack(stack)
+                dismiss()
+            } catch {
+                handleError(error)
+            }
         }
     }
 
@@ -457,17 +480,19 @@ extension StackEditorView {
             return
         }
 
-        do {
-            _ = try service.createTask(
-                title: newTaskTitle,
-                description: newTaskDescription.isEmpty ? nil : newTaskDescription,
-                stack: stack
-            )
-            newTaskTitle = ""
-            newTaskDescription = ""
-            showAddTask = false
-        } catch {
-            handleError(error)
+        Task {
+            do {
+                _ = try await service.createTask(
+                    title: newTaskTitle,
+                    description: newTaskDescription.isEmpty ? nil : newTaskDescription,
+                    stack: stack
+                )
+                newTaskTitle = ""
+                newTaskDescription = ""
+                showAddTask = false
+            } catch {
+                handleError(error)
+            }
         }
     }
 

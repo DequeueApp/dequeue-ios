@@ -185,13 +185,15 @@ struct ArcPickerSheet: View {
             return
         }
 
-        do {
-            try service.assignStack(stack, to: arc)
-            onArcSelected?(arc)
-            dismiss()
-        } catch {
-            errorMessage = "Failed to assign stack to arc: \(error.localizedDescription)"
-            showError = true
+        Task {
+            do {
+                try await service.assignStack(stack, to: arc)
+                onArcSelected?(arc)
+                dismiss()
+            } catch {
+                errorMessage = "Failed to assign stack to arc: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 
@@ -201,13 +203,15 @@ struct ArcPickerSheet: View {
             return
         }
 
-        do {
-            try service.removeStack(stack, from: currentArc)
-            onArcSelected?(nil)
-            dismiss()
-        } catch {
-            errorMessage = "Failed to remove stack from arc: \(error.localizedDescription)"
-            showError = true
+        Task {
+            do {
+                try await service.removeStack(stack, from: currentArc)
+                onArcSelected?(nil)
+                dismiss()
+            } catch {
+                errorMessage = "Failed to remove stack from arc: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 }

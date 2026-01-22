@@ -99,11 +99,13 @@ extension ArcEditorView {
     }
 
     func removeStack(_ stack: Stack, from arc: Arc) {
-        do {
-            try arcService?.removeStack(stack, from: arc)
-            logger.info("Removed stack \(stack.id) from arc \(arc.id)")
-        } catch {
-            handleError(error, action: "remove_stack")
+        Task {
+            do {
+                try await arcService?.removeStack(stack, from: arc)
+                logger.info("Removed stack \(stack.id) from arc \(arc.id)")
+            } catch {
+                handleError(error, action: "remove_stack")
+            }
         }
     }
 

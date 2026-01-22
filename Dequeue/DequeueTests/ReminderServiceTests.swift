@@ -30,7 +30,7 @@ struct ReminderServiceTests {
 
     @Test("createReminder for task creates reminder with correct parentId")
     @MainActor
-    func createReminderForTaskSetsParentId() throws {
+    func createReminderForTaskSetsParentId() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -42,7 +42,7 @@ struct ReminderServiceTests {
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let remindAt = Date().addingTimeInterval(3_600) // 1 hour from now
-        let reminder = try reminderService.createReminder(for: task, at: remindAt)
+        let reminder = try await reminderService.createReminder(for: task, at: remindAt)
 
         #expect(reminder.parentId == task.id)
         #expect(reminder.parentType == .task)
@@ -50,7 +50,7 @@ struct ReminderServiceTests {
 
     @Test("createReminder for task sets correct remindAt date")
     @MainActor
-    func createReminderForTaskSetsRemindAt() throws {
+    func createReminderForTaskSetsRemindAt() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -62,14 +62,14 @@ struct ReminderServiceTests {
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let remindAt = Date().addingTimeInterval(7_200) // 2 hours from now
-        let reminder = try reminderService.createReminder(for: task, at: remindAt)
+        let reminder = try await reminderService.createReminder(for: task, at: remindAt)
 
         #expect(reminder.remindAt == remindAt)
     }
 
     @Test("createReminder for task sets status to active")
     @MainActor
-    func createReminderForTaskSetsActiveStatus() throws {
+    func createReminderForTaskSetsActiveStatus() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -80,14 +80,14 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: task, at: Date().addingTimeInterval(3_600))
+        let reminder = try await reminderService.createReminder(for: task, at: Date().addingTimeInterval(3_600))
 
         #expect(reminder.status == .active)
     }
 
     @Test("createReminder for task sets syncState to pending")
     @MainActor
-    func createReminderForTaskSetsSyncState() throws {
+    func createReminderForTaskSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -98,7 +98,7 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: task, at: Date().addingTimeInterval(3_600))
+        let reminder = try await reminderService.createReminder(for: task, at: Date().addingTimeInterval(3_600))
 
         #expect(reminder.syncState == .pending)
     }
@@ -107,7 +107,7 @@ struct ReminderServiceTests {
 
     @Test("createReminder for stack creates reminder with correct parentId")
     @MainActor
-    func createReminderForStackSetsParentId() throws {
+    func createReminderForStackSetsParentId() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -116,7 +116,7 @@ struct ReminderServiceTests {
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let remindAt = Date().addingTimeInterval(3_600)
-        let reminder = try reminderService.createReminder(for: stack, at: remindAt)
+        let reminder = try await reminderService.createReminder(for: stack, at: remindAt)
 
         #expect(reminder.parentId == stack.id)
         #expect(reminder.parentType == .stack)
@@ -124,7 +124,7 @@ struct ReminderServiceTests {
 
     @Test("createReminder for stack sets correct remindAt date")
     @MainActor
-    func createReminderForStackSetsRemindAt() throws {
+    func createReminderForStackSetsRemindAt() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -133,7 +133,7 @@ struct ReminderServiceTests {
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let remindAt = Date().addingTimeInterval(86_400) // 24 hours from now
-        let reminder = try reminderService.createReminder(for: stack, at: remindAt)
+        let reminder = try await reminderService.createReminder(for: stack, at: remindAt)
 
         #expect(reminder.remindAt == remindAt)
     }
@@ -142,7 +142,7 @@ struct ReminderServiceTests {
 
     @Test("updateReminder changes remindAt date")
     @MainActor
-    func updateReminderChangesRemindAt() throws {
+    func updateReminderChangesRemindAt() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -151,17 +151,17 @@ struct ReminderServiceTests {
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let originalDate = Date().addingTimeInterval(3_600)
-        let reminder = try reminderService.createReminder(for: stack, at: originalDate)
+        let reminder = try await reminderService.createReminder(for: stack, at: originalDate)
 
         let newDate = Date().addingTimeInterval(7_200)
-        try reminderService.updateReminder(reminder, remindAt: newDate)
+        try await reminderService.updateReminder(reminder, remindAt: newDate)
 
         #expect(reminder.remindAt == newDate)
     }
 
     @Test("updateReminder sets syncState to pending")
     @MainActor
-    func updateReminderSetsSyncState() throws {
+    func updateReminderSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -169,20 +169,20 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
 
         // Simulate synced state
         reminder.syncState = .synced
         try context.save()
 
-        try reminderService.updateReminder(reminder, remindAt: Date().addingTimeInterval(7_200))
+        try await reminderService.updateReminder(reminder, remindAt: Date().addingTimeInterval(7_200))
 
         #expect(reminder.syncState == .pending)
     }
 
     @Test("updateReminder updates updatedAt timestamp")
     @MainActor
-    func updateReminderUpdatesTimestamp() throws {
+    func updateReminderUpdatesTimestamp() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -190,12 +190,12 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
 
         let originalUpdatedAt = reminder.updatedAt
 
         // Small delay to ensure timestamp difference
-        try reminderService.updateReminder(reminder, remindAt: Date().addingTimeInterval(7_200))
+        try await reminderService.updateReminder(reminder, remindAt: Date().addingTimeInterval(7_200))
 
         #expect(reminder.updatedAt >= originalUpdatedAt)
     }
@@ -204,7 +204,7 @@ struct ReminderServiceTests {
 
     @Test("snoozeReminder sets snoozedFrom to original remindAt")
     @MainActor
-    func snoozeReminderSetsSnoozedFrom() throws {
+    func snoozeReminderSetsSnoozedFrom() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -213,17 +213,17 @@ struct ReminderServiceTests {
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let originalDate = Date().addingTimeInterval(3_600)
-        let reminder = try reminderService.createReminder(for: stack, at: originalDate)
+        let reminder = try await reminderService.createReminder(for: stack, at: originalDate)
 
         let snoozeUntil = Date().addingTimeInterval(7_200)
-        try reminderService.snoozeReminder(reminder, until: snoozeUntil)
+        try await reminderService.snoozeReminder(reminder, until: snoozeUntil)
 
         #expect(reminder.snoozedFrom == originalDate)
     }
 
     @Test("snoozeReminder updates remindAt to new date")
     @MainActor
-    func snoozeReminderUpdatesRemindAt() throws {
+    func snoozeReminderUpdatesRemindAt() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -231,17 +231,17 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
 
         let snoozeUntil = Date().addingTimeInterval(7_200)
-        try reminderService.snoozeReminder(reminder, until: snoozeUntil)
+        try await reminderService.snoozeReminder(reminder, until: snoozeUntil)
 
         #expect(reminder.remindAt == snoozeUntil)
     }
 
     @Test("snoozeReminder sets status to snoozed")
     @MainActor
-    func snoozeReminderSetsStatus() throws {
+    func snoozeReminderSetsStatus() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -249,16 +249,16 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
 
-        try reminderService.snoozeReminder(reminder, until: Date().addingTimeInterval(7_200))
+        try await reminderService.snoozeReminder(reminder, until: Date().addingTimeInterval(7_200))
 
         #expect(reminder.status == .snoozed)
     }
 
     @Test("snoozeReminder sets syncState to pending")
     @MainActor
-    func snoozeReminderSetsSyncState() throws {
+    func snoozeReminderSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -266,11 +266,11 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
         reminder.syncState = .synced
         try context.save()
 
-        try reminderService.snoozeReminder(reminder, until: Date().addingTimeInterval(7_200))
+        try await reminderService.snoozeReminder(reminder, until: Date().addingTimeInterval(7_200))
 
         #expect(reminder.syncState == .pending)
     }
@@ -279,7 +279,7 @@ struct ReminderServiceTests {
 
     @Test("dismissReminder sets status to fired")
     @MainActor
-    func dismissReminderSetsStatus() throws {
+    func dismissReminderSetsStatus() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -287,16 +287,16 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3_600)) // overdue
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3_600)) // overdue
 
-        try reminderService.dismissReminder(reminder)
+        try await reminderService.dismissReminder(reminder)
 
         #expect(reminder.status == .fired)
     }
 
     @Test("dismissReminder sets syncState to pending")
     @MainActor
-    func dismissReminderSetsSyncState() throws {
+    func dismissReminderSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -304,18 +304,18 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3_600))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3_600))
         reminder.syncState = .synced
         try context.save()
 
-        try reminderService.dismissReminder(reminder)
+        try await reminderService.dismissReminder(reminder)
 
         #expect(reminder.syncState == .pending)
     }
 
     @Test("dismissReminder updates updatedAt timestamp")
     @MainActor
-    func dismissReminderUpdatesTimestamp() throws {
+    func dismissReminderUpdatesTimestamp() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -323,17 +323,17 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3_600))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3_600))
         let originalUpdatedAt = reminder.updatedAt
 
-        try reminderService.dismissReminder(reminder)
+        try await reminderService.dismissReminder(reminder)
 
         #expect(reminder.updatedAt >= originalUpdatedAt)
     }
 
     @Test("dismissReminder removes reminder from overdue list")
     @MainActor
-    func dismissReminderRemovesFromOverdue() throws {
+    func dismissReminderRemovesFromOverdue() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -352,19 +352,19 @@ struct ReminderServiceTests {
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Verify it's in overdue list before dismissing
-        let overdueBefore = try reminderService.getOverdueReminders()
+        let overdueBefore = try await reminderService.getOverdueReminders()
         #expect(overdueBefore.count == 1)
 
-        try reminderService.dismissReminder(overdueReminder)
+        try await reminderService.dismissReminder(overdueReminder)
 
         // Verify it's removed from overdue list after dismissing
-        let overdueAfter = try reminderService.getOverdueReminders()
+        let overdueAfter = try await reminderService.getOverdueReminders()
         #expect(overdueAfter.isEmpty)
     }
 
     @Test("dismissReminder records reminderUpdated event")
     @MainActor
-    func dismissReminderRecordsEvent() throws {
+    func dismissReminderRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -372,8 +372,8 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3_600))
-        try reminderService.dismissReminder(reminder)
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3_600))
+        try await reminderService.dismissReminder(reminder)
 
         let eventService = EventService.readOnly(modelContext: context)
         let events = try eventService.fetchHistory(for: reminder.id)
@@ -386,7 +386,7 @@ struct ReminderServiceTests {
 
     @Test("deleteReminder sets isDeleted to true")
     @MainActor
-    func deleteReminderSetsIsDeleted() throws {
+    func deleteReminderSetsIsDeleted() async throws {
         // This test validates deleteReminder() sets isDeleted=true
         // We know this works because getUpcomingRemindersExcludesDeleted passes
         // That test relies on the same deleteReminder setting isDeleted=true
@@ -397,19 +397,19 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
 
-        try reminderService.deleteReminder(reminder)
+        try await reminderService.deleteReminder(reminder)
 
         // Verify via the query that filters by isDeleted
         // If getUpcomingReminders returns empty, isDeleted must be true
-        let upcoming = try reminderService.getUpcomingReminders()
+        let upcoming = try await reminderService.getUpcomingReminders()
         #expect(upcoming.isEmpty, "Deleted reminder should be excluded from upcoming")
     }
 
     @Test("deleteReminder sets syncState to pending")
     @MainActor
-    func deleteReminderSetsSyncState() throws {
+    func deleteReminderSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -417,11 +417,11 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
         reminder.syncState = .synced
         try context.save()
 
-        try reminderService.deleteReminder(reminder)
+        try await reminderService.deleteReminder(reminder)
 
         #expect(reminder.syncState == .pending)
     }
@@ -430,7 +430,7 @@ struct ReminderServiceTests {
 
     @Test("getUpcomingReminders returns only future reminders")
     @MainActor
-    func getUpcomingRemindersReturnsFuture() throws {
+    func getUpcomingRemindersReturnsFuture() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -440,7 +440,7 @@ struct ReminderServiceTests {
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         // Create a future reminder
-        let futureReminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let futureReminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
 
         // Create a past reminder directly
         let pastReminder = Reminder(
@@ -451,7 +451,7 @@ struct ReminderServiceTests {
         context.insert(pastReminder)
         try context.save()
 
-        let upcoming = try reminderService.getUpcomingReminders()
+        let upcoming = try await reminderService.getUpcomingReminders()
 
         #expect(upcoming.count == 1)
         #expect(upcoming.first?.id == futureReminder.id)
@@ -459,7 +459,7 @@ struct ReminderServiceTests {
 
     @Test("getUpcomingReminders excludes deleted reminders")
     @MainActor
-    func getUpcomingRemindersExcludesDeleted() throws {
+    func getUpcomingRemindersExcludesDeleted() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -467,17 +467,17 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
-        try reminderService.deleteReminder(reminder)
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        try await reminderService.deleteReminder(reminder)
 
-        let upcoming = try reminderService.getUpcomingReminders()
+        let upcoming = try await reminderService.getUpcomingReminders()
 
         #expect(upcoming.isEmpty)
     }
 
     @Test("getUpcomingReminders returns only active status reminders")
     @MainActor
-    func getUpcomingRemindersReturnsOnlyActive() throws {
+    func getUpcomingRemindersReturnsOnlyActive() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -485,11 +485,11 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let activeReminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
-        let snoozedReminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(7_200))
-        try reminderService.snoozeReminder(snoozedReminder, until: Date().addingTimeInterval(10_800))
+        let activeReminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let snoozedReminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(7_200))
+        try await reminderService.snoozeReminder(snoozedReminder, until: Date().addingTimeInterval(10_800))
 
-        let upcoming = try reminderService.getUpcomingReminders()
+        let upcoming = try await reminderService.getUpcomingReminders()
 
         #expect(upcoming.count == 1)
         #expect(upcoming.first?.id == activeReminder.id)
@@ -497,7 +497,7 @@ struct ReminderServiceTests {
 
     @Test("getUpcomingReminders returns reminders sorted by remindAt")
     @MainActor
-    func getUpcomingRemindersSortedByDate() throws {
+    func getUpcomingRemindersSortedByDate() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -505,10 +505,10 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let laterReminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(7_200))
-        let soonerReminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let laterReminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(7_200))
+        let soonerReminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
 
-        let upcoming = try reminderService.getUpcomingReminders()
+        let upcoming = try await reminderService.getUpcomingReminders()
 
         #expect(upcoming.count == 2)
         #expect(upcoming[0].id == soonerReminder.id)
@@ -519,7 +519,7 @@ struct ReminderServiceTests {
 
     @Test("getOverdueReminders returns only past reminders")
     @MainActor
-    func getOverdueRemindersReturnsPast() throws {
+    func getOverdueRemindersReturnsPast() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -537,10 +537,10 @@ struct ReminderServiceTests {
         context.insert(pastReminder)
 
         // Create a future reminder
-        _ = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        _ = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
         try context.save()
 
-        let overdue = try reminderService.getOverdueReminders()
+        let overdue = try await reminderService.getOverdueReminders()
 
         #expect(overdue.count == 1)
         #expect(overdue.first?.id == pastReminder.id)
@@ -548,7 +548,7 @@ struct ReminderServiceTests {
 
     @Test("getOverdueReminders excludes deleted reminders")
     @MainActor
-    func getOverdueRemindersExcludesDeleted() throws {
+    func getOverdueRemindersExcludesDeleted() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -565,9 +565,9 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        try reminderService.deleteReminder(pastReminder)
+        try await reminderService.deleteReminder(pastReminder)
 
-        let overdue = try reminderService.getOverdueReminders()
+        let overdue = try await reminderService.getOverdueReminders()
 
         #expect(overdue.isEmpty)
     }
@@ -576,7 +576,7 @@ struct ReminderServiceTests {
 
     @Test("getReminders for task returns only reminders for that task")
     @MainActor
-    func getRemindersForTaskFiltersCorrectly() throws {
+    func getRemindersForTaskFiltersCorrectly() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -590,11 +590,11 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        _ = try reminderService.createReminder(for: task1, at: Date().addingTimeInterval(3_600))
-        _ = try reminderService.createReminder(for: task1, at: Date().addingTimeInterval(7_200))
-        _ = try reminderService.createReminder(for: task2, at: Date().addingTimeInterval(3_600))
+        _ = try await reminderService.createReminder(for: task1, at: Date().addingTimeInterval(3_600))
+        _ = try await reminderService.createReminder(for: task1, at: Date().addingTimeInterval(7_200))
+        _ = try await reminderService.createReminder(for: task2, at: Date().addingTimeInterval(3_600))
 
-        let task1Reminders = try reminderService.getReminders(for: task1)
+        let task1Reminders = try await reminderService.getReminders(for: task1)
 
         #expect(task1Reminders.count == 2)
         #expect(task1Reminders.allSatisfy { $0.parentId == task1.id })
@@ -602,7 +602,7 @@ struct ReminderServiceTests {
 
     @Test("getReminders for stack returns only reminders for that stack")
     @MainActor
-    func getRemindersForStackFiltersCorrectly() throws {
+    func getRemindersForStackFiltersCorrectly() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack1 = Stack(title: "Stack 1")
@@ -612,11 +612,11 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        _ = try reminderService.createReminder(for: stack1, at: Date().addingTimeInterval(3_600))
-        _ = try reminderService.createReminder(for: stack2, at: Date().addingTimeInterval(3_600))
-        _ = try reminderService.createReminder(for: stack2, at: Date().addingTimeInterval(7_200))
+        _ = try await reminderService.createReminder(for: stack1, at: Date().addingTimeInterval(3_600))
+        _ = try await reminderService.createReminder(for: stack2, at: Date().addingTimeInterval(3_600))
+        _ = try await reminderService.createReminder(for: stack2, at: Date().addingTimeInterval(7_200))
 
-        let stack2Reminders = try reminderService.getReminders(for: stack2)
+        let stack2Reminders = try await reminderService.getReminders(for: stack2)
 
         #expect(stack2Reminders.count == 2)
         #expect(stack2Reminders.allSatisfy { $0.parentId == stack2.id })
@@ -624,7 +624,7 @@ struct ReminderServiceTests {
 
     @Test("getReminders for parent excludes deleted reminders")
     @MainActor
-    func getRemindersForParentExcludesDeleted() throws {
+    func getRemindersForParentExcludesDeleted() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -632,12 +632,12 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder1 = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
-        _ = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(7_200))
+        let reminder1 = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        _ = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(7_200))
 
-        try reminderService.deleteReminder(reminder1)
+        try await reminderService.deleteReminder(reminder1)
 
-        let reminders = try reminderService.getReminders(for: stack)
+        let reminders = try await reminderService.getReminders(for: stack)
 
         #expect(reminders.count == 1)
         #expect(reminders.first?.id != reminder1.id)
@@ -647,7 +647,7 @@ struct ReminderServiceTests {
 
     @Test("createReminder records reminderCreated event")
     @MainActor
-    func createReminderRecordsEvent() throws {
+    func createReminderRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -655,7 +655,7 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
 
         let eventService = EventService.readOnly(modelContext: context)
         let events = try eventService.fetchHistory(for: reminder.id)
@@ -666,7 +666,7 @@ struct ReminderServiceTests {
 
     @Test("updateReminder records reminderUpdated event")
     @MainActor
-    func updateReminderRecordsEvent() throws {
+    func updateReminderRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -674,8 +674,8 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
-        try reminderService.updateReminder(reminder, remindAt: Date().addingTimeInterval(7_200))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        try await reminderService.updateReminder(reminder, remindAt: Date().addingTimeInterval(7_200))
 
         let eventService = EventService.readOnly(modelContext: context)
         let events = try eventService.fetchHistory(for: reminder.id)
@@ -685,7 +685,7 @@ struct ReminderServiceTests {
 
     @Test("snoozeReminder records reminderSnoozed event")
     @MainActor
-    func snoozeReminderRecordsEvent() throws {
+    func snoozeReminderRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -693,8 +693,8 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
-        try reminderService.snoozeReminder(reminder, until: Date().addingTimeInterval(7_200))
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        try await reminderService.snoozeReminder(reminder, until: Date().addingTimeInterval(7_200))
 
         let eventService = EventService.readOnly(modelContext: context)
         let events = try eventService.fetchHistory(for: reminder.id)
@@ -704,7 +704,7 @@ struct ReminderServiceTests {
 
     @Test("deleteReminder records reminderDeleted event")
     @MainActor
-    func deleteReminderRecordsEvent() throws {
+    func deleteReminderRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Test Stack")
@@ -712,8 +712,8 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
-        try reminderService.deleteReminder(reminder)
+        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(3_600))
+        try await reminderService.deleteReminder(reminder)
 
         let eventService = EventService.readOnly(modelContext: context)
         let events = try eventService.fetchHistory(for: reminder.id)

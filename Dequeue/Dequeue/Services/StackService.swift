@@ -75,7 +75,7 @@ final class StackService {
         title: String,
         description: String? = nil,
         isDraft: Bool = false
-    ) throws -> Stack {
+    ) async throws -> Stack {
         // Check if this will be the first non-draft active stack
         let existingActiveStacks = try getActiveStacks()
         let shouldBeActive = !isDraft && existingActiveStacks.isEmpty
@@ -105,10 +105,10 @@ final class StackService {
         modelContext.insert(stack)
 
         // Always record events - drafts are synced for offline-first behavior
-        try eventService.recordStackCreated(stack)
+        try await eventService.recordStackCreated(stack)
 
         if shouldBeActive {
-            try eventService.recordStackActivated(stack)
+            try await eventService.recordStackActivated(stack)
         }
 
         try modelContext.save()
@@ -117,7 +117,7 @@ final class StackService {
     }
 
     /// Updates a draft stack and records the update event
-    func updateDraft(_ stack: Stack, title: String, description: String?) throws {
+    func updateDraft(_ stack: Stack, title: String, description: String?) async throws {
         guard stack.isDraft else { return }
 
         stack.title = title
@@ -125,20 +125,20 @@ final class StackService {
         stack.updatedAt = Date()
         stack.syncState = .pending
 
-        try eventService.recordStackUpdated(stack)
+        try await eventService.recordStackUpdated(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
     /// Discards a draft stack - fires stack.discarded event
-    func discardDraft(_ stack: Stack) throws {
+    func discardDraft(_ stack: Stack) async throws {
         guard stack.isDraft else { return }
 
         stack.isDeleted = true
         stack.updatedAt = Date()
         stack.syncState = .pending
 
-        try eventService.recordStackDiscarded(stack)
+        try await eventService.recordStackDiscarded(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
@@ -246,7 +246,7 @@ final class StackService {
 
     // MARK: - Update
 
-    func updateStack(_ stack: Stack, title: String, description: String?) throws {
+    func updateStack(_ stack: Stack, title: String, description: String?) async throws {
         logger.info("updateStack: input title='\(title)', stack.title before='\(stack.title)'")
         stack.title = title
         stack.stackDescription = description
@@ -254,33 +254,33 @@ final class StackService {
         stack.syncState = .pending
         logger.info("updateStack: stack.title after set='\(stack.title)'")
 
-        try eventService.recordStackUpdated(stack)
+        try await eventService.recordStackUpdated(stack)
         logger.info("updateStack: event recorded, about to save context")
         try modelContext.save()
         logger.info("updateStack: context saved")
         syncManager?.triggerImmediatePush()
     }
 
-    func publishDraft(_ stack: Stack) throws {
+    func publishDraft(_ stack: Stack) async throws {
         guard stack.isDraft else { return }
 
         stack.isDraft = false
         stack.updatedAt = Date()
         stack.syncState = .pending
 
-        try eventService.recordStackCreated(stack)
+        try await eventService.recordStackCreated(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Status Changes
 
-    func markAsCompleted(_ stack: Stack, completeAllTasks: Bool = true) throws {
+    func markAsCompleted(_ stack: Stack, completeAllTasks: Bool = true) async throws {
         // If this was the active stack, deactivate it first
         // A completed stack cannot be the "active" stack
         let wasActive = stack.isActive
         if wasActive {
-            try eventService.recordStackDeactivated(stack)
+            try await eventService.recordStackDeactivated(stack)
             stack.isActive = false
         }
 
@@ -295,16 +295,16 @@ final class StackService {
                 deviceId: deviceId
             )
             for task in stack.tasks where task.status == .pending && !task.isDeleted {
-                try taskService.markAsCompleted(task)
+                try await taskService.markAsCompleted(task)
             }
         }
 
-        try eventService.recordStackCompleted(stack)
+        try await eventService.recordStackCompleted(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
-    func setAsActive(_ stack: Stack) throws {
+    func setAsActive(_ stack: Stack) async throws {
         // MARK: Pre-condition validation
         guard !stack.isDeleted else {
             throw StackServiceError.cannotActivateDeletedStack
@@ -322,7 +322,7 @@ final class StackService {
 
         // Record deactivation events BEFORE changing state
         for stackToDeactivate in stacksToDeactivate {
-            try eventService.recordStackDeactivated(stackToDeactivate)
+            try await eventService.recordStackDeactivated(stackToDeactivate)
             stackToDeactivate.isActive = false
             stackToDeactivate.updatedAt = Date()
             stackToDeactivate.syncState = .pending
@@ -348,8 +348,8 @@ final class StackService {
         stack.updatedAt = Date()
         stack.syncState = .pending
 
-        try eventService.recordStackActivated(stack)
-        try eventService.recordStackReordered(activeStacks)
+        try await eventService.recordStackActivated(stack)
+        try await eventService.recordStackReordered(activeStacks)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
 
@@ -359,10 +359,10 @@ final class StackService {
 
     /// Deactivates the currently active stack, leaving no stack active.
     /// This allows the user to have zero active stacks.
-    func deactivateStack(_ stack: Stack) throws {
+    func deactivateStack(_ stack: Stack) async throws {
         guard stack.isActive else { return }
 
-        try eventService.recordStackDeactivated(stack)
+        try await eventService.recordStackDeactivated(stack)
         stack.isActive = false
         stack.updatedAt = Date()
         stack.syncState = .pending
@@ -371,38 +371,38 @@ final class StackService {
         syncManager?.triggerImmediatePush()
     }
 
-    func closeStack(_ stack: Stack, reason: String? = nil) throws {
+    func closeStack(_ stack: Stack, reason: String? = nil) async throws {
         stack.status = .closed
         stack.updatedAt = Date()
         stack.syncState = .pending
 
-        try eventService.recordStackUpdated(stack)
+        try await eventService.recordStackUpdated(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Delete
 
-    func deleteStack(_ stack: Stack) throws {
+    func deleteStack(_ stack: Stack) async throws {
         stack.isDeleted = true
         stack.updatedAt = Date()
         stack.syncState = .pending
 
-        try eventService.recordStackDeleted(stack)
+        try await eventService.recordStackDeleted(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
 
     // MARK: - Reorder
 
-    func updateSortOrders(_ stacks: [Stack]) throws {
+    func updateSortOrders(_ stacks: [Stack]) async throws {
         for (index, stack) in stacks.enumerated() {
             stack.sortOrder = index
             stack.updatedAt = Date()
             stack.syncState = .pending
         }
 
-        try eventService.recordStackReordered(stacks)
+        try await eventService.recordStackReordered(stacks)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
@@ -414,14 +414,14 @@ final class StackService {
     /// - Parameters:
     ///   - tag: The tag to add
     ///   - stack: The stack to add the tag to
-    func addTag(_ tag: Tag, to stack: Stack) throws {
+    func addTag(_ tag: Tag, to stack: Stack) async throws {
         guard !stack.tagObjects.contains(where: { $0.id == tag.id }) else { return }
 
         stack.tagObjects.append(tag)
         stack.updatedAt = Date()
         stack.syncState = .pending
 
-        try eventService.recordStackUpdated(stack, changes: ["tagIds": stack.tagObjects.map { $0.id }])
+        try await eventService.recordStackUpdated(stack, changes: ["tagIds": stack.tagObjects.map { $0.id }])
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
@@ -431,14 +431,14 @@ final class StackService {
     /// - Parameters:
     ///   - tag: The tag to remove
     ///   - stack: The stack to remove the tag from
-    func removeTag(_ tag: Tag, from stack: Stack) throws {
+    func removeTag(_ tag: Tag, from stack: Stack) async throws {
         guard stack.tagObjects.contains(where: { $0.id == tag.id }) else { return }
 
         stack.tagObjects.removeAll { $0.id == tag.id }
         stack.updatedAt = Date()
         stack.syncState = .pending
 
-        try eventService.recordStackUpdated(stack, changes: ["tagIds": stack.tagObjects.map { $0.id }])
+        try await eventService.recordStackUpdated(stack, changes: ["tagIds": stack.tagObjects.map { $0.id }])
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
@@ -459,7 +459,7 @@ final class StackService {
     /// - Parameters:
     ///   - stack: The stack to revert
     ///   - event: The historical event containing the desired state
-    func revertToHistoricalState(_ stack: Stack, from event: Event) throws {
+    func revertToHistoricalState(_ stack: Stack, from event: Event) async throws {
         let historicalPayload = try event.decodePayload(StackEventPayload.self)
 
         // Apply historical values
@@ -475,7 +475,7 @@ final class StackService {
         stack.syncState = .pending
 
         // Record as a NEW update event (preserves immutable history)
-        try eventService.recordStackUpdated(stack)
+        try await eventService.recordStackUpdated(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }

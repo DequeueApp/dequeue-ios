@@ -129,7 +129,7 @@ final class AttachmentService {
         for parentId: String,
         parentType: ParentType,
         fileURL: URL
-    ) throws -> Attachment {
+    ) async throws -> Attachment {
         // Validate file exists
         guard fileManager.fileExists(atPath: fileURL.path) else {
             throw AttachmentServiceError.fileNotFound(fileURL)
@@ -177,7 +177,7 @@ final class AttachmentService {
         modelContext.insert(attachment)
 
         do {
-            try eventService.recordAttachmentAdded(attachment)
+            try await eventService.recordAttachmentAdded(attachment)
             try modelContext.save()
         } catch {
             // Rollback: clean up the copied file since database save failed
@@ -298,12 +298,12 @@ final class AttachmentService {
     /// Soft deletes an attachment.
     ///
     /// - Parameter attachment: The attachment to delete
-    func deleteAttachment(_ attachment: Attachment) throws {
+    func deleteAttachment(_ attachment: Attachment) async throws {
         attachment.isDeleted = true
         attachment.updatedAt = Date()
         attachment.syncState = .pending
 
-        try eventService.recordAttachmentRemoved(attachment)
+        try await eventService.recordAttachmentRemoved(attachment)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
 
@@ -318,10 +318,10 @@ final class AttachmentService {
     /// - Parameters:
     ///   - parentId: The ID of the parent Stack or Task
     ///   - parentType: Whether the parent is a Stack or Task
-    func deleteAttachments(for parentId: String, parentType: ParentType) throws {
+    func deleteAttachments(for parentId: String, parentType: ParentType) async throws {
         let attachments = try getAttachments(for: parentId, parentType: parentType)
         for attachment in attachments {
-            try deleteAttachment(attachment)
+            try await deleteAttachment(attachment)
         }
     }
 

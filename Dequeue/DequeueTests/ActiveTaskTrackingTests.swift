@@ -139,7 +139,7 @@ struct ActiveTaskTrackingTests {
 
     @Test("activateTask sets activeTaskId on stack")
     @MainActor
-    func activateTaskSetsActiveTaskId() throws {
+    func activateTaskSetsActiveTaskId() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack()
         _ = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
@@ -147,14 +147,14 @@ struct ActiveTaskTrackingTests {
         try ctx.save()
 
         let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
-        try taskService.activateTask(task2)
+        try await taskService.activateTask(task2)
 
         #expect(stack.activeTaskId == task2.id)
     }
 
     @Test("activateTask reorders tasks so activated task is first")
     @MainActor
-    func activateTaskReordersTasks() throws {
+    func activateTaskReordersTasks() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack()
         let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
@@ -163,7 +163,7 @@ struct ActiveTaskTrackingTests {
         try ctx.save()
 
         let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
-        try taskService.activateTask(task3)
+        try await taskService.activateTask(task3)
 
         #expect(task3.sortOrder == 0)
         #expect(task1.sortOrder == 1)
@@ -172,14 +172,14 @@ struct ActiveTaskTrackingTests {
 
     @Test("activateTask emits task.activated event")
     @MainActor
-    func activateTaskEmitsEvent() throws {
+    func activateTaskEmitsEvent() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack()
         let task = ctx.createTask(title: "Test Task", sortOrder: 0, stack: stack)
         try ctx.save()
 
         let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
-        try taskService.activateTask(task)
+        try await taskService.activateTask(task)
 
         let eventDescriptor = FetchDescriptor<Event>()
         let events = try ctx.context.fetch(eventDescriptor)
@@ -193,7 +193,7 @@ struct ActiveTaskTrackingTests {
 
     @Test("migrateActiveTaskId populates activeTaskId from first pending task")
     @MainActor
-    func migrateActiveTaskIdPopulatesFromFirstPendingTask() throws {
+    func migrateActiveTaskIdPopulatesFromFirstPendingTask() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack(isActive: true)
         let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
@@ -203,35 +203,35 @@ struct ActiveTaskTrackingTests {
         #expect(stack.activeTaskId == nil)
 
         let stackService = StackService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
-        try stackService.migrateActiveTaskId()
+        try await stackService.migrateActiveTaskId()
 
         #expect(stack.activeTaskId == task1.id)
     }
 
     @Test("migrateActiveTaskId skips stacks that already have activeTaskId")
     @MainActor
-    func migrateActiveTaskIdSkipsStacksWithActiveTaskId() throws {
+    func migrateActiveTaskIdSkipsStacksWithActiveTaskId() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack(isActive: true, activeTaskId: "existing-task-id")
         _ = ctx.createTask(title: "Test Task", sortOrder: 0, stack: stack)
         try ctx.save()
 
         let stackService = StackService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
-        try stackService.migrateActiveTaskId()
+        try await stackService.migrateActiveTaskId()
 
         #expect(stack.activeTaskId == "existing-task-id")
     }
 
     @Test("migrateActiveTaskId handles stacks with no pending tasks")
     @MainActor
-    func migrateActiveTaskIdHandlesStacksWithNoPendingTasks() throws {
+    func migrateActiveTaskIdHandlesStacksWithNoPendingTasks() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack(isActive: true)
         _ = ctx.createTask(title: "Completed Task", sortOrder: 0, stack: stack, status: .completed)
         try ctx.save()
 
         let stackService = StackService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
-        try stackService.migrateActiveTaskId()
+        try await stackService.migrateActiveTaskId()
 
         #expect(stack.activeTaskId == nil)
     }
@@ -240,7 +240,7 @@ struct ActiveTaskTrackingTests {
 
     @Test("activeTask and activeTaskId stay in sync after activation")
     @MainActor
-    func activeTaskAndActiveTaskIdStayInSync() throws {
+    func activeTaskAndActiveTaskIdStayInSync() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack()
         let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
@@ -249,18 +249,18 @@ struct ActiveTaskTrackingTests {
 
         let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
 
-        try taskService.activateTask(task2)
+        try await taskService.activateTask(task2)
         #expect(stack.activeTaskId == task2.id)
         #expect(stack.activeTask?.id == task2.id)
 
-        try taskService.activateTask(task1)
+        try await taskService.activateTask(task1)
         #expect(stack.activeTaskId == task1.id)
         #expect(stack.activeTask?.id == task1.id)
     }
 
     @Test("completing active task clears activeTaskId relevance")
     @MainActor
-    func completingActiveTaskUpdatesActiveTask() throws {
+    func completingActiveTaskUpdatesActiveTask() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack()
         let task1 = ctx.createTask(title: "First Task", sortOrder: 0, stack: stack)
@@ -271,7 +271,7 @@ struct ActiveTaskTrackingTests {
         #expect(stack.activeTask?.id == task1.id)
 
         let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
-        try taskService.markAsCompleted(task1)
+        try await taskService.markAsCompleted(task1)
 
         #expect(stack.activeTask?.id == task2.id)
     }
@@ -293,7 +293,7 @@ struct ActiveTaskTrackingTests {
 
     @Test("activateTask sets lastActiveTime on the task")
     @MainActor
-    func activateTaskSetsLastActiveTime() throws {
+    func activateTaskSetsLastActiveTime() async throws {
         let ctx = try TestContext()
         let stack = ctx.createStack()
         let task = ctx.createTask(title: "Test Task", sortOrder: 0, stack: stack)
@@ -303,7 +303,7 @@ struct ActiveTaskTrackingTests {
 
         let taskService = TaskService(modelContext: ctx.context, userId: "test-user", deviceId: "test-device")
         let beforeActivation = Date()
-        try taskService.activateTask(task)
+        try await taskService.activateTask(task)
         let afterActivation = Date()
 
         #expect(task.lastActiveTime != nil)

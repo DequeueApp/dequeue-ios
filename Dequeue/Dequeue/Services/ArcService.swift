@@ -104,7 +104,7 @@ final class ArcService {
         description: String? = nil,
         colorHex: String? = nil,
         status: ArcStatus = .active
-    ) throws -> Arc {
+    ) async throws -> Arc {
         // Check constraint for active arcs
         if status == .active {
             guard try canCreateNewArc() else {
@@ -129,7 +129,7 @@ final class ArcService {
         )
 
         modelContext.insert(arc)
-        try eventService.recordArcCreated(arc)
+        try await eventService.recordArcCreated(arc)
         try modelContext.save()
 
         logger.info("Created arc: \(arc.id) - \(title)")
@@ -156,7 +156,7 @@ final class ArcService {
         title: String? = nil,
         description: String? = nil,
         colorHex: String? = nil
-    ) throws {
+    ) async throws {
         // Validate and normalize title if provided
         var normalizedTitle: String?
         if let title = title {
@@ -190,7 +190,7 @@ final class ArcService {
         arc.syncState = .pending
         arc.revision += 1
 
-        try eventService.recordArcUpdated(arc, changes: changes)
+        try await eventService.recordArcUpdated(arc, changes: changes)
         try modelContext.save()
 
         logger.info("Updated arc: \(arc.id)")
@@ -206,7 +206,7 @@ final class ArcService {
     /// Note: Stacks are removed from the arc but NOT deleted - this preserves user data
     /// while cleaning up the relationship.
     /// - Parameter arc: The arc to delete
-    func deleteArc(_ arc: Arc) throws {
+    func deleteArc(_ arc: Arc) async throws {
         let arcId = arc.id
         let stacksToRemove = Array(arc.stacks)
 
@@ -217,7 +217,7 @@ final class ArcService {
             stack.updatedAt = Date()
             stack.syncState = .pending
             stack.revision += 1
-            try eventService.recordStackRemovedFromArc(stack: stack, arcId: arcId)
+            try await eventService.recordStackRemovedFromArc(stack: stack, arcId: arcId)
         }
 
         // Mark the arc as deleted
@@ -226,7 +226,7 @@ final class ArcService {
         arc.syncState = .pending
         arc.revision += 1
 
-        try eventService.recordArcDeleted(arc)
+        try await eventService.recordArcDeleted(arc)
 
         // Save all changes atomically
         try modelContext.save()
@@ -238,7 +238,7 @@ final class ArcService {
     // MARK: - Status Operations
 
     /// Marks an arc as completed
-    func markAsCompleted(_ arc: Arc) throws {
+    func markAsCompleted(_ arc: Arc) async throws {
         guard arc.status != .completed else { return }
 
         arc.status = .completed
@@ -246,7 +246,7 @@ final class ArcService {
         arc.syncState = .pending
         arc.revision += 1
 
-        try eventService.recordArcCompleted(arc)
+        try await eventService.recordArcCompleted(arc)
         try modelContext.save()
 
         logger.info("Completed arc: \(arc.id)")
@@ -254,7 +254,7 @@ final class ArcService {
     }
 
     /// Pauses an arc
-    func pause(_ arc: Arc) throws {
+    func pause(_ arc: Arc) async throws {
         guard arc.status == .active else { return }
 
         arc.status = .paused
@@ -262,7 +262,7 @@ final class ArcService {
         arc.syncState = .pending
         arc.revision += 1
 
-        try eventService.recordArcPaused(arc)
+        try await eventService.recordArcPaused(arc)
         try modelContext.save()
 
         logger.info("Paused arc: \(arc.id)")
@@ -271,7 +271,7 @@ final class ArcService {
 
     /// Resumes a paused or completed arc
     /// - Throws: If resuming would exceed the maximum active arcs
-    func resume(_ arc: Arc) throws {
+    func resume(_ arc: Arc) async throws {
         guard arc.status == .paused || arc.status == .completed else { return }
 
         // Check if we can have another active arc
@@ -284,7 +284,7 @@ final class ArcService {
         arc.syncState = .pending
         arc.revision += 1
 
-        try eventService.recordArcActivated(arc)
+        try await eventService.recordArcActivated(arc)
         try modelContext.save()
 
         logger.info("Resumed arc: \(arc.id)")
@@ -292,7 +292,7 @@ final class ArcService {
     }
 
     /// Archives an arc
-    func archive(_ arc: Arc) throws {
+    func archive(_ arc: Arc) async throws {
         guard arc.status != .archived else { return }
 
         arc.status = .archived
@@ -300,7 +300,7 @@ final class ArcService {
         arc.syncState = .pending
         arc.revision += 1
 
-        try eventService.recordArcDeactivated(arc)
+        try await eventService.recordArcDeactivated(arc)
         try modelContext.save()
 
         logger.info("Archived arc: \(arc.id)")
@@ -310,13 +310,13 @@ final class ArcService {
     // MARK: - Stack Association
 
     /// Assigns a stack to an arc
-    func assignStack(_ stack: Stack, to arc: Arc) throws {
+    func assignStack(_ stack: Stack, to arc: Arc) async throws {
         // If already assigned to this arc, do nothing
         guard stack.arc?.id != arc.id else { return }
 
         // If stack was in another arc, remove it first
         if let previousArc = stack.arc {
-            try removeStack(stack, from: previousArc)
+            try await removeStack(stack, from: previousArc)
         }
 
         stack.arc = arc
@@ -325,7 +325,7 @@ final class ArcService {
         stack.syncState = .pending
         stack.revision += 1
 
-        try eventService.recordStackAssignedToArc(stack: stack, arc: arc)
+        try await eventService.recordStackAssignedToArc(stack: stack, arc: arc)
         try modelContext.save()
 
         logger.info("Assigned stack \(stack.id) to arc \(arc.id)")
@@ -333,7 +333,7 @@ final class ArcService {
     }
 
     /// Removes a stack from an arc
-    func removeStack(_ stack: Stack, from arc: Arc) throws {
+    func removeStack(_ stack: Stack, from arc: Arc) async throws {
         guard stack.arc?.id == arc.id else { return }
 
         let previousArcId = arc.id
@@ -343,7 +343,7 @@ final class ArcService {
         stack.syncState = .pending
         stack.revision += 1
 
-        try eventService.recordStackRemovedFromArc(stack: stack, arcId: previousArcId)
+        try await eventService.recordStackRemovedFromArc(stack: stack, arcId: previousArcId)
         try modelContext.save()
 
         logger.info("Removed stack \(stack.id) from arc \(previousArcId)")
@@ -353,7 +353,7 @@ final class ArcService {
     // MARK: - Reordering
 
     /// Updates the sort order of arcs based on their position in the array
-    func updateSortOrders(_ arcs: [Arc]) throws {
+    func updateSortOrders(_ arcs: [Arc]) async throws {
         for (index, arc) in arcs.enumerated() where arc.sortOrder != index {
             arc.sortOrder = index
             arc.updatedAt = Date()
@@ -361,7 +361,7 @@ final class ArcService {
             arc.revision += 1
         }
 
-        try eventService.recordArcReordered(arcs)
+        try await eventService.recordArcReordered(arcs)
         try modelContext.save()
 
         logger.info("Reordered \(arcs.count) arcs")
@@ -443,7 +443,7 @@ final class ArcService {
     /// - Parameters:
     ///   - arc: The arc to revert
     ///   - event: The historical event containing the desired state
-    func revertToHistoricalState(_ arc: Arc, from event: Event) throws {
+    func revertToHistoricalState(_ arc: Arc, from event: Event) async throws {
         let historicalPayload = try event.decodePayload(ArcEventPayload.self)
 
         // Apply historical values
@@ -457,7 +457,7 @@ final class ArcService {
         arc.revision += 1
 
         // Record as a NEW update event (preserves immutable history)
-        try eventService.recordArcUpdated(arc)
+        try await eventService.recordArcUpdated(arc)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
