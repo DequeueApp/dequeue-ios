@@ -45,6 +45,7 @@ struct StackEditorView: View {
     @Environment(\.attachmentUploadCoordinator) var attachmentUploadCoordinator
     @State var stackService: StackService?
     @State var taskService: TaskService?
+    @State var arcService: ArcService?
     @State var notificationService: NotificationService?
     @State var reminderActionHandler: ReminderActionHandler?
     @State var tagService: TagService?
@@ -69,10 +70,12 @@ struct StackEditorView: View {
     @State var stackDescription: String = ""
     @State var pendingTasks: [PendingTask] = []
     @State var selectedTags: [Tag] = []
+    @State var selectedArc: Arc?
     @State var draftStack: Stack?
     @State var isCreatingDraft = false
     @State var showDiscardAlert = false
     @State var showSaveDraftPrompt = false
+    @State var showArcSelection = false
     @FocusState var focusedField: EditorField?
 
     // Pending task model for create mode
@@ -195,6 +198,12 @@ struct StackEditorView: View {
                     deviceId: deviceId,
                     syncManager: syncManager
                 )
+                arcService = ArcService(
+                    modelContext: modelContext,
+                    userId: userId,
+                    deviceId: deviceId,
+                    syncManager: syncManager
+                )
                 notificationService = NotificationService(modelContext: modelContext)
                 reminderActionHandler = ReminderActionHandler(
                     modelContext: modelContext,
@@ -274,6 +283,11 @@ struct StackEditorView: View {
             .sheet(isPresented: $showAddReminder) {
                 if let stack = currentStack, let service = notificationService {
                     AddReminderSheet(parent: .stack(stack), notificationService: service)
+                }
+            }
+            .sheet(isPresented: $showArcSelection) {
+                ArcSelectionSheet(currentArc: selectedArc) { arc in
+                    selectedArc = arc
                 }
             }
             .sheet(isPresented: $showSnoozePicker) {

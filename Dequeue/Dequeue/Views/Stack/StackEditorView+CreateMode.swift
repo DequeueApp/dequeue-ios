@@ -29,6 +29,8 @@ extension StackEditorView {
                 handleFocusChange(from: oldValue, to: newValue)
             }
 
+            createModeArcSection
+
             createModeTagsSection
 
             createModeTasksSection
@@ -37,6 +39,47 @@ extension StackEditorView {
 
             attachmentsSection
         }
+    }
+
+    // MARK: - Create Mode Arc Section
+
+    var createModeArcSection: some View {
+        Section("Arc") {
+            Button {
+                showArcSelection = true
+            } label: {
+                HStack {
+                    if let arc = selectedArc {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(arcColor(for: arc))
+                                .frame(width: 12, height: 12)
+                            Text(arc.title)
+                                .foregroundStyle(.primary)
+                        }
+                    } else {
+                        Text("None")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        } footer: {
+            Text("Optionally add this stack to an active Arc")
+        }
+    }
+
+    private func arcColor(for arc: Arc) -> Color {
+        if let hex = arc.colorHex {
+            return Color(hex: hex) ?? .indigo
+        }
+        return .indigo
     }
 
     // MARK: - Create Mode Tags Section
@@ -279,6 +322,7 @@ extension StackEditorView {
             do {
                 let stack = try await createOrPublishStack(using: stackSvc)
                 associateTagsWithStack(stack)
+                await assignStackToArc(stack)
 
                 let failedTasks = await createPendingTasks(for: stack)
                 if !failedTasks.isEmpty {
@@ -317,6 +361,18 @@ extension StackEditorView {
         for tag in selectedTags where !stack.tagObjects.contains(where: { $0.id == tag.id }) {
             stack.tagObjects.append(tag)
             logger.info("Tag '\(tag.name)' associated with stack: \(stack.id)")
+        }
+    }
+
+    private func assignStackToArc(_ stack: Stack) async {
+        guard let arc = selectedArc, let service = arcService else { return }
+        do {
+            try await service.assignStack(stack, to: arc)
+            logger.info("Stack '\(stack.id)' assigned to arc: \(arc.id)")
+        } catch {
+            logger.error("Failed to assign stack to arc: \(error.localizedDescription)")
+            // Non-fatal: stack is created, arc assignment just failed
+            // User can manually assign later
         }
     }
 
