@@ -38,7 +38,7 @@ final class QueueTask {
     // Relationships
     var stack: Stack?
 
-    @Relationship(deleteRule: .cascade)
+    @Relationship(deleteRule: .cascade, inverse: \Reminder.task)
     var reminders: [Reminder] = []
 
     init(

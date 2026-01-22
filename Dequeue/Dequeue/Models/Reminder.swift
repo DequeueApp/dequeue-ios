@@ -28,6 +28,11 @@ final class Reminder {
     var serverId: String?
     var revision: Int
 
+    // Inverse relationships (only one should be set based on parentType)
+    var stack: Stack?
+    var task: QueueTask?
+    var arc: Arc?
+
     init(
         id: String = CUID.generate(),
         parentId: String,

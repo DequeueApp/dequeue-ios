@@ -36,7 +36,7 @@ final class Arc {
     var stacks: [Stack] = []
 
     // Relationship to Reminders (Arc can have reminders)
-    @Relationship(deleteRule: .cascade)
+    @Relationship(deleteRule: .cascade, inverse: \Reminder.arc)
     var reminders: [Reminder] = []
 
     // MARK: - Computed Properties
