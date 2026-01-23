@@ -135,8 +135,6 @@ struct RootView: View {
     // Initialize view model eagerly to avoid race condition where body evaluates before .task completes
     @State private var syncStatusViewModel: SyncStatusViewModel?
 
-    @State private var syncStatusViewModel: SyncStatusViewModel?
-
     private var notificationService: NotificationService {
         NotificationService(modelContext: modelContext)
     }
