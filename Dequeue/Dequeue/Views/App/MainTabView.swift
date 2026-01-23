@@ -14,7 +14,6 @@ struct MainTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.syncManager) private var syncManager
     @Environment(\.authService) private var authService
-    @Environment(\.deepLinkManager) private var deepLinkManager
 
     @Query(filter: #Predicate<Stack> { !$0.isDeleted }) private var allStacks: [Stack]
     @Query(filter: #Predicate<QueueTask> { !$0.isDeleted }) private var allTasks: [QueueTask]
@@ -236,13 +235,13 @@ struct MainTabView: View {
         guard let stack = targetStack else { return }
 
         // Navigate to the Stacks tab and show the stack detail
-        // Use a small delay to ensure smooth animation
         withAnimation {
             selectedTab = 1  // Stacks tab
         }
 
-        // Show the stack editor after a brief delay for tab switch to complete
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        // Show the stack editor after tab switch animation completes
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
             activeStackForDetail = stack
         }
     }
