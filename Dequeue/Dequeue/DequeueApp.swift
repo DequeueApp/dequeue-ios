@@ -390,7 +390,9 @@ struct RootView: View {
     }
 
     /// Runs one-time data migrations if needed.
-    /// Currently migrates attachment paths from absolute to relative format.
+    /// Currently migrates:
+    /// - Attachment paths from absolute to relative format
+    /// - Duplicate tags from cross-device sync issues (DEQ-197)
     ///
     /// - Note: **Known limitation**: Migration runs before sync connection is established.
     ///   If an older client creates attachments with absolute paths and syncs them to another device
@@ -400,20 +402,26 @@ struct RootView: View {
     ///   2. New attachments created by this version always use relative paths
     ///   3. Once all clients are updated, no new absolute paths will be created
     private func runMigrationsIfNeeded() async {
-        let migrationKey = "com.dequeue.migrations.attachmentRelativePaths"
-
-        // Skip if already migrated
-        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
-
-        // Get current user's ID for AttachmentService
+        // Get current user's ID
         guard let userId = authService.currentUserId else { return }
 
         // Get device ID from DeviceService
         let deviceId = await DeviceService.shared.getDeviceId()
 
-        // Note: modelContext is non-optional here because @Environment(\.modelContext) is injected
-        // via .modelContainer() on the WindowGroup in DequeueApp.body, guaranteeing availability
-        // when this view is in the hierarchy.
+        // Run attachment path migration
+        await runAttachmentPathMigration(userId: userId, deviceId: deviceId)
+
+        // DEQ-197: Run duplicate tag merge migration
+        await runDuplicateTagMigration()
+    }
+
+    /// Migrates attachment paths from absolute to relative format.
+    private func runAttachmentPathMigration(userId: String, deviceId: String) async {
+        let migrationKey = "com.dequeue.migrations.attachmentRelativePaths"
+
+        // Skip if already migrated
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+
         let attachmentService = AttachmentService(
             modelContext: modelContext,
             userId: userId,
@@ -433,6 +441,35 @@ struct RootView: View {
             ErrorReportingService.capture(
                 error: error,
                 context: ["source": "attachment_path_migration"]
+            )
+        }
+    }
+
+    /// DEQ-197: Merges duplicate tags that were created across devices before the sync fix.
+    /// This migration runs every app launch until no duplicates are found, since new duplicates
+    /// may arrive from older clients that haven't been updated yet.
+    private func runDuplicateTagMigration() async {
+        do {
+            let result = try TagService.mergeDuplicateTags(modelContext: modelContext)
+            if result.duplicateGroupsFound > 0 {
+                os_log(
+                    "[Migration] Merged \(result.tagsMerged) duplicate tags in \(result.duplicateGroupsFound) groups, updated \(result.stacksUpdated) stacks"
+                )
+                ErrorReportingService.addBreadcrumb(
+                    category: "migration",
+                    message: "Merged duplicate tags",
+                    data: [
+                        "duplicate_groups": result.duplicateGroupsFound,
+                        "tags_merged": result.tagsMerged,
+                        "stacks_updated": result.stacksUpdated
+                    ]
+                )
+            }
+        } catch {
+            os_log("[Migration] Failed to merge duplicate tags: \(error.localizedDescription)")
+            ErrorReportingService.capture(
+                error: error,
+                context: ["source": "duplicate_tag_migration"]
             )
         }
     }
