@@ -779,35 +779,13 @@ enum ProjectorService {
         // DEQ-197: Check if tag with same normalized name already exists (cross-device duplicate)
         let normalizedName = payload.name.lowercased().trimmingCharacters(in: .whitespaces)
         if let existingByName = try findTagByNormalizedName(normalizedName, context: context) {
-            // A tag with this name already exists - this is a cross-device duplicate
-            // Instead of creating a new tag, resolve pending associations to the existing tag
-            // and log this as a deduplication event
-
-            ErrorReportingService.addBreadcrumb(
-                category: "sync_tag_dedupe",
-                message: "Cross-device tag duplicate detected and merged",
-                data: [
-                    "incoming_tag_id": payload.id,
-                    "existing_tag_id": existingByName.id,
-                    "tag_name": payload.name,
-                    "normalized_name": normalizedName
-                ]
+            await handleCrossDeviceTagDuplicate(
+                incomingId: payload.id,
+                existingTag: existingByName,
+                tagName: payload.name,
+                normalizedName: normalizedName,
+                context: context
             )
-
-            // Resolve pending associations for the incoming tag ID to the existing tag
-            let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: payload.id)
-            for stackId in pendingStackIds {
-                if let stack = try? findStack(id: stackId, context: context), !stack.isDeleted {
-                    if !stack.tagObjects.contains(where: { $0.id == existingByName.id }) {
-                        stack.tagObjects.append(existingByName)
-                    }
-                }
-            }
-
-            // Also register a mapping so any future references to the incoming ID
-            // will be redirected to the existing tag
-            await tagIdRemapping.addMapping(from: payload.id, to: existingByName.id)
-
             return
         }
 
@@ -848,6 +826,39 @@ enum ProjectorService {
         return allTags.first { tag in
             tag.name.lowercased().trimmingCharacters(in: .whitespaces) == normalizedName
         }
+    }
+
+    /// Handles a cross-device duplicate tag by merging the incoming tag into the existing one
+    private static func handleCrossDeviceTagDuplicate(
+        incomingId: String,
+        existingTag: Tag,
+        tagName: String,
+        normalizedName: String,
+        context: ModelContext
+    ) async {
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_tag_dedupe",
+            message: "Cross-device tag duplicate detected and merged",
+            data: [
+                "incoming_tag_id": incomingId,
+                "existing_tag_id": existingTag.id,
+                "tag_name": tagName,
+                "normalized_name": normalizedName
+            ]
+        )
+
+        // Resolve pending associations for the incoming tag ID to the existing tag
+        let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: incomingId)
+        for stackId in pendingStackIds {
+            if let stack = try? findStack(id: stackId, context: context), !stack.isDeleted {
+                if !stack.tagObjects.contains(where: { $0.id == existingTag.id }) {
+                    stack.tagObjects.append(existingTag)
+                }
+            }
+        }
+
+        // Register mapping so future references to the incoming ID redirect to existing tag
+        await tagIdRemapping.addMapping(from: incomingId, to: existingTag.id)
     }
 
     private static func applyTagUpdated(event: Event, context: ModelContext) throws {

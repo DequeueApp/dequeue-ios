@@ -60,42 +60,12 @@ extension TagService {
         var totalStacksUpdated = 0
 
         for (normalizedName, tags) in duplicateGroups {
-            // Sort by createdAt to keep the oldest tag
-            let sortedTags = tags.sorted { $0.createdAt < $1.createdAt }
-            guard let canonicalTag = sortedTags.first else { continue }
-
-            let duplicateTags = Array(sortedTags.dropFirst())
-
-            ErrorReportingService.addBreadcrumb(
-                category: "tag_merge",
-                message: "Merging duplicate tags",
-                data: [
-                    "normalized_name": normalizedName,
-                    "canonical_tag_id": canonicalTag.id,
-                    "duplicate_count": duplicateTags.count,
-                    "duplicate_ids": duplicateTags.map(\.id).joined(separator: ",")
-                ]
+            let (merged, updated) = mergeDuplicateTagGroup(
+                normalizedName: normalizedName,
+                tags: tags
             )
-
-            // Move all stack associations from duplicates to canonical tag
-            for duplicateTag in duplicateTags {
-                for stack in duplicateTag.stacks where !stack.isDeleted {
-                    // Check if stack already has the canonical tag
-                    if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
-                        stack.tagObjects.append(canonicalTag)
-                    }
-                    // Remove the duplicate tag from the stack
-                    stack.tagObjects.removeAll { $0.id == duplicateTag.id }
-                    stack.syncState = .pending
-                    totalStacksUpdated += 1
-                }
-
-                // Soft-delete the duplicate tag
-                duplicateTag.isDeleted = true
-                duplicateTag.updatedAt = Date()
-                duplicateTag.syncState = .pending
-                totalTagsMerged += 1
-            }
+            totalTagsMerged += merged
+            totalStacksUpdated += updated
         }
 
         try modelContext.save()
@@ -105,6 +75,46 @@ extension TagService {
             tagsMerged: totalTagsMerged,
             stacksUpdated: totalStacksUpdated
         )
+    }
+
+    /// Merges a single group of duplicate tags into the canonical (oldest) tag
+    private static func mergeDuplicateTagGroup(
+        normalizedName: String,
+        tags: [Tag]
+    ) -> (tagsMerged: Int, stacksUpdated: Int) {
+        let sortedTags = tags.sorted { $0.createdAt < $1.createdAt }
+        guard let canonicalTag = sortedTags.first else { return (0, 0) }
+
+        let duplicateTags = Array(sortedTags.dropFirst())
+
+        ErrorReportingService.addBreadcrumb(
+            category: "tag_merge",
+            message: "Merging duplicate tags",
+            data: [
+                "normalized_name": normalizedName,
+                "canonical_tag_id": canonicalTag.id,
+                "duplicate_count": duplicateTags.count,
+                "duplicate_ids": duplicateTags.map(\.id).joined(separator: ",")
+            ]
+        )
+
+        var stacksUpdated = 0
+        for duplicateTag in duplicateTags {
+            for stack in duplicateTag.stacks where !stack.isDeleted {
+                if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
+                    stack.tagObjects.append(canonicalTag)
+                }
+                stack.tagObjects.removeAll { $0.id == duplicateTag.id }
+                stack.syncState = .pending
+                stacksUpdated += 1
+            }
+
+            duplicateTag.isDeleted = true
+            duplicateTag.updatedAt = Date()
+            duplicateTag.syncState = .pending
+        }
+
+        return (duplicateTags.count, stacksUpdated)
     }
 
     // MARK: - Migration
