@@ -324,7 +324,7 @@ extension StackEditorView {
             do {
                 let stack = try await createOrPublishStack(using: stackSvc)
                 associateTagsWithStack(stack)
-                await assignStackToArc(stack)
+                let arcAssignmentSucceeded = await assignStackToArc(stack)
 
                 let failedTasks = await createPendingTasks(for: stack)
                 if !failedTasks.isEmpty {
@@ -333,6 +333,15 @@ extension StackEditorView {
                 }
 
                 syncManager?.triggerImmediatePush()
+
+                if !arcAssignmentSucceeded {
+                    // Stack created successfully, but arc assignment failed
+                    // Show informational message - user can manually assign later
+                    errorMessage = "Stack created! Couldn't assign to Arc - you can assign it manually later."
+                    showError = true
+                    return
+                }
+
                 dismiss()
             } catch {
                 logger.error("Failed to create stack: \(error.localizedDescription)")
@@ -366,15 +375,17 @@ extension StackEditorView {
         }
     }
 
-    private func assignStackToArc(_ stack: Stack) async {
-        guard let arc = selectedArc, let service = arcService else { return }
+    /// Attempts to assign the stack to the selected Arc.
+    /// - Returns: `true` if assignment succeeded or no arc was selected, `false` if assignment failed.
+    private func assignStackToArc(_ stack: Stack) async -> Bool {
+        guard let arc = selectedArc, let service = arcService else { return true }
         do {
             try await service.assignStack(stack, to: arc)
             logger.info("Stack '\(stack.id)' assigned to arc: \(arc.id)")
+            return true
         } catch {
             logger.error("Failed to assign stack to arc: \(error.localizedDescription)")
-            // Non-fatal: stack is created, arc assignment just failed
-            // User can manually assign later
+            return false
         }
     }
 
