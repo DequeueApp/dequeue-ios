@@ -44,7 +44,7 @@ extension StackEditorView {
     // MARK: - Create Mode Arc Section
 
     var createModeArcSection: some View {
-        Section("Arc") {
+        Section {
             Button {
                 showArcSelection = true
             } label: {
@@ -70,6 +70,8 @@ extension StackEditorView {
                 }
             }
             .buttonStyle(.plain)
+        } header: {
+            Text("Arc")
         } footer: {
             Text("Optionally add this stack to an active Arc")
         }
