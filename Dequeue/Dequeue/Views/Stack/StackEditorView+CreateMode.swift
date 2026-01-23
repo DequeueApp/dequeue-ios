@@ -324,7 +324,7 @@ extension StackEditorView {
             do {
                 let stack = try await createOrPublishStack(using: stackSvc)
                 associateTagsWithStack(stack)
-                let arcAssignmentSucceeded = await assignStackToArc(stack)
+                _ = await assignStackToArc(stack)
 
                 let failedTasks = await createPendingTasks(for: stack)
                 if !failedTasks.isEmpty {
@@ -334,13 +334,9 @@ extension StackEditorView {
 
                 syncManager?.triggerImmediatePush()
 
-                if !arcAssignmentSucceeded {
-                    // Stack created successfully, but arc assignment failed
-                    // Show informational message - user can manually assign later
-                    errorMessage = "Stack created! Couldn't assign to Arc - you can assign it manually later."
-                    showError = true
-                    // Fall through to dismiss - sheet closes after user sees the alert
-                }
+                // Arc assignment failure is non-fatal - stack was created successfully.
+                // User can manually assign to an arc later if needed.
+                // We just log it rather than showing an alert to avoid UX confusion.
 
                 dismiss()
             } catch {
