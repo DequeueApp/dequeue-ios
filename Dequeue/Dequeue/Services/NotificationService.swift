@@ -360,13 +360,24 @@ extension NotificationService: UNUserNotificationCenterDelegate {
 
     /// Handles the navigation action when user taps a notification (DEQ-211)
     nonisolated private func handleNavigationAction(userInfo: [AnyHashable: Any]) async {
+        // Extract Sendable values before crossing to MainActor
+        // This avoids data race warnings with [AnyHashable: Any]
+        let reminderId = userInfo[NotificationConstants.UserInfoKey.reminderId] as? String
+        let parentType = userInfo[NotificationConstants.UserInfoKey.parentType] as? String
+        let parentId = userInfo[NotificationConstants.UserInfoKey.parentId] as? String
+
         // Post a notification that the app can observe to trigger navigation
         // This is done on MainActor to ensure thread safety with UI components
         await MainActor.run {
+            var sendableUserInfo: [String: String] = [:]
+            if let reminderId { sendableUserInfo[NotificationConstants.UserInfoKey.reminderId] = reminderId }
+            if let parentType { sendableUserInfo[NotificationConstants.UserInfoKey.parentType] = parentType }
+            if let parentId { sendableUserInfo[NotificationConstants.UserInfoKey.parentId] = parentId }
+
             NotificationCenter.default.post(
                 name: .reminderNotificationTapped,
                 object: nil,
-                userInfo: userInfo
+                userInfo: sendableUserInfo
             )
         }
     }
