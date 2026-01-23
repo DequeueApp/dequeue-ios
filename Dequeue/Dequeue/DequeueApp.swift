@@ -232,11 +232,7 @@ struct RootView: View {
         }
     }
 
-    /// Observes session state changes and handles multi-device session scenarios.
-    ///
-    /// This handles cases where:
-    /// - Session is invalidated on server (e.g., password changed on another device)
-    /// - Session is restored after temporary network issues
+    /// Observes session state changes and handles multi-device session scenarios
     private func observeSessionStateChanges() async {
         for await change in authService.sessionStateChanges {
             switch change {
@@ -331,11 +327,7 @@ struct RootView: View {
         }
     }
 
-    /// Ensures sync is connected with fresh credentials.
-    /// Called when app becomes active to handle cases where:
-    /// - WebSocket disconnected while app was in background
-    /// - User re-authenticated without triggering onChange (session refresh)
-    /// - Initial connection failed and needs retry
+    /// Ensures sync is connected with fresh credentials when app becomes active
     private func ensureSyncConnected() async {
         guard let userId = authService.currentUserId else { return }
 
@@ -457,6 +449,13 @@ struct RootView: View {
             os_log("[App] Failed to get pending sync count: \(error.localizedDescription)")
             return 0
         }
+    }
+
+    /// DEQ-197: Merge duplicate tags created across devices before sync fix
+    private func runDuplicateTagMigration() async {
+        guard let result = try? TagService.mergeDuplicateTags(modelContext: modelContext),
+              result.duplicateGroupsFound > 0 else { return }
+        os_log("[Migration] Merged \(result.tagsMerged) tags in \(result.duplicateGroupsFound) groups")
     }
 }
 
