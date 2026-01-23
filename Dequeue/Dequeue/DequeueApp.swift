@@ -232,11 +232,7 @@ struct RootView: View {
         }
     }
 
-    /// Observes session state changes and handles multi-device session scenarios.
-    ///
-    /// This handles cases where:
-    /// - Session is invalidated on server (e.g., password changed on another device)
-    /// - Session is restored after temporary network issues
+    /// Observes session state changes and handles multi-device session scenarios
     private func observeSessionStateChanges() async {
         for await change in authService.sessionStateChanges {
             switch change {
@@ -331,11 +327,7 @@ struct RootView: View {
         }
     }
 
-    /// Ensures sync is connected with fresh credentials.
-    /// Called when app becomes active to handle cases where:
-    /// - WebSocket disconnected while app was in background
-    /// - User re-authenticated without triggering onChange (session refresh)
-    /// - Initial connection failed and needs retry
+    /// Ensures sync is connected with fresh credentials when app becomes active
     private func ensureSyncConnected() async {
         guard let userId = authService.currentUserId else { return }
 
@@ -390,7 +382,9 @@ struct RootView: View {
     }
 
     /// Runs one-time data migrations if needed.
-    /// Currently migrates attachment paths from absolute to relative format.
+    /// Currently migrates:
+    /// - Attachment paths from absolute to relative format
+    /// - Duplicate tags from cross-device sync issues (DEQ-197)
     ///
     /// - Note: **Known limitation**: Migration runs before sync connection is established.
     ///   If an older client creates attachments with absolute paths and syncs them to another device
@@ -400,20 +394,26 @@ struct RootView: View {
     ///   2. New attachments created by this version always use relative paths
     ///   3. Once all clients are updated, no new absolute paths will be created
     private func runMigrationsIfNeeded() async {
-        let migrationKey = "com.dequeue.migrations.attachmentRelativePaths"
-
-        // Skip if already migrated
-        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
-
-        // Get current user's ID for AttachmentService
+        // Get current user's ID
         guard let userId = authService.currentUserId else { return }
 
         // Get device ID from DeviceService
         let deviceId = await DeviceService.shared.getDeviceId()
 
-        // Note: modelContext is non-optional here because @Environment(\.modelContext) is injected
-        // via .modelContainer() on the WindowGroup in DequeueApp.body, guaranteeing availability
-        // when this view is in the hierarchy.
+        // Run attachment path migration
+        await runAttachmentPathMigration(userId: userId, deviceId: deviceId)
+
+        // DEQ-197: Run duplicate tag merge migration
+        await runDuplicateTagMigration()
+    }
+
+    /// Migrates attachment paths from absolute to relative format.
+    private func runAttachmentPathMigration(userId: String, deviceId: String) async {
+        let migrationKey = "com.dequeue.migrations.attachmentRelativePaths"
+
+        // Skip if already migrated
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+
         let attachmentService = AttachmentService(
             modelContext: modelContext,
             userId: userId,
@@ -449,6 +449,13 @@ struct RootView: View {
             os_log("[App] Failed to get pending sync count: \(error.localizedDescription)")
             return 0
         }
+    }
+
+    /// DEQ-197: Merge duplicate tags created across devices before sync fix
+    private func runDuplicateTagMigration() async {
+        guard let result = try? TagService.mergeDuplicateTags(modelContext: modelContext),
+              result.duplicateGroupsFound > 0 else { return }
+        os_log("[Migration] Merged \(result.tagsMerged) tags in \(result.duplicateGroupsFound) groups")
     }
 }
 

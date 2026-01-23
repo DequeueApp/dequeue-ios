@@ -38,6 +38,38 @@ actor PendingTagAssociationsActor {
     }
 }
 
+// MARK: - Tag ID Remapping (DEQ-197)
+
+/// Actor to manage mappings from duplicate tag IDs to canonical tag IDs.
+/// When a cross-device duplicate tag is detected, we store a mapping so that
+/// any future references to the duplicate ID are resolved to the canonical tag.
+actor TagIdRemappingActor {
+    /// Stores tag ID remappings
+    /// Key: duplicate tag ID (from another device)
+    /// Value: canonical tag ID (the one we kept)
+    private var mappings: [String: String] = [:]
+
+    /// Adds a mapping from a duplicate tag ID to the canonical tag ID
+    func addMapping(from duplicateId: String, to canonicalId: String) {
+        mappings[duplicateId] = canonicalId
+    }
+
+    /// Resolves a tag ID, returning the canonical ID if a mapping exists
+    func resolve(_ tagId: String) -> String {
+        mappings[tagId] ?? tagId
+    }
+
+    /// Resolves multiple tag IDs, returning canonical IDs where mappings exist
+    func resolveAll(_ tagIds: [String]) -> [String] {
+        tagIds.map { resolve($0) }
+    }
+
+    /// Clears all mappings
+    func clear() {
+        mappings.removeAll()
+    }
+}
+
 // swiftlint:disable:next type_body_length
 enum ProjectorService {
     // MARK: - Pending Tag Associations
@@ -45,9 +77,13 @@ enum ProjectorService {
     /// Thread-safe actor for managing pending tag associations
     private static let pendingTagAssociations = PendingTagAssociationsActor()
 
+    /// Thread-safe actor for managing tag ID remappings (DEQ-197: cross-device deduplication)
+    private static let tagIdRemapping = TagIdRemappingActor()
+
     /// Clears all pending tag associations. Call at the start of a full sync to reset state.
     static func clearPendingTagAssociations() async {
         await pendingTagAssociations.clear()
+        await tagIdRemapping.clear()
     }
 
     // swiftlint:disable:next cyclomatic_complexity function_body_length
@@ -725,6 +761,7 @@ enum ProjectorService {
     private static func applyTagCreated(event: Event, context: ModelContext) async throws {
         let payload = try event.decodePayload(TagEventPayload.self)
 
+        // First check if tag with same ID already exists
         if let existing = try findTag(id: payload.id, context: context) {
             // LWW: Only update if this event is newer than current state
             guard shouldApplyEvent(
@@ -736,30 +773,92 @@ enum ProjectorService {
                 context: context
             ) else { return }
             updateTag(existing, from: payload, eventTimestamp: event.timestamp)
-        } else {
-            let tag = Tag(
-                id: payload.id,
-                name: payload.name,
-                colorHex: payload.colorHex,
-                syncState: .synced,
-                lastSyncedAt: Date()
-            )
-            tag.updatedAt = event.timestamp  // LWW: Use event timestamp
-            context.insert(tag)
+            return
+        }
 
-            // Resolve any pending associations for this tag
-            // This handles the race condition where stack.updated arrived before tag.created
-            let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: payload.id)
-            if !pendingStackIds.isEmpty {
-                for stackId in pendingStackIds {
-                    if let stack = try? findStack(id: stackId, context: context), !stack.isDeleted {
-                        if !stack.tagObjects.contains(where: { $0.id == tag.id }) {
-                            stack.tagObjects.append(tag)
-                        }
+        // DEQ-197: Check if tag with same normalized name already exists (cross-device duplicate)
+        let normalizedName = payload.name.lowercased().trimmingCharacters(in: .whitespaces)
+        if let existingByName = try findTagByNormalizedName(normalizedName, context: context) {
+            await handleCrossDeviceTagDuplicate(
+                incomingId: payload.id,
+                existingTag: existingByName,
+                tagName: payload.name,
+                normalizedName: normalizedName,
+                context: context
+            )
+            return
+        }
+
+        // No duplicate - create the new tag
+        let tag = Tag(
+            id: payload.id,
+            name: payload.name,
+            colorHex: payload.colorHex,
+            syncState: .synced,
+            lastSyncedAt: Date()
+        )
+        tag.updatedAt = event.timestamp  // LWW: Use event timestamp
+        context.insert(tag)
+
+        // Resolve any pending associations for this tag
+        // This handles the race condition where stack.updated arrived before tag.created
+        let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: payload.id)
+        if !pendingStackIds.isEmpty {
+            for stackId in pendingStackIds {
+                if let stack = try? findStack(id: stackId, context: context), !stack.isDeleted {
+                    if !stack.tagObjects.contains(where: { $0.id == tag.id }) {
+                        stack.tagObjects.append(tag)
                     }
                 }
             }
         }
+    }
+
+    /// Finds a tag by normalized name (case-insensitive).
+    /// Used for detecting cross-device duplicate tags during sync.
+    private static func findTagByNormalizedName(_ normalizedName: String, context: ModelContext) throws -> Tag? {
+        let predicate = #Predicate<Tag> { tag in
+            tag.isDeleted == false
+        }
+        let descriptor = FetchDescriptor<Tag>(predicate: predicate)
+        let allTags = try context.fetch(descriptor)
+
+        return allTags.first { tag in
+            tag.name.lowercased().trimmingCharacters(in: .whitespaces) == normalizedName
+        }
+    }
+
+    /// Handles a cross-device duplicate tag by merging the incoming tag into the existing one
+    private static func handleCrossDeviceTagDuplicate(
+        incomingId: String,
+        existingTag: Tag,
+        tagName: String,
+        normalizedName: String,
+        context: ModelContext
+    ) async {
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_tag_dedupe",
+            message: "Cross-device tag duplicate detected and merged",
+            data: [
+                "incoming_tag_id": incomingId,
+                "existing_tag_id": existingTag.id,
+                "tag_name": tagName,
+                "normalized_name": normalizedName
+            ]
+        )
+
+        // Resolve pending associations for the incoming tag ID to the existing tag
+        let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: incomingId)
+        for stackId in pendingStackIds {
+            if let stack = try? findStack(id: stackId, context: context), !stack.isDeleted {
+                if !stack.tagObjects.contains(where: { $0.id == existingTag.id }) {
+                    stack.tagObjects.append(existingTag)
+                }
+            }
+        }
+
+        // Register mapping so future references to the incoming ID redirect to existing tag
+        await tagIdRemapping.addMapping(from: incomingId, to: existingTag.id)
     }
 
     private static func applyTagUpdated(event: Event, context: ModelContext) throws {
@@ -1254,6 +1353,7 @@ enum ProjectorService {
     /// This handles the case where stack_updated arrives before tag_created events.
     /// - Logs warnings for missing tags
     /// - Still applies tags that ARE found (partial success)
+    /// - DEQ-197: Resolves tag IDs through remapping to handle cross-device duplicates
     private static func applyTagsToStack(_ stack: Stack, tagIds: [String], context: ModelContext) async {
         guard !tagIds.isEmpty else {
             // Explicitly clear tags if payload has empty tagIds
@@ -1261,8 +1361,11 @@ enum ProjectorService {
             return
         }
 
+        // DEQ-197: Resolve tag IDs through remapping (handles cross-device duplicates)
+        let resolvedTagIds = await tagIdRemapping.resolveAll(tagIds)
+
         do {
-            let result = try findTagsWithMissing(ids: tagIds, context: context)
+            let result = try findTagsWithMissing(ids: resolvedTagIds, context: context)
 
             // Always apply found tags (partial success is better than nothing)
             stack.tagObjects = result.foundTags
@@ -1275,7 +1378,7 @@ enum ProjectorService {
                     data: [
                         "stack_id": stack.id,
                         "stack_title": stack.title,
-                        "expected_tag_count": tagIds.count,
+                        "expected_tag_count": resolvedTagIds.count,
                         "found_tag_count": result.foundTags.count,
                         "missing_tag_ids": result.missingTagIds.joined(separator: ",")
                     ]

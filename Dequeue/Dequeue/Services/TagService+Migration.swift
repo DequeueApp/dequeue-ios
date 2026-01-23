@@ -9,6 +9,114 @@ import Foundation
 import SwiftData
 
 extension TagService {
+    // MARK: - Duplicate Tag Merging (DEQ-197)
+
+    /// Result of the duplicate tag merge operation
+    struct MergeDuplicateTagsResult {
+        /// Number of duplicate tag groups found
+        let duplicateGroupsFound: Int
+        /// Total number of duplicate tags merged (deleted)
+        let tagsMerged: Int
+        /// Number of stacks that had their tag references updated
+        let stacksUpdated: Int
+    }
+
+    /// Merges duplicate tags that have the same normalized name.
+    ///
+    /// This handles the case where the same tag was created on multiple devices
+    /// before sync detected the duplicate. For each group of duplicate tags:
+    /// 1. Keeps the oldest tag (by createdAt)
+    /// 2. Moves all stack associations from duplicates to the kept tag
+    /// 3. Soft-deletes the duplicate tags
+    ///
+    /// Call this on app startup to clean up any existing duplicates.
+    ///
+    /// - Parameter modelContext: The model context to use for the migration
+    /// - Returns: Statistics about the merge operation
+    @discardableResult
+    static func mergeDuplicateTags(modelContext: ModelContext) throws -> MergeDuplicateTagsResult {
+        // Fetch all non-deleted tags
+        let predicate = #Predicate<Tag> { tag in
+            tag.isDeleted == false
+        }
+        let descriptor = FetchDescriptor<Tag>(predicate: predicate)
+        let allTags = try modelContext.fetch(descriptor)
+
+        // Group tags by normalized name
+        var tagsByNormalizedName: [String: [Tag]] = [:]
+        for tag in allTags {
+            let normalizedName = tag.name.lowercased().trimmingCharacters(in: .whitespaces)
+            tagsByNormalizedName[normalizedName, default: []].append(tag)
+        }
+
+        // Find groups with duplicates
+        let duplicateGroups = tagsByNormalizedName.filter { $0.value.count > 1 }
+
+        guard !duplicateGroups.isEmpty else {
+            return MergeDuplicateTagsResult(duplicateGroupsFound: 0, tagsMerged: 0, stacksUpdated: 0)
+        }
+
+        var totalTagsMerged = 0
+        var totalStacksUpdated = 0
+
+        for (normalizedName, tags) in duplicateGroups {
+            let (merged, updated) = mergeDuplicateTagGroup(
+                normalizedName: normalizedName,
+                tags: tags
+            )
+            totalTagsMerged += merged
+            totalStacksUpdated += updated
+        }
+
+        try modelContext.save()
+
+        return MergeDuplicateTagsResult(
+            duplicateGroupsFound: duplicateGroups.count,
+            tagsMerged: totalTagsMerged,
+            stacksUpdated: totalStacksUpdated
+        )
+    }
+
+    /// Merges a single group of duplicate tags into the canonical (oldest) tag
+    private static func mergeDuplicateTagGroup(
+        normalizedName: String,
+        tags: [Tag]
+    ) -> (tagsMerged: Int, stacksUpdated: Int) {
+        let sortedTags = tags.sorted { $0.createdAt < $1.createdAt }
+        guard let canonicalTag = sortedTags.first else { return (0, 0) }
+
+        let duplicateTags = Array(sortedTags.dropFirst())
+
+        ErrorReportingService.addBreadcrumb(
+            category: "tag_merge",
+            message: "Merging duplicate tags",
+            data: [
+                "normalized_name": normalizedName,
+                "canonical_tag_id": canonicalTag.id,
+                "duplicate_count": duplicateTags.count,
+                "duplicate_ids": duplicateTags.map(\.id).joined(separator: ",")
+            ]
+        )
+
+        var stacksUpdated = 0
+        for duplicateTag in duplicateTags {
+            for stack in duplicateTag.stacks where !stack.isDeleted {
+                if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
+                    stack.tagObjects.append(canonicalTag)
+                }
+                stack.tagObjects.removeAll { $0.id == duplicateTag.id }
+                stack.syncState = .pending
+                stacksUpdated += 1
+            }
+
+            duplicateTag.isDeleted = true
+            duplicateTag.updatedAt = Date()
+            duplicateTag.syncState = .pending
+        }
+
+        return (duplicateTags.count, stacksUpdated)
+    }
+
     // MARK: - Migration
 
     /// Migrates legacy string-based tags to the Tag model relationship.
