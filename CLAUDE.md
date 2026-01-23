@@ -29,12 +29,16 @@ We're building a production-quality native iOS/iPadOS/macOS app together. Your r
 ## Swift & SwiftUI Rules
 
 ### FORBIDDEN - NEVER DO THESE:
+- **NO sleep loops while actionable work exists** - if a CI check failed or PR feedback exists, ACT IMMEDIATELY
 - **NO force unwrapping** (`!`) without explicit safety comment
 - **NO implicitly unwrapped optionals** unless for @IBOutlet (which we don't use)
 - **NO Any type** - use specific types or generics
 - **NO stringly-typed code** - use enums and constants
 - **NO print() in production** - use proper logging (os.log or similar)
-- **NO @MainActor on entire classes** unless truly needed - be surgical
+- **NO @MainActor on entire classes** unless they interact with SwiftData ModelContext
+  - Services using ModelContext (StackService, EventService, etc.) require @MainActor
+  - Standalone actors (SyncManager, DeviceService) should NOT use @MainActor
+  - ViewModels that access SwiftData should use @MainActor
 - **NO blocking the main thread** - all heavy work must be async
 - **NO ignoring errors** - handle them or propagate them
 - **NO magic numbers** - use named constants
@@ -99,6 +103,54 @@ let date = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
 
 **NEVER use ISO8601/RFC3339 strings** for timestamps in APIs - only format dates as strings for display to users.
 
+### Service Naming Conventions
+- **XxxService** - Core business logic (StackService, TaskService, EventService)
+- **XxxManager** - Coordinates complex operations (SyncManager, UploadManager)
+- **XxxCoordinator** - UI-facing coordination (AttachmentDownloadCoordinator)
+- **XxxHandler** - Single-purpose handlers (StorageQuotaHandler)
+
+## Event-First Patterns
+
+All state changes go through events. Never mutate models directly.
+
+### Recording Events
+```swift
+// Good: Use EventService to record changes
+try eventService.recordStackCreated(stack)
+try eventService.recordTaskUpdated(task)
+
+// Bad: Direct model mutation without event
+stack.title = "New Title"  // NO - must emit event first
+```
+
+### Event Types
+- **Stack**: created, updated, deleted, discarded, activated, deactivated, completed, closed, reordered
+- **Task**: created, updated, deleted, activated, completed, closed, reordered
+- **Reminder**: created, updated, deleted, snoozed
+- **Tag**: created, updated, deleted
+- **Attachment**: added, removed
+
+> See PROJECT.md for complete event architecture details.
+
+## Sync Architecture
+
+### Key Components
+- **SyncManager** - Actor (not @MainActor) for WebSocket/HTTP sync coordination
+- **SyncStatusViewModel** - @Observable for UI sync status
+- **ProjectorService** - Applies events to derive model state
+
+### Sync Flow
+1. Events recorded locally via EventService
+2. SyncManager sends events via WebSocket
+3. HTTP confirms acknowledgment (authoritative)
+4. Events pushed to other devices
+5. ProjectorService applies incoming events
+
+### Initial Sync
+- Fresh devices download all events on first sync
+- Track progress via `SyncStatusViewModel.initialSyncProgress` (0.0 to 1.0)
+- Show loading state until initial sync completes
+
 ## Platform Considerations
 
 ### iOS/iPadOS
@@ -134,6 +186,26 @@ do {
 }
 ```
 
+## Logging
+
+Use `os.log` Logger - never `print()`.
+
+```swift
+import os
+
+private let logger = Logger(subsystem: "com.dequeue", category: "ServiceName")
+
+// Usage
+logger.info("Operation started: \(identifier)")
+logger.error("Failed to save: \(error)")
+logger.debug("Debug info: \(state)")
+```
+
+### Categories by Layer
+- **Services**: "StackService", "EventService", "SyncManager", etc.
+- **Views**: "TaskDetailView", "StackEditorView", etc.
+- **Coordinators**: "AttachmentDownloadCoordinator", etc.
+
 ## Testing Requirements
 
 - Unit tests for all Services
@@ -141,6 +213,24 @@ do {
 - Use Swift Testing framework (`@Test`, `#expect`)
 - Mock dependencies using protocols
 - Test on both iOS and macOS
+
+### Test Patterns
+```swift
+@Suite("ServiceName Tests", .serialized)
+struct ServiceNameTests {
+    @Test("descriptive test name")
+    @MainActor
+    func testMethod() throws {
+        let container = try makeTestContainer()
+        // ... test code
+    }
+}
+```
+
+### Test Utilities
+- `makeTestContainer()` - Creates in-memory ModelContainer for isolation
+- Always use `@MainActor` for tests touching SwiftData
+- Use `.serialized` on suites to prevent race conditions
 
 ## Git Workflow
 
@@ -175,26 +265,49 @@ do {
 - Always rebase onto main before marking PR ready for review
 - Link PRs to their Linear issue
 
-## CI Checks
+## Bias Toward Action - CRITICAL
 
-### Act on Failures Immediately - Don't Wait!
-**NEVER wait for all CI checks to complete before acting on failures.**
+### FORBIDDEN: Sleep Loops While Actionable Work Exists
+**NEVER sit in a polling/sleep loop when there is actionable feedback available.**
 
-If there are 7 CI checks running and 1 fails while others are still in progress:
-- **Start fixing the failed check immediately** - don't sleep/poll waiting for the other 6
-- You already have actionable information - use it
-- Waiting for all checks to finish when you could be fixing known failures is wasteful
+This is a CRITICAL rule. Violating it wastes time and compute.
 
-### Iterative CI Response
-- Monitor checks as they complete, not just when all finish
-- Act on the **first failure** rather than waiting for complete results
-- If multiple checks fail, you can address them in parallel if they're independent
-- Only wait for all checks when everything is passing and you need final confirmation
+### What "Actionable" Means
+You have actionable work the moment ANY of these exist:
+- ❌ A CI check has failed (even if others are still running)
+- ❌ A PR review has comments requesting changes
+- ❌ A linter/type checker has errors
+- ❌ Tests are failing
+
+**You do NOT need to wait for:**
+- Other CI checks still in progress
+- Additional reviewers to weigh in
+- "Complete" feedback - partial feedback is enough to start
+
+### WRONG - Never Do This
+```
+# WRONG: Sleeping while actionable work exists
+while not all_checks_complete():
+    sleep(30)  # NO! If 1 of 7 checks failed, ACT ON IT NOW
+```
+
+### RIGHT - Act Immediately
+```
+# RIGHT: Act on first failure
+if any_check_failed():
+    fix_the_failure()  # Don't wait for other checks
+```
+
+### The Rule
+1. **One CI check fails while 6 are running?** → Fix it immediately
+2. **PR review has 1 critical comment?** → Address it now, don't wait for more comments
+3. **Linter failed in 5 seconds, tests still running?** → Fix lint errors now
 
 ### Why This Matters
-- CI checks have varying durations - some take seconds, others take minutes
-- A fast-failing linter check shouldn't wait for a slow integration test
-- Every minute spent sleeping on known failures is wasted time
+- A lint check that fails in 5 seconds shouldn't wait for a 10-minute integration test
+- Every 30-second sleep cycle while actionable work exists is wasted
+- Parallel work: fix known issues while other checks run
+- Only wait/poll when ALL checks are passing and you need final confirmation
 
 ## Communication Protocol
 
