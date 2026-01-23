@@ -234,8 +234,12 @@ final class StackService {
     }
 
     func getDrafts() throws -> [Stack] {
+        // Only return true drafts: not deleted, marked as draft, AND active status
+        // A draft that was completed or closed should not appear as a draft
         let predicate = #Predicate<Stack> { stack in
-            stack.isDeleted == false && stack.isDraft == true
+            stack.isDeleted == false &&
+            stack.isDraft == true &&
+            stack.statusRawValue == "active"
         }
         let descriptor = FetchDescriptor<Stack>(
             predicate: predicate,

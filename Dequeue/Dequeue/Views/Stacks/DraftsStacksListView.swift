@@ -18,15 +18,26 @@ struct DraftsStacksListView: View {
 
     @Query private var drafts: [Stack]
 
+    /// Filtered drafts that are truly draft stacks (safety filter in case @Query has issues)
+    /// This filters out any stacks that:
+    /// - Are not actually drafts (isDraft == false means promoted to full stack)
+    /// - Have been completed, closed, or archived
+    private var validDrafts: [Stack] {
+        drafts.filter { stack in
+            stack.isDraft && stack.status == .active
+        }
+    }
+
     init() {
         // Query drafts that are not deleted, are marked as draft,
-        // and have active status (not completed/closed)
-        let activeRaw = StackStatus.active.rawValue
+        // and have active status (not completed/closed/archived)
+        // Note: Using string literal "active" directly to avoid SwiftData predicate
+        // variable capture issues that can cause incorrect filtering
         _drafts = Query(
             filter: #Predicate<Stack> { stack in
                 stack.isDeleted == false &&
                 stack.isDraft == true &&
-                stack.statusRawValue == activeRaw
+                stack.statusRawValue == "active"
             },
             sort: \Stack.createdAt,
             order: .reverse
@@ -39,7 +50,7 @@ struct DraftsStacksListView: View {
 
     var body: some View {
         Group {
-            if drafts.isEmpty {
+            if validDrafts.isEmpty {
                 emptyState
             } else {
                 draftsList
@@ -78,7 +89,7 @@ struct DraftsStacksListView: View {
 
     private var draftsList: some View {
         List {
-            ForEach(drafts) { draft in
+            ForEach(validDrafts) { draft in
                 NavigationLink {
                     StackEditorView(mode: .edit(draft))
                 } label: {
@@ -106,7 +117,7 @@ struct DraftsStacksListView: View {
         }
 
         // Capture drafts to delete before entering Task (offsets may change)
-        let draftsToDelete = offsets.map { drafts[$0] }
+        let draftsToDelete = offsets.map { validDrafts[$0] }
 
         Task {
             for draft in draftsToDelete {
