@@ -453,7 +453,7 @@ struct RootView: View {
             let result = try TagService.mergeDuplicateTags(modelContext: modelContext)
             if result.duplicateGroupsFound > 0 {
                 os_log(
-                    "[Migration] Merged \(result.tagsMerged) duplicate tags in \(result.duplicateGroupsFound) groups, updated \(result.stacksUpdated) stacks"
+                    "[Migration] Merged \(result.tagsMerged) tags in \(result.duplicateGroupsFound) groups"
                 )
                 ErrorReportingService.addBreadcrumb(
                     category: "migration",
