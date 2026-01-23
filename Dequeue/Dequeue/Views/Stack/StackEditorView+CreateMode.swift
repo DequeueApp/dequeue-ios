@@ -339,7 +339,7 @@ extension StackEditorView {
                     // Show informational message - user can manually assign later
                     errorMessage = "Stack created! Couldn't assign to Arc - you can assign it manually later."
                     showError = true
-                    return
+                    // Fall through to dismiss - sheet closes after user sees the alert
                 }
 
                 dismiss()
