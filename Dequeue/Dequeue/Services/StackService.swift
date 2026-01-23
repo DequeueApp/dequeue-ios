@@ -303,6 +303,18 @@ final class StackService {
             }
         }
 
+        // Auto-dismiss any active or snoozed reminders for this stack (DEQ-212)
+        // When a stack is completed, its reminders should no longer appear as overdue/snoozed
+        let notificationService = NotificationService(modelContext: modelContext)
+        for reminder in stack.reminders where !reminder.isDeleted {
+            if reminder.status == .active || reminder.status == .snoozed {
+                reminder.status = .fired
+                reminder.updatedAt = Date()
+                reminder.syncState = .pending
+                notificationService.cancelNotification(for: reminder)
+            }
+        }
+
         try await eventService.recordStackCompleted(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()

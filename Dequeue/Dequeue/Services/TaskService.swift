@@ -68,6 +68,18 @@ final class TaskService {
         task.updatedAt = Date()
         task.syncState = .pending
 
+        // Auto-dismiss any active or snoozed reminders for this task (DEQ-212)
+        // When a task is completed, its reminders should no longer appear as overdue/snoozed
+        let notificationService = NotificationService(modelContext: modelContext)
+        for reminder in task.reminders where !reminder.isDeleted {
+            if reminder.status == .active || reminder.status == .snoozed {
+                reminder.status = .fired
+                reminder.updatedAt = Date()
+                reminder.syncState = .pending
+                notificationService.cancelNotification(for: reminder)
+            }
+        }
+
         try await eventService.recordTaskCompleted(task)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
