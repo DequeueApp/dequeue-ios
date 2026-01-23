@@ -8,11 +8,16 @@
 
 import SwiftUI
 import SwiftData
+import Combine
 
 struct MainTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.syncManager) private var syncManager
     @Environment(\.authService) private var authService
+    @Environment(\.deepLinkManager) private var deepLinkManager
+
+    @Query(filter: #Predicate<Stack> { !$0.isDeleted }) private var allStacks: [Stack]
+    @Query(filter: #Predicate<QueueTask> { !$0.isDeleted }) private var allTasks: [QueueTask]
 
     @State private var selectedTab = 0
     @State private var cachedDeviceId: String = ""
@@ -101,6 +106,9 @@ struct MainTabView: View {
                     uploadService: uploadService
                 )
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .reminderNotificationTapped)) { notification in
+            handleDeepLink(from: notification)
         }
         #else
         EmptyView()
@@ -227,6 +235,9 @@ struct MainTabView: View {
                 )
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .reminderNotificationTapped)) { notification in
+            handleDeepLink(from: notification)
+        }
     }
 
     @ViewBuilder
@@ -245,6 +256,47 @@ struct MainTabView: View {
         }
     }
     #endif
+
+    // MARK: - Deep Link Navigation (DEQ-211)
+
+    /// Handles navigation from a reminder notification tap
+    private func handleDeepLink(from notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let destination = DeepLinkDestination(userInfo: userInfo) else {
+            return
+        }
+
+        // Find the target Stack to navigate to
+        let targetStack: Stack?
+
+        switch destination.parentType {
+        case .stack:
+            targetStack = allStacks.first { $0.id == destination.parentId }
+        case .task:
+            // Find the task, then get its parent stack
+            if let task = allTasks.first(where: { $0.id == destination.parentId }) {
+                targetStack = task.stack
+            } else {
+                targetStack = nil
+            }
+        case .arc:
+            // Arcs don't have a detail view yet - could navigate to Arcs tab in future
+            targetStack = nil
+        }
+
+        guard let stack = targetStack else { return }
+
+        // Navigate to the Stacks tab and show the stack detail
+        // Use a small delay to ensure smooth animation
+        withAnimation {
+            selectedTab = 1  // Stacks tab
+        }
+
+        // Show the stack editor after a brief delay for tab switch to complete
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            activeStackForDetail = stack
+        }
+    }
 
     // MARK: - Active Stack Banner
 

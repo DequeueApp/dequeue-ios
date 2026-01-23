@@ -348,13 +348,26 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         case NotificationConstants.Action.snooze1Hour:
             await handleSnoozeAction(userInfo: userInfo, duration: NotificationConstants.SnoozeDuration.oneHour)
         case UNNotificationDefaultActionIdentifier:
-            // User tapped the notification - can be used for navigation
-            break
+            // User tapped the notification - navigate to the associated Stack/Task (DEQ-211)
+            await handleNavigationAction(userInfo: userInfo)
         case UNNotificationDismissActionIdentifier:
             // User dismissed the notification
             break
         default:
             break
+        }
+    }
+
+    /// Handles the navigation action when user taps a notification (DEQ-211)
+    nonisolated private func handleNavigationAction(userInfo: [AnyHashable: Any]) async {
+        // Post a notification that the app can observe to trigger navigation
+        // This is done on MainActor to ensure thread safety with UI components
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: .reminderNotificationTapped,
+                object: nil,
+                userInfo: userInfo
+            )
         }
     }
 

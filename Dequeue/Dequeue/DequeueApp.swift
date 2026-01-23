@@ -30,6 +30,7 @@ struct DequeueApp: App {
     @State private var attachmentSettings = AttachmentSettings()
     @State private var consecutiveSyncFailures = 0
     @State private var showSyncError = false
+    @State private var deepLinkManager = DeepLinkManager()
     let sharedModelContainer: ModelContainer
     let syncManager: SyncManager
     let notificationService: NotificationService
@@ -106,6 +107,7 @@ struct DequeueApp: App {
                 .environment(\.clerk, Clerk.shared)
                 .environment(\.syncManager, syncManager)
                 .environment(\.attachmentSettings, attachmentSettings)
+                .environment(\.deepLinkManager, deepLinkManager)
                 .applyAppTheme()
                 .task {
                     // Configure error reporting first (runs on background thread)
