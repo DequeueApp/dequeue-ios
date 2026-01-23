@@ -13,8 +13,6 @@ import Clerk
 // MARK: - Notification Constants
 
 /// Action and category identifiers for notification actions
-/// Note: nonisolated(unsafe) is required for static properties used in nonisolated delegate methods.
-/// These are String/TimeInterval constants (thread-safe, immutable), so unsafe is correct.
 enum NotificationConstants {
     nonisolated(unsafe) static let categoryIdentifier = "REMINDER_CATEGORY"
 
@@ -42,8 +40,6 @@ enum NotificationConstants {
 // MARK: - Notification Center Protocol
 
 /// Protocol abstracting UNUserNotificationCenter for testability
-/// Note: Does not conform to Sendable because UNUserNotificationCenter is not marked Sendable in SDK.
-/// This is safe because all methods are called from MainActor context via NotificationService.
 protocol NotificationCenterProtocol {
     func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
     func add(_ request: UNNotificationRequest) async throws
@@ -320,16 +316,13 @@ final class NotificationService: NSObject {
 // MARK: - Notification Delegate Support
 
 extension NotificationService: UNUserNotificationCenterDelegate {
-    /// Called when a notification is about to be presented while the app is in the foreground
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        // Show notification even when app is in foreground
-        return [.banner, .sound, .badge]
+        [.banner, .sound, .badge]
     }
 
-    /// Called when the user interacts with a notification
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
@@ -348,13 +341,32 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         case NotificationConstants.Action.snooze1Hour:
             await handleSnoozeAction(userInfo: userInfo, duration: NotificationConstants.SnoozeDuration.oneHour)
         case UNNotificationDefaultActionIdentifier:
-            // User tapped the notification - can be used for navigation
-            break
+            // User tapped the notification - navigate to the associated Stack/Task (DEQ-211)
+            await handleNavigationAction(userInfo: userInfo)
         case UNNotificationDismissActionIdentifier:
             // User dismissed the notification
             break
         default:
             break
+        }
+    }
+
+    /// Handles navigation when user taps a notification (DEQ-211)
+    nonisolated private func handleNavigationAction(userInfo: [AnyHashable: Any]) async {
+        // Extract Sendable String values before crossing to MainActor
+        let parentType = userInfo[NotificationConstants.UserInfoKey.parentType] as? String
+        let parentId = userInfo[NotificationConstants.UserInfoKey.parentId] as? String
+        guard let parentType, let parentId else { return }
+
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: .reminderNotificationTapped,
+                object: nil,
+                userInfo: [
+                    NotificationConstants.UserInfoKey.parentType: parentType,
+                    NotificationConstants.UserInfoKey.parentId: parentId
+                ]
+            )
         }
     }
 
