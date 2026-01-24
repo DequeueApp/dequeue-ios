@@ -272,7 +272,9 @@ final class StackService {
         stack.updatedAt = Date()
         stack.syncState = .pending
 
-        try await eventService.recordStackCreated(stack)
+        // Record as update event, not created - the stack.created event was already
+        // fired when the draft was created. Publishing just changes isDraft to false.
+        try await eventService.recordStackUpdated(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
