@@ -42,7 +42,8 @@ struct StackPickerForArcSheet: View {
                 stack.statusRawValue == activeRawValue &&
                 stack.arcId == nil
             },
-            sort: \Stack.sortOrder
+            sort: \Stack.updatedAt,
+            order: .reverse
         )
     }
 

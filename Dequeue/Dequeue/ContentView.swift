@@ -14,7 +14,8 @@ struct ContentView: View {
         filter: #Predicate<Stack> { stack in
             stack.isDeleted == false && stack.isDraft == false
         },
-        sort: \Stack.sortOrder
+        sort: \Stack.updatedAt,
+        order: .reverse
     ) private var stacks: [Stack]
 
     var body: some View {

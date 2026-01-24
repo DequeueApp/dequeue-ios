@@ -35,7 +35,7 @@ struct InProgressStacksListView: View {
                 stack.isDraft == false &&
                 stack.statusRawValue == activeRawValue
             },
-            sort: \Stack.createdAt,
+            sort: \Stack.updatedAt,
             order: .reverse
         )
 
