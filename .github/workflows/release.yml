@@ -55,20 +55,16 @@ jobs:
           echo -n "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8
 
       - name: Build Archive
-        env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
         run: |
+          # Archive without code signing - export step will handle signing
           xcodebuild archive \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Dequeue-iOS.xcarchive \
             -destination 'generic/platform=iOS' \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8 \
-            -authenticationKeyID $APP_STORE_CONNECT_API_KEY_ID \
-            -authenticationKeyIssuerID $APP_STORE_CONNECT_API_ISSUER_ID
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
       - name: Export IPA
         env:
@@ -132,20 +128,16 @@ jobs:
           echo -n "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8
 
       - name: Build Archive
-        env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
         run: |
+          # Archive without code signing - export step will handle signing
           xcodebuild archive \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Dequeue-macOS.xcarchive \
             -destination 'generic/platform=macOS' \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8 \
-            -authenticationKeyID $APP_STORE_CONNECT_API_KEY_ID \
-            -authenticationKeyIssuerID $APP_STORE_CONNECT_API_ISSUER_ID
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
       - name: Export App
         env:
@@ -214,20 +206,16 @@ jobs:
           echo -n "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8
 
       - name: Build Archive
-        env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
         run: |
+          # Archive without code signing - export step will handle signing
           xcodebuild archive \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Dequeue-visionOS.xcarchive \
             -destination 'generic/platform=visionOS' \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8 \
-            -authenticationKeyID $APP_STORE_CONNECT_API_KEY_ID \
-            -authenticationKeyIssuerID $APP_STORE_CONNECT_API_ISSUER_ID
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
       - name: Export IPA
         env:
