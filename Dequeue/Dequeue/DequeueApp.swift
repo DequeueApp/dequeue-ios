@@ -133,20 +133,22 @@ struct RootView: View {
     private let syncFailureThreshold = 3
 
     @State private var syncStatusViewModel: SyncStatusViewModel?
-    @State private var initialSyncCompleted = false
 
     private var notificationService: NotificationService {
         NotificationService(modelContext: modelContext)
     }
 
-    /// Fresh device = no sync checkpoint exists yet (uses same key as SyncManager)
-    private var isFreshDevice: Bool {
-        UserDefaults.standard.string(forKey: "com.dequeue.lastSyncCheckpoint") == nil
-    }
-
-    /// Show loading on fresh devices until initial sync completes
+    /// Show loading on fresh devices until initial sync completes.
+    /// Uses view model as primary source of truth with synchronous UserDefaults fallback
+    /// when view model hasn't initialized yet (first render).
     private var shouldShowInitialSyncLoading: Bool {
-        isFreshDevice && !initialSyncCompleted
+        guard authService.isAuthenticated else { return false }
+        // Use view model if available; fall back to checking checkpoint directly
+        if let viewModel = syncStatusViewModel {
+            return viewModel.isInitialSyncInProgress
+        }
+        // Fallback for first render before view model initializes
+        return UserDefaults.standard.string(forKey: "com.dequeue.lastSyncCheckpoint") == nil
     }
 
     private var initialSyncEventsProcessed: Int {
@@ -168,21 +170,13 @@ struct RootView: View {
             }
         }
         .task {
-            // Initialize sync status view model for tracking initial sync progress
+            // Initialize sync status view model early to track initial sync progress.
+            // This reactive approach avoids polling - the view model tracks sync state changes.
             if syncStatusViewModel == nil {
                 let viewModel = SyncStatusViewModel(modelContext: modelContext)
                 viewModel.setSyncManager(syncManager)
                 syncStatusViewModel = viewModel
             }
-            // Monitor for initial sync completion on fresh devices
-            guard isFreshDevice && authService.isAuthenticated else {
-                initialSyncCompleted = true
-                return
-            }
-            while !Task.isCancelled && isFreshDevice {
-                try? await Task.sleep(for: .milliseconds(500))
-            }
-            initialSyncCompleted = true
         }
         .animation(.easeInOut, value: authService.isLoading)
         .animation(.easeInOut, value: authService.isAuthenticated)
