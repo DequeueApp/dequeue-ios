@@ -143,4 +143,36 @@ struct SyncStatusViewModelTests {
 
         #expect(viewModel.pendingEventCount == 0)
     }
+
+    // MARK: - Initial Sync Detection Tests (DEQ-203)
+
+    @Test("ViewModel initializes with initial sync not in progress")
+    func viewModelInitialSyncNotInProgress() async throws {
+        let container = try ModelContainer(
+            for: Event.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let viewModel = SyncStatusViewModel(modelContext: container.mainContext)
+
+        // Initial sync should not be in progress by default
+        #expect(viewModel.isInitialSyncInProgress == false)
+        #expect(viewModel.initialSyncEventsProcessed == 0)
+    }
+
+    @Test("ViewModel tracks initial sync state from SyncManager")
+    func viewModelTracksInitialSyncState() async throws {
+        let container = try ModelContainer(
+            for: Event.self, Stack.self, QueueTask.self, Reminder.self, Device.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let viewModel = SyncStatusViewModel(modelContext: container.mainContext)
+        let syncManager = SyncManager(modelContainer: container)
+        viewModel.setSyncManager(syncManager)
+
+        // Force update to fetch state from sync manager
+        await viewModel.updateStatusNow()
+
+        // When not connected, initial sync should not be in progress
+        #expect(viewModel.isInitialSyncInProgress == false)
+    }
 }

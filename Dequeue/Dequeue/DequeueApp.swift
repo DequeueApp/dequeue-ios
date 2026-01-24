@@ -132,16 +132,21 @@ struct RootView: View {
     @State private var consecutiveSyncFailures = 0
     private let syncFailureThreshold = 3
 
-    // Initialize view model eagerly to avoid race condition where body evaluates before .task completes
     @State private var syncStatusViewModel: SyncStatusViewModel?
+    @State private var initialSyncCompleted = false
 
     private var notificationService: NotificationService {
         NotificationService(modelContext: modelContext)
     }
 
-    // Computed property to safely access initial sync state with default
-    private var isInitialSyncInProgress: Bool {
-        syncStatusViewModel?.isInitialSyncInProgress ?? false
+    /// Fresh device = no sync checkpoint exists yet (uses same key as SyncManager)
+    private var isFreshDevice: Bool {
+        UserDefaults.standard.string(forKey: "com.dequeue.lastSyncCheckpoint") == nil
+    }
+
+    /// Show loading on fresh devices until initial sync completes
+    private var shouldShowInitialSyncLoading: Bool {
+        isFreshDevice && !initialSyncCompleted
     }
 
     private var initialSyncEventsProcessed: Int {
@@ -153,7 +158,7 @@ struct RootView: View {
             if authService.isLoading {
                 SplashView()
             } else if authService.isAuthenticated {
-                if isInitialSyncInProgress {
+                if shouldShowInitialSyncLoading {
                     InitialSyncLoadingView(eventsProcessed: initialSyncEventsProcessed)
                 } else {
                     MainTabView()
@@ -163,18 +168,25 @@ struct RootView: View {
             }
         }
         .task {
-            // Initialize sync status view model for tracking initial sync
-            // Note: This runs early enough because .task executes before body renders child views
-            // and the Group wrapper defers MainTabView/InitialSyncLoadingView creation
+            // Initialize sync status view model for tracking initial sync progress
             if syncStatusViewModel == nil {
                 let viewModel = SyncStatusViewModel(modelContext: modelContext)
                 viewModel.setSyncManager(syncManager)
                 syncStatusViewModel = viewModel
             }
+            // Monitor for initial sync completion on fresh devices
+            guard isFreshDevice && authService.isAuthenticated else {
+                initialSyncCompleted = true
+                return
+            }
+            while !Task.isCancelled && isFreshDevice {
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+            initialSyncCompleted = true
         }
         .animation(.easeInOut, value: authService.isLoading)
         .animation(.easeInOut, value: authService.isAuthenticated)
-        .animation(.easeInOut, value: syncStatusViewModel?.isInitialSyncInProgress)
+        .animation(.easeInOut, value: shouldShowInitialSyncLoading)
         .alert("Sync Connection Issue", isPresented: $showSyncError) {
             Button("OK") {
                 showSyncError = false
