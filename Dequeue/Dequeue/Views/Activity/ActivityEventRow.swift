@@ -141,7 +141,16 @@ struct ActivityEventRow: View {
             return payload.title
         }
 
-        // Try status payload (for activated/completed events)
+        // Try created payloads (for created events with state wrapper)
+        if let payload = try? event.decodePayload(StackCreatedPayload.self) {
+            return payload.state.title
+        }
+
+        if let payload = try? event.decodePayload(ArcCreatedPayload.self) {
+            return payload.state.title
+        }
+
+        // Try status payloads (for activated/completed events)
         if let payload = try? event.decodePayload(StackStatusPayload.self) {
             return payload.fullState.title
         }

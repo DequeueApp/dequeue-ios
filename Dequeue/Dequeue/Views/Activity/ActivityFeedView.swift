@@ -14,9 +14,11 @@ private let logger = Logger(subsystem: "com.dequeue", category: "ActivityFeedVie
 struct ActivityFeedView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allEvents: [Event]
+    @Query private var allStacks: [Stack]
 
     @State private var selectedStack: Stack?
     @State private var loadedDays: Int = 7
+    @State private var showStackNotFoundAlert: Bool = false
 
     /// Event types to display in the activity feed (per PRD Section 3.8)
     private static let activityEventTypes: Set<String> = [
@@ -35,6 +37,8 @@ struct ActivityFeedView: View {
             sort: \Event.timestamp,
             order: .reverse
         )
+        // Query all stacks for efficient in-memory lookup
+        _allStacks = Query()
     }
 
     /// Events filtered to activity-feed-worthy types
@@ -71,6 +75,11 @@ struct ActivityFeedView: View {
         .sheet(item: $selectedStack) { stack in
             StackEditorView(mode: .edit(stack))
         }
+        .alert("Stack Not Found", isPresented: $showStackNotFoundAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("This stack may have been deleted or not yet synced to this device.")
+        }
     }
 
     private var timelineList: some View {
@@ -85,8 +94,8 @@ struct ActivityFeedView: View {
                 }
             }
 
-            // Load more section
-            if eventsByDay.count >= loadedDays / 7 {
+            // Load more section - show if there might be older events
+            if !eventsByDay.isEmpty && !activityEvents.isEmpty {
                 Section {
                     Button {
                         loadMoreDays()
@@ -111,13 +120,12 @@ struct ActivityFeedView: View {
     }
 
     private func selectStack(withId stackId: String) {
-        let descriptor = FetchDescriptor<Stack>(
-            predicate: #Predicate<Stack> { stack in
-                stack.id == stackId
-            }
-        )
-        if let stack = try? modelContext.fetch(descriptor).first {
+        // Use in-memory lookup from @Query results for better performance
+        if let stack = allStacks.first(where: { $0.id == stackId }) {
             selectedStack = stack
+        } else {
+            logger.warning("Stack not found for activity event: \(stackId)")
+            showStackNotFoundAlert = true
         }
     }
 }
