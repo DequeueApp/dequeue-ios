@@ -393,77 +393,42 @@ struct RootView: View {
         }
     }
 
-    /// Runs one-time data migrations if needed.
-    /// Currently migrates:
-    /// - Attachment paths from absolute to relative format
-    /// - Duplicate tags from cross-device sync issues (DEQ-197)
-    ///
-    /// - Note: **Known limitation**: Migration runs before sync connection is established.
-    ///   If an older client creates attachments with absolute paths and syncs them to another device
-    ///   after migration has run, those new attachments won't be migrated until app restart.
-    ///   This is acceptable because:
-    ///   1. `migrateToRelativePath()` is idempotent and safe to run multiple times
-    ///   2. New attachments created by this version always use relative paths
-    ///   3. Once all clients are updated, no new absolute paths will be created
+    /// Runs one-time data migrations (attachment paths, duplicate tags).
+    /// Note: Runs before sync connection; migrations are idempotent and retry on next launch if failed.
     private func runMigrationsIfNeeded() async {
-        // Get current user's ID
         guard let userId = authService.currentUserId else { return }
-
-        // Get device ID from DeviceService
         let deviceId = await DeviceService.shared.getDeviceId()
-
-        // Run attachment path migration
         await runAttachmentPathMigration(userId: userId, deviceId: deviceId)
-
-        // DEQ-197: Run duplicate tag merge migration
         await runDuplicateTagMigration()
     }
 
-    /// Migrates attachment paths from absolute to relative format.
     private func runAttachmentPathMigration(userId: String, deviceId: String) async {
         let migrationKey = "com.dequeue.migrations.attachmentRelativePaths"
-
-        // Skip if already migrated
         guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
-
         let attachmentService = AttachmentService(
-            modelContext: modelContext,
-            userId: userId,
-            deviceId: deviceId
+            modelContext: modelContext, userId: userId, deviceId: deviceId
         )
-
         do {
             let migratedCount = try attachmentService.migrateAttachmentPaths()
             if migratedCount > 0 {
                 os_log("[Migration] Migrated \(migratedCount) attachment paths to relative format")
             }
-            // Mark migration as complete only on success - failures will retry on next launch
             UserDefaults.standard.set(true, forKey: migrationKey)
         } catch {
-            // Don't mark migration as complete - allow retry on next app launch
             os_log("[Migration] Failed to migrate attachment paths: \(error.localizedDescription)")
-            ErrorReportingService.capture(
-                error: error,
-                context: ["source": "attachment_path_migration"]
-            )
+            ErrorReportingService.capture(error: error, context: ["source": "attachment_path_migration"])
         }
     }
 
-    /// Get the count of pending sync items for observability
     private func getPendingSyncItemCount() async -> Int {
         do {
-            let eventService = EventService.readOnly(modelContext: modelContext)
-            let pendingEvents = try eventService.fetchPendingEvents()
-            return pendingEvents.count
+            return try EventService.readOnly(modelContext: modelContext).fetchPendingEvents().count
         } catch {
-            // Log error instead of silently ignoring - but don't capture to Sentry
-            // since this is a non-critical observability path during background transition
             os_log("[App] Failed to get pending sync count: \(error.localizedDescription)")
             return 0
         }
     }
 
-    /// DEQ-197: Merge duplicate tags created across devices before sync fix
     private func runDuplicateTagMigration() async {
         guard let result = try? TagService.mergeDuplicateTags(modelContext: modelContext),
               result.duplicateGroupsFound > 0 else { return }
@@ -471,11 +436,9 @@ struct RootView: View {
     }
 }
 
-#Preview("Authenticated") {
-    let mockAuth = MockAuthService()
-    mockAuth.mockSignIn()
-    // swiftlint:disable:next force_try
-    let container = try! ModelContainer(
+// swiftlint:disable force_try
+private func makePreviewContainer() -> ModelContainer {
+    try! ModelContainer(
         for: Stack.self,
         QueueTask.self,
         Reminder.self,
@@ -484,27 +447,21 @@ struct RootView: View {
         Arc.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)
     )
-    let syncManager = SyncManager(modelContainer: container)
+}
+// swiftlint:enable force_try
 
-    return RootView(syncManager: syncManager, showSyncError: .constant(false))
+#Preview("Authenticated") {
+    let mockAuth = MockAuthService()
+    mockAuth.mockSignIn()
+    let container = makePreviewContainer()
+    return RootView(syncManager: SyncManager(modelContainer: container), showSyncError: .constant(false))
         .environment(\.authService, mockAuth)
         .modelContainer(container)
 }
 
 #Preview("Unauthenticated") {
-    // swiftlint:disable:next force_try
-    let container = try! ModelContainer(
-        for: Stack.self,
-        QueueTask.self,
-        Reminder.self,
-        Event.self,
-        Attachment.self,
-        Arc.self,
-        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-    )
-    let syncManager = SyncManager(modelContainer: container)
-
-    return RootView(syncManager: syncManager, showSyncError: .constant(false))
+    let container = makePreviewContainer()
+    return RootView(syncManager: SyncManager(modelContainer: container), showSyncError: .constant(false))
         .environment(\.authService, MockAuthService())
         .modelContainer(container)
 }

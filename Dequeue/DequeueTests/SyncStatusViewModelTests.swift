@@ -13,7 +13,6 @@ import Foundation
 @Suite("SyncStatusViewModel Tests")
 @MainActor
 struct SyncStatusViewModelTests {
-
     @Test("ViewModel initializes with default state")
     func viewModelInitializesWithDefaults() async throws {
         let container = try ModelContainer(
@@ -38,7 +37,14 @@ struct SyncStatusViewModelTests {
 
         // Create a pending event BEFORE the view model so the first update sees it
         let payload = try JSONEncoder().encode(["key": "value"])
-        let event = Event(type: "test.event", payload: payload, userId: "test-user", deviceId: "test-device", appId: "test-app", isSynced: false)
+        let event = Event(
+            type: "test.event",
+            payload: payload,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app",
+            isSynced: false
+        )
         context.insert(event)
         try context.save()
 
@@ -53,14 +59,25 @@ struct SyncStatusViewModelTests {
     @Test("ViewModel shows syncing state when connected with pending events")
     func viewModelShowsSyncingState() async throws {
         let container = try ModelContainer(
-            for: Event.self, Stack.self, QueueTask.self, Reminder.self, Device.self,
+            for: Event.self,
+            Stack.self,
+            QueueTask.self,
+            Reminder.self,
+            Device.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let context = container.mainContext
 
         // Create a pending event BEFORE the view model so the first update sees it
         let payload = try JSONEncoder().encode(["key": "value"])
-        let event = Event(type: "test.event", payload: payload, userId: "test-user", deviceId: "test-device", appId: "test-app", isSynced: false)
+        let event = Event(
+            type: "test.event",
+            payload: payload,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app",
+            isSynced: false
+        )
         context.insert(event)
         try context.save()
 
@@ -106,7 +123,14 @@ struct SyncStatusViewModelTests {
         // Create a new view model with a pending event already present
         let context = container.mainContext
         let payload = try JSONEncoder().encode(["key": "value"])
-        let event = Event(type: "test.event", payload: payload, userId: "test-user", deviceId: "test-device", appId: "test-app", isSynced: false)
+        let event = Event(
+            type: "test.event",
+            payload: payload,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app",
+            isSynced: false
+        )
         context.insert(event)
         try context.save()
 
@@ -134,7 +158,14 @@ struct SyncStatusViewModelTests {
         // Create a pending event after stopping
         let context = container.mainContext
         let payload = try JSONEncoder().encode(["key": "value"])
-        let event = Event(type: "test.event", payload: payload, userId: "test-user", deviceId: "test-device", appId: "test-app", isSynced: false)
+        let event = Event(
+            type: "test.event",
+            payload: payload,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app",
+            isSynced: false
+        )
         context.insert(event)
         try context.save()
 
@@ -162,7 +193,11 @@ struct SyncStatusViewModelTests {
     @Test("ViewModel tracks initial sync state from SyncManager")
     func viewModelTracksInitialSyncState() async throws {
         let container = try ModelContainer(
-            for: Event.self, Stack.self, QueueTask.self, Reminder.self, Device.self,
+            for: Event.self,
+            Stack.self,
+            QueueTask.self,
+            Reminder.self,
+            Device.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         let viewModel = SyncStatusViewModel(modelContext: container.mainContext)
