@@ -712,8 +712,7 @@ actor SyncManager {
 
         // Log successful pull completion
         let duration = Date().timeIntervalSince(startTime)
-        let durationStr = String(format: "%.2f", duration)
-        os_log("[Sync] Pull completed: syncId=\(syncId), batches=\(batchCount), duration=\(durationStr)s, totalEvents=\(totalEventsDownloaded)")
+        os_log("[Sync] Pull completed: syncId=\(syncId), batches=\(batchCount), events=\(totalEventsDownloaded)")
         await ErrorReportingService.logSyncComplete(
             syncId: syncId,
             duration: duration,
