@@ -75,7 +75,7 @@ struct ActivityEventRow: View {
                 Image(systemName: "checkmark.circle.fill")
             case .stackActivated, .taskActivated, .arcActivated:
                 Image(systemName: "play.circle.fill")
-            case .stackCreated:
+            case .stackCreated, .arcCreated:
                 Image(systemName: "plus.circle.fill")
             default:
                 Image(systemName: "circle.fill")
@@ -89,7 +89,7 @@ struct ActivityEventRow: View {
             return .green
         case .stackActivated, .taskActivated, .arcActivated:
             return .blue
-        case .stackCreated:
+        case .stackCreated, .arcCreated:
             return .orange
         default:
             return .gray
@@ -112,6 +112,8 @@ struct ActivityEventRow: View {
             return "Completed arc"
         case .arcActivated:
             return "Started arc"
+        case .arcCreated:
+            return "Created arc"
         default:
             return "Activity"
         }

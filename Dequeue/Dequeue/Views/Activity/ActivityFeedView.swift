@@ -11,6 +11,7 @@ import os
 
 private let logger = Logger(subsystem: "com.dequeue", category: "ActivityFeedView")
 
+@MainActor
 struct ActivityFeedView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allEvents: [Event]
@@ -21,14 +22,16 @@ struct ActivityFeedView: View {
     @State private var showStackNotFoundAlert: Bool = false
 
     /// Event types to display in the activity feed (per PRD Section 3.8)
-    private static let activityEventTypes: Set<String> = [
-        EventType.stackCompleted.rawValue,
-        EventType.stackActivated.rawValue,
-        EventType.stackCreated.rawValue,
-        EventType.taskCompleted.rawValue,
-        EventType.taskActivated.rawValue,
-        EventType.arcCompleted.rawValue,
-        EventType.arcActivated.rawValue
+    /// Uses enum-based Set for type safety instead of raw strings
+    private static let activityEventTypes: Set<EventType> = [
+        .stackCompleted,
+        .stackActivated,
+        .stackCreated,
+        .taskCompleted,
+        .taskActivated,
+        .arcCompleted,
+        .arcActivated,
+        .arcCreated
     ]
 
     init() {
@@ -41,9 +44,12 @@ struct ActivityFeedView: View {
         _allStacks = Query()
     }
 
-    /// Events filtered to activity-feed-worthy types
+    /// Events filtered to activity-feed-worthy types using enum comparison
     private var activityEvents: [Event] {
-        allEvents.filter { Self.activityEventTypes.contains($0.type) }
+        allEvents.filter { event in
+            guard let eventType = event.eventType else { return false }
+            return Self.activityEventTypes.contains(eventType)
+        }
     }
 
     /// Events grouped by calendar day
