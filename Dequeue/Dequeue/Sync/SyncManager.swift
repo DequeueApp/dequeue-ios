@@ -608,8 +608,8 @@ actor SyncManager {
 
     // MARK: - Pull Events
 
-    /// Pulls all available events from the server, fetching in batches until no more remain.
-    /// The server returns events in batches (default 100) with a `hasMore` flag for pagination.
+    // Pulls all available events from the server, fetching in batches until no more remain.
+    // The server returns events in batches (default 100) with a `hasMore` flag for pagination.
     // swiftlint:disable:next function_body_length
     func pullEvents() async throws {
         let startTime = Date()
@@ -686,7 +686,6 @@ actor SyncManager {
                 hasMore = result.hasMore
 
                 os_log("[Sync] Batch \(batchCount) complete: \(result.eventsProcessed) events, hasMore=\(hasMore)")
-
             } catch {
                 let duration = Date().timeIntervalSince(startTime)
                 let capturedError = error
