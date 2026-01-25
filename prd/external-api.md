@@ -475,7 +475,50 @@ The API is a **separate Go service** (`dequeue-api`) that:
 3. **Different scaling needs**: API may need different resources than sync
 4. **Cleaner codebase**: No mixing of generic sync code with Dequeue-specific endpoints
 
-### 4.3 API Key Storage (in stacks-sync)
+### 4.3 Projection Layer Architecture (Option A)
+
+**Decision**: Keep stacks-sync as a generic event infrastructure; projections live in dequeue-api.
+
+This architecture supports the vision of stacks-sync as reusable infrastructure for multiple apps (Dequeue, the upcoming recipe app, etc.) while keeping app-specific business logic separate.
+
+**stacks-sync (generic event infrastructure at sync.ardonos.com)**
+- Tables: `events`, `apps`, `api_keys`, `attachments`
+- Endpoints: event push/pull, WebSocket subscriptions, API key management
+- No app-specific projection logic
+- Reusable for any event-sourced app
+
+**dequeue-api (Dequeue-specific at api.dequeue.app)**
+- Tables: `stacks`, `tasks`, `arcs`, `reminders`, `tags`, `stack_tags`
+- Subscribes to stacks-sync events via WebSocket
+- Updates projection tables when events arrive
+- Serves REST API endpoints for external integrations
+- Validates API keys via stacks-sync internal endpoint
+
+**Why this matters beyond the API:**
+
+This architecture enables **instant new device sync**—a major UX improvement:
+
+| Today (event replay) | With projections |
+|---------------------|------------------|
+| Login | Login |
+| Pull ALL events (thousands) | `GET /stacks`, `/tasks`, `/arcs` |
+| Replay locally to build state | Ready instantly |
+| Finally ready | Subscribe to WebSocket for updates |
+
+For users with years of task history, this reduces initial sync from minutes to seconds.
+
+**Migration from current state:**
+
+stacks-sync currently has some Dequeue-specific code that needs to move:
+- `tags` table → move to dequeue-api
+- `stack_tags` table → move to dequeue-api  
+- Tag event handling logic → move to dequeue-api
+
+**Future apps (e.g., recipe app):**
+
+Same pattern—`recipe-api` subscribes to stacks-sync and owns its own projections. The event infrastructure is shared; the projection layer is app-specific.
+
+### 4.4 API Key Storage (in stacks-sync)
 
 API keys are stored in stacks-sync's database, following its multi-tenant pattern:
 
@@ -501,7 +544,7 @@ CREATE INDEX idx_api_keys_prefix ON api_keys(key_prefix);
 Key format: `dq_live_` + 32 random alphanumeric chars
 Only the hash is stored; full key shown once on creation.
 
-### 4.4 Event Flow & Attribution
+### 4.5 Event Flow & Attribution
 
 When API receives a mutation request:
 
@@ -530,14 +573,14 @@ This enables:
 - Analytics on API usage
 - Diagnosing event conflicts
 
-### 4.5 Conflict Resolution
+### 4.6 Conflict Resolution
 
 API events follow the same **Last Write Wins (LWW)** resolution as app events:
 - API events get server timestamp on arrival (same as WebSocket events from iOS)
 - LWW applies regardless of event origin (iOS app vs API)
 - Client may see their change overwritten if API event wins (and vice versa)
 
-### 4.6 Clerk Integration
+### 4.7 Clerk Integration
 
 Clerk handles user authentication for the iOS app. For API keys:
 
@@ -545,7 +588,7 @@ Clerk handles user authentication for the iOS app. For API keys:
 2. **Key validation**: dequeue-api queries stacks-sync for key hash → gets `user_id`
 3. **No Clerk on API requests**: API keys bypass Clerk entirely (simpler, faster)
 
-### 4.7 Scopes
+### 4.8 Scopes
 
 | Scope | Permissions |
 |-------|-------------|
@@ -555,7 +598,7 @@ Clerk handles user authentication for the iOS app. For API keys:
 
 Default key gets `read` + `write`. `admin` must be explicitly granted.
 
-### 4.8 Soft Delete
+### 4.9 Soft Delete
 
 All DELETE operations perform **soft delete** (set `isDeleted = true`), matching iOS app behavior:
 - Deleted entities are never returned in GET endpoints
