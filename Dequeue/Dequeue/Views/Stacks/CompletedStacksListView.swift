@@ -21,7 +21,7 @@ struct CompletedStacksListView: View {
                 stack.isDeleted == false &&
                 (stack.statusRawValue == completedRaw || stack.statusRawValue == closedRaw)
             },
-            sort: \Stack.createdAt,
+            sort: \Stack.updatedAt,
             order: .reverse
         )
     }

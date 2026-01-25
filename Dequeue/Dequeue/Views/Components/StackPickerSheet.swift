@@ -31,7 +31,8 @@ struct StackPickerSheet: View {
                 stack.isDraft == false &&
                 stack.statusRawValue == activeRawValue
             },
-            sort: \Stack.sortOrder
+            sort: \Stack.updatedAt,
+            order: .reverse
         )
     }
 

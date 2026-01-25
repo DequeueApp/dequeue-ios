@@ -39,7 +39,7 @@ struct DraftsStacksListView: View {
                 stack.isDraft == true &&
                 stack.statusRawValue == "active"
             },
-            sort: \Stack.createdAt,
+            sort: \Stack.updatedAt,
             order: .reverse
         )
     }
