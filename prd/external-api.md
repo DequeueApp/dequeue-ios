@@ -18,7 +18,8 @@ Add a public REST API to Dequeue enabling third-party integrations and AI assist
 - **Deployment**: Separate Go service at `api.dequeue.app`
 - **Events**: API operations emit events to stacks-sync (same as iOS app)
 - **Documentation**: OpenAPI 3.0 spec with Stoplight for interactive docs
-- **Rate limiting**: Per-key limits to prevent abuse
+- **Timestamps**: Unix milliseconds (Int64) for all timestamp fields
+- **Rate limiting**: Redis-backed per-key limits
 
 ---
 
@@ -97,11 +98,12 @@ Build a REST API that:
 1. **Resource-oriented**: `/arcs`, `/stacks`, `/stacks/{id}/tasks` — not event-based
 2. **RESTful verbs**: GET, POST, PUT, PATCH, DELETE
 3. **JSON everywhere**: Request and response bodies
-4. **Consistent errors**: Standard error format with codes
-5. **Idempotent where possible**: PUT/DELETE are idempotent
-6. **Pagination**: Cursor-based for lists
-7. **Filtering**: Query params for common filters
-8. **OpenAPI first**: Spec drives implementation and docs
+4. **Unix milliseconds**: All timestamps are Int64 (matches iOS app and sync system)
+5. **Consistent errors**: Standard error format with codes (see Appendix E)
+6. **Idempotent**: DELETE is idempotent; PATCH with specific field updates is effectively idempotent
+7. **Pagination**: Cursor-based for lists (see Section 3.8)
+8. **Filtering**: Query params for common filters (included in Phase 1)
+9. **OpenAPI first**: Spec drives implementation and docs
 
 ### 3.2 Why Not Expose Events?
 
@@ -113,11 +115,17 @@ The internal event-sourced architecture is an implementation detail. Exposing it
 
 Instead, the API layer accepts REST requests and emits events internally, exactly like the iOS app does. External developers get a clean interface; internal consistency is maintained.
 
-### 3.3 Base URL
+### 3.3 Base URL & Versioning
 
 ```
 https://api.dequeue.app/v1
 ```
+
+**Versioning Strategy:**
+- `/v1` is the current and only version
+- Breaking changes will increment to `/v2`
+- Non-breaking additions (new fields, new endpoints) stay in `/v1`
+- Deprecation policy: 6-month notice before removal of any endpoint or field
 
 ### 3.4 Authentication
 
@@ -134,6 +142,14 @@ Authorization: Bearer dq_live_xxxxxxxxxxxxxxxxxxxx
 - Rate limited per key (e.g., 100 req/min)
 - **Keys stored in stacks-sync database** with `app_id` for multi-app support
 
+**Key Rotation Workflow:**
+1. User creates new key with same scopes
+2. Updates integration to use new key
+3. Tests integration
+4. Revokes old key
+
+No dedicated "rotate" endpoint needed for v1—manual rotation is sufficient.
+
 #### OAuth 2.0 (v2 — Future)
 
 For third-party apps that need to act on behalf of users:
@@ -147,33 +163,37 @@ For third-party apps that need to act on behalf of users:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/arcs` | List all arcs |
+| GET | `/arcs` | List all arcs (filter: `?status=active`) |
 | POST | `/arcs` | Create an arc |
 | GET | `/arcs/{id}` | Get an arc (includes stacks summary) |
 | PATCH | `/arcs/{id}` | Update an arc |
-| DELETE | `/arcs/{id}` | Archive/delete an arc |
+| DELETE | `/arcs/{id}` | Soft-delete an arc |
 | GET | `/arcs/{id}/stacks` | List stacks in an arc |
+| GET | `/arcs/{id}/reminders` | List reminders for an arc |
+| POST | `/arcs/{id}/reminders` | Add a reminder to an arc |
 
 #### Stacks
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/stacks` | List all stacks |
+| GET | `/stacks` | List all stacks (filter: `?status=active&arcId=xxx`) |
 | POST | `/stacks` | Create a stack |
 | GET | `/stacks/{id}` | Get a stack |
 | PATCH | `/stacks/{id}` | Update a stack |
-| DELETE | `/stacks/{id}` | Archive/delete a stack |
+| DELETE | `/stacks/{id}` | Soft-delete a stack |
 | POST | `/stacks/{id}/assign-arc` | Assign stack to an arc |
+| GET | `/stacks/{id}/reminders` | List reminders for a stack |
+| POST | `/stacks/{id}/reminders` | Add a reminder to a stack |
 
 #### Tasks
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/stacks/{stackId}/tasks` | List tasks in a stack |
+| GET | `/stacks/{stackId}/tasks` | List tasks (filter: `?status=active`) |
 | POST | `/stacks/{stackId}/tasks` | Create a task |
 | GET | `/tasks/{id}` | Get a task |
 | PATCH | `/tasks/{id}` | Update a task |
-| DELETE | `/tasks/{id}` | Delete a task |
+| DELETE | `/tasks/{id}` | Soft-delete a task |
 | POST | `/tasks/{id}/complete` | Mark task complete |
 | POST | `/tasks/{id}/uncomplete` | Mark task incomplete |
 | POST | `/tasks/{id}/move` | Move to different stack |
@@ -182,13 +202,9 @@ For third-party apps that need to act on behalf of users:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/stacks/{stackId}/reminders` | List reminders for a stack |
-| POST | `/stacks/{stackId}/reminders` | Add a reminder to a stack |
 | GET | `/reminders/{id}` | Get a reminder |
 | PATCH | `/reminders/{id}` | Update a reminder |
 | DELETE | `/reminders/{id}` | Delete a reminder |
-| GET | `/arcs/{arcId}/reminders` | List reminders for an arc |
-| POST | `/arcs/{arcId}/reminders` | Add a reminder to an arc |
 
 #### Tags
 
@@ -210,6 +226,10 @@ For third-party apps that need to act on behalf of users:
 
 ### 3.6 Request/Response Examples
 
+> **⚠️ IMPORTANT: All timestamps are Unix milliseconds (Int64)**
+> 
+> This matches the iOS app and sync system conventions. Never use ISO8601 strings for timestamps in API payloads—only format as strings for display to users.
+
 #### Create a Task
 
 ```http
@@ -221,7 +241,7 @@ Content-Type: application/json
   "title": "Review Q1 budget proposal",
   "notes": "From conversation with Ardonos on 2026-01-25",
   "priority": 2,
-  "dueDate": "2026-01-30T17:00:00Z",
+  "dueAt": 1738252800000,
   "tags": ["work", "finance"]
 }
 ```
@@ -234,11 +254,11 @@ Response:
   "title": "Review Q1 budget proposal",
   "notes": "From conversation with Ardonos on 2026-01-25",
   "priority": 2,
-  "dueDate": "2026-01-30T17:00:00Z",
+  "dueAt": 1738252800000,
   "tags": ["work", "finance"],
   "status": "active",
-  "createdAt": "2026-01-25T02:00:00Z",
-  "updatedAt": "2026-01-25T02:00:00Z"
+  "createdAt": 1737766800000,
+  "updatedAt": 1737766800000
 }
 ```
 
@@ -250,8 +270,7 @@ Authorization: Bearer dq_live_xxxx
 Content-Type: application/json
 
 {
-  "triggerAt": "2026-01-26T09:00:00Z",
-  "note": "Follow up on budget review"
+  "remindAt": 1737882000000
 }
 ```
 
@@ -261,10 +280,10 @@ Response:
   "id": "rem_xyz789",
   "parentType": "stack",
   "parentId": "stk_abc123",
-  "triggerAt": "2026-01-26T09:00:00Z",
-  "note": "Follow up on budget review",
+  "remindAt": 1737882000000,
+  "snoozedFrom": null,
   "status": "pending",
-  "createdAt": "2026-01-25T02:00:00Z"
+  "createdAt": 1737766800000
 }
 ```
 
@@ -282,18 +301,52 @@ Response:
     {
       "id": "arc_001",
       "title": "Q1 OEM Strategy",
-      "description": "Drive OEM partnerships for conference",
+      "arcDescription": "Drive OEM partnerships for conference",
       "status": "active",
       "colorHex": "#4A90D9",
+      "sortOrder": 0,
       "stackCount": 3,
       "completedStackCount": 1,
-      "createdAt": "2026-01-10T10:00:00Z",
-      "updatedAt": "2026-01-24T15:30:00Z"
+      "createdAt": 1736506800000,
+      "updatedAt": 1737727800000
     }
   ],
   "pagination": {
-    "cursor": "eyJpZCI6ImFyY18wMDEifQ",
-    "hasMore": false
+    "nextCursor": "eyJpZCI6ImFyY18wMDEiLCJ0cyI6MTczNzcyNzgwMDAwMH0",
+    "hasMore": false,
+    "limit": 50
+  }
+}
+```
+
+#### List Stacks with Filters
+
+```http
+GET /v1/stacks?status=active&arcId=arc_001&limit=20
+Authorization: Bearer dq_live_xxxx
+```
+
+Response:
+```json
+{
+  "data": [
+    {
+      "id": "stk_abc123",
+      "title": "Prepare pitch deck",
+      "arcId": "arc_001",
+      "status": "active",
+      "sortOrder": 0,
+      "taskCount": 5,
+      "completedTaskCount": 2,
+      "tags": ["work", "conference"],
+      "createdAt": 1736506800000,
+      "updatedAt": 1737727800000
+    }
+  ],
+  "pagination": {
+    "nextCursor": null,
+    "hasMore": false,
+    "limit": 20
   }
 }
 ```
@@ -316,7 +369,7 @@ Headers on every response:
 ```
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1706148000
+X-RateLimit-Reset: 1737770400
 ```
 
 When exceeded:
@@ -325,10 +378,45 @@ When exceeded:
   "error": {
     "code": "RATE_LIMIT_EXCEEDED",
     "message": "Rate limit exceeded. Try again in 45 seconds.",
-    "status": 429
+    "status": 429,
+    "retryAfter": 45
   }
 }
 ```
+
+**Implementation:**
+- Use Redis for rate limiting (required for multi-instance deployment on Fly.io)
+- Token bucket algorithm per API key
+- Default: 100 requests/minute per key
+- Consider per-user limits to prevent bypass via multiple keys
+
+### 3.8 Pagination
+
+All list endpoints use cursor-based pagination:
+
+```http
+GET /v1/stacks?limit=20&cursor=eyJpZCI6InN0a19hYmMxMjMiLCJ0cyI6MTczNzcyNzgwMDAwMH0
+```
+
+**Response format:**
+```json
+{
+  "data": [...],
+  "pagination": {
+    "nextCursor": "eyJpZCI6InN0a194eXoxMjMiLCJ0cyI6MTczNzcyNzgwMDAwMH0",
+    "prevCursor": null,
+    "hasMore": true,
+    "limit": 20
+  }
+}
+```
+
+**Details:**
+- `cursor`: Opaque base64-encoded string (contains id + timestamp for stable ordering)
+- `limit`: Page size (default: 50, max: 500)
+- `hasMore`: Whether more results exist
+- `nextCursor`: Use this in subsequent request to get next page
+- `prevCursor`: Use this to go back (null on first page)
 
 ---
 
@@ -374,8 +462,9 @@ The API is a **separate Go service** (`dequeue-api`) that:
                   │
                   ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              PostgreSQL                                      │
+│              PostgreSQL + Redis                              │
 │  events, api_keys, apps (all with app_id)                   │
+│  Redis: rate limiting, caching                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -399,10 +488,10 @@ CREATE TABLE api_keys (
     key_hash TEXT NOT NULL,                     -- bcrypt hash of key
     key_prefix TEXT NOT NULL,                   -- "dq_live_abc" for display
     scopes TEXT[] NOT NULL,                     -- ['read', 'write']
-    last_used_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ,
-    revoked_at TIMESTAMPTZ
+    last_used_at BIGINT,                        -- Unix milliseconds
+    created_at BIGINT NOT NULL,                 -- Unix milliseconds
+    expires_at BIGINT,                          -- Unix milliseconds
+    revoked_at BIGINT                           -- Unix milliseconds
 );
 
 CREATE INDEX idx_api_keys_app_user ON api_keys(app_id, user_id) WHERE revoked_at IS NULL;
@@ -412,20 +501,43 @@ CREATE INDEX idx_api_keys_prefix ON api_keys(key_prefix);
 Key format: `dq_live_` + 32 random alphanumeric chars
 Only the hash is stored; full key shown once on creation.
 
-### 4.4 Event Flow
+### 4.4 Event Flow & Attribution
 
 When API receives a mutation request:
 
-1. Validate API key → get `user_id`
+1. Validate API key → get `user_id` and `key_id`
 2. Validate request payload
-3. Generate event(s) with proper structure
+3. Generate event(s) with proper structure including **source attribution**
 4. POST event to stacks-sync: `POST /apps/dequeue/sync/push`
 5. Query projection tables for response data
 6. Return response to client
 
-The API uses a service account or internal auth to push events to stacks-sync on behalf of the user.
+**Event Attribution:**
+All API-generated events include source metadata:
+```json
+{
+  "type": "stack.created",
+  "ts": 1737766800000,
+  "source": "api",
+  "apiKeyId": "key_abc123",
+  "payload": { ... }
+}
+```
 
-### 4.5 Clerk Integration
+This enables:
+- Debugging sync issues ("why did this change?")
+- Audit trail for security
+- Analytics on API usage
+- Diagnosing event conflicts
+
+### 4.5 Conflict Resolution
+
+API events follow the same **Last Write Wins (LWW)** resolution as app events:
+- API events get server timestamp on arrival (same as WebSocket events from iOS)
+- LWW applies regardless of event origin (iOS app vs API)
+- Client may see their change overwritten if API event wins (and vice versa)
+
+### 4.6 Clerk Integration
 
 Clerk handles user authentication for the iOS app. For API keys:
 
@@ -433,7 +545,7 @@ Clerk handles user authentication for the iOS app. For API keys:
 2. **Key validation**: dequeue-api queries stacks-sync for key hash → gets `user_id`
 3. **No Clerk on API requests**: API keys bypass Clerk entirely (simpler, faster)
 
-### 4.6 Scopes
+### 4.7 Scopes
 
 | Scope | Permissions |
 |-------|-------------|
@@ -442,6 +554,13 @@ Clerk handles user authentication for the iOS app. For API keys:
 | `admin` | Manage API keys, account settings |
 
 Default key gets `read` + `write`. `admin` must be explicitly granted.
+
+### 4.8 Soft Delete
+
+All DELETE operations perform **soft delete** (set `isDeleted = true`), matching iOS app behavior:
+- Deleted entities are never returned in GET endpoints
+- For permanent deletion, future admin endpoint: `DELETE /admin/arcs/{id}?permanent=true`
+- Soft-deleted entities can be restored (future feature)
 
 ---
 
@@ -468,6 +587,10 @@ info:
     ```
     Authorization: Bearer dq_live_xxxxxxxxxxxxxxxxxxxx
     ```
+    
+    ## Timestamps
+    All timestamps are Unix milliseconds (Int64). Example: `1737766800000`
+    
 servers:
   - url: https://api.dequeue.app/v1
     description: Production
@@ -480,6 +603,12 @@ components:
     ApiKeyAuth:
       type: http
       scheme: bearer
+  schemas:
+    Timestamp:
+      type: integer
+      format: int64
+      description: Unix milliseconds
+      example: 1737766800000
 # ... paths, schemas, etc.
 ```
 
@@ -515,13 +644,13 @@ Stoplight provides:
 - Set up Go project with standard structure
 - OpenAPI spec for Phase 1 endpoints
 - Implement auth middleware (validate keys via stacks-sync)
-- Add `/arcs` CRUD endpoints
-- Add `/stacks` CRUD endpoints  
-- Add `/stacks/{id}/tasks` CRUD endpoints
+- Add `/arcs` CRUD endpoints with filtering (`?status=active`)
+- Add `/stacks` CRUD endpoints with filtering (`?status=active&arcId=xxx`)
+- Add `/stacks/{id}/tasks` CRUD endpoints with filtering (`?status=active`)
 - Add `/tasks/{id}/complete`, `/move` actions
-- Add `/stacks/{id}/reminders` CRUD endpoints
-- Emit events to stacks-sync for all mutations
-- Basic rate limiting (in-memory)
+- Add `/stacks/{id}/reminders` and `/arcs/{id}/reminders` CRUD endpoints
+- Emit events to stacks-sync with source attribution
+- Redis-backed rate limiting
 - Deploy to Fly.io at `api.dequeue.app`
 - Set up Stoplight with OpenAPI spec
 
@@ -529,6 +658,7 @@ Stoplight provides:
 - Add `api_keys` table with `app_id`
 - Add endpoint to validate API key (internal)
 - Add endpoint to create/list/revoke keys
+- Support `source` and `apiKeyId` fields in events
 
 **iOS App:**
 - Add API Keys section in Settings
@@ -544,11 +674,8 @@ Stoplight provides:
 ### Phase 2: Tags + Enhanced Queries
 
 - Add `/tags` endpoints
-- Add filtering: `GET /tasks?status=active&tag=work`
-- Add filtering: `GET /stacks?arcId=arc_001`
-- Add sorting: `?sort=dueDate&order=asc`
+- Add sorting: `?sort=dueAt&order=asc`
 - Add search: `?q=budget`
-- Improve pagination
 - Update OpenAPI spec
 
 ### Phase 3: Webhooks
@@ -556,7 +683,10 @@ Stoplight provides:
 - User registers webhook URLs
 - Events trigger HTTP callbacks
 - Retry logic with exponential backoff
-- Webhook signature verification
+- Webhook signature verification (HMAC-SHA256)
+  ```
+  X-Dequeue-Signature: sha256=<hmac>
+  ```
 
 ### Phase 4: OAuth 2.0
 
@@ -601,27 +731,37 @@ Stoplight provides:
 
 - Log all API requests with key prefix (not full key)
 - Track `last_used_at` per key
+- Event attribution enables tracing changes to specific keys
 - Future: full audit trail for compliance
 
 ---
 
-## 8. Open Questions
+## 8. Decisions Made
 
-| # | Question | Options | Notes |
-|---|----------|---------|-------|
-| 1 | API key prefix format | `dq_live_` vs `dequeue_` vs `dk_` | Shorter is nicer, but clarity matters |
-| 2 | Rate limit storage | In-memory vs Redis | Redis if multi-instance, memory for v1 |
-| 3 | Soft vs hard delete | Soft delete (archived) vs permanent | Match app behavior |
-| 4 | Event attribution | Mark events as "via API" | Useful for debugging sync issues |
-| 5 | Bulk operations | `/tasks/bulk` for batch create | Defer to v2 unless needed |
+The following questions from earlier drafts have been resolved:
+
+| Question | Decision | Rationale |
+|----------|----------|-----------|
+| API key prefix format | `dq_live_` / `dq_test_` | Matches industry standard (Stripe pattern); short, unambiguous; environment suffix prevents accidents |
+| Soft vs hard delete | Soft delete (match app) | iOS app uses `isDeleted: Bool` throughout; consistency is key |
+| Event attribution | Yes, include `source` and `apiKeyId` | Essential for debugging, audit trail, analytics |
+| Rate limit storage | Redis | Required for multi-instance Fly.io deployment; in-memory won't work |
 
 ---
 
-## 9. Success Metrics
+## 9. Open Questions
+
+| # | Question | Options | Notes |
+|---|----------|---------|-------|
+| 1 | Bulk operations | `/tasks/bulk` for batch create | Defer to v2 unless Ardonos needs it urgently |
+
+---
+
+## 10. Success Metrics
 
 - Ardonos can create a task via API
 - Ardonos can add a reminder to a stack via API
-- Ardonos can list Victor's arcs and stacks
+- Ardonos can list Victor's arcs and stacks with filters
 - Task created via API syncs to iOS app within 5 seconds
 - API key creation works from iOS settings
 - Interactive docs available at Stoplight
@@ -630,23 +770,24 @@ Stoplight provides:
 
 ---
 
-## 10. Dependencies
+## 11. Dependencies
 
 - stacks-sync backend (event storage, API key storage, WebSocket notifications)
 - Fly.io for deployment
+- Redis for rate limiting
 - Stoplight account for docs
 - iOS app settings infrastructure
 - Secure storage for Ardonos API key (Clawdbot secrets)
 
 ---
 
-## 11. Risks & Mitigations
+## 12. Risks & Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| API key leaked | High | Scopes limit damage; easy revocation; audit logs |
+| API key leaked | High | Scopes limit damage; easy revocation; audit logs via event attribution |
 | Rate limiting bypassed | Medium | Per-key + per-IP limits; abuse detection |
-| Event sync conflicts | Medium | Same conflict resolution as app (LWW) |
+| Event sync conflicts | Medium | Same LWW resolution as app; document behavior |
 | Scope creep | Medium | Strict v1 scope; defer OAuth/webhooks |
 | Performance under load | Medium | Rate limits; caching; horizontal scaling |
 | Two services to maintain | Medium | Clear boundaries; shared DB simplifies |
@@ -687,25 +828,25 @@ Once API is live, Ardonos uses it like this:
 ```bash
 # List Victor's active arcs
 curl -H "Authorization: Bearer $DEQUEUE_API_KEY" \
-  https://api.dequeue.app/v1/arcs?status=active
+  "https://api.dequeue.app/v1/arcs?status=active"
 
 # List stacks in an arc
 curl -H "Authorization: Bearer $DEQUEUE_API_KEY" \
-  https://api.dequeue.app/v1/arcs/arc_001/stacks
+  "https://api.dequeue.app/v1/stacks?arcId=arc_001&status=active"
 
 # Create a task in a stack
 curl -X POST \
   -H "Authorization: Bearer $DEQUEUE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"title": "Call dentist to reschedule", "notes": "Victor mentioned this at 2pm"}' \
-  https://api.dequeue.app/v1/stacks/stk_inbox/tasks
+  "https://api.dequeue.app/v1/stacks/stk_inbox/tasks"
 
-# Add a reminder to a stack
+# Add a reminder to a stack (remind in 1 hour)
 curl -X POST \
   -H "Authorization: Bearer $DEQUEUE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"triggerAt": "2026-01-26T09:00:00Z", "note": "Follow up on dentist"}' \
-  https://api.dequeue.app/v1/stacks/stk_inbox/reminders
+  -d '{"remindAt": 1737770400000}' \
+  "https://api.dequeue.app/v1/stacks/stk_inbox/reminders"
 ```
 
 A Clawdbot skill wraps these calls:
@@ -714,27 +855,28 @@ A Clawdbot skill wraps these calls:
 ## Dequeue Skill
 
 Commands:
-- `dequeue list arcs` → GET /arcs
-- `dequeue list stacks [arc]` → GET /arcs/{id}/stacks or GET /stacks
-- `dequeue list tasks [stack]` → GET /stacks/{id}/tasks
+- `dequeue list arcs` → GET /arcs?status=active
+- `dequeue list stacks [arc]` → GET /stacks?arcId=xxx&status=active
+- `dequeue list tasks [stack]` → GET /stacks/{id}/tasks?status=active
 - `dequeue add task [title] to [stack]` → POST /stacks/{id}/tasks
 - `dequeue complete [task]` → POST /tasks/{id}/complete
-- `dequeue remind [stack] at [time]` → POST /stacks/{id}/reminders
+- `dequeue remind [stack] in [time]` → POST /stacks/{id}/reminders
 ```
 
 ---
 
 ## Appendix C: Comparison with Similar APIs
 
-| App | Auth | Style | Docs |
-|-----|------|-------|------|
-| Todoist | API keys + OAuth | REST | Custom |
-| Things | None (no API) | — | — |
-| Linear | API keys + OAuth | GraphQL | GraphQL Playground |
-| Notion | API keys + OAuth | REST | Custom + Postman |
-| Asana | OAuth + PAT | REST | Custom |
+| App | Auth | Style | Docs | Timestamps |
+|-----|------|-------|------|------------|
+| Todoist | API keys + OAuth | REST | Custom | ISO8601 |
+| Things | None (no API) | — | — | — |
+| Linear | API keys + OAuth | GraphQL | Playground | ISO8601 |
+| Notion | API keys + OAuth | REST | Custom | ISO8601 |
+| Asana | OAuth + PAT | REST | Custom | ISO8601 |
+| **Dequeue** | API keys (→ OAuth) | REST | Stoplight | **Unix ms** |
 
-Dequeue should follow Todoist/Notion patterns with modern docs tooling (Stoplight/OpenAPI).
+Note: Dequeue uses Unix milliseconds for consistency with the event-sourced sync system.
 
 ---
 
@@ -757,6 +899,8 @@ dequeue-api/
 │   │   └── middleware.go
 │   ├── events/
 │   │   └── emitter.go
+│   ├── ratelimit/
+│   │   └── redis.go
 │   └── db/
 │       └── queries.go
 ├── openapi/
@@ -766,4 +910,40 @@ dequeue-api/
 ├── go.mod
 ├── go.sum
 └── README.md
+```
+
+---
+
+## Appendix E: Error Codes
+
+Standard error codes returned by the API:
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `UNAUTHORIZED` | 401 | Invalid, missing, or revoked API key |
+| `FORBIDDEN` | 403 | Valid key but insufficient scope for this operation |
+| `NOT_FOUND` | 404 | Generic not found |
+| `ARC_NOT_FOUND` | 404 | Arc with specified ID not found |
+| `STACK_NOT_FOUND` | 404 | Stack with specified ID not found |
+| `TASK_NOT_FOUND` | 404 | Task with specified ID not found |
+| `REMINDER_NOT_FOUND` | 404 | Reminder with specified ID not found |
+| `TAG_NOT_FOUND` | 404 | Tag with specified ID not found |
+| `VALIDATION_ERROR` | 400 | Request payload validation failed |
+| `CONFLICT` | 409 | Conflict (e.g., duplicate tag name) |
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
+| `INTERNAL_ERROR` | 500 | Unexpected server error |
+
+Error response format:
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Field 'title' is required",
+    "status": 400,
+    "details": {
+      "field": "title",
+      "reason": "required"
+    }
+  }
+}
 ```
