@@ -11,7 +11,6 @@ import Foundation
 
 @Suite("AttachmentFileCache Tests")
 struct AttachmentFileCacheTests {
-
     // MARK: - FileCacheError Tests
 
     @Test("FileCacheError has descriptive messages")
@@ -26,7 +25,9 @@ struct AttachmentFileCacheTests {
 
         for error in errors {
             #expect(error.errorDescription != nil)
-            #expect(!error.errorDescription!.isEmpty)
+            if let description = error.errorDescription {
+                #expect(!description.isEmpty)
+            }
         }
     }
 
@@ -115,7 +116,7 @@ struct AttachmentFileCacheTests {
     func cacheCachesData() async throws {
         let cache = AttachmentFileCache()
         let attachmentId = "test-\(UUID().uuidString)"
-        let testData = "Hello, World!".data(using: .utf8)!
+        let testData = try #require("Hello, World!".data(using: .utf8))
 
         defer {
             Task { try? await cache.removeCachedFile(for: attachmentId) }
@@ -143,7 +144,7 @@ struct AttachmentFileCacheTests {
     func cacheSizeCalculation() async throws {
         let cache = AttachmentFileCache()
         let attachmentId = "test-size-\(UUID().uuidString)"
-        let testData = Data(repeating: 0x42, count: 1024) // 1KB
+        let testData = Data(repeating: 0x42, count: 1_024) // 1KB
 
         defer {
             Task { try? await cache.removeCachedFile(for: attachmentId) }
@@ -155,7 +156,7 @@ struct AttachmentFileCacheTests {
 
         let sizeAfter = await cache.getCacheSize()
 
-        #expect(sizeAfter >= sizeBefore + 1024)
+        #expect(sizeAfter >= sizeBefore + 1_024)
     }
 
     @Test("Cache formatted size returns non-empty string")

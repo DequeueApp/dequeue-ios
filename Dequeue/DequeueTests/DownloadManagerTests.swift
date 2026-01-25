@@ -11,7 +11,6 @@ import Foundation
 
 @Suite("DownloadManager Tests")
 struct DownloadManagerTests {
-
     // MARK: - DownloadProgress Tests
 
     @Test("DownloadProgress calculates fraction completed correctly")
@@ -20,7 +19,7 @@ struct DownloadManagerTests {
         let progress = DownloadProgress(
             attachmentId: "test-id",
             bytesDownloaded: 500,
-            totalBytes: 1000
+            totalBytes: 1_000
         )
 
         #expect(progress.fractionCompleted == 0.5)
@@ -43,8 +42,8 @@ struct DownloadManagerTests {
     func progressCompletedDownload() {
         let progress = DownloadProgress(
             attachmentId: "test-id",
-            bytesDownloaded: 1000,
-            totalBytes: 1000
+            bytesDownloaded: 1_000,
+            totalBytes: 1_000
         )
 
         #expect(progress.fractionCompleted == 1.0)
@@ -66,7 +65,9 @@ struct DownloadManagerTests {
 
         for error in errors {
             #expect(error.errorDescription != nil)
-            #expect(!error.errorDescription!.isEmpty)
+            if let description = error.errorDescription {
+                #expect(!description.isEmpty)
+            }
         }
     }
 
@@ -135,7 +136,7 @@ struct DownloadManagerTests {
             progressUpdates.append(progress)
         }
 
-        #expect(progressUpdates.count > 0)
+        #expect(!progressUpdates.isEmpty)
         #expect(progressUpdates.last?.fractionCompleted == 1.0)
     }
 

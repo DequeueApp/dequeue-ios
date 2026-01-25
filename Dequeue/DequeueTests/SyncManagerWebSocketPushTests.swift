@@ -11,7 +11,6 @@ import Foundation
 
 @Suite("SyncManager WebSocket Push Tests")
 struct SyncManagerWebSocketPushTests {
-
     // MARK: - WebSocket Push Configuration Tests
 
     @Test("WebSocket push is enabled by default")

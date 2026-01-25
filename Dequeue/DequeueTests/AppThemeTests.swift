@@ -11,7 +11,6 @@ import SwiftUI
 
 @Suite("AppTheme Tests")
 struct AppThemeTests {
-
     // MARK: - Raw Value Tests
 
     @Test("AppTheme has correct raw values")

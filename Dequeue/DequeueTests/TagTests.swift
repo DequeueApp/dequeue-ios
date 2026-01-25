@@ -329,7 +329,7 @@ struct TagServiceTests {
         let service = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let tag = try await service.createTag(name: "Urgent", colorHex: "#FF0000")
-        try await service.updateTag(tag, colorHex: Optional<String?>.some(nil))
+        try await service.updateTag(tag, colorHex: String??.some(nil))
 
         #expect(tag.colorHex == nil)
     }
@@ -607,7 +607,7 @@ struct DuplicateTagMergeTests {
         let context = ModelContext(container)
 
         // Create duplicate tags
-        let olderDate = Date().addingTimeInterval(-3600)
+        let olderDate = Date().addingTimeInterval(-3_600)
         let canonicalTag = Tag(id: "tag-canonical", name: "work", createdAt: olderDate)
         let duplicateTag = Tag(id: "tag-duplicate", name: "Work", createdAt: Date())
         context.insert(canonicalTag)
@@ -648,7 +648,7 @@ struct DuplicateTagMergeTests {
         let context = ModelContext(container)
 
         // Create duplicate tags
-        let olderDate = Date().addingTimeInterval(-3600)
+        let olderDate = Date().addingTimeInterval(-3_600)
         let canonicalTag = Tag(id: "tag-canonical", name: "work", createdAt: olderDate)
         let duplicateTag = Tag(id: "tag-duplicate", name: "Work", createdAt: Date())
         context.insert(canonicalTag)
@@ -704,7 +704,7 @@ struct DuplicateTagMergeTests {
         let context = ModelContext(container)
 
         // Create duplicate tags
-        let olderDate = Date().addingTimeInterval(-3600)
+        let olderDate = Date().addingTimeInterval(-3_600)
         let tag1 = Tag(id: "tag-1", name: "Swift", createdAt: olderDate)
         let tag2 = Tag(id: "tag-2", name: "swift", createdAt: Date())
         context.insert(tag1)

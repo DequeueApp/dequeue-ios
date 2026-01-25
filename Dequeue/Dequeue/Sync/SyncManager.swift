@@ -23,6 +23,13 @@ private struct EventData: Sendable {
     let payloadVersion: Int
 }
 
+/// Result of processing a pull response, used for pagination
+private struct PullResult {
+    let eventsProcessed: Int
+    let nextCheckpoint: String?
+    let hasMore: Bool
+}
+
 // swiftlint:disable:next type_body_length
 actor SyncManager {
     private var webSocketTask: URLSessionWebSocketTask?
@@ -608,35 +615,41 @@ actor SyncManager {
 
     // MARK: - Pull Events
 
-    // Pulls all available events from the server, fetching in batches until no more remain.
-    // The server returns events in batches (default 100) with a `hasMore` flag for pagination.
+    /// Maximum events to request per pull (backend max is 1000)
+    private static let pullBatchSize = 1_000
+
     // swiftlint:disable:next function_body_length
     func pullEvents() async throws {
         let startTime = Date()
         let syncId = Self.generateSyncId()
         var totalEventsDownloaded = 0
-        var batchCount = 0
 
-        guard var token = try await refreshToken() else {
+        guard let token = try await refreshToken() else {
             os_log("[Sync] Pull failed: Not authenticated")
             throw SyncError.notAuthenticated
         }
 
+        var currentCheckpoint = await getLastSyncTimestamp()
+        os_log("[Sync] Pull started: syncId=\(syncId), since=\(currentCheckpoint)")
+
         let pullURL = await MainActor.run { Configuration.syncAPIBaseURL.appendingPathComponent("sync/pull") }
         os_log("[Sync] Pull URL: \(pullURL.absoluteString)")
 
-        // Loop until all events are fetched (hasMore becomes false)
-        var hasMore = true
-        while hasMore {
-            batchCount += 1
-            let since = await getLastSyncTimestamp()
-            os_log("[Sync] Pull batch \(batchCount): syncId=\(syncId), since=\(since)")
+        var currentToken = token
+        var pageNumber = 1
+
+        // Pagination loop - continue fetching while server indicates more events exist
+        while true {
+            os_log("[Sync] Fetching page \(pageNumber), checkpoint=\(currentCheckpoint)")
 
             var request = URLRequest(url: pullURL)
             request.httpMethod = "POST"
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(currentToken)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: ["since": since])
+            request.httpBody = try JSONSerialization.data(withJSONObject: [
+                "since": currentCheckpoint,
+                "limit": Self.pullBatchSize
+            ])
 
             let (data, response) = try await session.data(for: request)
 
@@ -647,46 +660,62 @@ actor SyncManager {
 
             os_log("[Sync] Pull response status: \(httpResponse.statusCode)")
 
-            do {
-                var pullData: Data
-                if httpResponse.statusCode == 401 {
-                    os_log("[Sync] Token expired, refreshing...")
-                    guard let newToken = try await refreshToken() else {
-                        os_log("[Sync] Token refresh failed")
-                        throw SyncError.notAuthenticated
-                    }
-                    token = newToken
-                    request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-                    let (retryData, retryResponse) = try await session.data(for: request)
+            var pullData: Data
+            if httpResponse.statusCode == 401 {
+                os_log("[Sync] Token expired, refreshing...")
+                guard let newToken = try await refreshToken() else {
+                    os_log("[Sync] Token refresh failed")
+                    throw SyncError.notAuthenticated
+                }
+                currentToken = newToken
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                let (retryData, retryResponse) = try await session.data(for: request)
 
-                    guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
-                          retryHttpResponse.statusCode == 200 else {
-                        os_log("[Sync] Retry failed: \((retryResponse as? HTTPURLResponse)?.statusCode ?? -1)")
-                        throw SyncError.pullFailed
-                    }
-
-                    pullData = retryData
-                } else if httpResponse.statusCode == 200 {
-                    pullData = data
-                } else {
-                    if let responseBody = String(data: data, encoding: .utf8) {
-                        os_log("[Sync] Pull failed with status \(httpResponse.statusCode): \(responseBody)")
-                    }
-                    await ErrorReportingService.logAPIResponse(
-                        endpoint: "/sync/pull",
-                        statusCode: httpResponse.statusCode,
-                        responseSize: data.count,
-                        error: String(data: data, encoding: .utf8)
-                    )
+                guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
+                      retryHttpResponse.statusCode == 200 else {
+                    os_log("[Sync] Retry failed with status: \((retryResponse as? HTTPURLResponse)?.statusCode ?? -1)")
                     throw SyncError.pullFailed
                 }
 
+                pullData = retryData
+            } else if httpResponse.statusCode == 200 {
+                pullData = data
+            } else {
+                // Log the response body for debugging
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    os_log("[Sync] Pull failed with status \(httpResponse.statusCode): \(responseBody)")
+                }
+                await ErrorReportingService.logAPIResponse(
+                    endpoint: "/sync/pull",
+                    statusCode: httpResponse.statusCode,
+                    responseSize: data.count,
+                    error: String(data: data, encoding: .utf8)
+                )
+                throw SyncError.pullFailed
+            }
+
+            do {
                 let result = try await processPullResponse(pullData)
                 totalEventsDownloaded += result.eventsProcessed
-                hasMore = result.hasMore
 
-                os_log("[Sync] Batch \(batchCount) complete: \(result.eventsProcessed) events, hasMore=\(hasMore)")
+                os_log(
+                    "[Sync] Page \(pageNumber) complete: \(result.eventsProcessed) events, hasMore=\(result.hasMore)"
+                )
+
+                // Update checkpoint for next page (or final save)
+                if let nextCheckpoint = result.nextCheckpoint {
+                    currentCheckpoint = nextCheckpoint
+                }
+
+                // Exit loop if no more events to fetch
+                if !result.hasMore {
+                    break
+                }
+
+                pageNumber += 1
             } catch {
+                // Capture duration immediately, then log failure in background to avoid blocking
+                // The reachability check can take 2+ seconds, which would delay sync retry unnecessarily
                 let duration = Date().timeIntervalSince(startTime)
                 let capturedError = error
                 Task.detached(priority: .utility) {
@@ -700,6 +729,7 @@ actor SyncManager {
                             internetReachable: failureReason.isServerProblem
                         )
                     } catch {
+                        // Fallback to os_log if Sentry logging fails - ensures observability is never lost
                         os_log(
                             .error,
                             "[Sync] Failed to log pull failure to Sentry: \(error). Original: \(capturedError)"
@@ -710,9 +740,10 @@ actor SyncManager {
             }
         }
 
-        // Log successful pull completion
+        // Log successful pull (all pages)
         let duration = Date().timeIntervalSince(startTime)
-        os_log("[Sync] Pull completed: syncId=\(syncId), batches=\(batchCount), events=\(totalEventsDownloaded)")
+        let durationStr = String(format: "%.2f", duration)
+        os_log("[Sync] Pull done: id=\(syncId), \(durationStr)s, \(totalEventsDownloaded) events, \(pageNumber) pages")
         await ErrorReportingService.logSyncComplete(
             syncId: syncId,
             duration: duration,
@@ -721,10 +752,10 @@ actor SyncManager {
         )
     }
 
-    /// Process the pull response and return result including hasMore flag for pagination
-    @discardableResult
-    // swiftlint:disable:next function_body_length
-    private func processPullResponse(_ data: Data) async throws -> PullResult {
+    /// Process the pull response and return result with event count and pagination info
+    private func processPullResponse( // swiftlint:disable:this function_body_length
+        _ data: Data
+    ) async throws -> PullResult {
         // Log raw response for debugging
         if let rawResponse = String(data: data, encoding: .utf8) {
             let preview = String(rawResponse.prefix(500))
@@ -733,7 +764,7 @@ actor SyncManager {
 
         guard let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             os_log("[Sync] Failed to parse pull response as JSON")
-            return PullResult(eventsProcessed: 0, hasMore: false)
+            return PullResult(eventsProcessed: 0, nextCheckpoint: nil, hasMore: false)
         }
 
         // Handle events being null or missing - treat as empty array
@@ -746,7 +777,7 @@ actor SyncManager {
             events = []
         } else {
             os_log("[Sync] Response 'events' has unexpected type. Keys: \(response.keys.joined(separator: ", "))")
-            return PullResult(eventsProcessed: 0, hasMore: false)
+            return PullResult(eventsProcessed: 0, nextCheckpoint: nil, hasMore: false)
         }
 
         let nextCheckpoint = response["nextCheckpoint"] as? String
@@ -754,12 +785,25 @@ actor SyncManager {
         os_log("[Sync] Next checkpoint from server: \(nextCheckpoint ?? "nil"), hasMore: \(hasMore)")
 
         let deviceId = await DeviceService.shared.getDeviceId()
-        os_log("[Sync] Current device ID: \(deviceId)")
+        let isInitialSync = _isInitialSyncInProgress
+        os_log("[Sync] Current device ID: \(deviceId), isInitialSync: \(isInitialSync)")
 
         // Filter 1: Exclude events from current device (already applied locally)
-        let fromOtherDevices = events.filter { event in
-            guard let eventDeviceId = event["device_id"] as? String else { return true }
-            return eventDeviceId != deviceId
+        // IMPORTANT: Skip this filter during initial sync! When the local database is empty
+        // (after Delete All Data or fresh install), we need ALL events including our own.
+        // The same-device filter only makes sense during normal operation when our events
+        // are already applied locally and would be duplicated.
+        let fromOtherDevices: [[String: Any]]
+        if isInitialSync {
+            // During initial sync, include events from ALL devices (including our own)
+            os_log("[Sync] Initial sync - including events from current device")
+            fromOtherDevices = events
+        } else {
+            // During normal sync, exclude events from current device (already applied locally)
+            fromOtherDevices = events.filter { event in
+                guard let eventDeviceId = event["device_id"] as? String else { return true }
+                return eventDeviceId != deviceId
+            }
         }
 
         // Filter 2: Exclude legacy events without payloadVersion or with version < 2
@@ -810,19 +854,11 @@ actor SyncManager {
             data: ["total": totalCount, "processed": processedCount, "hasMore": hasMore]
         )
 
-        return PullResult(eventsProcessed: processedCount, hasMore: hasMore)
+        return PullResult(eventsProcessed: processedCount, nextCheckpoint: nextCheckpoint, hasMore: hasMore)
     }
 
     private func getLastSyncTimestamp() async -> String {
         return getLastSyncCheckpoint()
-    }
-
-    // MARK: - Pull Response Result
-
-    /// Result from processing a pull response batch
-    private struct PullResult {
-        let eventsProcessed: Int
-        let hasMore: Bool
     }
 
     // MARK: - Process Incoming Events
@@ -1015,21 +1051,6 @@ actor SyncManager {
             return
         }
 
-        // Handle checkpoint notification from server - this signals that new events are available.
-        // The backend sends {"nextCheckpoint":"..."} via pg_notify after inserting events.
-        // We respond by pulling to fetch the new events from other devices.
-        if eventData["nextCheckpoint"] != nil {
-            os_log("[Sync] Received checkpoint notification via WebSocket, triggering pull")
-            do {
-                try await pullEvents()
-            } catch {
-                os_log("[Sync] Pull after WebSocket notification failed: \(error.localizedDescription)")
-                await ErrorReportingService.capture(error: error, context: ["source": "websocket_notification_pull"])
-            }
-            return
-        }
-
-        // Process direct event data (future: server could send full events directly)
         do {
             try await processIncomingEvents([eventData])
         } catch {

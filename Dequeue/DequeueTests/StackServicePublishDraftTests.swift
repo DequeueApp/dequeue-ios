@@ -21,7 +21,6 @@ private struct StackUpdatedPayloadReadable: Decodable {
 
 @Suite("StackService PublishDraft Tests", .serialized)
 struct StackServicePublishDraftTests {
-
     // MARK: - Test Helpers
 
     private func createTestContainer() throws -> ModelContainer {

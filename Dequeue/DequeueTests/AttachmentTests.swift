@@ -28,7 +28,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
 
         #expect(!attachment.id.isEmpty)
@@ -36,7 +36,7 @@ struct AttachmentTests {
         #expect(attachment.parentType == .stack)
         #expect(attachment.filename == "document.pdf")
         #expect(attachment.mimeType == "application/pdf")
-        #expect(attachment.sizeBytes == 1024)
+        #expect(attachment.sizeBytes == 1_024)
         #expect(attachment.remoteUrl == nil)
         #expect(attachment.localPath == nil)
         #expect(attachment.thumbnailData == nil)
@@ -138,7 +138,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "photo.jpg",
             mimeType: "image/jpeg",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
         #expect(jpeg.isImage == true)
 
@@ -147,7 +147,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "screenshot.png",
             mimeType: "image/png",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
         #expect(png.isImage == true)
 
@@ -156,7 +156,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
         #expect(pdf.isImage == false)
     }
@@ -168,7 +168,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
         #expect(pdf.isPDF == true)
 
@@ -177,7 +177,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "photo.jpg",
             mimeType: "image/jpeg",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
         #expect(jpeg.isPDF == false)
     }
@@ -189,7 +189,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
         #expect(pdf.fileExtension == "pdf")
 
@@ -198,7 +198,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "My Photo.JPEG",
             mimeType: "image/jpeg",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
         #expect(jpeg.fileExtension == "jpeg")
 
@@ -207,7 +207,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "README",
             mimeType: "text/plain",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
         #expect(noExtension.fileExtension == nil)
     }
@@ -219,7 +219,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "file.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
         #expect(attachment.isAvailableLocally == false)
     }
@@ -232,7 +232,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "file.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "/etc/passwd"
         )
         #expect(maliciousPath.isAvailableLocally == false)
@@ -243,7 +243,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "file.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "Documents/Attachments/file.pdf"
         )
         #expect(relativePath.isAvailableLocally == false)
@@ -275,7 +275,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "test-file.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: testFile.path
         )
         #expect(attachment.isAvailableLocally == true)
@@ -298,7 +298,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "missing.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: fakePath
         )
         #expect(attachment.isAvailableLocally == false)
@@ -311,7 +311,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "file.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             uploadState: .pending
         )
         #expect(pending.isUploaded == false)
@@ -321,7 +321,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "file.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             uploadState: .uploading
         )
         #expect(uploading.isUploaded == false)
@@ -331,7 +331,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "file.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             uploadState: .completed
         )
         #expect(completedNoUrl.isUploaded == false)
@@ -341,7 +341,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "file.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             remoteUrl: "https://r2.example.com/file.pdf",
             uploadState: .completed
         )
@@ -361,7 +361,7 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "test.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 5000
+            sizeBytes: 5_000
         )
         let attachmentId = attachment.id
 
@@ -392,21 +392,21 @@ struct AttachmentTests {
             parentType: .stack,
             filename: "file1.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1000
+            sizeBytes: 1_000
         )
         let attachment2 = Attachment(
             parentId: stackId,
             parentType: .stack,
             filename: "file2.jpg",
             mimeType: "image/jpeg",
-            sizeBytes: 2000
+            sizeBytes: 2_000
         )
         let attachment3 = Attachment(
             parentId: "other-stack",
             parentType: .stack,
             filename: "file3.png",
             mimeType: "image/png",
-            sizeBytes: 3000
+            sizeBytes: 3_000
         )
 
         context.insert(attachment1)
@@ -421,7 +421,6 @@ struct AttachmentTests {
 
         #expect(fetched.count == 2)
     }
-
 }
 
 // MARK: - Path Migration & Resolution Tests
@@ -435,7 +434,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "/var/mobile/Containers/Data/Application/ABC-123/Documents/Attachments/att-456/document.pdf"
         )
 
@@ -452,7 +451,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "att-456/document.pdf"
         )
 
@@ -469,7 +468,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
 
         let migrated = attachment.migrateToRelativePath()
@@ -486,7 +485,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "/Users/backup/Attachments/old/restore/Documents/Attachments/att-789/document.pdf"
         )
 
@@ -504,7 +503,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "/var/mobile/Documents/Other/document.pdf"
         )
 
@@ -525,7 +524,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "att-123/document.pdf"
         )
 
@@ -548,7 +547,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: absolutePath
         )
 
@@ -563,7 +562,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
 
         #expect(attachment.resolvedLocalPath == nil)
@@ -577,7 +576,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "../../../etc/passwd"
         )
 
@@ -592,7 +591,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "att-123/../../../etc/passwd"
         )
 
@@ -626,7 +625,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "test-file.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "relative-test/test-file.pdf"
         )
 
@@ -642,7 +641,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: ""
         )
 
@@ -657,7 +656,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "   "
         )
 
@@ -693,7 +692,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "文档.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "unicode-test/文档.pdf"
         )
 
@@ -729,7 +728,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "📄document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "emoji-test/📄document.pdf"
         )
 
@@ -745,7 +744,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
             // localPath is nil by default
         )
 
@@ -765,7 +764,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "passwd",
             mimeType: "application/octet-stream",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: "/etc/passwd"
         )
 
@@ -793,7 +792,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "secrets.txt",
             mimeType: "text/plain",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: maliciousPath
         )
 
@@ -827,7 +826,7 @@ struct AttachmentPathMigrationTests {
             parentType: .stack,
             filename: "valid-file.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             localPath: testFile.path
         )
 

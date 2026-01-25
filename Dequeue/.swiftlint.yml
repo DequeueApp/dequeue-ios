@@ -9,6 +9,7 @@ excluded:
   - DerivedData
   - .build
   - Pods
+  - DequeueTests
   - DequeueUITests
 
 # Rules

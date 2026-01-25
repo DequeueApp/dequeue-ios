@@ -12,7 +12,6 @@ import Foundation
 @Suite("UploadRetryManager Tests")
 @MainActor
 struct UploadRetryManagerTests {
-
     // MARK: - RetryConfiguration Tests
 
     @Test("RetryConfiguration calculates exponential delays correctly")
