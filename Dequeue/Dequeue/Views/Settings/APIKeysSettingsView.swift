@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct APIKeysSettingsView: View {
     @Environment(\.authService) private var authService
@@ -339,7 +342,12 @@ private struct NewAPIKeyView: View {
                             .cornerRadius(8)
 
                         Button {
+                            #if os(iOS)
                             UIPasteboard.general.string = keyResponse.key
+                            #elseif os(macOS)
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(keyResponse.key, forType: .string)
+                            #endif
                             showCopyConfirmation = true
                         } label: {
                             Image(systemName: showCopyConfirmation ? "checkmark" : "doc.on.doc")

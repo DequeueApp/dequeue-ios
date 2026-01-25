@@ -75,7 +75,8 @@ enum APIKeyError: LocalizedError {
 // MARK: - API Key Service
 
 /// Service for managing API keys via the stacks-sync API
-actor APIKeyService {
+@MainActor
+final class APIKeyService {
     private let authService: any AuthServiceProtocol
 
     init(authService: any AuthServiceProtocol) {
