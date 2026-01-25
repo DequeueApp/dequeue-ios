@@ -1015,6 +1015,21 @@ actor SyncManager {
             return
         }
 
+        // Handle checkpoint notification from server - this signals that new events are available.
+        // The backend sends {"nextCheckpoint":"..."} via pg_notify after inserting events.
+        // We respond by pulling to fetch the new events from other devices.
+        if eventData["nextCheckpoint"] != nil {
+            os_log("[Sync] Received checkpoint notification via WebSocket, triggering pull")
+            do {
+                try await pullEvents()
+            } catch {
+                os_log("[Sync] Pull after WebSocket notification failed: \(error.localizedDescription)")
+                await ErrorReportingService.capture(error: error, context: ["source": "websocket_notification_pull"])
+            }
+            return
+        }
+
+        // Process direct event data (future: server could send full events directly)
         do {
             try await processIncomingEvents([eventData])
         } catch {
