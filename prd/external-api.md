@@ -10,13 +10,14 @@
 
 ## Executive Summary
 
-Add a public REST API to Dequeue enabling third-party integrations and AI assistants (like Ardonos) to interact with a user's tasks and stacks programmatically. The API exposes a clean, resource-oriented interface while the backend remains event-sourced internally.
+Add a public REST API to Dequeue enabling third-party integrations and AI assistants (like Ardonos) to interact with a user's arcs, stacks, tasks, and reminders programmatically. The API exposes a clean, resource-oriented interface while the backend remains event-sourced internally.
 
 **Key Decisions:**
 - **API style**: RESTful resource-oriented (not event-sourced externally)
-- **Auth**: API keys with scopes (built on top of Clerk user identity)
-- **Deployment**: Separate API service or new routes in stacks-sync
-- **Events**: API operations emit events internally (same as app)
+- **Auth**: API keys with scopes (stored in stacks-sync with `app_id`)
+- **Deployment**: Separate Go service at `api.dequeue.app`
+- **Events**: API operations emit events to stacks-sync (same as iOS app)
+- **Documentation**: OpenAPI 3.0 spec with Stoplight for interactive docs
 - **Rate limiting**: Per-key limits to prevent abuse
 
 ---
@@ -37,16 +38,17 @@ The iOS app is the only way to interact with Dequeue, limiting its utility for p
 ### 1.2 Proposed Solution
 
 Build a REST API that:
-- Exposes core Dequeue operations (CRUD for stacks, tasks, tags)
+- Exposes core Dequeue operations (CRUD for arcs, stacks, tasks, reminders, tags)
 - Uses API keys for authentication (tied to user accounts)
 - Translates REST operations into internal events
 - Returns data in standard JSON format
+- Provides auto-generated interactive docs via OpenAPI/Stoplight
 - Supports webhooks for real-time notifications (Phase 2)
 
 ### 1.3 Goals
 
 - Enable AI assistants to fully manage a user's Dequeue data
-- Provide a developer-friendly REST interface
+- Provide a developer-friendly REST interface with excellent documentation
 - Maintain event-sourcing internally without exposing it
 - Support OAuth for third-party app authorization (Phase 2)
 - Keep the API simple—match what the app can do, no more
@@ -70,18 +72,21 @@ Build a REST API that:
 2. **As a user**, I want to generate an API key in settings, so I can authorize integrations.
 3. **As a user**, I want to revoke API keys, so I can disable compromised integrations.
 4. **As a developer**, I want clear API docs, so I can build integrations quickly.
-5. **As an AI assistant**, I want to list a user's stacks, so I can help them organize.
+5. **As an AI assistant**, I want to list a user's arcs and stacks, so I can help them organize.
 6. **As an AI assistant**, I want to add tasks to a specific stack, so I can help capture work.
 7. **As an AI assistant**, I want to mark tasks complete, so I can help track progress.
-8. **As a user**, I want to see which integrations accessed my data, so I have visibility.
+8. **As an AI assistant**, I want to add reminders to stacks, so I can help with time management.
+9. **As a user**, I want to see which integrations accessed my data, so I have visibility.
 
 ### 2.2 Ardonos-Specific Stories
 
-1. **As Ardonos**, I want to query Victor's active stacks to understand his current priorities.
-2. **As Ardonos**, I want to add tasks with notes/context from our conversations.
-3. **As Ardonos**, I want to move tasks between stacks based on Victor's instructions.
-4. **As Ardonos**, I want to complete tasks when Victor tells me something is done.
-5. **As Ardonos**, I want to create new stacks for emerging projects.
+1. **As Ardonos**, I want to query Victor's active arcs to understand his strategic priorities.
+2. **As Ardonos**, I want to query stacks within an arc to see related work.
+3. **As Ardonos**, I want to add tasks with notes/context from our conversations.
+4. **As Ardonos**, I want to move tasks between stacks based on Victor's instructions.
+5. **As Ardonos**, I want to complete tasks when Victor tells me something is done.
+6. **As Ardonos**, I want to create new stacks for emerging projects.
+7. **As Ardonos**, I want to add reminders to stacks so Victor doesn't forget things.
 
 ---
 
@@ -89,13 +94,14 @@ Build a REST API that:
 
 ### 3.1 Design Principles
 
-1. **Resource-oriented**: `/stacks`, `/stacks/{id}/tasks` — not event-based
+1. **Resource-oriented**: `/arcs`, `/stacks`, `/stacks/{id}/tasks` — not event-based
 2. **RESTful verbs**: GET, POST, PUT, PATCH, DELETE
 3. **JSON everywhere**: Request and response bodies
 4. **Consistent errors**: Standard error format with codes
 5. **Idempotent where possible**: PUT/DELETE are idempotent
 6. **Pagination**: Cursor-based for lists
 7. **Filtering**: Query params for common filters
+8. **OpenAPI first**: Spec drives implementation and docs
 
 ### 3.2 Why Not Expose Events?
 
@@ -113,11 +119,6 @@ Instead, the API layer accepts REST requests and emits events internally, exactl
 https://api.dequeue.app/v1
 ```
 
-Or initially:
-```
-https://sync-service.fly.dev/apps/dequeue/api/v1
-```
-
 ### 3.4 Authentication
 
 #### API Keys (v1)
@@ -131,15 +132,27 @@ Authorization: Bearer dq_live_xxxxxxxxxxxxxxxxxxxx
 - Keys have scopes limiting access (e.g., `read`, `write`, `admin`)
 - Keys can be rotated/revoked from app settings
 - Rate limited per key (e.g., 100 req/min)
+- **Keys stored in stacks-sync database** with `app_id` for multi-app support
 
 #### OAuth 2.0 (v2 — Future)
 
 For third-party apps that need to act on behalf of users:
 - Authorization code flow
-- Scopes: `stacks:read`, `stacks:write`, `tasks:read`, `tasks:write`
+- Scopes: `arcs:read`, `stacks:read`, `stacks:write`, `tasks:read`, `tasks:write`, `reminders:write`
 - Refresh tokens for long-lived access
 
 ### 3.5 Endpoints
+
+#### Arcs
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/arcs` | List all arcs |
+| POST | `/arcs` | Create an arc |
+| GET | `/arcs/{id}` | Get an arc (includes stacks summary) |
+| PATCH | `/arcs/{id}` | Update an arc |
+| DELETE | `/arcs/{id}` | Archive/delete an arc |
+| GET | `/arcs/{id}/stacks` | List stacks in an arc |
 
 #### Stacks
 
@@ -150,6 +163,7 @@ For third-party apps that need to act on behalf of users:
 | GET | `/stacks/{id}` | Get a stack |
 | PATCH | `/stacks/{id}` | Update a stack |
 | DELETE | `/stacks/{id}` | Archive/delete a stack |
+| POST | `/stacks/{id}/assign-arc` | Assign stack to an arc |
 
 #### Tasks
 
@@ -164,6 +178,18 @@ For third-party apps that need to act on behalf of users:
 | POST | `/tasks/{id}/uncomplete` | Mark task incomplete |
 | POST | `/tasks/{id}/move` | Move to different stack |
 
+#### Reminders
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/stacks/{stackId}/reminders` | List reminders for a stack |
+| POST | `/stacks/{stackId}/reminders` | Add a reminder to a stack |
+| GET | `/reminders/{id}` | Get a reminder |
+| PATCH | `/reminders/{id}` | Update a reminder |
+| DELETE | `/reminders/{id}` | Delete a reminder |
+| GET | `/arcs/{arcId}/reminders` | List reminders for an arc |
+| POST | `/arcs/{arcId}/reminders` | Add a reminder to an arc |
+
 #### Tags
 
 | Method | Endpoint | Description |
@@ -173,7 +199,7 @@ For third-party apps that need to act on behalf of users:
 | PATCH | `/tags/{id}` | Update a tag |
 | DELETE | `/tags/{id}` | Delete a tag |
 
-#### User
+#### User & API Keys
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -216,10 +242,36 @@ Response:
 }
 ```
 
-#### List Stacks
+#### Add a Reminder to a Stack
 
 ```http
-GET /v1/stacks?status=active&limit=20
+POST /v1/stacks/stk_abc123/reminders
+Authorization: Bearer dq_live_xxxx
+Content-Type: application/json
+
+{
+  "triggerAt": "2026-01-26T09:00:00Z",
+  "note": "Follow up on budget review"
+}
+```
+
+Response:
+```json
+{
+  "id": "rem_xyz789",
+  "parentType": "stack",
+  "parentId": "stk_abc123",
+  "triggerAt": "2026-01-26T09:00:00Z",
+  "note": "Follow up on budget review",
+  "status": "pending",
+  "createdAt": "2026-01-25T02:00:00Z"
+}
+```
+
+#### List Arcs with Progress
+
+```http
+GET /v1/arcs?status=active
 Authorization: Bearer dq_live_xxxx
 ```
 
@@ -228,19 +280,20 @@ Response:
 {
   "data": [
     {
-      "id": "stk_abc123",
-      "title": "Texture Q1 Planning",
+      "id": "arc_001",
+      "title": "Q1 OEM Strategy",
+      "description": "Drive OEM partnerships for conference",
       "status": "active",
-      "taskCount": 12,
-      "completedCount": 5,
-      "tags": ["work", "texture"],
+      "colorHex": "#4A90D9",
+      "stackCount": 3,
+      "completedStackCount": 1,
       "createdAt": "2026-01-10T10:00:00Z",
       "updatedAt": "2026-01-24T15:30:00Z"
     }
   ],
   "pagination": {
-    "cursor": "eyJpZCI6InN0a19hYmMxMjMifQ",
-    "hasMore": true
+    "cursor": "eyJpZCI6ImFyY18wMDEifQ",
+    "hasMore": false
   }
 }
 ```
@@ -281,122 +334,201 @@ When exceeded:
 
 ## 4. Technical Architecture
 
-### 4.1 Deployment Options
+### 4.1 Service Architecture
 
-#### Option A: Extend stacks-sync (Recommended for v1)
-
-Add API routes to the existing Go service:
-```
-/apps/dequeue/api/v1/stacks
-/apps/dequeue/api/v1/tasks
-```
-
-**Pros:**
-- Single deployment
-- Shared database connection
-- Can emit events directly
-
-**Cons:**
-- Mixes generic sync with Dequeue-specific logic
-- Go isn't ideal for rapid API iteration
-
-#### Option B: Separate API Service
-
-New service (Node.js/TypeScript or Go):
-```
-api.dequeue.app → API service → stacks-sync (for events)
-```
-
-**Pros:**
-- Clean separation
-- Can use TypeScript for faster iteration
-- Independent scaling
-
-**Cons:**
-- Another service to deploy/monitor
-- Need to call stacks-sync for event emission
-
-**Recommendation**: Start with Option A (extend stacks-sync) for v1. If API grows complex, extract to separate service.
-
-### 4.2 Internal Event Flow
+The API is a **separate Go service** (`dequeue-api`) that:
+- Serves REST endpoints at `api.dequeue.app`
+- Validates API keys against stacks-sync database
+- Emits events to stacks-sync for mutations
+- Queries projection tables for reads
+- Maintains separation from the generic stacks-sync service
 
 ```
-┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-│   API       │      │   Event     │      │   Event     │
-│   Request   │ ──── │   Emitter   │ ──── │   Store     │
-│  (REST)     │      │             │      │  (Postgres) │
-└─────────────┘      └─────────────┘      └─────────────┘
-       │                                         │
-       │              ┌─────────────┐            │
-       └──────────── │   Query     │ ───────────┘
-         (reads)      │   Layer     │   (projections)
-                      └─────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                        Clients                               │
+│  (Ardonos, Zapier, iOS App Settings)                        │
+└─────────────────┬───────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│              dequeue-api (Go)                                │
+│              api.dequeue.app/v1                              │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │  REST       │  │  Auth       │  │  Event              │  │
+│  │  Handlers   │  │  Middleware │  │  Emitter            │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────┬──────────────────────────┬────────────────┘
+                  │                          │
+                  │ (read API keys,          │ (push events,
+                  │  read projections)       │  notify via WS)
+                  ▼                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│              stacks-sync (Go)                                │
+│              sync-service.fly.dev                            │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │  Events     │  │  API Keys   │  │  WebSocket          │  │
+│  │  Table      │  │  Table      │  │  Notifier           │  │
+│  │  (app_id)   │  │  (app_id)   │  │                     │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────────┐
+│              PostgreSQL                                      │
+│  events, api_keys, apps (all with app_id)                   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-1. API receives `POST /stacks` request
-2. API validates input, creates `stack.created` event
-3. Event stored in PostgreSQL (same as app events)
-4. API queries projection tables for response
-5. WebSocket notifies connected clients (iOS app)
+### 4.2 Why Separate Service?
 
-### 4.3 API Key Storage
+1. **Separation of concerns**: stacks-sync is a generic multi-app event relay; Dequeue API is app-specific business logic
+2. **Independent deployment**: API can be updated without touching sync infrastructure
+3. **Different scaling needs**: API may need different resources than sync
+4. **Cleaner codebase**: No mixing of generic sync code with Dequeue-specific endpoints
+
+### 4.3 API Key Storage (in stacks-sync)
+
+API keys are stored in stacks-sync's database, following its multi-tenant pattern:
 
 ```sql
 CREATE TABLE api_keys (
     id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL REFERENCES apps(id),  -- e.g., 'dequeue'
     user_id TEXT NOT NULL,
-    name TEXT NOT NULL,               -- "Ardonos", "Zapier"
-    key_hash TEXT NOT NULL,           -- bcrypt hash of key
-    key_prefix TEXT NOT NULL,         -- "dq_live_abc" for display
-    scopes TEXT[] NOT NULL,           -- ['read', 'write']
+    name TEXT NOT NULL,                         -- "Ardonos", "Zapier"
+    key_hash TEXT NOT NULL,                     -- bcrypt hash of key
+    key_prefix TEXT NOT NULL,                   -- "dq_live_abc" for display
+    scopes TEXT[] NOT NULL,                     -- ['read', 'write']
     last_used_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMPTZ,
     revoked_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_api_keys_user ON api_keys(user_id) WHERE revoked_at IS NULL;
+CREATE INDEX idx_api_keys_app_user ON api_keys(app_id, user_id) WHERE revoked_at IS NULL;
 CREATE INDEX idx_api_keys_prefix ON api_keys(key_prefix);
 ```
 
 Key format: `dq_live_` + 32 random alphanumeric chars
 Only the hash is stored; full key shown once on creation.
 
-### 4.4 Clerk Integration
+### 4.4 Event Flow
+
+When API receives a mutation request:
+
+1. Validate API key → get `user_id`
+2. Validate request payload
+3. Generate event(s) with proper structure
+4. POST event to stacks-sync: `POST /apps/dequeue/sync/push`
+5. Query projection tables for response data
+6. Return response to client
+
+The API uses a service account or internal auth to push events to stacks-sync on behalf of the user.
+
+### 4.5 Clerk Integration
 
 Clerk handles user authentication for the iOS app. For API keys:
 
-1. **Key creation**: User authenticated via Clerk in app → creates API key
-2. **Key validation**: API receives key → looks up in `api_keys` table → gets `user_id`
+1. **Key creation**: User authenticated via Clerk in app → API call creates key in stacks-sync
+2. **Key validation**: dequeue-api queries stacks-sync for key hash → gets `user_id`
 3. **No Clerk on API requests**: API keys bypass Clerk entirely (simpler, faster)
 
-If we add OAuth later, Clerk could potentially handle the OAuth flow, but for v1 API keys, Clerk is only involved when managing keys from the app.
-
-### 4.5 Scopes
+### 4.6 Scopes
 
 | Scope | Permissions |
 |-------|-------------|
 | `read` | GET on all endpoints |
-| `write` | POST, PATCH, DELETE on stacks/tasks/tags |
+| `write` | POST, PATCH, DELETE on arcs/stacks/tasks/reminders/tags |
 | `admin` | Manage API keys, account settings |
 
 Default key gets `read` + `write`. `admin` must be explicitly granted.
 
 ---
 
-## 5. Implementation Phases
+## 5. API Documentation (OpenAPI + Stoplight)
+
+### 5.1 OpenAPI Specification
+
+The API is defined using **OpenAPI 3.0** specification. The spec file (`openapi.yaml`) is the source of truth for:
+- Endpoint definitions
+- Request/response schemas
+- Authentication requirements
+- Error formats
+
+```yaml
+openapi: 3.0.3
+info:
+  title: Dequeue API
+  version: 1.0.0
+  description: |
+    REST API for managing Dequeue arcs, stacks, tasks, and reminders.
+    
+    ## Authentication
+    All endpoints require an API key passed in the Authorization header:
+    ```
+    Authorization: Bearer dq_live_xxxxxxxxxxxxxxxxxxxx
+    ```
+servers:
+  - url: https://api.dequeue.app/v1
+    description: Production
+  - url: https://api-staging.dequeue.app/v1
+    description: Staging
+security:
+  - ApiKeyAuth: []
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      scheme: bearer
+# ... paths, schemas, etc.
+```
+
+### 5.2 Stoplight Integration
+
+Use **Stoplight** for interactive API documentation:
+
+1. **Host OpenAPI spec** in the dequeue-api repo
+2. **Connect Stoplight** to the repo (auto-sync on push)
+3. **Publish docs** at `docs.dequeue.app` or `dequeue.stoplight.io`
+
+Stoplight provides:
+- Interactive "Try It" functionality
+- Auto-generated code samples (curl, JS, Python, etc.)
+- Schema validation
+- Mock server for testing
+- Versioning support
+
+### 5.3 Development Workflow
+
+1. **Spec-first**: Define/update `openapi.yaml` before implementing
+2. **Generate types**: Use `oapi-codegen` (Go) to generate request/response types
+3. **Validate**: CI checks that implementation matches spec
+4. **Publish**: Stoplight auto-updates docs on merge to main
+
+---
+
+## 6. Implementation Phases
 
 ### Phase 1: Core API + API Keys (MVP)
 
-**Backend:**
-- Add `api_keys` table
-- Implement key generation (random + bcrypt)
-- Implement key validation middleware
-- Add `/stacks` CRUD endpoints
+**New Service (dequeue-api):**
+- Set up Go project with standard structure
+- OpenAPI spec for Phase 1 endpoints
+- Implement auth middleware (validate keys via stacks-sync)
+- Add `/arcs` CRUD endpoints
+- Add `/stacks` CRUD endpoints  
 - Add `/stacks/{id}/tasks` CRUD endpoints
-- Add `/tasks/{id}/complete` and `/move` actions
-- Emit events for all mutations
-- Basic rate limiting (in-memory or Redis)
+- Add `/tasks/{id}/complete`, `/move` actions
+- Add `/stacks/{id}/reminders` CRUD endpoints
+- Emit events to stacks-sync for all mutations
+- Basic rate limiting (in-memory)
+- Deploy to Fly.io at `api.dequeue.app`
+- Set up Stoplight with OpenAPI spec
+
+**stacks-sync Updates:**
+- Add `api_keys` table with `app_id`
+- Add endpoint to validate API key (internal)
+- Add endpoint to create/list/revoke keys
 
 **iOS App:**
 - Add API Keys section in Settings
@@ -413,9 +545,11 @@ Default key gets `read` + `write`. `admin` must be explicitly granted.
 
 - Add `/tags` endpoints
 - Add filtering: `GET /tasks?status=active&tag=work`
+- Add filtering: `GET /stacks?arcId=arc_001`
 - Add sorting: `?sort=dueDate&order=asc`
 - Add search: `?q=budget`
 - Improve pagination
+- Update OpenAPI spec
 
 ### Phase 3: Webhooks
 
@@ -433,16 +567,16 @@ Default key gets `read` + `write`. `admin` must be explicitly granted.
 
 ### Phase 5: Developer Portal
 
-- Public API documentation
-- Interactive API explorer
+- Public docs at `docs.dequeue.app`
+- Interactive API explorer (Stoplight)
 - Rate limit dashboard
 - Webhook logs
 
 ---
 
-## 6. Security Considerations
+## 7. Security Considerations
 
-### 6.1 API Key Security
+### 7.1 API Key Security
 
 - Keys generated with cryptographically secure random bytes
 - Only bcrypt hash stored in database
@@ -451,18 +585,19 @@ Default key gets `read` + `write`. `admin` must be explicitly granted.
 - Keys expire (optional) or can be revoked
 - Rate limiting prevents brute force
 
-### 6.2 Data Access
+### 7.2 Data Access
 
 - API keys tied to single user; cannot access other users' data
 - All queries filter by `user_id` from validated key
 - No admin API for cross-user access
+- Keys scoped to `app_id = 'dequeue'`
 
-### 6.3 Transport
+### 7.3 Transport
 
 - HTTPS only (redirect HTTP)
 - TLS 1.2+ required
 
-### 6.4 Audit Logging
+### 7.4 Audit Logging
 
 - Log all API requests with key prefix (not full key)
 - Track `last_used_at` per key
@@ -470,39 +605,42 @@ Default key gets `read` + `write`. `admin` must be explicitly granted.
 
 ---
 
-## 7. Open Questions
+## 8. Open Questions
 
 | # | Question | Options | Notes |
 |---|----------|---------|-------|
 | 1 | API key prefix format | `dq_live_` vs `dequeue_` vs `dk_` | Shorter is nicer, but clarity matters |
 | 2 | Rate limit storage | In-memory vs Redis | Redis if multi-instance, memory for v1 |
-| 3 | Soft vs hard delete for tasks | Soft delete (archived) vs permanent | Match app behavior |
+| 3 | Soft vs hard delete | Soft delete (archived) vs permanent | Match app behavior |
 | 4 | Event attribution | Mark events as "via API" | Useful for debugging sync issues |
 | 5 | Bulk operations | `/tasks/bulk` for batch create | Defer to v2 unless needed |
-| 6 | Webhook secret rotation | Allow multiple active secrets | Standard practice for zero-downtime rotation |
 
 ---
 
-## 8. Success Metrics
+## 9. Success Metrics
 
 - Ardonos can create a task via API
-- Ardonos can list Victor's stacks and tasks
+- Ardonos can add a reminder to a stack via API
+- Ardonos can list Victor's arcs and stacks
 - Task created via API syncs to iOS app within 5 seconds
 - API key creation works from iOS settings
+- Interactive docs available at Stoplight
 - 99.9% API uptime
 - P95 latency < 200ms for read operations
 
 ---
 
-## 9. Dependencies
+## 10. Dependencies
 
-- stacks-sync backend (event storage, WebSocket notifications)
+- stacks-sync backend (event storage, API key storage, WebSocket notifications)
+- Fly.io for deployment
+- Stoplight account for docs
 - iOS app settings infrastructure
 - Secure storage for Ardonos API key (Clawdbot secrets)
 
 ---
 
-## 10. Risks & Mitigations
+## 11. Risks & Mitigations
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
@@ -511,6 +649,7 @@ Default key gets `read` + `write`. `admin` must be explicitly granted.
 | Event sync conflicts | Medium | Same conflict resolution as app (LWW) |
 | Scope creep | Medium | Strict v1 scope; defer OAuth/webhooks |
 | Performance under load | Medium | Rate limits; caching; horizontal scaling |
+| Two services to maintain | Medium | Clear boundaries; shared DB simplifies |
 
 ---
 
@@ -546,16 +685,27 @@ Use a dedicated identity provider with M2M grants.
 Once API is live, Ardonos uses it like this:
 
 ```bash
-# List Victor's active stacks
+# List Victor's active arcs
 curl -H "Authorization: Bearer $DEQUEUE_API_KEY" \
-  https://api.dequeue.app/v1/stacks?status=active
+  https://api.dequeue.app/v1/arcs?status=active
 
-# Create a task in "Inbox" stack
+# List stacks in an arc
+curl -H "Authorization: Bearer $DEQUEUE_API_KEY" \
+  https://api.dequeue.app/v1/arcs/arc_001/stacks
+
+# Create a task in a stack
 curl -X POST \
   -H "Authorization: Bearer $DEQUEUE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"title": "Call dentist to reschedule", "notes": "Victor mentioned this at 2pm"}' \
   https://api.dequeue.app/v1/stacks/stk_inbox/tasks
+
+# Add a reminder to a stack
+curl -X POST \
+  -H "Authorization: Bearer $DEQUEUE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"triggerAt": "2026-01-26T09:00:00Z", "note": "Follow up on dentist"}' \
+  https://api.dequeue.app/v1/stacks/stk_inbox/reminders
 ```
 
 A Clawdbot skill wraps these calls:
@@ -564,22 +714,56 @@ A Clawdbot skill wraps these calls:
 ## Dequeue Skill
 
 Commands:
-- `dequeue list stacks` → GET /stacks
+- `dequeue list arcs` → GET /arcs
+- `dequeue list stacks [arc]` → GET /arcs/{id}/stacks or GET /stacks
 - `dequeue list tasks [stack]` → GET /stacks/{id}/tasks
 - `dequeue add task [title] to [stack]` → POST /stacks/{id}/tasks
 - `dequeue complete [task]` → POST /tasks/{id}/complete
+- `dequeue remind [stack] at [time]` → POST /stacks/{id}/reminders
 ```
 
 ---
 
 ## Appendix C: Comparison with Similar APIs
 
-| App | Auth | Style | Notes |
-|-----|------|-------|-------|
-| Todoist | API keys + OAuth | REST | Good model for simplicity |
-| Things | None (no API) | — | Lost opportunity |
-| Linear | API keys + OAuth | GraphQL | Powerful but complex |
-| Notion | API keys + OAuth | REST | Well-documented, good example |
-| Asana | OAuth + PAT | REST | Personal Access Tokens like API keys |
+| App | Auth | Style | Docs |
+|-----|------|-------|------|
+| Todoist | API keys + OAuth | REST | Custom |
+| Things | None (no API) | — | — |
+| Linear | API keys + OAuth | GraphQL | GraphQL Playground |
+| Notion | API keys + OAuth | REST | Custom + Postman |
+| Asana | OAuth + PAT | REST | Custom |
 
-Dequeue should follow Todoist/Notion patterns: start with API keys, add OAuth when third-party demand exists.
+Dequeue should follow Todoist/Notion patterns with modern docs tooling (Stoplight/OpenAPI).
+
+---
+
+## Appendix D: Project Structure (dequeue-api)
+
+```
+dequeue-api/
+├── cmd/
+│   └── server/
+│       └── main.go
+├── internal/
+│   ├── api/
+│   │   ├── arcs.go
+│   │   ├── stacks.go
+│   │   ├── tasks.go
+│   │   ├── reminders.go
+│   │   ├── tags.go
+│   │   └── users.go
+│   ├── auth/
+│   │   └── middleware.go
+│   ├── events/
+│   │   └── emitter.go
+│   └── db/
+│       └── queries.go
+├── openapi/
+│   └── openapi.yaml
+├── Dockerfile
+├── fly.toml
+├── go.mod
+├── go.sum
+└── README.md
+```
