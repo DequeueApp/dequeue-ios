@@ -43,7 +43,7 @@ private func makeAttachmentPayload(
             parentType: parentType.rawValue,
             filename: filename,
             mimeType: "application/pdf",
-            sizeBytes: 1024,
+            sizeBytes: 1_024,
             url: nil,
             createdAt: Int64(Date().timeIntervalSince1970 * 1_000),
             updatedAt: Int64(Date().timeIntervalSince1970 * 1_000),
@@ -53,9 +53,8 @@ private func makeAttachmentPayload(
     return try JSONEncoder().encode(payload)
 }
 
-@Suite("EventService Tests", .serialized)
-struct EventServiceTests {
-
+@Suite("EventService FetchByIds Tests", .serialized)
+struct EventServiceFetchByIdsTests {
     @Test("fetchEventsByIds returns events matching provided IDs")
     @MainActor
     func fetchEventsByIdsReturnsMatchingEvents() throws {
@@ -170,9 +169,12 @@ struct EventServiceTests {
             #expect(fetchedIds.contains(id))
         }
     }
+}
 
-    // MARK: - fetchStackHistoryWithRelated Tests
+// MARK: - Stack History Tests
 
+@Suite("EventService StackHistory Tests", .serialized)
+struct EventServiceStackHistoryTests {
     @Test("fetchStackHistoryWithRelated returns stack events")
     @MainActor
     func fetchStackHistoryWithRelatedReturnsStackEvents() throws {
@@ -411,9 +413,12 @@ struct EventServiceTests {
         #expect(events[1].id == "middle")
         #expect(events[2].id == "oldest")
     }
+}
 
-    // MARK: - fetchTaskHistoryWithRelated Tests
+// MARK: - Task History Tests
 
+@Suite("EventService TaskHistory Tests", .serialized)
+struct EventServiceTaskHistoryTests {
     @Test("fetchTaskHistoryWithRelated returns task events")
     @MainActor
     func fetchTaskHistoryWithRelatedReturnsTaskEvents() throws {

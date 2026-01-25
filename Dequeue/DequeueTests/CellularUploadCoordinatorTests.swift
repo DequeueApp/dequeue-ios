@@ -13,7 +13,6 @@ import Network
 @Suite("CellularUploadCoordinator Tests")
 @MainActor
 struct CellularUploadCoordinatorTests {
-
     // MARK: - Helper Functions
 
     /// Poll for a condition with timeout to avoid race conditions
@@ -246,9 +245,9 @@ struct CellularUploadCoordinatorTests {
 
         let testURL = URL(fileURLWithPath: "/test/file.jpg")
 
-        coordinator.queueForWiFi(id: "id-1", filename: "test1.jpg", fileSize: 1000, fileURL: testURL)
-        coordinator.queueForWiFi(id: "id-2", filename: "test2.jpg", fileSize: 2000, fileURL: testURL)
-        coordinator.queueForWiFi(id: "id-3", filename: "test3.jpg", fileSize: 3000, fileURL: testURL)
+        coordinator.queueForWiFi(id: "id-1", filename: "test1.jpg", fileSize: 1_000, fileURL: testURL)
+        coordinator.queueForWiFi(id: "id-2", filename: "test2.jpg", fileSize: 2_000, fileURL: testURL)
+        coordinator.queueForWiFi(id: "id-3", filename: "test3.jpg", fileSize: 3_000, fileURL: testURL)
 
         coordinator.removeFromWiFiQueue(id: "id-2")
 
@@ -265,8 +264,8 @@ struct CellularUploadCoordinatorTests {
 
         let testURL = URL(fileURLWithPath: "/test/file.jpg")
 
-        coordinator.queueForWiFi(id: "id-1", filename: "test1.jpg", fileSize: 1000, fileURL: testURL)
-        coordinator.queueForWiFi(id: "id-2", filename: "test2.jpg", fileSize: 2000, fileURL: testURL)
+        coordinator.queueForWiFi(id: "id-1", filename: "test1.jpg", fileSize: 1_000, fileURL: testURL)
+        coordinator.queueForWiFi(id: "id-2", filename: "test2.jpg", fileSize: 2_000, fileURL: testURL)
 
         coordinator.clearWiFiQueue()
 

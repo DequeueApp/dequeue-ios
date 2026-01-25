@@ -12,7 +12,6 @@ import Foundation
 @Suite("AuthService Tests")
 @MainActor
 struct AuthServiceTests {
-
     @Test("MockAuthService initializes with default state")
     func testMockAuthServiceInitialState() async {
         let mockAuth = MockAuthService()

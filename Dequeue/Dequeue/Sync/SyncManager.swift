@@ -616,7 +616,7 @@ actor SyncManager {
     // MARK: - Pull Events
 
     /// Maximum events to request per pull (backend max is 1000)
-    private static let pullBatchSize = 1000
+    private static let pullBatchSize = 1_000
 
     // swiftlint:disable:next function_body_length
     func pullEvents() async throws {
@@ -753,8 +753,9 @@ actor SyncManager {
     }
 
     /// Process the pull response and return result with event count and pagination info
-    // swiftlint:disable:next function_body_length
-    private func processPullResponse(_ data: Data) async throws -> PullResult {
+    private func processPullResponse( // swiftlint:disable:this function_body_length
+        _ data: Data
+    ) async throws -> PullResult {
         // Log raw response for debugging
         if let rawResponse = String(data: data, encoding: .utf8) {
             let preview = String(rawResponse.prefix(500))

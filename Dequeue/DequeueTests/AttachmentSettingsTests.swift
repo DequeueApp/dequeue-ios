@@ -12,7 +12,6 @@ import Foundation
 @Suite("AttachmentSettings Tests", .serialized)
 @MainActor
 struct AttachmentSettingsTests {
-
     // MARK: - Setup/Teardown
 
     init() {

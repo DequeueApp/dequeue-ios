@@ -412,7 +412,7 @@ private class MockFileManager: FileManager {
     var existingPaths: Set<String> = []
     let reportedFileSize: Int64
 
-    init(reportedFileSize: Int64 = 1024) {
+    init(reportedFileSize: Int64 = 1_024) {
         self.reportedFileSize = reportedFileSize
         super.init()
     }

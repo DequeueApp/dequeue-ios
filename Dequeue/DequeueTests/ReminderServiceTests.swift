@@ -287,7 +287,9 @@ struct ReminderServiceTests {
         try context.save()
 
         let reminderService = ReminderService(modelContext: context, userId: "test-user", deviceId: "test-device")
-        let reminder = try await reminderService.createReminder(for: stack, at: Date().addingTimeInterval(-3_600)) // overdue
+        // Create overdue reminder
+        let overdueTime = Date().addingTimeInterval(-3_600)
+        let reminder = try await reminderService.createReminder(for: stack, at: overdueTime)
 
         try await reminderService.dismissReminder(reminder)
 
@@ -425,7 +427,12 @@ struct ReminderServiceTests {
 
         #expect(reminder.syncState == .pending)
     }
+}
 
+// MARK: - Query and Event Tests
+
+@Suite("ReminderService Query Tests", .serialized)
+struct ReminderServiceQueryTests {
     // MARK: - Get Upcoming Reminders Tests
 
     @Test("getUpcomingReminders returns only future reminders")

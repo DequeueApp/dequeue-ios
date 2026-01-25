@@ -11,7 +11,6 @@ import Foundation
 
 @Suite("SyncManager Performance Tests")
 struct SyncManagerPerformanceTests {
-
     // MARK: - ISO8601 Timestamp Parsing Tests
 
     @Test("Parses standard ISO8601 timestamps")
@@ -19,12 +18,13 @@ struct SyncManagerPerformanceTests {
         let timestamp = "2024-01-15T10:30:45Z"
         let date = SyncManager.parseISO8601(timestamp)
 
-        #expect(date != nil)
+        let unwrappedDate = try #require(date)
 
         // Verify components
         let calendar = Calendar(identifier: .gregorian)
-        let components = calendar.dateComponents(in: TimeZone(identifier: "UTC")!, from: date!)
-        #expect(components.year == 2024)
+        let utcTimeZone = try #require(TimeZone(identifier: "UTC"))
+        let components = calendar.dateComponents(in: utcTimeZone, from: unwrappedDate)
+        #expect(components.year == 2_024)
         #expect(components.month == 1)
         #expect(components.day == 15)
         #expect(components.hour == 10)
@@ -46,12 +46,13 @@ struct SyncManagerPerformanceTests {
         let timestamp = "2024-01-15T10:30:45.123456789Z"
         let date = SyncManager.parseISO8601(timestamp)
 
-        #expect(date != nil)
+        let unwrappedDate = try #require(date)
 
         // Verify it parsed correctly (nanoseconds are truncated to milliseconds)
         let calendar = Calendar(identifier: .gregorian)
-        let components = calendar.dateComponents(in: TimeZone(identifier: "UTC")!, from: date!)
-        #expect(components.year == 2024)
+        let utcTimeZone = try #require(TimeZone(identifier: "UTC"))
+        let components = calendar.dateComponents(in: utcTimeZone, from: unwrappedDate)
+        #expect(components.year == 2_024)
         #expect(components.month == 1)
         #expect(components.day == 15)
     }

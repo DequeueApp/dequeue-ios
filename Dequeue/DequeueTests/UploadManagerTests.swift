@@ -11,7 +11,6 @@ import Foundation
 
 @Suite("UploadManager Tests")
 struct UploadManagerTests {
-
     // MARK: - UploadProgress Tests
 
     @Test("UploadProgress calculates fraction completed correctly")
@@ -20,7 +19,7 @@ struct UploadManagerTests {
         let progress = UploadProgress(
             attachmentId: "test-id",
             bytesUploaded: 500,
-            totalBytes: 1000
+            totalBytes: 1_000
         )
 
         #expect(progress.fractionCompleted == 0.5)
@@ -43,8 +42,8 @@ struct UploadManagerTests {
     func progressCompletedUpload() {
         let progress = UploadProgress(
             attachmentId: "test-id",
-            bytesUploaded: 1000,
-            totalBytes: 1000
+            bytesUploaded: 1_000,
+            totalBytes: 1_000
         )
 
         #expect(progress.fractionCompleted == 1.0)
@@ -145,7 +144,7 @@ struct UploadManagerTests {
             progressUpdates.append(progress)
         }
 
-        #expect(progressUpdates.count > 0)
+        #expect(!progressUpdates.isEmpty)
         #expect(progressUpdates.last?.fractionCompleted == 1.0)
     }
 

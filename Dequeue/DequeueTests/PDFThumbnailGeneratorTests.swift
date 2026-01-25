@@ -17,7 +17,6 @@ import AppKit
 
 @Suite("PDFThumbnailGenerator Tests")
 struct PDFThumbnailGeneratorTests {
-
     // MARK: - Attachment Extension Tests
 
     @Test("Attachment supportsPDFThumbnail returns true for PDFs")
@@ -27,7 +26,7 @@ struct PDFThumbnailGeneratorTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
 
         #expect(pdfAttachment.supportsPDFThumbnail)
@@ -40,7 +39,7 @@ struct PDFThumbnailGeneratorTests {
             parentType: .stack,
             filename: "photo.jpg",
             mimeType: "image/jpeg",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
 
         #expect(!imageAttachment.supportsPDFThumbnail)
@@ -84,7 +83,7 @@ struct PDFThumbnailGeneratorTests {
         let config = PDFThumbnailConfiguration(
             maxDimension: 100,
             compressionQuality: 0.7,
-            maxFileSize: 50 * 1024 * 1024
+            maxFileSize: 50 * 1_024 * 1_024
         )
         let generator = PDFThumbnailGenerator(configuration: config)
 
@@ -108,7 +107,7 @@ struct PDFThumbnailGeneratorTests {
         let config = PDFThumbnailConfiguration(
             maxDimension: 200,
             compressionQuality: 0.7,
-            maxFileSize: 50 * 1024 * 1024
+            maxFileSize: 50 * 1_024 * 1_024
         )
         let generator = PDFThumbnailGenerator(configuration: config)
 

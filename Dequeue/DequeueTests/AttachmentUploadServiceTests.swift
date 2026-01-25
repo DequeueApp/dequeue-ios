@@ -12,7 +12,6 @@ import Foundation
 @Suite("AttachmentUploadService Tests")
 @MainActor
 struct AttachmentUploadServiceTests {
-
     // MARK: - Test Helpers
 
     private func createMockAuthService() -> MockAuthService {

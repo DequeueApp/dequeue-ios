@@ -16,7 +16,6 @@ import AppKit
 
 @Suite("ThumbnailGenerator Tests")
 struct ThumbnailGeneratorTests {
-
     // MARK: - MIME Type Support Tests
 
     @Test("Supported MIME types are recognized")
@@ -69,7 +68,7 @@ struct ThumbnailGeneratorTests {
             parentType: .stack,
             filename: "photo.jpg",
             mimeType: "image/jpeg",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
 
         #expect(imageAttachment.supportsThumbnail)
@@ -82,7 +81,7 @@ struct ThumbnailGeneratorTests {
             parentType: .stack,
             filename: "document.pdf",
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
 
         #expect(!pdfAttachment.supportsThumbnail)
@@ -121,12 +120,12 @@ struct ThumbnailGeneratorTests {
         let config = ThumbnailConfiguration(
             maxDimension: 100,
             compressionQuality: 0.7,
-            maxSourceFileSize: 50 * 1024 * 1024
+            maxSourceFileSize: 50 * 1_024 * 1_024
         )
         let generator = ThumbnailGenerator(configuration: config)
 
         // Create large test image
-        let testImage = createTestImage(width: 1000, height: 800)
+        let testImage = createTestImage(width: 1_000, height: 800)
         guard let imageData = imageToJPEGData(testImage) else {
             throw TestError("Failed to create test image data")
         }
@@ -151,7 +150,7 @@ struct ThumbnailGeneratorTests {
         let config = ThumbnailConfiguration(
             maxDimension: 200,
             compressionQuality: 0.7,
-            maxSourceFileSize: 50 * 1024 * 1024
+            maxSourceFileSize: 50 * 1_024 * 1_024
         )
         let generator = ThumbnailGenerator(configuration: config)
 
@@ -185,7 +184,7 @@ struct ThumbnailGeneratorTests {
         let config = ThumbnailConfiguration(
             maxDimension: 200,
             compressionQuality: 0.7,
-            maxSourceFileSize: 50 * 1024 * 1024
+            maxSourceFileSize: 50 * 1_024 * 1_024
         )
         let generator = ThumbnailGenerator(configuration: config)
 
@@ -231,12 +230,12 @@ struct ThumbnailGeneratorTests {
         let config = ThumbnailConfiguration(
             maxDimension: 200,
             compressionQuality: 0.7,
-            maxSourceFileSize: 1024  // Very small limit for testing
+            maxSourceFileSize: 1_024  // Very small limit for testing
         )
         let generator = ThumbnailGenerator(configuration: config)
 
         // Create data larger than limit
-        let largeData = Data(count: 2048)
+        let largeData = Data(count: 2_048)
 
         await #expect(throws: ThumbnailGeneratorError.self) {
             try await generator.generateThumbnail(

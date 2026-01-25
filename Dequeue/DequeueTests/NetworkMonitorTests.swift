@@ -13,7 +13,6 @@ import Network
 @Suite("NetworkMonitor Tests")
 @MainActor
 struct NetworkMonitorTests {
-
     @Test("NetworkMonitor initializes with default connected state")
     func testInitialState() async {
         let monitor = NetworkMonitor()

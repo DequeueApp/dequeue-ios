@@ -13,7 +13,6 @@ import Foundation
 @Suite("ProjectorService Tests")
 @MainActor
 struct ProjectorServiceTests {
-
     // MARK: - Test Helpers
 
     /// Helper to apply multiple events in sequence
@@ -100,7 +99,14 @@ struct ProjectorServiceTests {
 
         // Create a stack.created event with isActive = true
         let payload = try createStackPayload(id: stackId, title: "New Active Stack", isActive: true)
-        let event = Event(eventType: .stackCreated, payload: payload, entityId: stackId, userId: "test-user", deviceId: "test-device", appId: "test-app")
+        let event = Event(
+            eventType: .stackCreated,
+            payload: payload,
+            entityId: stackId,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
         context.insert(event)
         try context.save()
 

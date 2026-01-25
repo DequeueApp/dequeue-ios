@@ -13,8 +13,8 @@ import Foundation
 @Suite("Event Model Tests")
 struct EventTests {
     @Test("Event initializes with type string")
-    func eventInitializesWithTypeString() {
-        let payload = try! JSONEncoder().encode(["key": "value"])
+    func eventInitializesWithTypeString() throws {
+        let payload = try JSONEncoder().encode(["key": "value"])
         let event = Event(
             type: "stack.created",
             payload: payload,
@@ -33,8 +33,8 @@ struct EventTests {
     }
 
     @Test("Event initializes with EventType enum")
-    func eventInitializesWithEventType() {
-        let payload = try! JSONEncoder().encode(["stackId": "123"])
+    func eventInitializesWithEventType() throws {
+        let payload = try JSONEncoder().encode(["stackId": "123"])
         let event = Event(
             eventType: .stackCreated,
             payload: payload,
