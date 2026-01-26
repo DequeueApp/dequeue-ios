@@ -194,6 +194,16 @@ struct APIKeyServiceTests {
         #expect(service != nil)
     }
 
+    @Test("APIKeyService accepts custom URLSession for testing")
+    func testAPIKeyServiceCustomURLSession() {
+        let mockAuth = MockAuthService()
+        let customSession = makeMockURLSession()
+        let service = APIKeyService(authService: mockAuth, urlSession: customSession)
+
+        // Service should initialize with custom URLSession without error
+        #expect(service != nil)
+    }
+
     // MARK: - Error Tests
 
     @Test("APIKeyError notAuthenticated has correct description")

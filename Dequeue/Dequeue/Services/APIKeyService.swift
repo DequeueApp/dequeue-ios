@@ -75,12 +75,13 @@ enum APIKeyError: LocalizedError {
 // MARK: - API Key Service
 
 /// Service for managing API keys via the stacks-sync API
-@MainActor
 final class APIKeyService {
     private let authService: any AuthServiceProtocol
+    private let urlSession: URLSession
 
-    init(authService: any AuthServiceProtocol) {
+    init(authService: any AuthServiceProtocol, urlSession: URLSession = .shared) {
         self.authService = authService
+        self.urlSession = urlSession
     }
 
     // MARK: - List API Keys
@@ -99,7 +100,7 @@ final class APIKeyService {
 
         logger.debug("Fetching API keys from: \(url.absoluteString)")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIKeyError.invalidResponse
@@ -142,7 +143,7 @@ final class APIKeyService {
 
         logger.debug("Creating API key '\(name)' with scopes: \(scopes.joined(separator: ", "))")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIKeyError.invalidResponse
@@ -179,7 +180,7 @@ final class APIKeyService {
 
         logger.debug("Revoking API key: \(id)")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIKeyError.invalidResponse

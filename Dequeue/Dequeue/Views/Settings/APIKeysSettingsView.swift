@@ -99,6 +99,7 @@ struct APIKeysSettingsView: View {
             } header: {
                 Text("Active Keys")
             } footer: {
+                // swiftlint:disable:next line_length
                 Text("API keys allow external services to access your Dequeue data. Keep them secure and revoke any keys you're no longer using.")
             }
         }
