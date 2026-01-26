@@ -82,6 +82,11 @@ struct ArcPickerSheet: View {
                 )
             }
         }
+        #if os(iOS)
+        .presentationDetents([.medium, .large])
+        #else
+        .frame(minWidth: 400, minHeight: 300)
+        #endif
     }
 
     // MARK: - Empty State
