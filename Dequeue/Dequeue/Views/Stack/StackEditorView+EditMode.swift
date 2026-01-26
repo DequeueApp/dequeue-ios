@@ -15,6 +15,7 @@ private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView
 extension StackEditorView {
     var editModeContent: some View {
         List {
+            activeStatusBanner
             descriptionSection
             editModeTagsSection
             arcSection
@@ -29,6 +30,56 @@ extension StackEditorView {
             actionsSection
             detailsSection
             eventHistorySection
+        }
+    }
+
+    // MARK: - Active Status Banner
+
+    @ViewBuilder
+    var activeStatusBanner: some View {
+        if case .edit(let stack) = mode, !isReadOnly {
+            Section {
+                Button {
+                    if stack.isActive {
+                        deactivateStack()
+                    } else {
+                        setStackActive()
+                    }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: stack.isActive ? "checkmark.circle.fill" : "star.fill")
+                            .font(.title3)
+                            .foregroundStyle(stack.isActive ? .green : .orange)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(stack.isActive ? "Currently Active" : "Start Working")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+
+                            Text(stack.isActive
+                                 ? "Tap to deactivate this stack"
+                                 : "Tap to set as your active stack")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(stack.isActive
+                              ? Color.green.opacity(0.1)
+                              : Color.orange.opacity(0.1))
+                        .padding(.horizontal, -4)
+                )
+            }
         }
     }
 
@@ -223,22 +274,6 @@ extension StackEditorView {
     var actionsSection: some View {
         if !isReadOnly && !isCreateMode {
             Section {
-                if case .edit(let stack) = mode {
-                    if stack.isActive {
-                        Button {
-                            deactivateStack()
-                        } label: {
-                            Label("Deactivate Stack", systemImage: "star.slash")
-                        }
-                    } else {
-                        Button {
-                            setStackActive()
-                        } label: {
-                            Label("Set as Active Stack", systemImage: "star.fill")
-                        }
-                    }
-                }
-
                 Button(role: .destructive) {
                     showCloseConfirmation = true
                 } label: {
