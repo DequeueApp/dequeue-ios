@@ -262,6 +262,8 @@ extension StackEditorView {
         Task {
             do {
                 try await service.setAsActive(stack)
+                isTogglingActiveStatus = false
+                // Dismiss to return to stack list - intentional UX decision
                 dismiss()
             } catch {
                 isTogglingActiveStatus = false
@@ -282,6 +284,8 @@ extension StackEditorView {
         Task {
             do {
                 try await service.deactivateStack(stack)
+                isTogglingActiveStatus = false
+                // Dismiss to return to stack list - intentional UX decision
                 dismiss()
             } catch {
                 isTogglingActiveStatus = false
