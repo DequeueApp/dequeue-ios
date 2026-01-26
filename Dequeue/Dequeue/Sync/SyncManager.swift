@@ -400,7 +400,8 @@ actor SyncManager {
         }
 
         let pendingEventData = try await MainActor.run {
-            let context = ModelContext(modelContainer)
+            // Use mainContext for consistency with SwiftUI observation
+            let context = modelContainer.mainContext
             let eventService = EventService.readOnly(modelContext: context)
             let events = try eventService.fetchPendingEvents()
             return events.map { event in
@@ -565,7 +566,8 @@ actor SyncManager {
         let syncedEventIds = eventIds.filter { acknowledgedSet.contains($0) }
 
         try await MainActor.run {
-            let context = ModelContext(modelContainer)
+            // Use mainContext for consistency with SwiftUI observation
+            let context = modelContainer.mainContext
             let eventService = EventService.readOnly(modelContext: context)
             let syncedEvents = try eventService.fetchEventsByIds(syncedEventIds)
             try eventService.markEventsSynced(syncedEvents)
@@ -874,7 +876,10 @@ actor SyncManager {
     private func processIncomingEvents(_ events: [[String: Any]]) async throws {
         os_log("[Sync] Processing \(events.count) incoming events")
         var stats = EventProcessingStats()
-        let context = ModelContext(modelContainer)
+        // IMPORTANT: Use mainContext so SwiftUI @Query observers see changes immediately.
+        // Creating a new ModelContext would persist changes to the store, but SwiftUI views
+        // using @Query observe mainContext specifically and wouldn't see the updates.
+        let context = modelContainer.mainContext
 
         // Capture initial sync state once to avoid actor hop on every iteration
         // This is safe because initial sync state only changes on connect/disconnect,
