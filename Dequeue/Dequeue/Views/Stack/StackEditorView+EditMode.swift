@@ -39,42 +39,13 @@ extension StackEditorView {
     var activeStatusBanner: some View {
         if case .edit(let stack) = mode, !isReadOnly {
             Section {
-                Button {
+                StackActiveStatusBanner(stack: stack) {
                     if stack.isActive {
                         deactivateStack()
                     } else {
                         setStackActive()
                     }
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: stack.isActive ? "checkmark.circle.fill" : "star.fill")
-                            .font(.title3)
-                            .foregroundStyle(stack.isActive ? .green : .orange)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(stack.isActive ? "Currently Active" : "Start Working")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-
-                            Text(stack.isActive
-                                 ? "Tap to deactivate this stack"
-                                 : "Tap to set as your active stack")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.vertical, 4)
                 }
-                .buttonStyle(.plain)
-                .listRowBackground(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(stack.isActive
-                              ? Color.green.opacity(0.1)
-                              : Color.orange.opacity(0.1))
-                        .padding(.horizontal, -4)
-                )
             }
         }
     }
