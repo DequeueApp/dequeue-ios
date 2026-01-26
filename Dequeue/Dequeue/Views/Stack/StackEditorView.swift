@@ -97,6 +97,7 @@ struct StackEditorView: View {
     @State var showCompletedTasks = false
     @State var showCompleteConfirmation = false
     @State var showCloseConfirmation = false
+    @State var isTogglingActiveStatus = false
 
     // Shared state
     @State var showError = false

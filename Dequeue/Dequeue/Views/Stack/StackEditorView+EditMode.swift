@@ -39,7 +39,7 @@ extension StackEditorView {
     var activeStatusBanner: some View {
         if case .edit(let stack) = mode, !isReadOnly {
             Section {
-                StackActiveStatusBanner(stack: stack) {
+                StackActiveStatusBanner(stack: stack, isLoading: isTogglingActiveStatus) {
                     if stack.isActive {
                         deactivateStack()
                     } else {
@@ -258,11 +258,13 @@ extension StackEditorView {
             return
         }
 
+        isTogglingActiveStatus = true
         Task {
             do {
                 try await service.setAsActive(stack)
                 dismiss()
             } catch {
+                isTogglingActiveStatus = false
                 handleError(error)
             }
         }
@@ -276,11 +278,13 @@ extension StackEditorView {
             return
         }
 
+        isTogglingActiveStatus = true
         Task {
             do {
                 try await service.deactivateStack(stack)
                 dismiss()
             } catch {
+                isTogglingActiveStatus = false
                 handleError(error)
             }
         }
