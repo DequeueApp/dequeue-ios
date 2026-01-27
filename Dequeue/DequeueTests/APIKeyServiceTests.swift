@@ -11,10 +11,30 @@ import Foundation
 
 // MARK: - Mock URLSession for Network Tests
 
-/// Mock URLProtocol for intercepting network requests in tests
-private class MockURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+/// Thread-safe storage for the mock request handler
+/// Uses a lock to ensure visibility across threads (MainActor -> URLSession background thread)
+private final class MockURLProtocolStorage: @unchecked Sendable {
+    static let shared = MockURLProtocolStorage()
+    
+    private let lock = NSLock()
+    private var _requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    
+    var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _requestHandler
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _requestHandler = newValue
+        }
+    }
+}
 
+/// Mock URLProtocol for intercepting network requests in tests
+private final class MockURLProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool {
         true
     }
@@ -24,7 +44,7 @@ private class MockURLProtocol: URLProtocol {
     }
 
     override func startLoading() {
-        guard let handler = MockURLProtocol.requestHandler else {
+        guard let handler = MockURLProtocolStorage.shared.requestHandler else {
             fatalError("Handler not set")
         }
 
@@ -355,7 +375,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let json = """
             {
                 "id": "key-123",
@@ -390,7 +410,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let json = """
             [
                 {
@@ -436,7 +456,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let json = """
             {"error": "Invalid token"}
             """
@@ -470,7 +490,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let json = """
             {"error": "Access denied"}
             """
@@ -504,7 +524,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let json = """
             {"error": "Internal server error"}
             """
@@ -537,7 +557,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let json = """
             {
                 "id": "key-new",
@@ -573,7 +593,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let json = """
             {"error": "Authentication required"}
             """
@@ -607,7 +627,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let response = HTTPURLResponse(
                 url: URL(string: "https://example.com")!,
                 statusCode: 200,
@@ -629,7 +649,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let response = HTTPURLResponse(
                 url: URL(string: "https://example.com")!,
                 statusCode: 204,
@@ -651,7 +671,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let json = """
             {"error": "API key not found"}
             """
@@ -685,7 +705,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { _ in
+        MockURLProtocolStorage.shared.requestHandler = { _ in
             let json = """
             {"error": "Cannot revoke this key"}
             """
