@@ -35,10 +35,13 @@ We're building a production-quality native iOS/iPadOS/macOS app together. Your r
 - **NO Any type** - use specific types or generics
 - **NO stringly-typed code** - use enums and constants
 - **NO print() in production** - use proper logging (os.log or similar)
-- **NO @MainActor on entire classes** unless they interact with SwiftData ModelContext
-  - Services using ModelContext (StackService, EventService, etc.) require @MainActor
-  - Standalone actors (SyncManager, DeviceService) should NOT use @MainActor
-  - ViewModels that access SwiftData should use @MainActor
+- **NO @MainActor on entire classes** unless they MUST interact with @MainActor-isolated APIs. Use the 3-bucket pattern:
+  - **`@MainActor final class`**: Services using SwiftData `ModelContext` (StackService, EventService, TaskService, etc.)
+  - **`@MainActor final class`**: ViewModels that update SwiftUI state
+  - **`final class`** (no isolation): Network-only stateless services — no ModelContext, no shared mutable state
+  - **`actor`**: Services managing mutable shared state (SyncManager, UploadManager, DownloadManager, DeviceService)
+
+  **Why this matters**: `@MainActor` + `async` does NOT mean "no UI lag". Code before/after each `await` runs on the main thread. Heavy JSON decoding, encryption, or data processing WILL cause jank. Also beware "MainActor creep" — marking one class `@MainActor` tends to spread to callers, dependencies, and tests.
 - **NO blocking the main thread** - all heavy work must be async
 - **NO ignoring errors** - handle them or propagate them
 - **NO magic numbers** - use named constants
