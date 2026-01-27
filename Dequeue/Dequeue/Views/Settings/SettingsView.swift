@@ -38,6 +38,12 @@ struct SettingsView: View {
                         Label("Devices", systemImage: "laptopcomputer.and.iphone")
                     }
 
+                    NavigationLink {
+                        APIKeysSettingsView()
+                    } label: {
+                        Label("API Keys", systemImage: "key")
+                    }
+
                     Button(role: .destructive) {
                         Task {
                             await signOut()

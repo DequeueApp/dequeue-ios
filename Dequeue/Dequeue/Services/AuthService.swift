@@ -34,21 +34,20 @@ enum SessionInvalidationReason: Sendable, Equatable {
 
 // MARK: - Auth Service Protocol
 
-@MainActor
 protocol AuthServiceProtocol {
     /// Whether the user is currently authenticated with a valid session
-    var isAuthenticated: Bool { get }
+    @MainActor var isAuthenticated: Bool { get }
     /// Whether the auth state is still being determined during app launch
-    var isLoading: Bool { get }
+    @MainActor var isLoading: Bool { get }
     /// The unique identifier of the currently authenticated user, if any
-    var currentUserId: String? { get }
+    @MainActor var currentUserId: String? { get }
     /// Stream of session state changes for observing unexpected auth events
     var sessionStateChanges: AsyncStream<SessionStateChange> { get }
 
-    func configure() async
-    func signOut() async throws
-    func getAuthToken() async throws -> String
-    func refreshSessionIfNeeded() async
+    @MainActor func configure() async
+    @MainActor func signOut() async throws
+    @MainActor func getAuthToken() async throws -> String
+    @MainActor func refreshSessionIfNeeded() async
 }
 
 // MARK: - Clerk Auth Service
@@ -370,10 +369,12 @@ final class MockAuthService: AuthServiceProtocol {
         sessionStateChangeContinuation?.finish()
     }
 
+    @MainActor
     func configure() async {
         // No-op for mock
     }
 
+    @MainActor
     func signOut() async throws {
         isAuthenticated = false
         currentUserId = nil
@@ -381,6 +382,7 @@ final class MockAuthService: AuthServiceProtocol {
         sessionStateChangeContinuation = nil
     }
 
+    @MainActor
     func getAuthToken() async throws -> String {
         guard isAuthenticated else {
             throw AuthError.notAuthenticated
@@ -388,17 +390,20 @@ final class MockAuthService: AuthServiceProtocol {
         return "mock-token-\(UUID().uuidString)"
     }
 
+    @MainActor
     func refreshSessionIfNeeded() async {
         // No-op for mock
     }
 
     // For testing
+    @MainActor
     func mockSignIn(userId: String = "mock-user-id") {
         isAuthenticated = true
         currentUserId = userId
     }
 
     /// For testing: simulate session invalidation
+    @MainActor
     func mockSessionInvalidated(reason: SessionInvalidationReason = .revoked) {
         isAuthenticated = false
         currentUserId = nil
@@ -406,6 +411,7 @@ final class MockAuthService: AuthServiceProtocol {
     }
 
     /// For testing: simulate session restoration
+    @MainActor
     func mockSessionRestored(userId: String = "mock-user-id") {
         isAuthenticated = true
         currentUserId = userId
