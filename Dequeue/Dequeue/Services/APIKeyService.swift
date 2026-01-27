@@ -55,6 +55,8 @@ enum APIKeyError: LocalizedError {
     case invalidResponse
     case serverError(statusCode: Int, message: String?)
     case networkError(Error)
+    case invalidKeyName(String)
+    case invalidScopes(String)
 
     var errorDescription: String? {
         switch self {
@@ -69,6 +71,10 @@ enum APIKeyError: LocalizedError {
             return "Server error: \(statusCode)"
         case let .networkError(error):
             return "Network error: \(error.localizedDescription)"
+        case let .invalidKeyName(reason):
+            return "Invalid key name: \(reason)"
+        case let .invalidScopes(reason):
+            return "Invalid scopes: \(reason)"
         }
     }
 }
@@ -76,13 +82,63 @@ enum APIKeyError: LocalizedError {
 // MARK: - API Key Service
 
 /// Service for managing API keys via the stacks-sync API
+/// Uses @MainActor since it's accessed from SwiftUI views
+@MainActor
 final class APIKeyService {
     private let authService: any AuthServiceProtocol
     private let urlSession: URLSession
 
+    /// Valid scopes for API keys
+    static let validScopes: Set<String> = ["read", "write", "admin"]
+
+    /// Maximum length for key names
+    static let maxKeyNameLength = 64
+
+    /// Minimum length for key names
+    static let minKeyNameLength = 1
+
     init(authService: any AuthServiceProtocol, urlSession: URLSession = .shared) {
         self.authService = authService
         self.urlSession = urlSession
+    }
+
+    // MARK: - Input Validation
+
+    /// Validates a key name for length and valid characters
+    private func validateKeyName(_ name: String) throws {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if trimmed.count < Self.minKeyNameLength {
+            throw APIKeyError.invalidKeyName("Name cannot be empty")
+        }
+
+        if trimmed.count > Self.maxKeyNameLength {
+            throw APIKeyError.invalidKeyName("Name must be \(Self.maxKeyNameLength) characters or less")
+        }
+
+        // Allow alphanumeric, spaces, hyphens, underscores, and common punctuation
+        let allowedCharacters = CharacterSet.alphanumerics
+            .union(CharacterSet(charactersIn: " -_.,!@#"))
+        let nameCharacters = CharacterSet(charactersIn: trimmed)
+
+        if !allowedCharacters.isSuperset(of: nameCharacters) {
+            throw APIKeyError.invalidKeyName("Name contains invalid characters")
+        }
+    }
+
+    /// Validates that scopes array contains only valid values
+    private func validateScopes(_ scopes: [String]) throws {
+        if scopes.isEmpty {
+            throw APIKeyError.invalidScopes("At least one scope is required")
+        }
+
+        let scopeSet = Set(scopes)
+        let invalidScopes = scopeSet.subtracting(Self.validScopes)
+
+        if !invalidScopes.isEmpty {
+            let invalidList = invalidScopes.sorted().joined(separator: ", ")
+            throw APIKeyError.invalidScopes("Invalid scopes: \(invalidList). Valid scopes are: read, write, admin")
+        }
     }
 
     // MARK: - List API Keys
@@ -108,7 +164,7 @@ final class APIKeyService {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let errorMessage = try? JSONDecoder().decode([String: String].self, from: data)["error"]
+            let errorMessage = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
             throw APIKeyError.serverError(statusCode: httpResponse.statusCode, message: errorMessage)
         }
 
@@ -125,8 +181,16 @@ final class APIKeyService {
     // MARK: - Create API Key
 
     /// Creates a new API key with the specified name and scopes
+    /// - Parameters:
+    ///   - name: A descriptive name for the key (1-64 characters, alphanumeric with basic punctuation)
+    ///   - scopes: Array of permission scopes (valid values: read, write, admin)
     /// - Returns: The created key response (includes the full key, which is only shown once)
+    /// - Throws: `APIKeyError.invalidKeyName` or `APIKeyError.invalidScopes` for invalid input
     func createAPIKey(name: String, scopes: [String]) async throws -> CreateAPIKeyResponse {
+        // Validate input before making network request
+        try validateKeyName(name)
+        try validateScopes(scopes)
+
         let token = try await authService.getAuthToken()
 
         let url = Configuration.syncAPIBaseURL
@@ -151,7 +215,7 @@ final class APIKeyService {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let errorMessage = try? JSONDecoder().decode([String: String].self, from: data)["error"]
+            let errorMessage = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
             throw APIKeyError.serverError(statusCode: httpResponse.statusCode, message: errorMessage)
         }
 
@@ -188,7 +252,7 @@ final class APIKeyService {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let errorMessage = try? JSONDecoder().decode([String: String].self, from: data)["error"]
+            let errorMessage = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
             throw APIKeyError.serverError(statusCode: httpResponse.statusCode, message: errorMessage)
         }
 

@@ -290,24 +290,456 @@ struct APIKeyServiceTests {
         #expect(json.contains("\"write\""))
     }
 
-    // MARK: - Integration Notes
-    //
-    // The following scenarios require actual network calls and cannot be reliably
-    // unit tested without more complex mocking infrastructure:
-    // - listAPIKeys() with real API responses
-    // - createAPIKey() with real API responses
-    // - revokeAPIKey() with real API responses
-    // - Error handling for various HTTP status codes
-    // - Authorization header validation
-    //
-    // These should be tested via:
-    // 1. Integration tests with a test backend
-    // 2. UI tests that exercise the full flow
-    // 3. Manual testing with the staging/production API
-    //
-    // For comprehensive network testing, we would need to:
-    // 1. Create a protocol wrapper for URLSession
-    // 2. Inject the wrapper into APIKeyService
-    // 3. Create mock implementations for testing
-    // 4. Test all HTTP status codes and error cases
+    // MARK: - Input Validation Tests
+
+    @Test("createAPIKey throws error for empty name")
+    func testCreateAPIKeyEmptyNameThrows() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let service = APIKeyService(authService: mockAuth, urlSession: makeMockURLSession())
+
+        await #expect(throws: APIKeyError.self) {
+            _ = try await service.createAPIKey(name: "", scopes: ["read"])
+        }
+    }
+
+    @Test("createAPIKey throws error for name exceeding max length")
+    func testCreateAPIKeyNameTooLongThrows() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let service = APIKeyService(authService: mockAuth, urlSession: makeMockURLSession())
+
+        let longName = String(repeating: "a", count: 65)
+
+        await #expect(throws: APIKeyError.self) {
+            _ = try await service.createAPIKey(name: longName, scopes: ["read"])
+        }
+    }
+
+    @Test("createAPIKey throws error for invalid characters in name")
+    func testCreateAPIKeyInvalidCharactersThrows() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let service = APIKeyService(authService: mockAuth, urlSession: makeMockURLSession())
+
+        await #expect(throws: APIKeyError.self) {
+            _ = try await service.createAPIKey(name: "test<script>", scopes: ["read"])
+        }
+    }
+
+    @Test("createAPIKey throws error for empty scopes")
+    func testCreateAPIKeyEmptyScopesThrows() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let service = APIKeyService(authService: mockAuth, urlSession: makeMockURLSession())
+
+        await #expect(throws: APIKeyError.self) {
+            _ = try await service.createAPIKey(name: "Test Key", scopes: [])
+        }
+    }
+
+    @Test("createAPIKey throws error for invalid scope values")
+    func testCreateAPIKeyInvalidScopesThrows() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let service = APIKeyService(authService: mockAuth, urlSession: makeMockURLSession())
+
+        await #expect(throws: APIKeyError.self) {
+            _ = try await service.createAPIKey(name: "Test Key", scopes: ["read", "delete"])
+        }
+    }
+
+    @Test("createAPIKey accepts valid name and scopes")
+    func testCreateAPIKeyValidInput() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {
+                "id": "key-123",
+                "name": "Valid Key",
+                "key": "sk_live_abc123",
+                "keyPrefix": "sk_live_",
+                "scopes": ["read", "write"],
+                "createdAt": 1704067200000
+            }
+            """
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, json.data(using: .utf8)!)
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let result = try await service.createAPIKey(name: "Valid Key", scopes: ["read", "write"])
+
+        #expect(result.id == "key-123")
+        #expect(result.name == "Valid Key")
+    }
+
+    // MARK: - Network Tests
+
+    @Test("listAPIKeys returns keys on success")
+    func testListAPIKeysSuccess() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { request in
+            // Verify authorization header is set
+            #expect(request.value(forHTTPHeaderField: "Authorization")?.hasPrefix("Bearer ") == true)
+
+            let json = """
+            [
+                {
+                    "id": "key-1",
+                    "name": "First Key",
+                    "keyPrefix": "sk_test_",
+                    "scopes": ["read"],
+                    "createdAt": 1704067200000,
+                    "lastUsedAt": null
+                },
+                {
+                    "id": "key-2",
+                    "name": "Second Key",
+                    "keyPrefix": "sk_live_",
+                    "scopes": ["read", "write"],
+                    "createdAt": 1704153600000,
+                    "lastUsedAt": 1704240000000
+                }
+            ]
+            """
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, json.data(using: .utf8)!)
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let keys = try await service.listAPIKeys()
+
+        #expect(keys.count == 2)
+        #expect(keys[0].id == "key-1")
+        #expect(keys[0].name == "First Key")
+        #expect(keys[1].id == "key-2")
+        #expect(keys[1].scopes == ["read", "write"])
+    }
+
+    @Test("listAPIKeys handles 401 unauthorized")
+    func testListAPIKeysUnauthorized() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {"error": "Invalid token"}
+            """
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, json.data(using: .utf8)!)
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+
+        do {
+            _ = try await service.listAPIKeys()
+            #expect(Bool(false), "Expected error to be thrown")
+        } catch let error as APIKeyError {
+            if case let .serverError(statusCode, message) = error {
+                #expect(statusCode == 401)
+                #expect(message == "Invalid token")
+            } else {
+                #expect(Bool(false), "Expected serverError, got \(error)")
+            }
+        }
+    }
+
+    @Test("listAPIKeys handles 403 forbidden")
+    func testListAPIKeysForbidden() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {"error": "Access denied"}
+            """
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 403,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, json.data(using: .utf8)!)
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+
+        do {
+            _ = try await service.listAPIKeys()
+            #expect(Bool(false), "Expected error to be thrown")
+        } catch let error as APIKeyError {
+            if case let .serverError(statusCode, message) = error {
+                #expect(statusCode == 403)
+                #expect(message == "Access denied")
+            } else {
+                #expect(Bool(false), "Expected serverError, got \(error)")
+            }
+        }
+    }
+
+    @Test("listAPIKeys handles 500 server error")
+    func testListAPIKeysServerError() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {"error": "Internal server error"}
+            """
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 500,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, json.data(using: .utf8)!)
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+
+        do {
+            _ = try await service.listAPIKeys()
+            #expect(Bool(false), "Expected error to be thrown")
+        } catch let error as APIKeyError {
+            if case let .serverError(statusCode, _) = error {
+                #expect(statusCode == 500)
+            } else {
+                #expect(Bool(false), "Expected serverError, got \(error)")
+            }
+        }
+    }
+
+    @Test("createAPIKey returns key response on success")
+    func testCreateAPIKeySuccess() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { request in
+            // Verify request method and body
+            #expect(request.httpMethod == "POST")
+            #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+
+            let json = """
+            {
+                "id": "key-new",
+                "name": "My New Key",
+                "key": "sk_live_secretkey123456",
+                "keyPrefix": "sk_live_",
+                "scopes": ["read", "write"],
+                "createdAt": 1704067200000
+            }
+            """
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 201,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, json.data(using: .utf8)!)
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let result = try await service.createAPIKey(name: "My New Key", scopes: ["read", "write"])
+
+        #expect(result.id == "key-new")
+        #expect(result.name == "My New Key")
+        #expect(result.key == "sk_live_secretkey123456")
+        #expect(result.keyPrefix == "sk_live_")
+        #expect(result.scopes == ["read", "write"])
+    }
+
+    @Test("createAPIKey handles 401 unauthorized")
+    func testCreateAPIKeyUnauthorized() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {"error": "Authentication required"}
+            """
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, json.data(using: .utf8)!)
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+
+        do {
+            _ = try await service.createAPIKey(name: "Test Key", scopes: ["read"])
+            #expect(Bool(false), "Expected error to be thrown")
+        } catch let error as APIKeyError {
+            if case let .serverError(statusCode, message) = error {
+                #expect(statusCode == 401)
+                #expect(message == "Authentication required")
+            } else {
+                #expect(Bool(false), "Expected serverError, got \(error)")
+            }
+        }
+    }
+
+    @Test("revokeAPIKey succeeds with 200 response")
+    func testRevokeAPIKeySuccess() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { request in
+            // Verify request method
+            #expect(request.httpMethod == "DELETE")
+            #expect(request.url?.pathComponents.last == "key-to-revoke")
+
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data())
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+
+        // Should not throw
+        try await service.revokeAPIKey(id: "key-to-revoke")
+    }
+
+    @Test("revokeAPIKey succeeds with 204 no content")
+    func testRevokeAPIKeyNoContent() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { _ in
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 204,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data())
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+
+        // Should not throw
+        try await service.revokeAPIKey(id: "key-123")
+    }
+
+    @Test("revokeAPIKey handles 404 not found")
+    func testRevokeAPIKeyNotFound() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {"error": "API key not found"}
+            """
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 404,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, json.data(using: .utf8)!)
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+
+        do {
+            try await service.revokeAPIKey(id: "nonexistent-key")
+            #expect(Bool(false), "Expected error to be thrown")
+        } catch let error as APIKeyError {
+            if case let .serverError(statusCode, message) = error {
+                #expect(statusCode == 404)
+                #expect(message == "API key not found")
+            } else {
+                #expect(Bool(false), "Expected serverError, got \(error)")
+            }
+        }
+    }
+
+    @Test("revokeAPIKey handles 403 forbidden")
+    func testRevokeAPIKeyForbidden() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+        let mockSession = makeMockURLSession()
+
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {"error": "Cannot revoke this key"}
+            """
+            let response = HTTPURLResponse(
+                url: URL(string: "https://example.com")!,
+                statusCode: 403,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, json.data(using: .utf8)!)
+        }
+
+        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+
+        do {
+            try await service.revokeAPIKey(id: "protected-key")
+            #expect(Bool(false), "Expected error to be thrown")
+        } catch let error as APIKeyError {
+            if case let .serverError(statusCode, _) = error {
+                #expect(statusCode == 403)
+            } else {
+                #expect(Bool(false), "Expected serverError, got \(error)")
+            }
+        }
+    }
+
+    @Test("APIKeyError invalidKeyName has correct description")
+    func testAPIKeyErrorInvalidKeyNameDescription() {
+        let error = APIKeyError.invalidKeyName("Name cannot be empty")
+        #expect(error.errorDescription == "Invalid key name: Name cannot be empty")
+    }
+
+    @Test("APIKeyError invalidScopes has correct description")
+    func testAPIKeyErrorInvalidScopesDescription() {
+        let error = APIKeyError.invalidScopes("Invalid scopes: delete")
+        #expect(error.errorDescription == "Invalid scopes: Invalid scopes: delete")
+    }
+
+    @Test("APIKeyService.validScopes contains expected values")
+    func testValidScopesContainsExpectedValues() {
+        #expect(APIKeyService.validScopes.contains("read"))
+        #expect(APIKeyService.validScopes.contains("write"))
+        #expect(APIKeyService.validScopes.contains("admin"))
+        #expect(APIKeyService.validScopes.count == 3)
+    }
 }

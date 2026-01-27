@@ -311,6 +311,7 @@ private struct NewAPIKeyView: View {
     let onDismiss: () -> Void
 
     @State private var showCopyConfirmation = false
+    @State private var displayedKey: String = ""
 
     var body: some View {
         NavigationStack {
@@ -336,7 +337,7 @@ private struct NewAPIKeyView: View {
                         .foregroundStyle(.secondary)
 
                     HStack {
-                        Text(keyResponse.key)
+                        Text(displayedKey)
                             .font(.system(.body, design: .monospaced))
                             .textSelection(.enabled)
                             .padding()
@@ -350,10 +351,10 @@ private struct NewAPIKeyView: View {
 
                         Button {
                             #if os(iOS)
-                            UIPasteboard.general.string = keyResponse.key
+                            UIPasteboard.general.string = displayedKey
                             #elseif os(macOS)
                             NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(keyResponse.key, forType: .string)
+                            NSPasteboard.general.setString(displayedKey, forType: .string)
                             #endif
                             showCopyConfirmation = true
                         } label: {
@@ -361,6 +362,7 @@ private struct NewAPIKeyView: View {
                                 .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.bordered)
+                        .disabled(displayedKey.isEmpty)
                     }
                 }
                 .padding()
@@ -374,7 +376,7 @@ private struct NewAPIKeyView: View {
                 Spacer()
 
                 Button("Done") {
-                    onDismiss()
+                    clearKeyAndDismiss()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
@@ -387,11 +389,25 @@ private struct NewAPIKeyView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
-                        onDismiss()
+                        clearKeyAndDismiss()
                     }
                 }
             }
+            .onAppear {
+                // Copy the key to local state for display
+                displayedKey = keyResponse.key
+            }
+            .onDisappear {
+                // Security: Clear the sensitive key from memory when view disappears
+                displayedKey = ""
+            }
         }
+    }
+
+    /// Clears the sensitive key from memory before dismissing
+    private func clearKeyAndDismiss() {
+        displayedKey = ""
+        onDismiss()
     }
 }
 
