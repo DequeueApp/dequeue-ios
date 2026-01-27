@@ -82,8 +82,8 @@ enum APIKeyError: LocalizedError {
 // MARK: - API Key Service
 
 /// Service for managing API keys via the stacks-sync API
-/// Uses @MainActor since it's accessed from SwiftUI views
-@MainActor
+/// Network-only service - does not use @MainActor per CLAUDE.md guidelines
+/// (only services interacting with SwiftData ModelContext should use @MainActor)
 final class APIKeyService {
     private let authService: any AuthServiceProtocol
     private let urlSession: URLSession
