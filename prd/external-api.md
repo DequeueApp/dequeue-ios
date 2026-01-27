@@ -1,10 +1,61 @@
 # PRD: Dequeue External API
 
-**Status**: Draft  
+**Status**: In Progress (Phase 1)  
 **Author**: Ardonos (with Victor)  
 **Created**: 2026-01-25  
-**Last Updated**: 2026-01-25  
+**Last Updated**: 2026-01-27  
 **Issue**: TBD (Linear)
+
+---
+
+## Implementation Status
+
+> **Last Updated**: 2026-01-27
+
+### ✅ Completed
+
+| Component | Description | PR/Notes |
+|-----------|-------------|----------|
+| **API Keys UI (iOS)** | Settings screen to create/manage API keys | PR #201 |
+| | - Create API keys with name and scopes | |
+| | - List existing keys (shows prefix only) | |
+| | - Revoke keys via swipe-to-delete | |
+| | - One-time full key display on creation | |
+| | - Scopes: read, write, admin | |
+| **stacks-sync API Key Endpoints** | Backend API key management | Deployed |
+| | - `GET /apps/{app_id}/api-keys` | |
+| | - `POST /apps/{app_id}/api-keys` | |
+| | - `DELETE /apps/{app_id}/api-keys/{key_id}` | |
+| **dequeue-api Service** | Go service at `api.dequeue.app` | Deployed |
+| | - Read endpoints (GET arcs, stacks, tasks) | |
+| | - Authentication via API keys | |
+| | - Rate limiting infrastructure | |
+
+### 🔄 In Progress
+
+| Component | Description | Notes |
+|-----------|-------------|-------|
+| **Write Endpoints** | Tags, Arcs, Reminders, Stacks mutations | Some PRs merged |
+| **OpenAPI Spec** | Complete spec for Stoplight docs | In progress |
+
+### 📋 Planned (Phase 1 Remaining)
+
+| Component | Description |
+|-----------|-------------|
+| Task mutations | POST/PATCH/DELETE tasks, complete/uncomplete |
+| Task move action | `POST /tasks/{id}/move` |
+| Reminder endpoints | Full CRUD for reminders |
+| Stoplight integration | Interactive docs at docs.dequeue.app |
+| Ardonos integration | Clawdbot skill for Dequeue |
+
+### 🔮 Future Phases
+
+| Phase | Components |
+|-------|------------|
+| Phase 2 | Tags endpoints, sorting, search |
+| Phase 3 | Webhooks |
+| Phase 4 | OAuth 2.0 |
+| Phase 5 | Developer portal |
 
 ---
 
@@ -683,36 +734,39 @@ Stoplight provides:
 
 ### Phase 1: Core API + API Keys (MVP)
 
+> **Status**: 🔄 In Progress — Core infrastructure complete, write endpoints in progress
+
 **New Service (dequeue-api):**
-- Set up Go project with standard structure
-- OpenAPI spec for Phase 1 endpoints
-- Implement auth middleware (validate keys via stacks-sync)
-- Add `/arcs` CRUD endpoints with filtering (`?status=active`)
-- Add `/stacks` CRUD endpoints with filtering (`?status=active&arcId=xxx`)
-- Add `/stacks/{id}/tasks` CRUD endpoints with filtering (`?status=active`)
-- Add `/tasks/{id}/complete`, `/move` actions
-- Add `/stacks/{id}/reminders` and `/arcs/{id}/reminders` CRUD endpoints
-- Emit events to stacks-sync with source attribution
-- Redis-backed rate limiting
-- Deploy to Fly.io at `api.dequeue.app`
-- Set up Stoplight with OpenAPI spec
+- ✅ Set up Go project with standard structure
+- 🔄 OpenAPI spec for Phase 1 endpoints
+- ✅ Implement auth middleware (validate keys via stacks-sync)
+- ✅ Add `/arcs` read endpoints with filtering (`?status=active`)
+- ✅ Add `/stacks` read endpoints with filtering (`?status=active&arcId=xxx`)
+- ✅ Add `/stacks/{id}/tasks` read endpoints with filtering (`?status=active`)
+- 🔄 Add `/tasks/{id}/complete`, `/move` actions
+- 🔄 Add `/stacks/{id}/reminders` and `/arcs/{id}/reminders` CRUD endpoints
+- ✅ Emit events to stacks-sync with source attribution
+- ✅ Redis-backed rate limiting
+- ✅ Deploy to Fly.io at `api.dequeue.app`
+- 📋 Set up Stoplight with OpenAPI spec
 
 **stacks-sync Updates:**
-- Add `api_keys` table with `app_id`
-- Add endpoint to validate API key (internal)
-- Add endpoint to create/list/revoke keys
-- Support `source` and `apiKeyId` fields in events
+- ✅ Add `api_keys` table with `app_id`
+- ✅ Add endpoint to validate API key (internal)
+- ✅ Add endpoint to create/list/revoke keys (`GET/POST/DELETE /apps/{app_id}/api-keys`)
+- ✅ Support `source` and `apiKeyId` fields in events
 
-**iOS App:**
-- Add API Keys section in Settings
-- Show existing keys (name, prefix, created, last used)
-- Create new key (shows full key once)
-- Revoke key with confirmation
+**iOS App (PR #201):**
+- ✅ Add API Keys section in Settings
+- ✅ Show existing keys (name, prefix, created, last used)
+- ✅ Create new key (shows full key once)
+- ✅ Revoke key with confirmation (swipe-to-delete)
+- ✅ Scope selection (read, write, admin)
 
 **Ardonos Integration:**
-- Store Victor's API key securely
-- Build Dequeue skill for task management
-- Test core workflows
+- 📋 Store Victor's API key securely
+- 📋 Build Dequeue skill for task management
+- 📋 Test core workflows
 
 ### Phase 2: Tags + Enhanced Queries
 
