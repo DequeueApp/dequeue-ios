@@ -163,7 +163,7 @@ private struct APIKeyRow: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Color.accentColor.opacity(0.1))
-                        .foregroundStyle(.accent)
+                        .foregroundStyle(Color.accentColor)
                         .cornerRadius(4)
                 }
             }
@@ -257,7 +257,9 @@ private struct CreateAPIKeySheet: View {
                 }
             }
             .navigationTitle("Create API Key")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -339,7 +341,11 @@ private struct NewAPIKeyView: View {
                             .textSelection(.enabled)
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            #if os(iOS)
                             .background(Color(.secondarySystemBackground))
+                            #else
+                            .background(Color(.windowBackgroundColor))
+                            #endif
                             .cornerRadius(8)
 
                         Button {
@@ -358,7 +364,11 @@ private struct NewAPIKeyView: View {
                     }
                 }
                 .padding()
+                #if os(iOS)
                 .background(Color(.systemGroupedBackground))
+                #else
+                .background(Color(.controlBackgroundColor))
+                #endif
                 .cornerRadius(12)
 
                 Spacer()
@@ -371,7 +381,9 @@ private struct NewAPIKeyView: View {
             }
             .padding()
             .navigationTitle("API Key Created")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {

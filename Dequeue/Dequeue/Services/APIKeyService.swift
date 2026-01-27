@@ -33,7 +33,7 @@ struct APIKey: Identifiable, Codable, Sendable {
 }
 
 /// Response when creating a new API key (includes the full key)
-struct CreateAPIKeyResponse: Codable {
+struct CreateAPIKeyResponse: Codable, Identifiable {
     let id: String
     let name: String
     let key: String // Full key, only shown once
