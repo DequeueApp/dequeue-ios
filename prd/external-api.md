@@ -27,24 +27,51 @@
 | | - `POST /apps/{app_id}/api-keys` | |
 | | - `DELETE /apps/{app_id}/api-keys/{key_id}` | |
 | **dequeue-api Service** | Go service at `api.dequeue.app` | Deployed |
-| | - Read endpoints (GET arcs, stacks, tasks) | |
-| | - Authentication via API keys | |
+| | - Authentication via API keys | PR #1 |
 | | - Rate limiting infrastructure | |
+| **All Read Endpoints** | Complete read API | PR #4 |
+| | - GET /v1/arcs, /v1/arcs/{id} | |
+| | - GET /v1/arcs/{id}/stacks, /v1/arcs/{id}/reminders | |
+| | - GET /v1/stacks, /v1/stacks/{id} | |
+| | - GET /v1/stacks/{id}/tasks, /v1/stacks/{id}/reminders | |
+| | - GET /v1/tasks/{id} | |
+| | - GET /v1/reminders/{id} | |
+| | - GET /v1/tags, /v1/tags/{id} | |
+| **Event Sync Worker** | Projection updates from stacks-sync | PR #5 |
+| | - Polls events and updates projections | |
+| | - Handles all event types | |
+| **Stacks Write Endpoints** | Full CRUD for stacks | PR #6 |
+| | - POST /v1/stacks | |
+| | - PATCH /v1/stacks/{id} | |
+| | - DELETE /v1/stacks/{id} | |
+| **Tags Write Endpoints** | Full CRUD for tags | PR #8 |
+| | - POST /v1/tags | |
+| | - PATCH /v1/tags/{id} | |
+| | - DELETE /v1/tags/{id} | |
+| **Arcs Write Endpoints** | Full CRUD for arcs | PR #9 |
+| | - POST /v1/arcs | |
+| | - PATCH /v1/arcs/{id} | |
+| | - DELETE /v1/arcs/{id} | |
+| **Reminders Write Endpoints** | Full CRUD for reminders | PR #10 |
+| | - POST /v1/stacks/{id}/reminders | |
+| | - POST /v1/arcs/{id}/reminders | |
+| | - PATCH /v1/reminders/{id} | |
+| | - DELETE /v1/reminders/{id} | |
 
 ### 🔄 In Progress
 
 | Component | Description | Notes |
 |-----------|-------------|-------|
-| **Write Endpoints** | Tags, Arcs, Reminders, Stacks mutations | Some PRs merged |
+| **Task Write Endpoints** | POST/PATCH/DELETE tasks | Next priority |
 | **OpenAPI Spec** | Complete spec for Stoplight docs | In progress |
 
 ### 📋 Planned (Phase 1 Remaining)
 
 | Component | Description |
 |-----------|-------------|
-| Task mutations | POST/PATCH/DELETE tasks, complete/uncomplete |
+| Task mutations | POST/PATCH/DELETE tasks |
+| Task complete/uncomplete | `POST /tasks/{id}/complete`, `/uncomplete` |
 | Task move action | `POST /tasks/{id}/move` |
-| Reminder endpoints | Full CRUD for reminders |
 | Stoplight integration | Interactive docs at docs.dequeue.app |
 | Ardonos integration | Clawdbot skill for Dequeue |
 
@@ -734,7 +761,7 @@ Stoplight provides:
 
 ### Phase 1: Core API + API Keys (MVP)
 
-> **Status**: 🔄 In Progress — Core infrastructure complete, write endpoints in progress
+> **Status**: 🔄 In Progress — Most endpoints complete, task mutations remaining
 
 **New Service (dequeue-api):**
 - ✅ Set up Go project with standard structure
@@ -743,8 +770,13 @@ Stoplight provides:
 - ✅ Add `/arcs` read endpoints with filtering (`?status=active`)
 - ✅ Add `/stacks` read endpoints with filtering (`?status=active&arcId=xxx`)
 - ✅ Add `/stacks/{id}/tasks` read endpoints with filtering (`?status=active`)
-- 🔄 Add `/tasks/{id}/complete`, `/move` actions
-- 🔄 Add `/stacks/{id}/reminders` and `/arcs/{id}/reminders` CRUD endpoints
+- ✅ Add `/arcs` write endpoints (POST/PATCH/DELETE)
+- ✅ Add `/stacks` write endpoints (POST/PATCH/DELETE)
+- ✅ Add `/tags` write endpoints (POST/PATCH/DELETE)
+- ✅ Add `/stacks/{id}/reminders` and `/arcs/{id}/reminders` CRUD endpoints
+- 🔄 Add `/tasks` write endpoints (POST/PATCH/DELETE)
+- 🔄 Add `/tasks/{id}/complete`, `/uncomplete`, `/move` actions
+- ✅ Event sync worker for projection updates
 - ✅ Emit events to stacks-sync with source attribution
 - ✅ Redis-backed rate limiting
 - ✅ Deploy to Fly.io at `api.dequeue.app`
