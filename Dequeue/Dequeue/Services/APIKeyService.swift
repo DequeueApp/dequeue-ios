@@ -89,13 +89,13 @@ final class APIKeyService {
     private let urlSession: URLSession
 
     /// Valid scopes for API keys
-    static let validScopes: Set<String> = ["read", "write", "admin"]
+    nonisolated static let validScopes: Set<String> = ["read", "write", "admin"]
 
     /// Maximum length for key names
-    static let maxKeyNameLength = 64
+    nonisolated static let maxKeyNameLength = 64
 
     /// Minimum length for key names
-    static let minKeyNameLength = 1
+    nonisolated static let minKeyNameLength = 1
 
     init(authService: any AuthServiceProtocol, urlSession: URLSession = .shared) {
         self.authService = authService

@@ -347,6 +347,7 @@ enum AuthError: LocalizedError {
 // MARK: - Mock Auth Service (for previews/testing)
 
 @Observable
+@MainActor
 final class MockAuthService: AuthServiceProtocol {
     var isAuthenticated: Bool = false
     var isLoading: Bool = false

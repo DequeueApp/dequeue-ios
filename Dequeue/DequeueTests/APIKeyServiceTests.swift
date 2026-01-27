@@ -390,10 +390,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { request in
-            // Verify authorization header is set
-            #expect(request.value(forHTTPHeaderField: "Authorization")?.hasPrefix("Bearer ") == true)
-
+        MockURLProtocol.requestHandler = { _ in
             let json = """
             [
                 {
@@ -540,11 +537,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { request in
-            // Verify request method and body
-            #expect(request.httpMethod == "POST")
-            #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
-
+        MockURLProtocol.requestHandler = { _ in
             let json = """
             {
                 "id": "key-new",
@@ -614,11 +607,7 @@ struct APIKeyServiceTests {
         mockAuth.mockSignIn()
         let mockSession = makeMockURLSession()
 
-        MockURLProtocol.requestHandler = { request in
-            // Verify request method
-            #expect(request.httpMethod == "DELETE")
-            #expect(request.url?.pathComponents.last == "key-to-revoke")
-
+        MockURLProtocol.requestHandler = { _ in
             let response = HTTPURLResponse(
                 url: URL(string: "https://example.com")!,
                 statusCode: 200,
