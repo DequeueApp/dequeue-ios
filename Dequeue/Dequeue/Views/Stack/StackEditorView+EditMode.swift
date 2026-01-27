@@ -258,14 +258,23 @@ extension StackEditorView {
             return
         }
 
+        // Cancel any existing task to prevent overlapping operations
+        activeStatusTask?.cancel()
+
         isTogglingActiveStatus = true
-        Task {
+        activeStatusTask = Task {
             do {
                 try await service.setAsActive(stack)
+                // Check cancellation before updating UI state
+                // If task was cancelled (e.g., view dismissed), skip state updates
+                guard !Task.isCancelled else { return }
                 isTogglingActiveStatus = false
                 // Dismiss to return to stack list - intentional UX decision
                 dismiss()
             } catch {
+                // Check cancellation before updating UI state
+                // If task was cancelled (e.g., view dismissed), skip state updates
+                guard !Task.isCancelled else { return }
                 isTogglingActiveStatus = false
                 handleError(error)
             }
@@ -280,14 +289,23 @@ extension StackEditorView {
             return
         }
 
+        // Cancel any existing task to prevent overlapping operations
+        activeStatusTask?.cancel()
+
         isTogglingActiveStatus = true
-        Task {
+        activeStatusTask = Task {
             do {
                 try await service.deactivateStack(stack)
+                // Check cancellation before updating UI state
+                // If task was cancelled (e.g., view dismissed), skip state updates
+                guard !Task.isCancelled else { return }
                 isTogglingActiveStatus = false
                 // Dismiss to return to stack list - intentional UX decision
                 dismiss()
             } catch {
+                // Check cancellation before updating UI state
+                // If task was cancelled (e.g., view dismissed), skip state updates
+                guard !Task.isCancelled else { return }
                 isTogglingActiveStatus = false
                 handleError(error)
             }
