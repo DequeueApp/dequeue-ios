@@ -15,6 +15,7 @@ private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView
 extension StackEditorView {
     var editModeContent: some View {
         List {
+            activeStatusBanner
             descriptionSection
             editModeTagsSection
             arcSection
@@ -29,6 +30,23 @@ extension StackEditorView {
             actionsSection
             detailsSection
             eventHistorySection
+        }
+    }
+
+    // MARK: - Active Status Banner
+
+    @ViewBuilder
+    var activeStatusBanner: some View {
+        if case .edit(let stack) = mode, !isReadOnly {
+            Section {
+                StackActiveStatusBanner(stack: stack, isLoading: isTogglingActiveStatus) {
+                    if stack.isActive {
+                        deactivateStack()
+                    } else {
+                        setStackActive()
+                    }
+                }
+            }
         }
     }
 
@@ -223,63 +241,11 @@ extension StackEditorView {
     var actionsSection: some View {
         if !isReadOnly && !isCreateMode {
             Section {
-                if case .edit(let stack) = mode {
-                    if stack.isActive {
-                        Button {
-                            deactivateStack()
-                        } label: {
-                            Label("Deactivate Stack", systemImage: "star.slash")
-                        }
-                    } else {
-                        Button {
-                            setStackActive()
-                        } label: {
-                            Label("Set as Active Stack", systemImage: "star.fill")
-                        }
-                    }
-                }
-
                 Button(role: .destructive) {
                     showCloseConfirmation = true
                 } label: {
                     Label("Close Without Completing", systemImage: "xmark.circle")
                 }
-            }
-        }
-    }
-
-    func setStackActive() {
-        guard case .edit(let stack) = mode else { return }
-        guard let service = stackService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return
-        }
-
-        Task {
-            do {
-                try await service.setAsActive(stack)
-                dismiss()
-            } catch {
-                handleError(error)
-            }
-        }
-    }
-
-    func deactivateStack() {
-        guard case .edit(let stack) = mode else { return }
-        guard let service = stackService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return
-        }
-
-        Task {
-            do {
-                try await service.deactivateStack(stack)
-                dismiss()
-            } catch {
-                handleError(error)
             }
         }
     }
@@ -305,183 +271,5 @@ extension StackEditorView {
         } footer: {
             Text("View the complete history of changes to this stack")
         }
-    }
-
-    // MARK: - Edit Mode Actions
-
-    func saveStackTitle() {
-        let trimmedTitle = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return }
-        guard case .edit(let stack) = mode else { return }
-        guard let service = stackService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return
-        }
-
-        Task {
-            do {
-                try await service.updateStack(stack, title: trimmedTitle, description: stack.stackDescription)
-                editedTitle = ""
-            } catch {
-                handleError(error)
-            }
-        }
-    }
-
-    func saveDescription() {
-        guard case .edit(let stack) = mode else { return }
-        guard let service = stackService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return
-        }
-
-        Task {
-            do {
-                try await service.updateStack(
-                    stack,
-                    title: stack.title,
-                    description: editedDescription.isEmpty ? nil : editedDescription
-                )
-                isEditingDescription = false
-            } catch {
-                handleError(error)
-            }
-        }
-    }
-
-    func toggleTaskComplete(_ task: QueueTask) {
-        guard let service = taskService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return
-        }
-        Task {
-            do {
-                if task.status != .completed {
-                    try await service.markAsCompleted(task)
-                }
-            } catch {
-                handleError(error)
-            }
-        }
-    }
-
-    func setTaskActive(_ task: QueueTask) {
-        guard let service = taskService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return
-        }
-        Task {
-            do {
-                try await service.activateTask(task)
-            } catch {
-                handleError(error)
-            }
-        }
-    }
-
-    func moveTask(from source: IndexSet, to destination: Int) {
-        guard case .edit(let stack) = mode else { return }
-        guard let service = taskService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return
-        }
-
-        var tasks = stack.pendingTasks
-        tasks.move(fromOffsets: source, toOffset: destination)
-
-        Task {
-            do {
-                try await service.updateSortOrders(tasks)
-            } catch {
-                handleError(error)
-            }
-        }
-    }
-
-    func completeStack(completeAllTasks: Bool) {
-        guard case .edit(let stack) = mode else { return }
-        guard let service = stackService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return
-        }
-
-        Task {
-            do {
-                try await service.markAsCompleted(stack, completeAllTasks: completeAllTasks)
-                dismiss()
-            } catch {
-                handleError(error)
-            }
-        }
-    }
-
-    func closeStack() {
-        guard case .edit(let stack) = mode else { return }
-        guard let service = stackService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return
-        }
-
-        Task {
-            do {
-                try await service.closeStack(stack)
-                dismiss()
-            } catch {
-                handleError(error)
-            }
-        }
-    }
-
-    func addTask() {
-        guard !newTaskTitle.isEmpty else { return }
-
-        // In create mode (or draft mode), add to pending tasks array
-        if isCreateMode {
-            let pendingTask = StackEditorView.PendingTask(
-                title: newTaskTitle,
-                description: newTaskDescription.isEmpty ? nil : newTaskDescription
-            )
-            pendingTasks.append(pendingTask)
-            newTaskTitle = ""
-            newTaskDescription = ""
-            showAddTask = false
-            return
-        }
-
-        // In edit mode, create actual task
-        guard let stack = currentStack else { return }
-        guard let service = taskService else {
-            errorMessage = "Initializing... please try again."
-            showError = true
-            return
-        }
-
-        Task {
-            do {
-                _ = try await service.createTask(
-                    title: newTaskTitle,
-                    description: newTaskDescription.isEmpty ? nil : newTaskDescription,
-                    stack: stack
-                )
-                newTaskTitle = ""
-                newTaskDescription = ""
-                showAddTask = false
-            } catch {
-                handleError(error)
-            }
-        }
-    }
-
-    func cancelAddTask() {
-        newTaskTitle = ""
-        newTaskDescription = ""
-        showAddTask = false
     }
 }

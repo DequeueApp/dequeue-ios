@@ -97,6 +97,10 @@ struct StackEditorView: View {
     @State var showCompletedTasks = false
     @State var showCompleteConfirmation = false
     @State var showCloseConfirmation = false
+    @State var isTogglingActiveStatus = false
+    // Task tracking for async operations that dismiss the view
+    // Prevents race conditions when view is dismissed before task completes
+    @State var activeStatusTask: Task<Void, Never>?
 
     // Shared state
     @State var showError = false
@@ -345,6 +349,12 @@ struct StackEditorView: View {
                 saveOnBackground()
             }
             #endif
+            // Cancel any pending async operations when view disappears
+            // This prevents race conditions where tasks complete after view is gone
+            .onDisappear {
+                activeStatusTask?.cancel()
+                activeStatusTask = nil
+            }
         }
     }
 }
