@@ -1,16 +1,16 @@
 # PRD: Dequeue External API
 
-**Status**: In Progress (Phase 1)  
+**Status**: ✅ Phase 1 & 2 Complete  
 **Author**: Ardonos (with Victor)  
 **Created**: 2026-01-25  
-**Last Updated**: 2026-01-27  
+**Last Updated**: 2026-06-27  
 **Issue**: TBD (Linear)
 
 ---
 
 ## Implementation Status
 
-> **Last Updated**: 2026-01-27
+> **Last Updated**: 2026-06-27
 
 ### ✅ Completed
 
@@ -26,36 +26,45 @@
 | | - `GET /apps/{app_id}/api-keys` | |
 | | - `POST /apps/{app_id}/api-keys` | |
 | | - `DELETE /apps/{app_id}/api-keys/{key_id}` | |
-| **dequeue-api Service** | Go service at `api.dequeue.app` | Deployed |
-| | - Read endpoints (GET arcs, stacks, tasks) | |
-| | - Authentication via API keys | |
+| **dequeue-api Service** | Go service at `api.dequeue.app` | Deployed to Fly.io |
+| | - Full project structure and deployment | PR #7 |
+| | - Authentication via API keys | PR #1 |
 | | - Rate limiting infrastructure | |
-
-### 🔄 In Progress
-
-| Component | Description | Notes |
-|-----------|-------------|-------|
-| **Write Endpoints** | Tags, Arcs, Reminders, Stacks mutations | Some PRs merged |
-| **OpenAPI Spec** | Complete spec for Stoplight docs | In progress |
+| **Arcs CRUD** | Full create/read/update/delete for arcs | PR #4, #9 |
+| **Stacks CRUD** | Full create/read/update/delete for stacks | PR #4, #6 |
+| | - `POST /stacks/{id}/assign-arc` action | PR #11 |
+| **Tasks CRUD** | Full create/read/update/delete for tasks | PR #4 |
+| | - `POST /tasks/{id}/complete` | |
+| | - `POST /tasks/{id}/uncomplete` | |
+| | - `POST /tasks/{id}/move` | |
+| **Reminders CRUD** | Full create/read/update/delete for reminders | PR #10 |
+| **Tags CRUD** | Full create/read/update/delete for tags | PR #8, #12 |
+| **Search & Filtering** | Query params on all list endpoints | PR #18 |
+| | - `?status=active` filtering | |
+| | - `?arcId=xxx` filtering | |
+| | - `?q=search` text search | |
+| | - Sorting support | |
+| **OpenAPI Spec** | Complete API specification | PR #14 |
+| **API Documentation** | Self-hosted docs at `/docs` endpoint | PR #17 |
+| **Health Checks** | `/health` with dependency status | PR #15 |
+| **User/API Key Info** | `/v1/me` endpoints | PR #13 |
+| **Event Sync Worker** | Projection updates from events | PR #5 |
+| **Comprehensive Tests** | Full API handler test coverage | PR #16 |
 
 ### 📋 Planned (Phase 1 Remaining)
 
 | Component | Description |
 |-----------|-------------|
-| Task mutations | POST/PATCH/DELETE tasks, complete/uncomplete |
-| Task move action | `POST /tasks/{id}/move` |
-| Reminder endpoints | Full CRUD for reminders |
-| Stoplight integration | Interactive docs at docs.dequeue.app |
+| Stoplight integration | Interactive docs at docs.dequeue.app (optional - self-hosted docs available) |
 | Ardonos integration | Clawdbot skill for Dequeue |
 
 ### 🔮 Future Phases
 
 | Phase | Components |
 |-------|------------|
-| Phase 2 | Tags endpoints, sorting, search |
-| Phase 3 | Webhooks |
-| Phase 4 | OAuth 2.0 |
-| Phase 5 | Developer portal |
+| Phase 2 | Webhooks for real-time notifications |
+| Phase 3 | OAuth 2.0 for third-party apps |
+| Phase 4 | Developer portal at docs.dequeue.app |
 
 ---
 
@@ -734,21 +743,29 @@ Stoplight provides:
 
 ### Phase 1: Core API + API Keys (MVP)
 
-> **Status**: 🔄 In Progress — Core infrastructure complete, write endpoints in progress
+> **Status**: ✅ Complete — All core functionality deployed and operational
 
 **New Service (dequeue-api):**
-- ✅ Set up Go project with standard structure
-- 🔄 OpenAPI spec for Phase 1 endpoints
-- ✅ Implement auth middleware (validate keys via stacks-sync)
-- ✅ Add `/arcs` read endpoints with filtering (`?status=active`)
-- ✅ Add `/stacks` read endpoints with filtering (`?status=active&arcId=xxx`)
-- ✅ Add `/stacks/{id}/tasks` read endpoints with filtering (`?status=active`)
-- 🔄 Add `/tasks/{id}/complete`, `/move` actions
-- 🔄 Add `/stacks/{id}/reminders` and `/arcs/{id}/reminders` CRUD endpoints
+- ✅ Set up Go project with standard structure (PR #1-3)
+- ✅ OpenAPI spec for Phase 1 endpoints (PR #14)
+- ✅ Self-hosted API documentation at `/docs` (PR #17)
+- ✅ Implement auth middleware (validate keys via stacks-sync) (PR #1)
+- ✅ Add `/arcs` CRUD with filtering (`?status=active`) (PR #4, #9)
+- ✅ Add `/stacks` CRUD with filtering (`?status=active&arcId=xxx`) (PR #4, #6)
+- ✅ Add `/stacks/{id}/assign-arc` action (PR #11)
+- ✅ Add `/stacks/{id}/tasks` CRUD with filtering (`?status=active`) (PR #4)
+- ✅ Add `/tasks/{id}/complete`, `/uncomplete`, `/move` actions (PR #4)
+- ✅ Add `/stacks/{id}/reminders` and `/arcs/{id}/reminders` CRUD (PR #10)
+- ✅ Add `/tags` CRUD (PR #8, #12)
+- ✅ Add search and filtering on all list endpoints (PR #18)
+- ✅ Add `/v1/me` user and API key info endpoints (PR #13)
+- ✅ Add health checks with dependency status (PR #15)
 - ✅ Emit events to stacks-sync with source attribution
 - ✅ Redis-backed rate limiting
-- ✅ Deploy to Fly.io at `api.dequeue.app`
-- 📋 Set up Stoplight with OpenAPI spec
+- ✅ Event sync worker for projection updates (PR #5)
+- ✅ Comprehensive API handler tests (PR #16)
+- ✅ Deploy to Fly.io at `api.dequeue.app` (PR #7)
+- 📋 Set up Stoplight with OpenAPI spec (optional - self-hosted docs available)
 
 **stacks-sync Updates:**
 - ✅ Add `api_keys` table with `app_id`
@@ -770,10 +787,12 @@ Stoplight provides:
 
 ### Phase 2: Tags + Enhanced Queries
 
-- Add `/tags` endpoints
-- Add sorting: `?sort=dueAt&order=asc`
-- Add search: `?q=budget`
-- Update OpenAPI spec
+> **Status**: ✅ Complete — Merged into Phase 1
+
+- ✅ Add `/tags` endpoints (PR #8, #12)
+- ✅ Add sorting support (PR #18)
+- ✅ Add search: `?q=budget` (PR #18)
+- ✅ Update OpenAPI spec (PR #14)
 
 ### Phase 3: Webhooks
 
