@@ -55,6 +55,7 @@ protocol AuthServiceProtocol {
 
 /// Production auth service using Clerk SDK
 @Observable
+@MainActor
 final class ClerkAuthService: AuthServiceProtocol {
     private var currentSignUp: SignUp?
     private var currentSignIn: SignIn?
