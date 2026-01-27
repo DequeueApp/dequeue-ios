@@ -68,7 +68,7 @@ private func makeMockURLSession() -> URLSession {
     return URLSession(configuration: config)
 }
 
-@Suite("APIKeyService Tests")
+@Suite("APIKeyService Tests", .serialized)
 @MainActor
 struct APIKeyServiceTests {
     // MARK: - Model Tests
