@@ -17,18 +17,18 @@ private final class MockURLProtocolStorage: @unchecked Sendable {
     static let shared = MockURLProtocolStorage()
     
     private let lock = NSLock()
-    private var _requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    private var storedHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
     
     var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
         get {
             lock.lock()
             defer { lock.unlock() }
-            return _requestHandler
+            return storedHandler
         }
         set {
             lock.lock()
             defer { lock.unlock() }
-            _requestHandler = newValue
+            storedHandler = newValue
         }
     }
 }
@@ -40,7 +40,8 @@ private final class MockURLProtocol: URLProtocol {
     }
 
     override class func canonicalRequest(for request: URLRequest) -> URLRequest {
-        request
+        // Returns the request unchanged as no canonicalization is needed for tests
+        return request
     }
 
     override func startLoading() {
@@ -58,7 +59,9 @@ private final class MockURLProtocol: URLProtocol {
         }
     }
 
-    override func stopLoading() {}
+    override func stopLoading() {
+        // No cleanup needed for mock URL protocol
+    }
 }
 
 /// Creates a URLSession configured to use MockURLProtocol
@@ -67,6 +70,9 @@ private func makeMockURLSession() -> URLSession {
     config.protocolClasses = [MockURLProtocol.self]
     return URLSession(configuration: config)
 }
+
+/// Base URL used for mock HTTP responses in tests
+private let testBaseURL = URL(string: "https://example.com")!
 
 @Suite("APIKeyService Tests", .serialized)
 @MainActor
@@ -387,7 +393,7 @@ struct APIKeyServiceTests {
             }
             """
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: nil
@@ -432,7 +438,7 @@ struct APIKeyServiceTests {
             ]
             """
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: nil
@@ -461,7 +467,7 @@ struct APIKeyServiceTests {
             {"error": "Invalid token"}
             """
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 401,
                 httpVersion: nil,
                 headerFields: nil
@@ -495,7 +501,7 @@ struct APIKeyServiceTests {
             {"error": "Access denied"}
             """
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 403,
                 httpVersion: nil,
                 headerFields: nil
@@ -529,7 +535,7 @@ struct APIKeyServiceTests {
             {"error": "Internal server error"}
             """
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 500,
                 httpVersion: nil,
                 headerFields: nil
@@ -569,7 +575,7 @@ struct APIKeyServiceTests {
             }
             """
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 201,
                 httpVersion: nil,
                 headerFields: nil
@@ -598,7 +604,7 @@ struct APIKeyServiceTests {
             {"error": "Authentication required"}
             """
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 401,
                 httpVersion: nil,
                 headerFields: nil
@@ -629,7 +635,7 @@ struct APIKeyServiceTests {
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: nil
@@ -651,7 +657,7 @@ struct APIKeyServiceTests {
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 204,
                 httpVersion: nil,
                 headerFields: nil
@@ -676,7 +682,7 @@ struct APIKeyServiceTests {
             {"error": "API key not found"}
             """
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 404,
                 httpVersion: nil,
                 headerFields: nil
@@ -710,7 +716,7 @@ struct APIKeyServiceTests {
             {"error": "Cannot revoke this key"}
             """
             let response = HTTPURLResponse(
-                url: URL(string: "https://example.com")!,
+                url: testBaseURL,
                 statusCode: 403,
                 httpVersion: nil,
                 headerFields: nil

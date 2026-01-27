@@ -57,7 +57,9 @@ struct APIKeysSettingsView: View {
             }
         }
         .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) { }
+            Button("OK", role: .cancel) {
+                // Dismisses alert; no additional action needed
+            }
         } message: {
             Text(errorMessage ?? "An unknown error occurred")
         }
@@ -277,7 +279,9 @@ private struct CreateAPIKeySheet: View {
                 }
             }
             .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) { }
+                Button("OK", role: .cancel) {
+                    // Dismisses alert; no additional action needed
+                }
             } message: {
                 Text(errorMessage ?? "An unknown error occurred")
             }
