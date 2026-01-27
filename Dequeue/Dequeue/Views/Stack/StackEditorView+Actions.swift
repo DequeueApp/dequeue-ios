@@ -31,15 +31,21 @@ extension StackEditorView {
                 // Check cancellation before updating UI state
                 // If task was cancelled (e.g., view dismissed), skip state updates
                 guard !Task.isCancelled else { return }
-                isTogglingActiveStatus = false
-                // Dismiss to return to stack list - intentional UX decision
-                dismiss()
+                // Ensure UI state updates happen on the main thread
+                await MainActor.run {
+                    isTogglingActiveStatus = false
+                    // Dismiss to return to stack list - intentional UX decision
+                    dismiss()
+                }
             } catch {
                 // Check cancellation before updating UI state
                 // If task was cancelled (e.g., view dismissed), skip state updates
                 guard !Task.isCancelled else { return }
-                isTogglingActiveStatus = false
-                handleError(error)
+                // Ensure UI state updates happen on the main thread
+                await MainActor.run {
+                    isTogglingActiveStatus = false
+                    handleError(error)
+                }
             }
         }
     }
@@ -62,15 +68,21 @@ extension StackEditorView {
                 // Check cancellation before updating UI state
                 // If task was cancelled (e.g., view dismissed), skip state updates
                 guard !Task.isCancelled else { return }
-                isTogglingActiveStatus = false
-                // Dismiss to return to stack list - intentional UX decision
-                dismiss()
+                // Ensure UI state updates happen on the main thread
+                await MainActor.run {
+                    isTogglingActiveStatus = false
+                    // Dismiss to return to stack list - intentional UX decision
+                    dismiss()
+                }
             } catch {
                 // Check cancellation before updating UI state
                 // If task was cancelled (e.g., view dismissed), skip state updates
                 guard !Task.isCancelled else { return }
-                isTogglingActiveStatus = false
-                handleError(error)
+                // Ensure UI state updates happen on the main thread
+                await MainActor.run {
+                    isTogglingActiveStatus = false
+                    handleError(error)
+                }
             }
         }
     }
