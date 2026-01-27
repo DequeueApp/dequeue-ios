@@ -13,7 +13,6 @@ private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView
 // MARK: - Stack Actions
 
 extension StackEditorView {
-
     func setStackActive() {
         guard case .edit(let stack) = mode else { return }
         guard let service = stackService else {
@@ -158,7 +157,6 @@ extension StackEditorView {
 // MARK: - Task Actions
 
 extension StackEditorView {
-
     func toggleTaskComplete(_ task: QueueTask) {
         guard let service = taskService else {
             errorMessage = "Initializing... please try again."

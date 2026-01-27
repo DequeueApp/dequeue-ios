@@ -272,5 +272,4 @@ extension StackEditorView {
             Text("View the complete history of changes to this stack")
         }
     }
-
 }
