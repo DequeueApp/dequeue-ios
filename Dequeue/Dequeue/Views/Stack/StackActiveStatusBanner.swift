@@ -29,7 +29,7 @@ struct StackActiveStatusBanner: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(isLoading ? "Updating..." : (stack.isActive ? "Currently Active" : "Start Working"))
+                    Text(statusTitle)
                         .font(.headline)
                         .foregroundStyle(.primary)
 
@@ -53,6 +53,13 @@ struct StackActiveStatusBanner: View {
         .accessibilityLabel(accessibilityLabelText)
         .accessibilityHint(accessibilityHintText)
         .accessibilityAddTraits(.isButton)
+    }
+
+    private var statusTitle: String {
+        if isLoading {
+            return "Updating..."
+        }
+        return stack.isActive ? "Currently Active" : "Start Working"
     }
 
     private var statusDescription: String {
