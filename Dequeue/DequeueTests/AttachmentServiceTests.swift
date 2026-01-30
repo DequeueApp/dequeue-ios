@@ -302,7 +302,8 @@ struct AttachmentServiceTests {
 
     // MARK: - Delete Attachment Tests
 
-    @Test("deleteAttachment soft deletes attachment", .disabled("Flaky test - needs investigation. See DEQ-199"))
+    @Test("deleteAttachment soft deletes attachment")
+    @MainActor
     func deleteAttachmentSoftDeletes() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
