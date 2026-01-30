@@ -198,6 +198,10 @@ struct StackHistoryRow: View {
         case "reminder.updated": return "Reminder Updated"
         case "reminder.deleted": return "Reminder Removed"
         case "reminder.snoozed": return "Reminder Snoozed"
+        // Tag events
+        case "tag.created": return "Tag Created"
+        case "tag.updated": return "Tag Updated"
+        case "tag.deleted": return "Tag Deleted"
         // Attachment events
         case "attachment.added": return "Attachment Added"
         case "attachment.removed": return "Attachment Removed"
@@ -228,6 +232,10 @@ struct StackHistoryRow: View {
         case "reminder.updated": return "bell.badge"
         case "reminder.deleted": return "bell.slash"
         case "reminder.snoozed": return "moon.zzz.fill"
+        // Tag events
+        case "tag.created": return "tag.fill"
+        case "tag.updated": return "tag"
+        case "tag.deleted": return "tag.slash"
         // Attachment events
         case "attachment.added": return "paperclip.circle.fill"
         case "attachment.removed": return "paperclip.badge.ellipsis"
@@ -258,6 +266,10 @@ struct StackHistoryRow: View {
         case "reminder.updated": return .yellow
         case "reminder.deleted": return .red
         case "reminder.snoozed": return .indigo
+        // Tag events
+        case "tag.created": return .pink
+        case "tag.updated": return .pink
+        case "tag.deleted": return .red
         // Attachment events
         case "attachment.added": return .mint
         case "attachment.removed": return .red
@@ -282,6 +294,11 @@ struct StackHistoryRow: View {
            let payload = try? event.decodePayload(ReminderEventPayload.self) {
             let dateStr = payload.remindAt.formatted(date: .abbreviated, time: .shortened)
             return ("Reminder for \(dateStr)", nil)
+        }
+        // Tag events
+        if event.type.hasPrefix("tag."),
+           let payload = try? event.decodePayload(TagEventPayload.self) {
+            return (payload.name, payload.colorHex)
         }
         // Attachment events
         if event.type.hasPrefix("attachment."),
