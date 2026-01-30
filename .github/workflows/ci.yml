@@ -28,6 +28,7 @@ jobs:
         working-directory: Dequeue
 
   # Build jobs run in parallel after lint passes
+  # Uses macos-15 with Xcode 26 - must install iOS platform first
   build-ios:
     name: Build iOS
     runs-on: macos-15
@@ -38,14 +39,42 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.0.app
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.0.app
+          xcodebuild -version
+
+      - name: Install iOS Platform
+        run: |
+          # Check if iOS platform is available
+          echo "Checking available platforms..."
+          xcodebuild -showsdks | grep -i ios || true
+          
+          # Download iOS platform if not installed
+          echo "Downloading iOS platform (this may take a few minutes)..."
+          xcodebuild -downloadPlatform iOS || true
+          
+          # List available runtimes
+          echo "Available runtimes:"
+          xcrun simctl list runtimes
 
       - name: Create iOS Simulator
         run: |
-          # Create iPhone 16 simulator if it doesn't exist
-          xcrun simctl create "iPhone 16" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" "com.apple.CoreSimulator.SimRuntime.iOS-18-1" 2>/dev/null || true
-          # Verify it exists
-          xcrun simctl list devices available | grep "iPhone 16"
+          # List available device types
+          echo "Available device types:"
+          xcrun simctl list devicetypes | grep -i iphone | head -10
+          
+          # List available runtimes
+          echo "Available runtimes:"
+          xcrun simctl list runtimes | grep -i ios
+          
+          # Create iPhone 16 Pro simulator using available runtime
+          RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS" | tail -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          echo "Using runtime: $RUNTIME"
+          xcrun simctl create "iPhone 16 Pro CI" "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro" "$RUNTIME" 2>/dev/null || true
+          
+          # List created devices
+          echo "Available devices:"
+          xcrun simctl list devices available | grep -i "iphone 16"
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -59,10 +88,17 @@ jobs:
 
       - name: Build for iOS
         run: |
+          # Find a working simulator
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro CI" | head -1 | grep -oE '[A-F0-9-]{36}') || \
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro" | head -1 | grep -oE '[A-F0-9-]{36}') || \
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16" | head -1 | grep -oE '[A-F0-9-]{36}')
+          
+          echo "Using device ID: $DEVICE_ID"
+          
           xcodebuild build \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO
 
@@ -98,14 +134,23 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.0.app
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.0.app
+          xcodebuild -version
+
+      - name: Install iOS Platform
+        run: |
+          echo "Downloading iOS platform..."
+          xcodebuild -downloadPlatform iOS || true
+          echo "Available runtimes:"
+          xcrun simctl list runtimes
 
       - name: Create iOS Simulator
         run: |
-          # Create iPhone 16 simulator if it doesn't exist
-          xcrun simctl create "iPhone 16" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" "com.apple.CoreSimulator.SimRuntime.iOS-18-1" 2>/dev/null || true
-          # Verify it exists
-          xcrun simctl list devices available | grep "iPhone 16"
+          RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS" | tail -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          echo "Using runtime: $RUNTIME"
+          xcrun simctl create "iPhone 16 Pro CI" "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro" "$RUNTIME" 2>/dev/null || true
+          xcrun simctl list devices available | grep -i "iphone 16"
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -119,10 +164,16 @@ jobs:
 
       - name: Run Unit Tests
         run: |
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro CI" | head -1 | grep -oE '[A-F0-9-]{36}') || \
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro" | head -1 | grep -oE '[A-F0-9-]{36}') || \
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16" | head -1 | grep -oE '[A-F0-9-]{36}')
+          
+          echo "Using device ID: $DEVICE_ID"
+          
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
@@ -145,14 +196,23 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.0.app
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.0.app
+          xcodebuild -version
+
+      - name: Install iOS Platform
+        run: |
+          echo "Downloading iOS platform..."
+          xcodebuild -downloadPlatform iOS || true
+          echo "Available runtimes:"
+          xcrun simctl list runtimes
 
       - name: Create iOS Simulator
         run: |
-          # Create iPhone 16 simulator if it doesn't exist
-          xcrun simctl create "iPhone 16" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" "com.apple.CoreSimulator.SimRuntime.iOS-18-1" 2>/dev/null || true
-          # Verify it exists
-          xcrun simctl list devices available | grep "iPhone 16"
+          RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS" | tail -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          echo "Using runtime: $RUNTIME"
+          xcrun simctl create "iPhone 16 Pro CI" "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro" "$RUNTIME" 2>/dev/null || true
+          xcrun simctl list devices available | grep -i "iphone 16"
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -166,17 +226,23 @@ jobs:
 
       - name: Boot Simulator
         run: |
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro CI" | head -1 | grep -oE '[A-F0-9-]{36}') || \
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro" | head -1 | grep -oE '[A-F0-9-]{36}') || \
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16" | head -1 | grep -oE '[A-F0-9-]{36}')
+          
+          echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
+          
           # Pre-boot the simulator to avoid timeout issues
-          xcrun simctl boot "iPhone 16 Pro" || true
+          xcrun simctl boot "$DEVICE_ID" || true
           # Wait for simulator to be ready
-          xcrun simctl bootstatus "iPhone 16 Pro" -b
+          xcrun simctl bootstatus "$DEVICE_ID" -b
 
       - name: Run UI Tests
         run: |
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
             -only-testing:DequeueUITests \
             -resultBundlePath UITestResults.xcresult \
             -parallel-testing-enabled NO \
