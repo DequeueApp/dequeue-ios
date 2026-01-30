@@ -60,18 +60,21 @@ struct StackTests {
         #expect(stack.revision == 3)
     }
 
-    @Test("pendingTasks filters correctly", .disabled("Flaky test - to be debugged"))
+    @Test("pendingTasks filters correctly")
+    @MainActor
     func pendingTasksFiltersCorrectly() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, configurations: config)
-        let context = ModelContext(container)
+        let context = container.mainContext
 
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
 
-        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0, stack: stack)
-        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1, stack: stack)
-        let deletedTask = QueueTask(title: "Deleted", status: TaskStatus.pending, sortOrder: 2, isDeleted: true, stack: stack)
+        // Create tasks without stack reference first, then establish relationship via stack.tasks
+        // This avoids double-setting the relationship which can cause SwiftData inconsistencies
+        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0)
+        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1)
+        let deletedTask = QueueTask(title: "Deleted", status: TaskStatus.pending, sortOrder: 2, isDeleted: true)
 
         context.insert(pendingTask)
         context.insert(completedTask)
@@ -86,16 +89,17 @@ struct StackTests {
     }
 
     @Test("completedTasks filters correctly")
+    @MainActor
     func completedTasksFiltersCorrectly() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, configurations: config)
-        let context = ModelContext(container)
+        let context = container.mainContext
 
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
 
-        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0, stack: stack)
-        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1, stack: stack)
+        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0)
+        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1)
 
         context.insert(pendingTask)
         context.insert(completedTask)
@@ -109,16 +113,17 @@ struct StackTests {
     }
 
     @Test("activeTask returns first pending task")
+    @MainActor
     func activeTaskReturnsFirstPending() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, configurations: config)
-        let context = ModelContext(container)
+        let context = container.mainContext
 
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
 
-        let task1 = QueueTask(title: "First", status: TaskStatus.pending, sortOrder: 0, stack: stack)
-        let task2 = QueueTask(title: "Second", status: TaskStatus.pending, sortOrder: 1, stack: stack)
+        let task1 = QueueTask(title: "First", status: TaskStatus.pending, sortOrder: 0)
+        let task2 = QueueTask(title: "Second", status: TaskStatus.pending, sortOrder: 1)
 
         context.insert(task1)
         context.insert(task2)
