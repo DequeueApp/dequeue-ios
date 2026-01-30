@@ -38,14 +38,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.0.app
-
-      - name: Create iOS Simulator
         run: |
-          # Create iPhone 16 simulator if it doesn't exist
-          xcrun simctl create "iPhone 16" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" "com.apple.CoreSimulator.SimRuntime.iOS-18-1" 2>/dev/null || true
-          # Verify it exists
-          xcrun simctl list devices available | grep "iPhone 16"
+          # Use Xcode 26.0.1 if available, otherwise fall back to 26.0
+          if [ -d "/Applications/Xcode_26.0.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.0.1.app
+          else
+            sudo xcode-select -s /Applications/Xcode_26.0.app
+          fi
+          xcodebuild -version
+
+      - name: Setup iOS Simulator
+        run: |
+          # List available runtimes for debugging
+          echo "Available iOS runtimes:"
+          xcrun simctl list runtimes | grep -i ios || true
+          
+          # List available devices
+          echo ""
+          echo "Available iPhone 16 simulators:"
+          xcrun simctl list devices available | grep "iPhone 16" | head -5
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -57,12 +68,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-spm-
 
+      - name: Show Available Destinations
+        run: |
+          xcodebuild -project Dequeue/Dequeue.xcodeproj -scheme Dequeue -showdestinations 2>&1 | head -50 || true
+
       - name: Build for iOS
         run: |
+          # Get the first available iPhone 16 Pro simulator ID
+          SIMULATOR_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro" | head -1 | grep -oE '[A-F0-9-]{36}')
+          echo "Using simulator ID: $SIMULATOR_ID"
+          
           xcodebuild build \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO
 
@@ -98,14 +117,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.0.app
-
-      - name: Create iOS Simulator
         run: |
-          # Create iPhone 16 simulator if it doesn't exist
-          xcrun simctl create "iPhone 16" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" "com.apple.CoreSimulator.SimRuntime.iOS-18-1" 2>/dev/null || true
-          # Verify it exists
-          xcrun simctl list devices available | grep "iPhone 16"
+          if [ -d "/Applications/Xcode_26.0.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.0.1.app
+          else
+            sudo xcode-select -s /Applications/Xcode_26.0.app
+          fi
+          xcodebuild -version
+
+      - name: Setup iOS Simulator
+        run: |
+          echo "Available iPhone 16 simulators:"
+          xcrun simctl list devices available | grep "iPhone 16" | head -5
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -119,10 +142,14 @@ jobs:
 
       - name: Run Unit Tests
         run: |
+          # Get the first available iPhone 16 Pro simulator ID
+          SIMULATOR_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro" | head -1 | grep -oE '[A-F0-9-]{36}')
+          echo "Using simulator ID: $SIMULATOR_ID"
+          
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
@@ -145,14 +172,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.0.app
-
-      - name: Create iOS Simulator
         run: |
-          # Create iPhone 16 simulator if it doesn't exist
-          xcrun simctl create "iPhone 16" "com.apple.CoreSimulator.SimDeviceType.iPhone-16" "com.apple.CoreSimulator.SimRuntime.iOS-18-1" 2>/dev/null || true
-          # Verify it exists
-          xcrun simctl list devices available | grep "iPhone 16"
+          if [ -d "/Applications/Xcode_26.0.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.0.1.app
+          else
+            sudo xcode-select -s /Applications/Xcode_26.0.app
+          fi
+          xcodebuild -version
+
+      - name: Setup iOS Simulator
+        run: |
+          echo "Available iPhone 16 simulators:"
+          xcrun simctl list devices available | grep "iPhone 16" | head -5
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -166,17 +197,21 @@ jobs:
 
       - name: Boot Simulator
         run: |
+          # Get the first available iPhone 16 Pro simulator ID
+          SIMULATOR_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro" | head -1 | grep -oE '[A-F0-9-]{36}')
+          echo "SIMULATOR_ID=$SIMULATOR_ID" >> $GITHUB_ENV
+          
           # Pre-boot the simulator to avoid timeout issues
-          xcrun simctl boot "iPhone 16 Pro" || true
+          xcrun simctl boot "$SIMULATOR_ID" || true
           # Wait for simulator to be ready
-          xcrun simctl bootstatus "iPhone 16 Pro" -b
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
 
       - name: Run UI Tests
         run: |
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -only-testing:DequeueUITests \
             -resultBundlePath UITestResults.xcresult \
             -parallel-testing-enabled NO \
