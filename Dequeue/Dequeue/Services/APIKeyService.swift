@@ -81,7 +81,7 @@ enum APIKeyError: LocalizedError {
 
 // MARK: - API Key Service
 
-/// Service for managing API keys via the stacks-sync API
+/// Service for managing API keys via the Dequeue API
 /// Network-only service - does not use @MainActor per CLAUDE.md guidelines
 /// (only services interacting with SwiftData ModelContext should use @MainActor)
 final class APIKeyService {
@@ -147,7 +147,7 @@ final class APIKeyService {
     func listAPIKeys() async throws -> [APIKey] {
         let token = try await authService.getAuthToken()
 
-        let url = Configuration.syncAPIBaseURL
+        let url = Configuration.dequeueAPIBaseURL
             .appendingPathComponent("api-keys")
 
         var request = URLRequest(url: url)
@@ -193,7 +193,7 @@ final class APIKeyService {
 
         let token = try await authService.getAuthToken()
 
-        let url = Configuration.syncAPIBaseURL
+        let url = Configuration.dequeueAPIBaseURL
             .appendingPathComponent("api-keys")
 
         let requestBody = CreateAPIKeyRequest(name: name, scopes: scopes)
@@ -235,7 +235,7 @@ final class APIKeyService {
     func revokeAPIKey(id: String) async throws {
         let token = try await authService.getAuthToken()
 
-        let url = Configuration.syncAPIBaseURL
+        let url = Configuration.dequeueAPIBaseURL
             .appendingPathComponent("api-keys")
             .appendingPathComponent(id)
 
