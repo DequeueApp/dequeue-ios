@@ -886,12 +886,61 @@ actor SyncManager {
         // not during event processing
         let trackingInitialSync = await isInitialSyncInProgress
 
+        // DEQ-143: Batch processing to avoid N+1 queries
+        // Phase 1: Parse all events and filter duplicates
+        var parsedEvents: [Event] = []
         for eventData in events {
-            try await processEvent(eventData, context: context, stats: &stats)
+            guard let id = eventData["id"] as? String,
+                  let type = eventData["type"] as? String,
+                  let timestamp = eventData["ts"] as? String,
+                  let payload = eventData["payload"] as? [String: Any] else {
+                os_log("[Sync] Skipping event - missing required fields")
+                stats.incompatible += 1
+                continue
+            }
 
-            // Track progress during initial sync (using captured value to avoid actor hops)
+            if try await isDuplicateEvent(id, context: context) {
+                stats.skipped += 1
+                if trackingInitialSync {
+                    await incrementInitialSyncProgress()
+                }
+                continue
+            }
+
+            do {
+                let event = try createEvent(
+                    id: id, type: type, timestamp: timestamp,
+                    payload: payload, eventData: eventData
+                )
+                parsedEvents.append(event)
+                if type.hasPrefix("reminder.") {
+                    stats.hasReminderEvents = true
+                }
+            } catch {
+                os_log("[Sync] Skipping event \(id) - failed to create: \(error.localizedDescription)")
+                stats.incompatible += 1
+                if trackingInitialSync {
+                    await incrementInitialSyncProgress()
+                }
+            }
+        }
+
+        // Phase 2: Apply all events using batch prefetching (DEQ-143 fix)
+        if !parsedEvents.isEmpty {
+            let processed = try await ProjectorService.applyBatch(events: parsedEvents, context: context)
+            stats.processed = processed
+            stats.incompatible += parsedEvents.count - processed
+
+            // Insert all successfully parsed events into context
+            for event in parsedEvents {
+                context.insert(event)
+            }
+
+            // Update progress for all events
             if trackingInitialSync {
-                await incrementInitialSyncProgress()
+                for _ in parsedEvents {
+                    await incrementInitialSyncProgress()
+                }
             }
         }
 

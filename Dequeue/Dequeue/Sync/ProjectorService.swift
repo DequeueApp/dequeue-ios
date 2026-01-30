@@ -70,6 +70,220 @@ actor TagIdRemappingActor {
     }
 }
 
+// MARK: - Entity Lookup Cache (DEQ-143: N+1 Query Fix)
+
+/// Cache for batch-prefetched entities to avoid N+1 queries during event processing.
+/// Prefetch all needed entities once, then lookup by ID in O(1) time.
+struct EntityLookupCache {
+    var stacks: [String: Stack] = [:]
+    var tasks: [String: QueueTask] = [:]
+    var reminders: [String: Reminder] = [:]
+    var tags: [String: Tag] = [:]
+    var arcs: [String: Arc] = [:]
+    var attachments: [String: Attachment] = [:]
+
+    /// Creates an empty cache
+    init() {}
+
+    /// Creates a cache by batch-fetching all entities referenced by the given events
+    init(prefetchingFor events: [Event], context: ModelContext) throws {
+        // Extract all entity IDs from events
+        var stackIds = Set<String>()
+        var taskIds = Set<String>()
+        var reminderIds = Set<String>()
+        var tagIds = Set<String>()
+        var arcIds = Set<String>()
+        var attachmentIds = Set<String>()
+
+        for event in events {
+            guard let eventType = event.eventType else { continue }
+
+            switch eventType {
+            // Stack events
+            case .stackCreated, .stackUpdated:
+                if let payload = try? event.decodePayload(StackEventPayload.self) {
+                    stackIds.insert(payload.id)
+                    tagIds.formUnion(payload.tagIds)
+                }
+            case .stackDeleted, .stackDiscarded, .stackCompleted, .stackActivated,
+                 .stackDeactivated, .stackClosed:
+                if let payload = try? event.decodePayload(EntityStatusPayload.self) {
+                    stackIds.insert(payload.id)
+                } else if let payload = try? event.decodePayload(EntityDeletedPayload.self) {
+                    stackIds.insert(payload.id)
+                }
+            case .stackReordered:
+                if let payload = try? event.decodePayload(ReorderPayload.self) {
+                    stackIds.formUnion(payload.ids)
+                }
+            case .stackAssignedToArc, .stackRemovedFromArc:
+                if let payload = try? event.decodePayload(StackArcAssignmentPayload.self) {
+                    stackIds.insert(payload.stackId)
+                    arcIds.insert(payload.arcId)
+                }
+
+            // Task events
+            case .taskCreated, .taskUpdated:
+                if let payload = try? event.decodePayload(TaskEventPayload.self) {
+                    taskIds.insert(payload.id)
+                    if let stackId = payload.stackId {
+                        stackIds.insert(stackId)
+                    }
+                }
+            case .taskDeleted, .taskCompleted, .taskActivated, .taskClosed:
+                if let payload = try? event.decodePayload(EntityStatusPayload.self) {
+                    taskIds.insert(payload.id)
+                } else if let payload = try? event.decodePayload(EntityDeletedPayload.self) {
+                    taskIds.insert(payload.id)
+                }
+            case .taskReordered:
+                if let payload = try? event.decodePayload(ReorderPayload.self) {
+                    taskIds.formUnion(payload.ids)
+                }
+
+            // Reminder events
+            case .reminderCreated, .reminderUpdated, .reminderSnoozed:
+                if let payload = try? event.decodePayload(ReminderEventPayload.self) {
+                    reminderIds.insert(payload.id)
+                    switch payload.parentType {
+                    case .stack: stackIds.insert(payload.parentId)
+                    case .task: taskIds.insert(payload.parentId)
+                    case .arc: arcIds.insert(payload.parentId)
+                    }
+                }
+            case .reminderDeleted:
+                if let payload = try? event.decodePayload(EntityDeletedPayload.self) {
+                    reminderIds.insert(payload.id)
+                }
+
+            // Tag events
+            case .tagCreated, .tagUpdated:
+                if let payload = try? event.decodePayload(TagEventPayload.self) {
+                    tagIds.insert(payload.id)
+                }
+            case .tagDeleted:
+                if let payload = try? event.decodePayload(EntityDeletedPayload.self) {
+                    tagIds.insert(payload.id)
+                }
+
+            // Arc events
+            case .arcCreated, .arcUpdated:
+                if let payload = try? event.decodePayload(ArcEventPayload.self) {
+                    arcIds.insert(payload.id)
+                }
+            case .arcDeleted, .arcCompleted, .arcActivated, .arcDeactivated, .arcPaused:
+                if let payload = try? event.decodePayload(EntityStatusPayload.self) {
+                    arcIds.insert(payload.id)
+                } else if let payload = try? event.decodePayload(EntityDeletedPayload.self) {
+                    arcIds.insert(payload.id)
+                }
+            case .arcReordered:
+                if let payload = try? event.decodePayload(ReorderPayload.self) {
+                    arcIds.formUnion(payload.ids)
+                }
+
+            // Attachment events
+            case .attachmentAdded:
+                if let payload = try? event.decodePayload(AttachmentEventPayload.self) {
+                    attachmentIds.insert(payload.id)
+                }
+            case .attachmentRemoved:
+                if let payload = try? event.decodePayload(EntityDeletedPayload.self) {
+                    attachmentIds.insert(payload.id)
+                }
+
+            // Device events don't need prefetching
+            case .deviceDiscovered:
+                break
+            }
+        }
+
+        // Batch fetch all entities
+        if !stackIds.isEmpty {
+            stacks = try Self.batchFetchStacks(ids: stackIds, context: context)
+        }
+        if !taskIds.isEmpty {
+            tasks = try Self.batchFetchTasks(ids: taskIds, context: context)
+        }
+        if !reminderIds.isEmpty {
+            reminders = try Self.batchFetchReminders(ids: reminderIds, context: context)
+        }
+        if !tagIds.isEmpty {
+            tags = try Self.batchFetchTags(ids: tagIds, context: context)
+        }
+        if !arcIds.isEmpty {
+            arcs = try Self.batchFetchArcs(ids: arcIds, context: context)
+        }
+        if !attachmentIds.isEmpty {
+            attachments = try Self.batchFetchAttachments(ids: attachmentIds, context: context)
+        }
+    }
+
+    // MARK: - Batch Fetch Methods
+
+    private static func batchFetchStacks(ids: Set<String>, context: ModelContext) throws -> [String: Stack] {
+        let descriptor = FetchDescriptor<Stack>()
+        let allStacks = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: allStacks.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+    }
+
+    private static func batchFetchTasks(ids: Set<String>, context: ModelContext) throws -> [String: QueueTask] {
+        let descriptor = FetchDescriptor<QueueTask>()
+        let allTasks = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: allTasks.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+    }
+
+    private static func batchFetchReminders(ids: Set<String>, context: ModelContext) throws -> [String: Reminder] {
+        let descriptor = FetchDescriptor<Reminder>()
+        let allReminders = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: allReminders.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+    }
+
+    private static func batchFetchTags(ids: Set<String>, context: ModelContext) throws -> [String: Tag] {
+        let descriptor = FetchDescriptor<Tag>()
+        let allTags = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: allTags.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+    }
+
+    private static func batchFetchArcs(ids: Set<String>, context: ModelContext) throws -> [String: Arc] {
+        let descriptor = FetchDescriptor<Arc>()
+        let allArcs = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: allArcs.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+    }
+
+    private static func batchFetchAttachments(ids: Set<String>, context: ModelContext) throws -> [String: Attachment] {
+        let descriptor = FetchDescriptor<Attachment>()
+        let allAttachments = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: allAttachments.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+    }
+
+    /// Refreshes the cache after an entity is inserted during batch processing.
+    /// Call this when creating new entities so subsequent events can find them.
+    mutating func insert(stack: Stack) {
+        stacks[stack.id] = stack
+    }
+
+    mutating func insert(task: QueueTask) {
+        tasks[task.id] = task
+    }
+
+    mutating func insert(reminder: Reminder) {
+        reminders[reminder.id] = reminder
+    }
+
+    mutating func insert(tag: Tag) {
+        tags[tag.id] = tag
+    }
+
+    mutating func insert(arc: Arc) {
+        arcs[arc.id] = arc
+    }
+
+    mutating func insert(attachment: Attachment) {
+        attachments[attachment.id] = attachment
+    }
+}
+
 // swiftlint:disable:next type_body_length
 enum ProjectorService {
     // MARK: - Pending Tag Associations
@@ -86,8 +300,55 @@ enum ProjectorService {
         await tagIdRemapping.clear()
     }
 
+    // MARK: - Batch Event Processing (DEQ-143)
+
+    /// Applies multiple events efficiently using batch prefetching.
+    /// This eliminates N+1 queries by prefetching all needed entities upfront.
+    /// - Parameters:
+    ///   - events: Array of events to process
+    ///   - context: The SwiftData model context
+    /// - Returns: Number of events successfully processed
+    @discardableResult
+    static func applyBatch(events: [Event], context: ModelContext) async throws -> Int {
+        guard !events.isEmpty else { return 0 }
+
+        // Prefetch all entities referenced by these events (single batch query per entity type)
+        var cache = try EntityLookupCache(prefetchingFor: events, context: context)
+
+        var processedCount = 0
+        for event in events {
+            do {
+                try await apply(event: event, context: context, cache: &cache)
+                processedCount += 1
+            } catch {
+                // Log but continue processing other events
+                ErrorReportingService.addBreadcrumb(
+                    category: "sync_batch_error",
+                    message: "Failed to apply event in batch",
+                    data: [
+                        "event_type": event.type,
+                        "error": error.localizedDescription
+                    ]
+                )
+            }
+        }
+
+        return processedCount
+    }
+
+    // MARK: - Single Event Processing
+
+    /// Applies a single event (backward compatible - performs individual queries)
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func apply(event: Event, context: ModelContext) async throws {
+        // Create empty cache - will fall back to individual queries
+        var cache = EntityLookupCache()
+        try await apply(event: event, context: context, cache: &cache)
+    }
+
+    /// Internal apply with cache support
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    private static func apply(event: Event, context: ModelContext, cache: inout EntityLookupCache) async throws {
         guard let eventType = event.eventType else { return }
 
         // DEQ-236: Update device lastSeenAt for ALL events from other devices
@@ -97,88 +358,88 @@ enum ProjectorService {
         switch eventType {
         // Stack events
         case .stackCreated:
-            try await applyStackCreated(event: event, context: context)
+            try await applyStackCreated(event: event, context: context, cache: &cache)
         case .stackUpdated:
-            try await applyStackUpdated(event: event, context: context)
+            try await applyStackUpdated(event: event, context: context, cache: &cache)
         case .stackDeleted:
-            try applyStackDeleted(event: event, context: context)
+            try applyStackDeleted(event: event, context: context, cache: cache)
         case .stackDiscarded:
-            try applyStackDiscarded(event: event, context: context)
+            try applyStackDiscarded(event: event, context: context, cache: cache)
         case .stackCompleted:
-            try applyStackCompleted(event: event, context: context)
+            try applyStackCompleted(event: event, context: context, cache: cache)
         case .stackActivated:
-            try applyStackActivated(event: event, context: context)
+            try applyStackActivated(event: event, context: context, cache: cache)
         case .stackDeactivated:
-            try applyStackDeactivated(event: event, context: context)
+            try applyStackDeactivated(event: event, context: context, cache: cache)
         case .stackClosed:
-            try applyStackClosed(event: event, context: context)
+            try applyStackClosed(event: event, context: context, cache: cache)
         case .stackReordered:
-            try applyStackReordered(event: event, context: context)
+            try applyStackReordered(event: event, context: context, cache: cache)
 
         // Task events
         case .taskCreated:
-            try applyTaskCreated(event: event, context: context)
+            try applyTaskCreated(event: event, context: context, cache: &cache)
         case .taskUpdated:
-            try applyTaskUpdated(event: event, context: context)
+            try applyTaskUpdated(event: event, context: context, cache: cache)
         case .taskDeleted:
-            try applyTaskDeleted(event: event, context: context)
+            try applyTaskDeleted(event: event, context: context, cache: cache)
         case .taskCompleted:
-            try applyTaskCompleted(event: event, context: context)
+            try applyTaskCompleted(event: event, context: context, cache: cache)
         case .taskActivated:
-            try applyTaskActivated(event: event, context: context)
+            try applyTaskActivated(event: event, context: context, cache: cache)
         case .taskClosed:
-            try applyTaskClosed(event: event, context: context)
+            try applyTaskClosed(event: event, context: context, cache: cache)
         case .taskReordered:
-            try applyTaskReordered(event: event, context: context)
+            try applyTaskReordered(event: event, context: context, cache: cache)
 
         // Reminder events
         case .reminderCreated:
-            try applyReminderCreated(event: event, context: context)
+            try applyReminderCreated(event: event, context: context, cache: &cache)
         case .reminderUpdated:
-            try applyReminderUpdated(event: event, context: context)
+            try applyReminderUpdated(event: event, context: context, cache: cache)
         case .reminderDeleted:
-            try applyReminderDeleted(event: event, context: context)
+            try applyReminderDeleted(event: event, context: context, cache: cache)
         case .reminderSnoozed:
-            try applyReminderSnoozed(event: event, context: context)
+            try applyReminderSnoozed(event: event, context: context, cache: cache)
 
         case .deviceDiscovered:
             try applyDeviceDiscovered(event: event, context: context)
 
         // Tag events
         case .tagCreated:
-            try await applyTagCreated(event: event, context: context)
+            try await applyTagCreated(event: event, context: context, cache: &cache)
         case .tagUpdated:
-            try applyTagUpdated(event: event, context: context)
+            try applyTagUpdated(event: event, context: context, cache: cache)
         case .tagDeleted:
-            try applyTagDeleted(event: event, context: context)
+            try applyTagDeleted(event: event, context: context, cache: cache)
 
         // Attachment events
         case .attachmentAdded:
-            try applyAttachmentAdded(event: event, context: context)
+            try applyAttachmentAdded(event: event, context: context, cache: &cache)
         case .attachmentRemoved:
-            try applyAttachmentRemoved(event: event, context: context)
+            try applyAttachmentRemoved(event: event, context: context, cache: cache)
 
         // Arc events
         case .arcCreated:
-            try applyArcCreated(event: event, context: context)
+            try applyArcCreated(event: event, context: context, cache: &cache)
         case .arcUpdated:
-            try applyArcUpdated(event: event, context: context)
+            try applyArcUpdated(event: event, context: context, cache: cache)
         case .arcDeleted:
-            try applyArcDeleted(event: event, context: context)
+            try applyArcDeleted(event: event, context: context, cache: cache)
         case .arcCompleted:
-            try applyArcCompleted(event: event, context: context)
+            try applyArcCompleted(event: event, context: context, cache: cache)
         case .arcActivated:
-            try applyArcActivated(event: event, context: context)
+            try applyArcActivated(event: event, context: context, cache: cache)
         case .arcDeactivated:
-            try applyArcDeactivated(event: event, context: context)
+            try applyArcDeactivated(event: event, context: context, cache: cache)
         case .arcPaused:
-            try applyArcPaused(event: event, context: context)
+            try applyArcPaused(event: event, context: context, cache: cache)
         case .arcReordered:
-            try applyArcReordered(event: event, context: context)
+            try applyArcReordered(event: event, context: context, cache: cache)
         case .stackAssignedToArc:
-            try applyStackAssignedToArc(event: event, context: context)
+            try applyStackAssignedToArc(event: event, context: context, cache: cache)
         case .stackRemovedFromArc:
-            try applyStackRemovedFromArc(event: event, context: context)
+            try applyStackRemovedFromArc(event: event, context: context, cache: cache)
         }
     }
 
@@ -259,10 +520,14 @@ enum ProjectorService {
 
     // MARK: - Stack Events
 
-    private static func applyStackCreated(event: Event, context: ModelContext) async throws {
+    private static func applyStackCreated(
+        event: Event,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) async throws {
         let payload = try event.decodePayload(StackEventPayload.self)
 
-        if let existing = try findStack(id: payload.id, context: context) {
+        if let existing = try findStack(id: payload.id, context: context, cache: cache) {
             // LWW: Only update if this event is newer than current state
             guard shouldApplyEvent(
                 eventTimestamp: event.timestamp,
@@ -272,7 +537,7 @@ enum ProjectorService {
                 conflictType: .update,
                 context: context
             ) else { return }
-            await updateStack(existing, from: payload, context: context, eventTimestamp: event.timestamp)
+            await updateStack(existing, from: payload, context: context, cache: cache, eventTimestamp: event.timestamp)
         } else {
             let stack = Stack(
                 id: payload.id,
@@ -291,15 +556,20 @@ enum ProjectorService {
             stack.createdAt = payload.createdAt ?? event.timestamp
             stack.updatedAt = event.timestamp  // LWW: Use event timestamp
             context.insert(stack)
+            cache.insert(stack: stack)  // DEQ-143: Update cache for subsequent events
 
             // Apply tagIds - find and link tags, with proper error handling for race conditions
-            await applyTagsToStack(stack, tagIds: payload.tagIds, context: context)
+            await applyTagsToStack(stack, tagIds: payload.tagIds, context: context, cache: cache)
         }
     }
 
-    private static func applyStackUpdated(event: Event, context: ModelContext) async throws {
+    private static func applyStackUpdated(
+        event: Event,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) async throws {
         let payload = try event.decodePayload(StackEventPayload.self)
-        guard let stack = try findStack(id: payload.id, context: context) else { return }
+        guard let stack = try findStack(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !stack.isDeleted else { return }
@@ -314,12 +584,12 @@ enum ProjectorService {
             context: context
         ) else { return }
 
-        await updateStack(stack, from: payload, context: context, eventTimestamp: event.timestamp)
+        await updateStack(stack, from: payload, context: context, cache: cache, eventTimestamp: event.timestamp)
     }
 
-    private static func applyStackDeleted(event: Event, context: ModelContext) throws {
+    private static func applyStackDeleted(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityDeletedPayload.self)
-        guard let stack = try findStack(id: payload.id, context: context) else { return }
+        guard let stack = try findStack(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Only apply if this event is newer than current state
         guard shouldApplyEvent(
@@ -338,9 +608,9 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackDiscarded(event: Event, context: ModelContext) throws {
+    private static func applyStackDiscarded(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityDeletedPayload.self)
-        guard let stack = try findStack(id: payload.id, context: context) else { return }
+        guard let stack = try findStack(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Only apply if this event is newer than current state
         guard shouldApplyEvent(
@@ -360,9 +630,9 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackCompleted(event: Event, context: ModelContext) throws {
+    private static func applyStackCompleted(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let stack = try findStack(id: payload.id, context: context) else { return }
+        guard let stack = try findStack(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !stack.isDeleted else { return }
@@ -386,9 +656,9 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackActivated(event: Event, context: ModelContext) throws {
+    private static func applyStackActivated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let stack = try findStack(id: payload.id, context: context) else { return }
+        guard let stack = try findStack(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !stack.isDeleted else { return }
@@ -425,9 +695,9 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackDeactivated(event: Event, context: ModelContext) throws {
+    private static func applyStackDeactivated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let stack = try findStack(id: payload.id, context: context) else { return }
+        guard let stack = try findStack(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !stack.isDeleted else { return }
@@ -449,9 +719,9 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackClosed(event: Event, context: ModelContext) throws {
+    private static func applyStackClosed(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let stack = try findStack(id: payload.id, context: context) else { return }
+        guard let stack = try findStack(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !stack.isDeleted else { return }
@@ -472,10 +742,10 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackReordered(event: Event, context: ModelContext) throws {
+    private static func applyStackReordered(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(ReorderPayload.self)
         for (index, id) in payload.ids.enumerated() {
-            guard let stack = try findStack(id: id, context: context) else { continue }
+            guard let stack = try findStack(id: id, context: context, cache: cache) else { continue }
 
             // LWW: Skip updates to deleted entities
             guard !stack.isDeleted else { continue }
@@ -499,10 +769,14 @@ enum ProjectorService {
 
     // MARK: - Task Events
 
-    private static func applyTaskCreated(event: Event, context: ModelContext) throws {
+    private static func applyTaskCreated(
+        event: Event,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) throws {
         let payload = try event.decodePayload(TaskEventPayload.self)
 
-        if let existing = try findTask(id: payload.id, context: context) {
+        if let existing = try findTask(id: payload.id, context: context, cache: cache) {
             // LWW: Only update if this event is newer than current state
             guard shouldApplyEvent(
                 eventTimestamp: event.timestamp,
@@ -512,7 +786,7 @@ enum ProjectorService {
                 conflictType: .update,
                 context: context
             ) else { return }
-            updateTask(existing, from: payload, context: context, eventTimestamp: event.timestamp)
+            updateTask(existing, from: payload, context: context, cache: cache, eventTimestamp: event.timestamp)
         } else {
             let task = QueueTask(
                 id: payload.id,
@@ -530,18 +804,19 @@ enum ProjectorService {
             task.updatedAt = event.timestamp  // LWW: Use event timestamp
 
             if let stackId = payload.stackId,
-               let stack = try findStack(id: stackId, context: context) {
+               let stack = try findStack(id: stackId, context: context, cache: cache) {
                 task.stack = stack
                 stack.tasks.append(task)
             }
 
             context.insert(task)
+            cache.insert(task: task)  // DEQ-143: Update cache for subsequent events
         }
     }
 
-    private static func applyTaskUpdated(event: Event, context: ModelContext) throws {
+    private static func applyTaskUpdated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(TaskEventPayload.self)
-        guard let task = try findTask(id: payload.id, context: context) else { return }
+        guard let task = try findTask(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !task.isDeleted else { return }
@@ -556,12 +831,12 @@ enum ProjectorService {
             context: context
         ) else { return }
 
-        updateTask(task, from: payload, context: context, eventTimestamp: event.timestamp)
+        updateTask(task, from: payload, context: context, cache: cache, eventTimestamp: event.timestamp)
     }
 
-    private static func applyTaskDeleted(event: Event, context: ModelContext) throws {
+    private static func applyTaskDeleted(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityDeletedPayload.self)
-        guard let task = try findTask(id: payload.id, context: context) else { return }
+        guard let task = try findTask(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Only apply if this event is newer than current state
         guard shouldApplyEvent(
@@ -579,9 +854,9 @@ enum ProjectorService {
         task.lastSyncedAt = Date()
     }
 
-    private static func applyTaskCompleted(event: Event, context: ModelContext) throws {
+    private static func applyTaskCompleted(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let task = try findTask(id: payload.id, context: context) else { return }
+        guard let task = try findTask(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !task.isDeleted else { return }
@@ -602,9 +877,9 @@ enum ProjectorService {
         task.lastSyncedAt = Date()
     }
 
-    private static func applyTaskActivated(event: Event, context: ModelContext) throws {
+    private static func applyTaskActivated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let task = try findTask(id: payload.id, context: context) else { return }
+        guard let task = try findTask(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !task.isDeleted else { return }
@@ -635,9 +910,9 @@ enum ProjectorService {
         }
     }
 
-    private static func applyTaskClosed(event: Event, context: ModelContext) throws {
+    private static func applyTaskClosed(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let task = try findTask(id: payload.id, context: context) else { return }
+        guard let task = try findTask(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !task.isDeleted else { return }
@@ -658,10 +933,10 @@ enum ProjectorService {
         task.lastSyncedAt = Date()
     }
 
-    private static func applyTaskReordered(event: Event, context: ModelContext) throws {
+    private static func applyTaskReordered(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(ReorderPayload.self)
         for (index, id) in payload.ids.enumerated() {
-            guard let task = try findTask(id: id, context: context) else { continue }
+            guard let task = try findTask(id: id, context: context, cache: cache) else { continue }
 
             // LWW: Skip updates to deleted entities
             guard !task.isDeleted else { continue }
@@ -685,10 +960,14 @@ enum ProjectorService {
 
     // MARK: - Reminder Events
 
-    private static func applyReminderCreated(event: Event, context: ModelContext) throws {
+    private static func applyReminderCreated(
+        event: Event,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) throws {
         let payload = try event.decodePayload(ReminderEventPayload.self)
 
-        if let existing = try findReminder(id: payload.id, context: context) {
+        if let existing = try findReminder(id: payload.id, context: context, cache: cache) {
             // LWW: Only update if this event is newer than current state
             guard shouldApplyEvent(
                 eventTimestamp: event.timestamp,
@@ -711,27 +990,28 @@ enum ProjectorService {
             )
             reminder.updatedAt = event.timestamp  // LWW: Use event timestamp
             context.insert(reminder)
+            cache.insert(reminder: reminder)  // DEQ-143: Update cache for subsequent events
 
             switch payload.parentType {
             case .stack:
-                if let stack = try findStack(id: payload.parentId, context: context) {
+                if let stack = try findStack(id: payload.parentId, context: context, cache: cache) {
                     stack.reminders.append(reminder)
                 }
             case .task:
-                if let task = try findTask(id: payload.parentId, context: context) {
+                if let task = try findTask(id: payload.parentId, context: context, cache: cache) {
                     task.reminders.append(reminder)
                 }
             case .arc:
-                if let arc = try findArc(id: payload.parentId, context: context) {
+                if let arc = try findArc(id: payload.parentId, context: context, cache: cache) {
                     arc.reminders.append(reminder)
                 }
             }
         }
     }
 
-    private static func applyReminderUpdated(event: Event, context: ModelContext) throws {
+    private static func applyReminderUpdated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(ReminderEventPayload.self)
-        guard let reminder = try findReminder(id: payload.id, context: context) else { return }
+        guard let reminder = try findReminder(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !reminder.isDeleted else { return }
@@ -749,9 +1029,9 @@ enum ProjectorService {
         updateReminder(reminder, from: payload, eventTimestamp: event.timestamp)
     }
 
-    private static func applyReminderDeleted(event: Event, context: ModelContext) throws {
+    private static func applyReminderDeleted(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityDeletedPayload.self)
-        guard let reminder = try findReminder(id: payload.id, context: context) else { return }
+        guard let reminder = try findReminder(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Only apply if this event is newer than current state
         guard shouldApplyEvent(
@@ -769,9 +1049,9 @@ enum ProjectorService {
         reminder.lastSyncedAt = Date()
     }
 
-    private static func applyReminderSnoozed(event: Event, context: ModelContext) throws {
+    private static func applyReminderSnoozed(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(ReminderEventPayload.self)
-        guard let reminder = try findReminder(id: payload.id, context: context) else { return }
+        guard let reminder = try findReminder(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !reminder.isDeleted else { return }
@@ -795,11 +1075,15 @@ enum ProjectorService {
 
     // MARK: - Tag Events
 
-    private static func applyTagCreated(event: Event, context: ModelContext) async throws {
+    private static func applyTagCreated(
+        event: Event,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) async throws {
         let payload = try event.decodePayload(TagEventPayload.self)
 
         // First check if tag with same ID already exists
-        if let existing = try findTag(id: payload.id, context: context) {
+        if let existing = try findTag(id: payload.id, context: context, cache: cache) {
             // LWW: Only update if this event is newer than current state
             guard shouldApplyEvent(
                 eventTimestamp: event.timestamp,
@@ -815,13 +1099,14 @@ enum ProjectorService {
 
         // DEQ-197: Check if tag with same normalized name already exists (cross-device duplicate)
         let normalizedName = payload.name.lowercased().trimmingCharacters(in: .whitespaces)
-        if let existingByName = try findTagByNormalizedName(normalizedName, context: context) {
+        if let existingByName = try findTagByNormalizedName(normalizedName, context: context, cache: cache) {
             await handleCrossDeviceTagDuplicate(
                 incomingId: payload.id,
                 existingTag: existingByName,
                 tagName: payload.name,
                 normalizedName: normalizedName,
-                context: context
+                context: context,
+                cache: cache
             )
             return
         }
@@ -836,13 +1121,14 @@ enum ProjectorService {
         )
         tag.updatedAt = event.timestamp  // LWW: Use event timestamp
         context.insert(tag)
+        cache.insert(tag: tag)  // DEQ-143: Update cache for subsequent events
 
         // Resolve any pending associations for this tag
         // This handles the race condition where stack.updated arrived before tag.created
         let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: payload.id)
         if !pendingStackIds.isEmpty {
             for stackId in pendingStackIds {
-                if let stack = try? findStack(id: stackId, context: context), !stack.isDeleted {
+                if let stack = try? findStack(id: stackId, context: context, cache: cache), !stack.isDeleted {
                     if !stack.tagObjects.contains(where: { $0.id == tag.id }) {
                         stack.tagObjects.append(tag)
                     }
@@ -853,7 +1139,18 @@ enum ProjectorService {
 
     /// Finds a tag by normalized name (case-insensitive).
     /// Used for detecting cross-device duplicate tags during sync.
-    private static func findTagByNormalizedName(_ normalizedName: String, context: ModelContext) throws -> Tag? {
+    private static func findTagByNormalizedName(
+        _ normalizedName: String,
+        context: ModelContext,
+        cache: EntityLookupCache? = nil
+    ) throws -> Tag? {
+        // Use cache if available
+        if let cache = cache, !cache.tags.isEmpty {
+            return cache.tags.values.first { tag in
+                !tag.isDeleted && tag.name.lowercased().trimmingCharacters(in: .whitespaces) == normalizedName
+            }
+        }
+
         let predicate = #Predicate<Tag> { tag in
             tag.isDeleted == false
         }
@@ -871,7 +1168,8 @@ enum ProjectorService {
         existingTag: Tag,
         tagName: String,
         normalizedName: String,
-        context: ModelContext
+        context: ModelContext,
+        cache: EntityLookupCache
     ) async {
         ErrorReportingService.addBreadcrumb(
             category: "sync_tag_dedupe",
@@ -887,7 +1185,7 @@ enum ProjectorService {
         // Resolve pending associations for the incoming tag ID to the existing tag
         let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: incomingId)
         for stackId in pendingStackIds {
-            if let stack = try? findStack(id: stackId, context: context), !stack.isDeleted {
+            if let stack = try? findStack(id: stackId, context: context, cache: cache), !stack.isDeleted {
                 if !stack.tagObjects.contains(where: { $0.id == existingTag.id }) {
                     stack.tagObjects.append(existingTag)
                 }
@@ -898,9 +1196,9 @@ enum ProjectorService {
         await tagIdRemapping.addMapping(from: incomingId, to: existingTag.id)
     }
 
-    private static func applyTagUpdated(event: Event, context: ModelContext) throws {
+    private static func applyTagUpdated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(TagEventPayload.self)
-        guard let tag = try findTag(id: payload.id, context: context) else { return }
+        guard let tag = try findTag(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !tag.isDeleted else { return }
@@ -918,9 +1216,9 @@ enum ProjectorService {
         updateTag(tag, from: payload, eventTimestamp: event.timestamp)
     }
 
-    private static func applyTagDeleted(event: Event, context: ModelContext) throws {
+    private static func applyTagDeleted(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityDeletedPayload.self)
-        guard let tag = try findTag(id: payload.id, context: context) else { return }
+        guard let tag = try findTag(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Only apply if this event is newer than current state
         guard shouldApplyEvent(
@@ -949,11 +1247,15 @@ enum ProjectorService {
 
     // MARK: - Attachment Events
 
-    private static func applyAttachmentAdded(event: Event, context: ModelContext) throws {
+    private static func applyAttachmentAdded(
+        event: Event,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) throws {
         let payload = try event.decodePayload(AttachmentEventPayload.self)
 
         // Check if attachment already exists
-        if let existing = try findAttachment(id: payload.id, context: context) {
+        if let existing = try findAttachment(id: payload.id, context: context, cache: cache) {
             // LWW: Skip updates to deleted entities
             guard !existing.isDeleted else { return }
 
@@ -988,12 +1290,13 @@ enum ProjectorService {
             attachment.updatedAt = event.timestamp  // LWW: Use event timestamp
             attachment.isDeleted = payload.deleted
             context.insert(attachment)
+            cache.insert(attachment: attachment)  // DEQ-143: Update cache for subsequent events
         }
     }
 
-    private static func applyAttachmentRemoved(event: Event, context: ModelContext) throws {
+    private static func applyAttachmentRemoved(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityDeletedPayload.self)
-        guard let attachment = try findAttachment(id: payload.id, context: context) else { return }
+        guard let attachment = try findAttachment(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Only apply if this event is newer than current state
         guard shouldApplyEvent(
@@ -1030,7 +1333,11 @@ enum ProjectorService {
         attachment.lastSyncedAt = Date()
     }
 
-    private static func findAttachment(id: String, context: ModelContext) throws -> Attachment? {
+    /// Finds an attachment by ID, using cache if available (O(1)), falling back to query (O(n)).
+    private static func findAttachment(id: String, context: ModelContext, cache: EntityLookupCache? = nil) throws -> Attachment? {
+        if let cached = cache?.attachments[id] {
+            return cached
+        }
         let predicate = #Predicate<Attachment> { $0.id == id }
         let descriptor = FetchDescriptor<Attachment>(predicate: predicate)
         return try context.fetch(descriptor).first
@@ -1038,10 +1345,14 @@ enum ProjectorService {
 
     // MARK: - Arc Events
 
-    private static func applyArcCreated(event: Event, context: ModelContext) throws {
+    private static func applyArcCreated(
+        event: Event,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) throws {
         let payload = try event.decodePayload(ArcEventPayload.self)
 
-        if let existing = try findArc(id: payload.id, context: context) {
+        if let existing = try findArc(id: payload.id, context: context, cache: cache) {
             // LWW: Only update if this event is newer than current state
             guard shouldApplyEvent(
                 eventTimestamp: event.timestamp,
@@ -1065,12 +1376,13 @@ enum ProjectorService {
             )
             arc.updatedAt = event.timestamp  // LWW: Use event timestamp
             context.insert(arc)
+            cache.insert(arc: arc)  // DEQ-143: Update cache for subsequent events
         }
     }
 
-    private static func applyArcUpdated(event: Event, context: ModelContext) throws {
+    private static func applyArcUpdated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(ArcEventPayload.self)
-        guard let arc = try findArc(id: payload.id, context: context) else { return }
+        guard let arc = try findArc(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !arc.isDeleted else { return }
@@ -1088,9 +1400,9 @@ enum ProjectorService {
         updateArc(arc, from: payload, eventTimestamp: event.timestamp)
     }
 
-    private static func applyArcDeleted(event: Event, context: ModelContext) throws {
+    private static func applyArcDeleted(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityDeletedPayload.self)
-        guard let arc = try findArc(id: payload.id, context: context) else { return }
+        guard let arc = try findArc(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Only apply if this event is newer than current state
         guard shouldApplyEvent(
@@ -1117,9 +1429,9 @@ enum ProjectorService {
         arc.lastSyncedAt = Date()
     }
 
-    private static func applyArcCompleted(event: Event, context: ModelContext) throws {
+    private static func applyArcCompleted(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let arc = try findArc(id: payload.id, context: context) else { return }
+        guard let arc = try findArc(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !arc.isDeleted else { return }
@@ -1140,9 +1452,9 @@ enum ProjectorService {
         arc.lastSyncedAt = Date()
     }
 
-    private static func applyArcActivated(event: Event, context: ModelContext) throws {
+    private static func applyArcActivated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let arc = try findArc(id: payload.id, context: context) else { return }
+        guard let arc = try findArc(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !arc.isDeleted else { return }
@@ -1163,9 +1475,9 @@ enum ProjectorService {
         arc.lastSyncedAt = Date()
     }
 
-    private static func applyArcDeactivated(event: Event, context: ModelContext) throws {
+    private static func applyArcDeactivated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let arc = try findArc(id: payload.id, context: context) else { return }
+        guard let arc = try findArc(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !arc.isDeleted else { return }
@@ -1186,9 +1498,9 @@ enum ProjectorService {
         arc.lastSyncedAt = Date()
     }
 
-    private static func applyArcPaused(event: Event, context: ModelContext) throws {
+    private static func applyArcPaused(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(EntityStatusPayload.self)
-        guard let arc = try findArc(id: payload.id, context: context) else { return }
+        guard let arc = try findArc(id: payload.id, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !arc.isDeleted else { return }
@@ -1209,11 +1521,11 @@ enum ProjectorService {
         arc.lastSyncedAt = Date()
     }
 
-    private static func applyArcReordered(event: Event, context: ModelContext) throws {
+    private static func applyArcReordered(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(ReorderPayload.self)
 
         for (index, id) in payload.ids.enumerated() {
-            guard let arc = try findArc(id: id, context: context) else { continue }
+            guard let arc = try findArc(id: id, context: context, cache: cache) else { continue }
 
             // LWW: Skip updates to deleted entities
             guard !arc.isDeleted else { continue }
@@ -1235,11 +1547,11 @@ enum ProjectorService {
         }
     }
 
-    private static func applyStackAssignedToArc(event: Event, context: ModelContext) throws {
+    private static func applyStackAssignedToArc(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(StackArcAssignmentPayload.self)
 
-        guard let stack = try findStack(id: payload.stackId, context: context) else { return }
-        guard let arc = try findArc(id: payload.arcId, context: context) else { return }
+        guard let stack = try findStack(id: payload.stackId, context: context, cache: cache) else { return }
+        guard let arc = try findArc(id: payload.arcId, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !stack.isDeleted && !arc.isDeleted else { return }
@@ -1261,10 +1573,10 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
     }
 
-    private static func applyStackRemovedFromArc(event: Event, context: ModelContext) throws {
+    private static func applyStackRemovedFromArc(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
         let payload = try event.decodePayload(StackArcAssignmentPayload.self)
 
-        guard let stack = try findStack(id: payload.stackId, context: context) else { return }
+        guard let stack = try findStack(id: payload.stackId, context: context, cache: cache) else { return }
 
         // LWW: Skip updates to deleted entities
         guard !stack.isDeleted else { return }
@@ -1298,33 +1610,55 @@ enum ProjectorService {
         arc.lastSyncedAt = Date()
     }
 
-    // MARK: - Helpers
+    // MARK: - Helpers (DEQ-143: Cache-aware lookups)
 
-    private static func findStack(id: String, context: ModelContext) throws -> Stack? {
+    /// Finds a stack by ID, using cache if available (O(1)), falling back to query (O(n)).
+    private static func findStack(id: String, context: ModelContext, cache: EntityLookupCache? = nil) throws -> Stack? {
+        // Check cache first for O(1) lookup
+        if let cached = cache?.stacks[id] {
+            return cached
+        }
+        // Fall back to database query
         let predicate = #Predicate<Stack> { $0.id == id }
         let descriptor = FetchDescriptor<Stack>(predicate: predicate)
         return try context.fetch(descriptor).first
     }
 
-    private static func findTask(id: String, context: ModelContext) throws -> QueueTask? {
+    /// Finds a task by ID, using cache if available (O(1)), falling back to query (O(n)).
+    private static func findTask(id: String, context: ModelContext, cache: EntityLookupCache? = nil) throws -> QueueTask? {
+        if let cached = cache?.tasks[id] {
+            return cached
+        }
         let predicate = #Predicate<QueueTask> { $0.id == id }
         let descriptor = FetchDescriptor<QueueTask>(predicate: predicate)
         return try context.fetch(descriptor).first
     }
 
-    private static func findReminder(id: String, context: ModelContext) throws -> Reminder? {
+    /// Finds a reminder by ID, using cache if available (O(1)), falling back to query (O(n)).
+    private static func findReminder(id: String, context: ModelContext, cache: EntityLookupCache? = nil) throws -> Reminder? {
+        if let cached = cache?.reminders[id] {
+            return cached
+        }
         let predicate = #Predicate<Reminder> { $0.id == id }
         let descriptor = FetchDescriptor<Reminder>(predicate: predicate)
         return try context.fetch(descriptor).first
     }
 
-    private static func findTag(id: String, context: ModelContext) throws -> Tag? {
+    /// Finds a tag by ID, using cache if available (O(1)), falling back to query (O(n)).
+    private static func findTag(id: String, context: ModelContext, cache: EntityLookupCache? = nil) throws -> Tag? {
+        if let cached = cache?.tags[id] {
+            return cached
+        }
         let predicate = #Predicate<Tag> { $0.id == id }
         let descriptor = FetchDescriptor<Tag>(predicate: predicate)
         return try context.fetch(descriptor).first
     }
 
-    private static func findArc(id: String, context: ModelContext) throws -> Arc? {
+    /// Finds an arc by ID, using cache if available (O(1)), falling back to query (O(n)).
+    private static func findArc(id: String, context: ModelContext, cache: EntityLookupCache? = nil) throws -> Arc? {
+        if let cached = cache?.arcs[id] {
+            return cached
+        }
         let predicate = #Predicate<Arc> { $0.id == id }
         let descriptor = FetchDescriptor<Arc>(predicate: predicate)
         return try context.fetch(descriptor).first
@@ -1340,14 +1674,25 @@ enum ProjectorService {
 
     /// Finds tags by IDs, returning both found tags and any missing IDs.
     /// This handles the race condition where stack_updated arrives before tag_created events.
-    private static func findTagsWithMissing(ids: [String], context: ModelContext) throws -> TagLookupResult {
+    /// Uses cache if available for O(1) lookups.
+    private static func findTagsWithMissing(
+        ids: [String],
+        context: ModelContext,
+        cache: EntityLookupCache? = nil
+    ) throws -> TagLookupResult {
         guard !ids.isEmpty else {
             return TagLookupResult(foundTags: [], missingTagIds: [])
         }
 
-        let descriptor = FetchDescriptor<Tag>()
-        let allTags = try context.fetch(descriptor)
-        let tagLookup = Dictionary(uniqueKeysWithValues: allTags.map { ($0.id, $0) })
+        // Build lookup - prefer cache, fall back to fetch
+        let tagLookup: [String: Tag]
+        if let cache = cache, !cache.tags.isEmpty {
+            tagLookup = cache.tags
+        } else {
+            let descriptor = FetchDescriptor<Tag>()
+            let allTags = try context.fetch(descriptor)
+            tagLookup = Dictionary(uniqueKeysWithValues: allTags.map { ($0.id, $0) })
+        }
 
         var foundTags: [Tag] = []
         var missingTagIds: [String] = []
@@ -1368,6 +1713,7 @@ enum ProjectorService {
         _ stack: Stack,
         from payload: StackEventPayload,
         context: ModelContext,
+        cache: EntityLookupCache,
         eventTimestamp: Date
     ) async {
         stack.title = payload.title
@@ -1383,7 +1729,7 @@ enum ProjectorService {
         stack.lastSyncedAt = Date()
 
         // Apply tagIds - find and link tags, with proper error handling for race conditions
-        await applyTagsToStack(stack, tagIds: payload.tagIds, context: context)
+        await applyTagsToStack(stack, tagIds: payload.tagIds, context: context, cache: cache)
     }
 
     /// Applies tags to a stack with proper handling for missing tags (race condition).
@@ -1391,7 +1737,12 @@ enum ProjectorService {
     /// - Logs warnings for missing tags
     /// - Still applies tags that ARE found (partial success)
     /// - DEQ-197: Resolves tag IDs through remapping to handle cross-device duplicates
-    private static func applyTagsToStack(_ stack: Stack, tagIds: [String], context: ModelContext) async {
+    private static func applyTagsToStack(
+        _ stack: Stack,
+        tagIds: [String],
+        context: ModelContext,
+        cache: EntityLookupCache
+    ) async {
         guard !tagIds.isEmpty else {
             // Explicitly clear tags if payload has empty tagIds
             stack.tagObjects = []
@@ -1402,7 +1753,7 @@ enum ProjectorService {
         let resolvedTagIds = await tagIdRemapping.resolveAll(tagIds)
 
         do {
-            let result = try findTagsWithMissing(ids: resolvedTagIds, context: context)
+            let result = try findTagsWithMissing(ids: resolvedTagIds, context: context, cache: cache)
 
             // Always apply found tags (partial success is better than nothing)
             stack.tagObjects = result.foundTags
@@ -1458,6 +1809,7 @@ enum ProjectorService {
         _ task: QueueTask,
         from payload: TaskEventPayload,
         context: ModelContext,
+        cache: EntityLookupCache,
         eventTimestamp: Date
     ) {
         task.title = payload.title
@@ -1472,7 +1824,7 @@ enum ProjectorService {
 
         if let stackId = payload.stackId,
            task.stack?.id != stackId,
-           let newStack = try? findStack(id: stackId, context: context) {
+           let newStack = try? findStack(id: stackId, context: context, cache: cache) {
             task.stack = newStack
         }
     }
