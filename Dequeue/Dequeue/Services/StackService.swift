@@ -331,9 +331,13 @@ final class StackService {
             throw StackServiceError.cannotActivateDraftStack
         }
 
+        // DEQ-144: Single fetch, filter in memory to avoid multiple database queries
+        let allNonDeletedStacks = try getAllNonDeletedStacks()
+        let nonDraftStacks = allNonDeletedStacks.filter { !$0.isDraft }
+
         // Get ALL stacks with isActive = true (not just those with status == .active)
         // This handles synced stacks that may have isActive = true but different status
-        let allCurrentlyActiveStacks = try getAllStacksWithIsActiveTrue()
+        let allCurrentlyActiveStacks = nonDraftStacks.filter { $0.isActive }
 
         // Find stacks to deactivate (any stack with isActive = true except the target)
         let stacksToDeactivate = allCurrentlyActiveStacks.filter { $0.id != stack.id }
@@ -346,8 +350,8 @@ final class StackService {
             stackToDeactivate.syncState = .pending
         }
 
-        // Get stacks with status == .active for sort order management
-        let activeStacks = try getActiveStacks()
+        // Get stacks with status == .active for sort order management (sorted by sortOrder)
+        let activeStacks = nonDraftStacks.filter { $0.status == .active }.sorted { $0.sortOrder < $1.sortOrder }
 
         // Update sort orders for active stacks
         for (index, activeStack) in activeStacks.enumerated() {
