@@ -35,10 +35,19 @@ enum Configuration {
     /// Distributed tracing targets - only send trace headers to our own backend
     /// This enables connecting mobile traces to backend traces in Sentry
     static let tracePropagationTargets: [String] = [
+        "api.dequeue.app",
         "sync.ardonos.com",
         "localhost",
         "127.0.0.1"
     ]
+
+    // MARK: - Dequeue API
+
+    /// Base URL for the Dequeue API (API key management, etc.)
+    static let dequeueAPIBaseURL: URL = {
+        // swiftlint:disable:next force_unwrapping
+        return URL(string: "https://api.dequeue.app/v1")!
+    }()
 
     // MARK: - Sync Backend
 
