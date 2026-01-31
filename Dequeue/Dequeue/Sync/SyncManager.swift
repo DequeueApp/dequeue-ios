@@ -873,6 +873,7 @@ actor SyncManager {
     }
 
     @MainActor
+    // swiftlint:disable:next function_body_length
     private func processIncomingEvents(_ events: [[String: Any]]) async throws {
         os_log("[Sync] Processing \(events.count) incoming events")
         var stats = EventProcessingStats()
@@ -909,8 +910,11 @@ actor SyncManager {
 
             do {
                 let event = try createEvent(
-                    id: id, type: type, timestamp: timestamp,
-                    payload: payload, eventData: eventData
+                    id: id,
+                    type: type,
+                    timestamp: timestamp,
+                    payload: payload,
+                    eventData: eventData
                 )
                 parsedEvents.append(event)
                 if type.hasPrefix("reminder.") {

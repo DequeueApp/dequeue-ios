@@ -86,6 +86,7 @@ struct EntityLookupCache {
     init() {}
 
     /// Creates a cache by batch-fetching all entities referenced by the given events
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     init(prefetchingFor events: [Event], context: ModelContext) throws {
         // Extract all entity IDs from events
         var stackIds = Set<String>()
@@ -339,7 +340,6 @@ enum ProjectorService {
     // MARK: - Single Event Processing
 
     /// Applies a single event (backward compatible - performs individual queries)
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func apply(event: Event, context: ModelContext) async throws {
         // Create empty cache - will fall back to individual queries
         var cache = EntityLookupCache()
@@ -347,7 +347,6 @@ enum ProjectorService {
     }
 
     /// Internal apply with cache support
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     private static func apply(event: Event, context: ModelContext, cache: inout EntityLookupCache) async throws {
         guard let eventType = event.eventType else { return }
 
@@ -1334,7 +1333,11 @@ enum ProjectorService {
     }
 
     /// Finds an attachment by ID, using cache if available (O(1)), falling back to query (O(n)).
-    private static func findAttachment(id: String, context: ModelContext, cache: EntityLookupCache? = nil) throws -> Attachment? {
+    private static func findAttachment(
+        id: String,
+        context: ModelContext,
+        cache: EntityLookupCache? = nil
+    ) throws -> Attachment? {
         if let cached = cache?.attachments[id] {
             return cached
         }
@@ -1625,7 +1628,11 @@ enum ProjectorService {
     }
 
     /// Finds a task by ID, using cache if available (O(1)), falling back to query (O(n)).
-    private static func findTask(id: String, context: ModelContext, cache: EntityLookupCache? = nil) throws -> QueueTask? {
+    private static func findTask(
+        id: String,
+        context: ModelContext,
+        cache: EntityLookupCache? = nil
+    ) throws -> QueueTask? {
         if let cached = cache?.tasks[id] {
             return cached
         }
@@ -1635,7 +1642,11 @@ enum ProjectorService {
     }
 
     /// Finds a reminder by ID, using cache if available (O(1)), falling back to query (O(n)).
-    private static func findReminder(id: String, context: ModelContext, cache: EntityLookupCache? = nil) throws -> Reminder? {
+    private static func findReminder(
+        id: String,
+        context: ModelContext,
+        cache: EntityLookupCache? = nil
+    ) throws -> Reminder? {
         if let cached = cache?.reminders[id] {
             return cached
         }
