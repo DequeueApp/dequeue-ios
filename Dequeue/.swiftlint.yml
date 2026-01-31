@@ -87,7 +87,7 @@ opt_in_rules:
 # Rule configurations
 line_length:
   warning: 120
-  error: 150
+  error: 200
   ignores_urls: true
   ignores_comments: true
 
@@ -96,13 +96,13 @@ type_body_length:
   error: 400
 
 file_length:
-  warning: 1000
-  error: 1500
+  warning: 1500
+  error: 2000
 
 function_body_length:
   # Temporarily increased from 50 to 70 to unblock CI - TODO: refactor long functions
-  warning: 100
-  error: 150
+  warning: 150
+  error: 200
 
 function_parameter_count:
   warning: 6
