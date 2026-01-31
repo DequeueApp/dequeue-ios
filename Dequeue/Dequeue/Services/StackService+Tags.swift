@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftData
 
 extension StackService {
     // MARK: - Tag Operations
