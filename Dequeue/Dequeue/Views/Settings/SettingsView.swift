@@ -5,7 +5,6 @@
 //  User settings and preferences
 //
 
-// swiftlint:disable function_body_length
 import SwiftUI
 import Sentry
 import Clerk

@@ -2,7 +2,6 @@
 //  SyncDebugView.swift
 //  Dequeue
 //
-// swiftlint:disable function_body_length
 //  Debug view for sync status and operations
 //
 
