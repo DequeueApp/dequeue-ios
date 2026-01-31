@@ -1318,7 +1318,7 @@ struct ProjectorServiceTests {
         #expect(updatedLocalTag?.isDeleted == true)
 
         // Verify: stack should now reference the canonical (incoming) tag
-        let updatedStack = try? context.fetch(FetchDescriptor<Stack>(predicate: #Predicate { $0.id == stack.id })).first
+        let updatedStack = try? context.fetch(FetchDescriptor<Stack>()).first { $0.id == stack.id }
         #expect(updatedStack?.tagObjects.count == 1)
         #expect(updatedStack?.tagObjects.first?.id == "incoming-tag-id")
     }
@@ -1386,7 +1386,7 @@ struct ProjectorServiceTests {
         #expect(incomingTag == nil)
 
         // Verify: stack should still reference the canonical (local) tag
-        let updatedStack = try? context.fetch(FetchDescriptor<Stack>(predicate: #Predicate { $0.id == stack.id })).first
+        let updatedStack = try? context.fetch(FetchDescriptor<Stack>()).first { $0.id == stack.id }
         #expect(updatedStack?.tagObjects.count == 1)
         #expect(updatedStack?.tagObjects.first?.id == "local-tag-id")
     }
@@ -1450,7 +1450,7 @@ struct ProjectorServiceTests {
         #expect(updatedLocalTag?.isDeleted == true)
 
         // Verify: stack should now reference the canonical (incoming) tag
-        let updatedStack = try? context.fetch(FetchDescriptor<Stack>(predicate: #Predicate { $0.id == stack.id })).first
+        let updatedStack = try? context.fetch(FetchDescriptor<Stack>()).first { $0.id == stack.id }
         #expect(updatedStack?.tagObjects.count == 1)
         #expect(updatedStack?.tagObjects.first?.id == "aaa-incoming-tag")
     }
