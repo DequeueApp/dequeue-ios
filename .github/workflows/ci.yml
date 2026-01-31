@@ -28,10 +28,10 @@ jobs:
         working-directory: Dequeue
 
   # Build jobs run in parallel after lint passes
-  # Uses macos-15 with Xcode 26 - must install iOS platform first
+  # iOS jobs use macos-14 with Xcode 16.2 (has iOS 18.2 simulator runtimes)
   build-ios:
     name: Build iOS
-    runs-on: macos-15
+    runs-on: macos-14
     needs: swiftlint
 
     steps:
@@ -39,9 +39,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: |
-          sudo xcode-select -s /Applications/Xcode_26.0.1.app
-          xcodebuild -version
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
       - name: Install iOS Platform
         run: |
@@ -96,17 +94,10 @@ jobs:
 
       - name: Build for iOS
         run: |
-          # Find a working simulator
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro CI" | head -1 | grep -oE '[A-F0-9-]{36}') || \
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro" | head -1 | grep -oE '[A-F0-9-]{36}') || \
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16" | head -1 | grep -oE '[A-F0-9-]{36}')
-          
-          echo "Using device ID: $DEVICE_ID"
-          
           xcodebuild build \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
-            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO
 
@@ -120,7 +111,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.0.1.app
+        run: sudo xcode-select -s /Applications/Xcode_26.0.app
 
       - name: Build for macOS
         run: |
@@ -134,7 +125,7 @@ jobs:
   # Test jobs run in parallel after lint passes
   unit-tests:
     name: Unit Tests
-    runs-on: macos-15
+    runs-on: macos-14
     needs: swiftlint
 
     steps:
@@ -192,16 +183,10 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro CI" | head -1 | grep -oE '[A-F0-9-]{36}') || \
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro" | head -1 | grep -oE '[A-F0-9-]{36}') || \
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16" | head -1 | grep -oE '[A-F0-9-]{36}')
-          
-          echo "Using device ID: $DEVICE_ID"
-          
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
-            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO
@@ -216,7 +201,7 @@ jobs:
 
   ui-tests:
     name: UI Tests
-    runs-on: macos-15
+    runs-on: macos-14
     needs: swiftlint
 
     steps:
@@ -274,23 +259,17 @@ jobs:
 
       - name: Boot Simulator
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro CI" | head -1 | grep -oE '[A-F0-9-]{36}') || \
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro" | head -1 | grep -oE '[A-F0-9-]{36}') || \
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16" | head -1 | grep -oE '[A-F0-9-]{36}')
-          
-          echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
-          
           # Pre-boot the simulator to avoid timeout issues
-          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl boot "iPhone 16 Pro" || true
           # Wait for simulator to be ready
-          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl bootstatus "iPhone 16 Pro" -b
 
       - name: Run UI Tests
         run: |
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
-            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -only-testing:DequeueUITests \
             -resultBundlePath UITestResults.xcresult \
             -parallel-testing-enabled NO \
