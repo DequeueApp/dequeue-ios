@@ -170,7 +170,7 @@ enum FileTypeIcon {
         }
     }
 }
-// swiftlint:enable cyclomatic_complexity function_body_length
+// swiftlint:enable cyclomatic_complexity
 
 // MARK: - File Type Icon View
 

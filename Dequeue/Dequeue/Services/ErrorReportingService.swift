@@ -214,7 +214,6 @@ enum ErrorReportingService {
             }
         }
     }
-    // swiftlint:enable function_body_length
 
     // MARK: - User Context
 

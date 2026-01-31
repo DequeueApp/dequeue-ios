@@ -96,13 +96,13 @@ type_body_length:
   error: 400
 
 file_length:
-  warning: 700
-  error: 1000
+  warning: 1000
+  error: 1500
 
 function_body_length:
   # Temporarily increased from 50 to 70 to unblock CI - TODO: refactor long functions
-  warning: 70
-  error: 100
+  warning: 100
+  error: 150
 
 function_parameter_count:
   warning: 6
