@@ -38,72 +38,17 @@ struct TagDetailView: View {
 
     var body: some View {
         List {
-            // Header section with count
-            Section {
-                HStack {
-                    TagChip(tag: tag, showRemoveButton: false)
-                    Spacer()
-                }
-            } header: {
-                Text("\(stacksWithTag.count) \(stacksWithTag.count == 1 ? "Stack" : "Stacks")")
-            }
-
-            // Stacks list
-            if !stacksWithTag.isEmpty {
-                Section("Stacks Using This Tag") {
-                    ForEach(stacksWithTag) { stack in
-                        NavigationLink(value: stack) {
-                            Text(stack.title)
-                        }
-                    }
-                }
-            }
-
-            // Delete section
-            Section {
-                Button(role: .destructive) {
-                    showDeleteConfirmation = true
-                } label: {
-                    HStack {
-                        Image(systemName: "trash")
-                        Text("Delete Tag")
-                    }
-                }
-            } footer: {
-                Text("Deleting this tag won't delete the Stacks using it.")
-            }
+            headerSection
+            stacksSection
+            deleteSection
         }
         .navigationTitle(isEditing ? "Edit Tag" : tag.name)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                if isEditing {
-                    Button("Done") {
-                        saveChanges()
-                    }
-                    .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                } else {
-                    Button("Edit") {
-                        editedName = tag.name
-                        isEditing = true
-                    }
-                }
-            }
-
-            if isEditing {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        isEditing = false
-                    }
-                }
-            }
-        }
+        .toolbar { toolbarContent }
         .alert("Delete '\(tag.name)'?", isPresented: $showDeleteConfirmation) {
-            Button("Delete", role: .destructive) {
-                deleteTag()
-            }
+            Button("Delete", role: .destructive) { deleteTag() }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This won't delete the Stacks using this tag.")
@@ -111,26 +56,86 @@ struct TagDetailView: View {
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) { }
         } message: {
-            if let errorMessage {
-                Text(errorMessage)
-            }
+            if let errorMessage { Text(errorMessage) }
         }
-        .sheet(isPresented: $isEditing) {
-            editSheet
-        }
+        .sheet(isPresented: $isEditing) { editSheet }
         .navigationDestination(for: Stack.self) { stack in
             StackEditorView(mode: .edit(stack))
         }
-        .task {
-            guard tagService == nil else { return }
-            let deviceId = await DeviceService.shared.getDeviceId()
-            tagService = TagService(
-                modelContext: modelContext,
-                userId: authService.currentUserId ?? "",
-                deviceId: deviceId,
-                syncManager: syncManager
-            )
+        .task { await initializeTagService() }
+    }
+
+    // MARK: - Body Sections
+
+    private var headerSection: some View {
+        Section {
+            HStack {
+                TagChip(tag: tag, showRemoveButton: false)
+                Spacer()
+            }
+        } header: {
+            Text("\(stacksWithTag.count) \(stacksWithTag.count == 1 ? "Stack" : "Stacks")")
         }
+    }
+
+    @ViewBuilder
+    private var stacksSection: some View {
+        if !stacksWithTag.isEmpty {
+            Section("Stacks Using This Tag") {
+                ForEach(stacksWithTag) { stack in
+                    NavigationLink(value: stack) {
+                        Text(stack.title)
+                    }
+                }
+            }
+        }
+    }
+
+    private var deleteSection: some View {
+        Section {
+            Button(role: .destructive) {
+                showDeleteConfirmation = true
+            } label: {
+                HStack {
+                    Image(systemName: "trash")
+                    Text("Delete Tag")
+                }
+            }
+        } footer: {
+            Text("Deleting this tag won't delete the Stacks using it.")
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            if isEditing {
+                Button("Done") { saveChanges() }
+                    .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } else {
+                Button("Edit") {
+                    editedName = tag.name
+                    isEditing = true
+                }
+            }
+        }
+
+        if isEditing {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { isEditing = false }
+            }
+        }
+    }
+
+    private func initializeTagService() async {
+        guard tagService == nil else { return }
+        let deviceId = await DeviceService.shared.getDeviceId()
+        tagService = TagService(
+            modelContext: modelContext,
+            userId: authService.currentUserId ?? "",
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
     }
 
     // MARK: - Edit Sheet
