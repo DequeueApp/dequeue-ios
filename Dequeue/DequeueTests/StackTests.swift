@@ -70,17 +70,20 @@ struct StackTests {
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
 
-        // Create tasks without stack reference first, then establish relationship via stack.tasks
-        // This avoids double-setting the relationship which can cause SwiftData inconsistencies
-        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0)
-        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1)
-        let deletedTask = QueueTask(title: "Deleted", status: TaskStatus.pending, sortOrder: 2, isDeleted: true)
-
+        // Create tasks WITH stack reference and ALSO append to stack.tasks
+        // This ensures relationship is established bidirectionally before SwiftData processes it
+        // (Pattern from ActiveTaskTrackingTests which works reliably)
+        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0, stack: stack)
         context.insert(pendingTask)
-        context.insert(completedTask)
-        context.insert(deletedTask)
+        stack.tasks.append(pendingTask)
 
-        stack.tasks = [pendingTask, completedTask, deletedTask]
+        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1, stack: stack)
+        context.insert(completedTask)
+        stack.tasks.append(completedTask)
+
+        let deletedTask = QueueTask(title: "Deleted", status: TaskStatus.pending, sortOrder: 2, isDeleted: true, stack: stack)
+        context.insert(deletedTask)
+        stack.tasks.append(deletedTask)
 
         try context.save()
 
@@ -98,13 +101,14 @@ struct StackTests {
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
 
-        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0)
-        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1)
-
+        // Create tasks WITH stack reference and ALSO append to stack.tasks
+        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0, stack: stack)
         context.insert(pendingTask)
-        context.insert(completedTask)
+        stack.tasks.append(pendingTask)
 
-        stack.tasks = [pendingTask, completedTask]
+        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1, stack: stack)
+        context.insert(completedTask)
+        stack.tasks.append(completedTask)
 
         try context.save()
 
@@ -122,13 +126,14 @@ struct StackTests {
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
 
-        let task1 = QueueTask(title: "First", status: TaskStatus.pending, sortOrder: 0)
-        let task2 = QueueTask(title: "Second", status: TaskStatus.pending, sortOrder: 1)
-
+        // Create tasks WITH stack reference and ALSO append to stack.tasks
+        let task1 = QueueTask(title: "First", status: TaskStatus.pending, sortOrder: 0, stack: stack)
         context.insert(task1)
-        context.insert(task2)
+        stack.tasks.append(task1)
 
-        stack.tasks = [task1, task2]
+        let task2 = QueueTask(title: "Second", status: TaskStatus.pending, sortOrder: 1, stack: stack)
+        context.insert(task2)
+        stack.tasks.append(task2)
 
         try context.save()
 
