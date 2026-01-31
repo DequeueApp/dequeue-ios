@@ -147,8 +147,10 @@ struct AttachmentQuickLookView: UIViewControllerRepresentable {
 
         // MARK: - QLPreviewControllerDelegate
 
-        func previewControllerDidDismiss(_ controller: QLPreviewController) {
-            onDismiss?()
+        nonisolated func previewControllerDidDismiss(_ controller: QLPreviewController) {
+            MainActor.assumeIsolated {
+                onDismiss?()
+            }
         }
     }
 }

@@ -76,7 +76,7 @@ enum AttachmentStorageQuota: Int64, CaseIterable, Codable {
 
 /// User preferences for attachment handling
 @Observable
-final class AttachmentSettings {
+final class AttachmentSettings: @unchecked Sendable {
     // MARK: - Keys
 
     private enum Keys {
