@@ -155,6 +155,7 @@ struct RootView: View {
         syncStatusViewModel?.initialSyncEventsProcessed ?? 0
     }
 
+    // swiftlint:disable:next function_body_length
     var body: some View {
         Group {
             if authService.isLoading {
