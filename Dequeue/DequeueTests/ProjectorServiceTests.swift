@@ -25,7 +25,7 @@ struct ProjectorServiceTests {
     private func createTestContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try ModelContainer(
-            for: Stack.self, QueueTask.self, Reminder.self, Event.self, SyncConflict.self,
+            for: Stack.self, QueueTask.self, Reminder.self, Event.self, SyncConflict.self, Device.self,
             configurations: config
         )
     }
