@@ -147,7 +147,6 @@ struct APIKeysSettingsView: View {
 private struct APIKeyRow: View {
     let key: APIKey
 
-    // swiftlint:disable:next function_body_length
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             headerRow
