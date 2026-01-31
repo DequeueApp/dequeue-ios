@@ -5,8 +5,6 @@
 //  Handles sync with the backend via WebSocket and HTTP
 //
 
-// swiftlint:disable file_length
-
 import Foundation
 import SwiftData
 import os.log

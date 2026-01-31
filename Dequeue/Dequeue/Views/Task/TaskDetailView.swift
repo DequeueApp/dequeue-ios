@@ -5,7 +5,6 @@
 //  View and edit an individual task
 //
 
-
 import SwiftUI
 import SwiftData
 
