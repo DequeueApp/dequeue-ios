@@ -1438,7 +1438,6 @@ enum ProjectorService {
     }
 
     /// DEQ-235: Handles case where incoming synced tag is the canonical one (older createdAt).
-    // swiftlint:disable:next function_body_length
     /// Creates the incoming tag and migrates all stacks from the local duplicate to it.
     private static func handleIncomingTagIsCanonical(
         payload: TagEventPayload,
