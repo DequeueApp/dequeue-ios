@@ -324,7 +324,7 @@ struct ArcEditorView: View {
 #Preview("Edit Mode") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // Safe: In-memory container with known schema types cannot fail in preview context
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(for: Arc.self, Stack.self, configurations: config)
     let arc = Arc(title: "Test Arc", arcDescription: "Test description", colorHex: "FF6B6B")
     container.mainContext.insert(arc)

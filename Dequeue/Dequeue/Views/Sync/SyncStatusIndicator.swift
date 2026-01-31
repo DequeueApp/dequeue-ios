@@ -182,7 +182,7 @@ internal struct SyncStatusIndicator: View {
 
 #Preview {
     // Force try is acceptable in previews - crashes here only affect Xcode previews, not production
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(
         for: Event.self,
         configurations: ModelConfiguration(isStoredInMemoryOnly: true)

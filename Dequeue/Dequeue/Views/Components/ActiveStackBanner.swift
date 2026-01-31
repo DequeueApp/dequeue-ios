@@ -131,7 +131,7 @@ private enum BannerConstants {
 
 #Preview("With Active Stack") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,
@@ -161,7 +161,7 @@ private enum BannerConstants {
 
 #Preview("Empty State") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,

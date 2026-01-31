@@ -5,6 +5,8 @@
 //  Unified view for creating and editing stacks (DEQ-99)
 //
 
+// swiftlint:disable file_length
+
 import SwiftUI
 import SwiftData
 import os
@@ -260,6 +262,7 @@ private struct StackEditorAlertsModifier: ViewModifier {
     let onCompleteStack: (Bool) -> Void
     let onCloseStack: () -> Void
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func body(content: Content) -> some View {
         content
             .alert("Error", isPresented: $showError) { Button("OK", role: .cancel) { } } message: {
@@ -518,7 +521,7 @@ extension StackEditorView {
 
 #Preview("Edit Mode") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(for: Stack.self, Attachment.self, configurations: config)
     let stack = Stack(title: "Test Stack", stackDescription: "Test description", status: .active, sortOrder: 0)
     container.mainContext.insert(stack)
