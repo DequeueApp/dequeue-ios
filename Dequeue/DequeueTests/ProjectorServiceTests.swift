@@ -25,7 +25,7 @@ struct ProjectorServiceTests {
     private func createTestContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try ModelContainer(
-            for: Stack.self, QueueTask.self, Reminder.self, Event.self, SyncConflict.self,
+            for: Stack.self, QueueTask.self, Reminder.self, Event.self, SyncConflict.self, Device.self,
             configurations: config
         )
     }
@@ -706,5 +706,130 @@ struct ProjectorServiceTests {
 
         // The id should be the stackId since taskId is not present
         #expect(payload.id == stackId)
+    }
+
+    // MARK: - Device Last Seen Tests (DEQ-236)
+
+    @Test("Device lastSeenAt updates when processing any event from that device")
+    func deviceLastSeenUpdatesOnAnyEvent() async throws {
+        // DEQ-236: lastSeenAt should update for ALL events, not just device.discovered
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let deviceId = "other-device-123"
+        let oldLastSeen = Date(timeIntervalSinceNow: -86400 * 7) // 7 days ago
+
+        // Create a known device with an old lastSeenAt
+        let device = Device(
+            deviceId: deviceId,
+            name: "Other Device",
+            osName: "iOS",
+            osVersion: "17.0",
+            isCurrentDevice: false,
+            lastSeenAt: oldLastSeen,
+            firstSeenAt: oldLastSeen
+        )
+        context.insert(device)
+        try context.save()
+
+        #expect(device.lastSeenAt == oldLastSeen)
+
+        // Create a stack.created event from that device
+        let eventTimestamp = Date(timeIntervalSinceNow: -60) // 1 minute ago
+        let payload = try createStackPayload(id: CUID.generate(), title: "New Stack", isActive: false)
+        let event = Event(
+            eventType: .stackCreated,
+            payload: payload,
+            entityId: nil,
+            userId: "test-user",
+            deviceId: deviceId,  // Event from the other device
+            appId: "test-app"
+        )
+        // Override the timestamp to a specific time
+        event.timestamp = eventTimestamp
+
+        context.insert(event)
+        try context.save()
+
+        // Apply the event
+        try await applyEvents([event], context: context)
+
+        // Verify the device's lastSeenAt was updated to the event timestamp
+        #expect(device.lastSeenAt == eventTimestamp)
+        #expect(device.lastSeenAt != oldLastSeen)
+    }
+
+    @Test("Device lastSeenAt does not update for older events")
+    func deviceLastSeenIgnoresOlderEvents() async throws {
+        // DEQ-236: Out-of-order events shouldn't regress lastSeenAt
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let deviceId = "other-device-456"
+        let recentLastSeen = Date(timeIntervalSinceNow: -60) // 1 minute ago
+
+        // Create a device with recent lastSeenAt
+        let device = Device(
+            deviceId: deviceId,
+            name: "Other Device",
+            osName: "iOS",
+            osVersion: "17.0",
+            isCurrentDevice: false,
+            lastSeenAt: recentLastSeen,
+            firstSeenAt: Date(timeIntervalSinceNow: -86400)
+        )
+        context.insert(device)
+        try context.save()
+
+        // Create an OLD event from that device (older than current lastSeenAt)
+        let oldEventTimestamp = Date(timeIntervalSinceNow: -3600) // 1 hour ago
+        let payload = try createStackPayload(id: CUID.generate(), title: "Old Stack", isActive: false)
+        let event = Event(
+            eventType: .stackCreated,
+            payload: payload,
+            entityId: nil,
+            userId: "test-user",
+            deviceId: deviceId,
+            appId: "test-app"
+        )
+        event.timestamp = oldEventTimestamp
+
+        context.insert(event)
+        try context.save()
+
+        // Apply the event
+        try await applyEvents([event], context: context)
+
+        // Verify lastSeenAt was NOT updated (stayed at the more recent time)
+        #expect(device.lastSeenAt == recentLastSeen)
+        #expect(device.lastSeenAt != oldEventTimestamp)
+    }
+
+    @Test("Device lastSeenAt not affected for unknown devices")
+    func deviceLastSeenIgnoresUnknownDevices() async throws {
+        // DEQ-236: Events from unknown devices shouldn't cause errors
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create an event from an unknown device (no Device record exists)
+        let payload = try createStackPayload(id: CUID.generate(), title: "Stack from Unknown", isActive: false)
+        let event = Event(
+            eventType: .stackCreated,
+            payload: payload,
+            entityId: nil,
+            userId: "test-user",
+            deviceId: "unknown-device-xyz",
+            appId: "test-app"
+        )
+
+        context.insert(event)
+        try context.save()
+
+        // Apply the event - should not throw
+        try await applyEvents([event], context: context)
+
+        // Verify the stack was still created
+        let stacks = try context.fetch(FetchDescriptor<Stack>())
+        #expect(stacks.count == 1)
     }
 }
