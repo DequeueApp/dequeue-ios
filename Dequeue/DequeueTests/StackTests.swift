@@ -69,10 +69,9 @@ struct StackTests {
 
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
+        let stackId = stack.id
 
         // Create tasks WITH stack reference and ALSO append to stack.tasks
-        // This ensures relationship is established bidirectionally before SwiftData processes it
-        // (Pattern from ActiveTaskTrackingTests which works reliably)
         let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0, stack: stack)
         context.insert(pendingTask)
         stack.tasks.append(pendingTask)
@@ -87,8 +86,14 @@ struct StackTests {
 
         try context.save()
 
-        #expect(stack.pendingTasks.count == 1)
-        #expect(stack.pendingTasks.first?.title == "Pending")
+        // Re-fetch the stack to ensure we have the most current relationship state
+        // This forces SwiftData to provide the fully synchronized relationship data
+        let descriptor = FetchDescriptor<Stack>(predicate: #Predicate { $0.id == stackId })
+        let fetchedStacks = try context.fetch(descriptor)
+        let fetchedStack = try #require(fetchedStacks.first)
+
+        #expect(fetchedStack.pendingTasks.count == 1)
+        #expect(fetchedStack.pendingTasks.first?.title == "Pending")
     }
 
     @Test("completedTasks filters correctly")
@@ -100,6 +105,7 @@ struct StackTests {
 
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
+        let stackId = stack.id
 
         // Create tasks WITH stack reference and ALSO append to stack.tasks
         let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0, stack: stack)
@@ -112,8 +118,13 @@ struct StackTests {
 
         try context.save()
 
-        #expect(stack.completedTasks.count == 1)
-        #expect(stack.completedTasks.first?.title == "Completed")
+        // Re-fetch to ensure synchronized relationship state
+        let descriptor = FetchDescriptor<Stack>(predicate: #Predicate { $0.id == stackId })
+        let fetchedStacks = try context.fetch(descriptor)
+        let fetchedStack = try #require(fetchedStacks.first)
+
+        #expect(fetchedStack.completedTasks.count == 1)
+        #expect(fetchedStack.completedTasks.first?.title == "Completed")
     }
 
     @Test("activeTask returns first pending task")
@@ -125,6 +136,7 @@ struct StackTests {
 
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
+        let stackId = stack.id
 
         // Create tasks WITH stack reference and ALSO append to stack.tasks
         let task1 = QueueTask(title: "First", status: TaskStatus.pending, sortOrder: 0, stack: stack)
@@ -137,7 +149,12 @@ struct StackTests {
 
         try context.save()
 
-        #expect(stack.activeTask?.title == "First")
+        // Re-fetch to ensure synchronized relationship state
+        let descriptor = FetchDescriptor<Stack>(predicate: #Predicate { $0.id == stackId })
+        let fetchedStacks = try context.fetch(descriptor)
+        let fetchedStack = try #require(fetchedStacks.first)
+
+        #expect(fetchedStack.activeTask?.title == "First")
     }
 
     // MARK: - Stack Creation with Multiple Tasks (DEQ-129)
