@@ -428,5 +428,4 @@ final class StackService {
         try modelContext.save()
         syncManager?.triggerImmediatePush()
     }
-
 }
