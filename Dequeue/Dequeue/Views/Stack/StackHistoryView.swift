@@ -176,7 +176,6 @@ private struct EventDisplayConfig {
     let icon: String
     let color: Color
 
-    // swiftlint:disable:next function_body_length
     /// Maps event types to their display configuration
     static func config(for eventType: String) -> EventDisplayConfig {
         switch eventType {
