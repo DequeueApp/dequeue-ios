@@ -85,10 +85,37 @@ struct EntityLookupCache {
     /// Creates an empty cache
     init() {}
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     /// Creates a cache by batch-fetching all entities referenced by the given events
     init(prefetchingFor events: [Event], context: ModelContext) throws {
-        // Extract all entity IDs from events
+        // Extract all entity IDs from events using helper methods
+        var collector = EntityIdCollector()
+        for event in events {
+            collector.collectIds(from: event)
+        }
+
+        // Batch fetch all entities
+        if !collector.stackIds.isEmpty {
+            stacks = try Self.batchFetchStacks(ids: collector.stackIds, context: context)
+        }
+        if !collector.taskIds.isEmpty {
+            tasks = try Self.batchFetchTasks(ids: collector.taskIds, context: context)
+        }
+        if !collector.reminderIds.isEmpty {
+            reminders = try Self.batchFetchReminders(ids: collector.reminderIds, context: context)
+        }
+        if !collector.tagIds.isEmpty {
+            tags = try Self.batchFetchTags(ids: collector.tagIds, context: context)
+        }
+        if !collector.arcIds.isEmpty {
+            arcs = try Self.batchFetchArcs(ids: collector.arcIds, context: context)
+        }
+        if !collector.attachmentIds.isEmpty {
+            attachments = try Self.batchFetchAttachments(ids: collector.attachmentIds, context: context)
+        }
+    }
+
+    /// Helper struct to collect entity IDs from events, reducing cyclomatic complexity
+    private struct EntityIdCollector {
         var stackIds = Set<String>()
         var taskIds = Set<String>()
         var reminderIds = Set<String>()
@@ -96,11 +123,39 @@ struct EntityLookupCache {
         var arcIds = Set<String>()
         var attachmentIds = Set<String>()
 
-        for event in events {
-            guard let eventType = event.eventType else { continue }
+        mutating func collectIds(from event: Event) {
+            guard let eventType = event.eventType else { return }
 
             switch eventType {
-            // Stack events
+            case .stackCreated, .stackUpdated, .stackDeleted, .stackDiscarded,
+                 .stackCompleted, .stackActivated, .stackDeactivated, .stackClosed,
+                 .stackReordered, .stackAssignedToArc, .stackRemovedFromArc:
+                collectStackEventIds(from: event, eventType: eventType)
+
+            case .taskCreated, .taskUpdated, .taskDeleted, .taskCompleted,
+                 .taskActivated, .taskClosed, .taskReordered:
+                collectTaskEventIds(from: event, eventType: eventType)
+
+            case .reminderCreated, .reminderUpdated, .reminderSnoozed, .reminderDeleted:
+                collectReminderEventIds(from: event, eventType: eventType)
+
+            case .tagCreated, .tagUpdated, .tagDeleted:
+                collectTagEventIds(from: event, eventType: eventType)
+
+            case .arcCreated, .arcUpdated, .arcDeleted, .arcCompleted,
+                 .arcActivated, .arcDeactivated, .arcPaused, .arcReordered:
+                collectArcEventIds(from: event, eventType: eventType)
+
+            case .attachmentAdded, .attachmentRemoved:
+                collectAttachmentEventIds(from: event, eventType: eventType)
+
+            case .deviceDiscovered:
+                break  // Device events don't need prefetching
+            }
+        }
+
+        private mutating func collectStackEventIds(from event: Event, eventType: EventType) {
+            switch eventType {
             case .stackCreated, .stackUpdated:
                 if let payload = try? event.decodePayload(StackEventPayload.self) {
                     stackIds.insert(payload.id)
@@ -122,8 +177,13 @@ struct EntityLookupCache {
                     stackIds.insert(payload.stackId)
                     arcIds.insert(payload.arcId)
                 }
+            default:
+                break
+            }
+        }
 
-            // Task events
+        private mutating func collectTaskEventIds(from event: Event, eventType: EventType) {
+            switch eventType {
             case .taskCreated, .taskUpdated:
                 if let payload = try? event.decodePayload(TaskEventPayload.self) {
                     taskIds.insert(payload.id)
@@ -141,8 +201,13 @@ struct EntityLookupCache {
                 if let payload = try? event.decodePayload(ReorderPayload.self) {
                     taskIds.formUnion(payload.ids)
                 }
+            default:
+                break
+            }
+        }
 
-            // Reminder events
+        private mutating func collectReminderEventIds(from event: Event, eventType: EventType) {
+            switch eventType {
             case .reminderCreated, .reminderUpdated, .reminderSnoozed:
                 if let payload = try? event.decodePayload(ReminderEventPayload.self) {
                     reminderIds.insert(payload.id)
@@ -156,8 +221,13 @@ struct EntityLookupCache {
                 if let payload = try? event.decodePayload(EntityDeletedPayload.self) {
                     reminderIds.insert(payload.id)
                 }
+            default:
+                break
+            }
+        }
 
-            // Tag events
+        private mutating func collectTagEventIds(from event: Event, eventType: EventType) {
+            switch eventType {
             case .tagCreated, .tagUpdated:
                 if let payload = try? event.decodePayload(TagEventPayload.self) {
                     tagIds.insert(payload.id)
@@ -166,8 +236,13 @@ struct EntityLookupCache {
                 if let payload = try? event.decodePayload(EntityDeletedPayload.self) {
                     tagIds.insert(payload.id)
                 }
+            default:
+                break
+            }
+        }
 
-            // Arc events
+        private mutating func collectArcEventIds(from event: Event, eventType: EventType) {
+            switch eventType {
             case .arcCreated, .arcUpdated:
                 if let payload = try? event.decodePayload(ArcEventPayload.self) {
                     arcIds.insert(payload.id)
@@ -182,8 +257,13 @@ struct EntityLookupCache {
                 if let payload = try? event.decodePayload(ReorderPayload.self) {
                     arcIds.formUnion(payload.ids)
                 }
+            default:
+                break
+            }
+        }
 
-            // Attachment events
+        private mutating func collectAttachmentEventIds(from event: Event, eventType: EventType) {
+            switch eventType {
             case .attachmentAdded:
                 if let payload = try? event.decodePayload(AttachmentEventPayload.self) {
                     attachmentIds.insert(payload.id)
@@ -192,31 +272,9 @@ struct EntityLookupCache {
                 if let payload = try? event.decodePayload(EntityDeletedPayload.self) {
                     attachmentIds.insert(payload.id)
                 }
-
-            // Device events don't need prefetching
-            case .deviceDiscovered:
+            default:
                 break
             }
-        }
-
-        // Batch fetch all entities
-        if !stackIds.isEmpty {
-            stacks = try Self.batchFetchStacks(ids: stackIds, context: context)
-        }
-        if !taskIds.isEmpty {
-            tasks = try Self.batchFetchTasks(ids: taskIds, context: context)
-        }
-        if !reminderIds.isEmpty {
-            reminders = try Self.batchFetchReminders(ids: reminderIds, context: context)
-        }
-        if !tagIds.isEmpty {
-            tags = try Self.batchFetchTags(ids: tagIds, context: context)
-        }
-        if !arcIds.isEmpty {
-            arcs = try Self.batchFetchArcs(ids: arcIds, context: context)
-        }
-        if !attachmentIds.isEmpty {
-            attachments = try Self.batchFetchAttachments(ids: attachmentIds, context: context)
         }
     }
 
@@ -346,8 +404,7 @@ enum ProjectorService {
         try await apply(event: event, context: context, cache: &cache)
     }
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
-    /// Internal apply with cache support
+    /// Internal apply with cache support - dispatches to category-specific handlers
     private static func apply(event: Event, context: ModelContext, cache: inout EntityLookupCache) async throws {
         guard let eventType = event.eventType else { return }
 
@@ -357,6 +414,48 @@ enum ProjectorService {
 
         switch eventType {
         // Stack events
+        case .stackCreated, .stackUpdated, .stackDeleted, .stackDiscarded,
+             .stackCompleted, .stackActivated, .stackDeactivated, .stackClosed, .stackReordered:
+            try await applyStackEvent(event: event, eventType: eventType, context: context, cache: &cache)
+
+        // Task events
+        case .taskCreated, .taskUpdated, .taskDeleted, .taskCompleted,
+             .taskActivated, .taskClosed, .taskReordered:
+            try applyTaskEvent(event: event, eventType: eventType, context: context, cache: &cache)
+
+        // Reminder events
+        case .reminderCreated, .reminderUpdated, .reminderDeleted, .reminderSnoozed:
+            try applyReminderEvent(event: event, eventType: eventType, context: context, cache: &cache)
+
+        // Device events
+        case .deviceDiscovered:
+            try applyDeviceDiscovered(event: event, context: context)
+
+        // Tag events
+        case .tagCreated, .tagUpdated, .tagDeleted:
+            try await applyTagEvent(event: event, eventType: eventType, context: context, cache: &cache)
+
+        // Attachment events
+        case .attachmentAdded, .attachmentRemoved:
+            try applyAttachmentEvent(event: event, eventType: eventType, context: context, cache: &cache)
+
+        // Arc events (including stack-arc assignments)
+        case .arcCreated, .arcUpdated, .arcDeleted, .arcCompleted,
+             .arcActivated, .arcDeactivated, .arcPaused, .arcReordered,
+             .stackAssignedToArc, .stackRemovedFromArc:
+            try applyArcEvent(event: event, eventType: eventType, context: context, cache: &cache)
+        }
+    }
+
+    // MARK: - Category Event Dispatchers
+
+    private static func applyStackEvent(
+        event: Event,
+        eventType: EventType,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) async throws {
+        switch eventType {
         case .stackCreated:
             try await applyStackCreated(event: event, context: context, cache: &cache)
         case .stackUpdated:
@@ -375,8 +474,18 @@ enum ProjectorService {
             try applyStackClosed(event: event, context: context, cache: cache)
         case .stackReordered:
             try applyStackReordered(event: event, context: context, cache: cache)
+        default:
+            break
+        }
+    }
 
-        // Task events
+    private static func applyTaskEvent(
+        event: Event,
+        eventType: EventType,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) throws {
+        switch eventType {
         case .taskCreated:
             try applyTaskCreated(event: event, context: context, cache: &cache)
         case .taskUpdated:
@@ -391,8 +500,18 @@ enum ProjectorService {
             try applyTaskClosed(event: event, context: context, cache: cache)
         case .taskReordered:
             try applyTaskReordered(event: event, context: context, cache: cache)
+        default:
+            break
+        }
+    }
 
-        // Reminder events
+    private static func applyReminderEvent(
+        event: Event,
+        eventType: EventType,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) throws {
+        switch eventType {
         case .reminderCreated:
             try applyReminderCreated(event: event, context: context, cache: &cache)
         case .reminderUpdated:
@@ -401,25 +520,52 @@ enum ProjectorService {
             try applyReminderDeleted(event: event, context: context, cache: cache)
         case .reminderSnoozed:
             try applyReminderSnoozed(event: event, context: context, cache: cache)
+        default:
+            break
+        }
+    }
 
-        case .deviceDiscovered:
-            try applyDeviceDiscovered(event: event, context: context)
-
-        // Tag events
+    private static func applyTagEvent(
+        event: Event,
+        eventType: EventType,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) async throws {
+        switch eventType {
         case .tagCreated:
             try await applyTagCreated(event: event, context: context, cache: &cache)
         case .tagUpdated:
             try applyTagUpdated(event: event, context: context, cache: cache)
         case .tagDeleted:
             try applyTagDeleted(event: event, context: context, cache: cache)
+        default:
+            break
+        }
+    }
 
-        // Attachment events
+    private static func applyAttachmentEvent(
+        event: Event,
+        eventType: EventType,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) throws {
+        switch eventType {
         case .attachmentAdded:
             try applyAttachmentAdded(event: event, context: context, cache: &cache)
         case .attachmentRemoved:
             try applyAttachmentRemoved(event: event, context: context, cache: cache)
+        default:
+            break
+        }
+    }
 
-        // Arc events
+    private static func applyArcEvent(
+        event: Event,
+        eventType: EventType,
+        context: ModelContext,
+        cache: inout EntityLookupCache
+    ) throws {
+        switch eventType {
         case .arcCreated:
             try applyArcCreated(event: event, context: context, cache: &cache)
         case .arcUpdated:
@@ -440,6 +586,8 @@ enum ProjectorService {
             try applyStackAssignedToArc(event: event, context: context, cache: cache)
         case .stackRemovedFromArc:
             try applyStackRemovedFromArc(event: event, context: context, cache: cache)
+        default:
+            break
         }
     }
 
