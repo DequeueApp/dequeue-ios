@@ -390,7 +390,6 @@ actor SyncManager {
 
     // MARK: - Push Events
 
-    // swiftlint:disable:next function_body_length
     func pushEvents() async throws {
         let startTime = Date()
         let syncId = Self.generateSyncId()
@@ -620,7 +619,6 @@ actor SyncManager {
     /// Maximum events to request per pull (backend max is 1000)
     private static let pullBatchSize = 1_000
 
-    // swiftlint:disable:next function_body_length
     func pullEvents() async throws {
         let startTime = Date()
         let syncId = Self.generateSyncId()
@@ -755,7 +753,7 @@ actor SyncManager {
     }
 
     /// Process the pull response and return result with event count and pagination info
-    private func processPullResponse( // swiftlint:disable:this function_body_length
+    private func processPullResponse( // 
         _ data: Data
     ) async throws -> PullResult {
         // Log raw response for debugging
