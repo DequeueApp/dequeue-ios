@@ -85,8 +85,8 @@ struct EntityLookupCache {
     /// Creates an empty cache
     init() {}
 
-    /// Creates a cache by batch-fetching all entities referenced by the given events
     // swiftlint:disable:next cyclomatic_complexity function_body_length
+    /// Creates a cache by batch-fetching all entities referenced by the given events
     init(prefetchingFor events: [Event], context: ModelContext) throws {
         // Extract all entity IDs from events
         var stackIds = Set<String>()
@@ -346,8 +346,8 @@ enum ProjectorService {
         try await apply(event: event, context: context, cache: &cache)
     }
 
-    /// Internal apply with cache support
     // swiftlint:disable:next cyclomatic_complexity function_body_length
+    /// Internal apply with cache support
     private static func apply(event: Event, context: ModelContext, cache: inout EntityLookupCache) async throws {
         guard let eventType = event.eventType else { return }
 
