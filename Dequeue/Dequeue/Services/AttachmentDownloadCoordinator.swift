@@ -46,7 +46,7 @@ final class AttachmentDownloadCoordinator {
     var downloadHandler: ((Attachment) async throws -> URL)?
 
     /// Handler for getting attachments that need downloading
-    var pendingAttachmentsProvider: (() async -> [Attachment])?
+    var pendingAttachmentsProvider: (@MainActor () async -> [Attachment])?
 
     // MARK: - Initialization
 
