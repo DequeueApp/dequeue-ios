@@ -1308,13 +1308,13 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Verify: incoming tag (older) should now be the canonical tag
-        let incomingTag = try? context.fetch(FetchDescriptor<Tag>(predicate: #Predicate { $0.id == "incoming-tag-id" })).first
+        let incomingTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "incoming-tag-id" })).first
         #expect(incomingTag != nil)
         #expect(incomingTag?.isDeleted == false)
         #expect(incomingTag?.name == "Work")
 
         // Verify: local tag should be soft-deleted
-        let updatedLocalTag = try? context.fetch(FetchDescriptor<Tag>(predicate: #Predicate { $0.id == "local-tag-id" })).first
+        let updatedLocalTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "local-tag-id" })).first
         #expect(updatedLocalTag?.isDeleted == true)
 
         // Verify: stack should now reference the canonical (incoming) tag
@@ -1377,12 +1377,12 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Verify: local tag (older) should still exist and not be deleted
-        let updatedLocalTag = try? context.fetch(FetchDescriptor<Tag>(predicate: #Predicate { $0.id == "local-tag-id" })).first
+        let updatedLocalTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "local-tag-id" })).first
         #expect(updatedLocalTag != nil)
         #expect(updatedLocalTag?.isDeleted == false)
 
         // Verify: incoming tag should NOT have been created (duplicate)
-        let incomingTag = try? context.fetch(FetchDescriptor<Tag>(predicate: #Predicate { $0.id == "incoming-tag-id" })).first
+        let incomingTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "incoming-tag-id" })).first
         #expect(incomingTag == nil)
 
         // Verify: stack should still reference the canonical (local) tag
@@ -1441,12 +1441,12 @@ struct ProjectorServiceTests {
         try context.save()
 
         // Verify: incoming tag (smaller ID) should be canonical
-        let incomingTag = try? context.fetch(FetchDescriptor<Tag>(predicate: #Predicate { $0.id == "aaa-incoming-tag" })).first
+        let incomingTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "aaa-incoming-tag" })).first
         #expect(incomingTag != nil)
         #expect(incomingTag?.isDeleted == false)
 
         // Verify: local tag should be soft-deleted
-        let updatedLocalTag = try? context.fetch(FetchDescriptor<Tag>(predicate: #Predicate { $0.id == "zzz-local-tag" })).first
+        let updatedLocalTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "zzz-local-tag" })).first
         #expect(updatedLocalTag?.isDeleted == true)
 
         // Verify: stack should now reference the canonical (incoming) tag
