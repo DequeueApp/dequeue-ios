@@ -289,7 +289,7 @@ private struct StatusBadge: View {
 
 #Preview("Active Reminder") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,
@@ -319,7 +319,7 @@ private struct StatusBadge: View {
 
 #Preview("Overdue Reminder") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,
@@ -349,7 +349,7 @@ private struct StatusBadge: View {
 
 #Preview("Snoozed Reminder") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,
@@ -380,7 +380,7 @@ private struct StatusBadge: View {
 
 #Preview("Multiple Reminders") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,

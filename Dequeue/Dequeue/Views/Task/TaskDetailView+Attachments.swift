@@ -175,7 +175,7 @@ struct TaskAttachmentsSectionView: View {
 
 #Preview("Empty State") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(for: Attachment.self, configurations: config)
 
     return List {
@@ -189,7 +189,7 @@ struct TaskAttachmentsSectionView: View {
 
 #Preview("With Attachments") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Attachment.self,
         configurations: config
