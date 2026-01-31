@@ -163,7 +163,7 @@ struct StackPickerSheet: View {
 
 #Preview("With Stacks") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,
@@ -194,7 +194,7 @@ struct StackPickerSheet: View {
 
 #Preview("Empty") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,

@@ -164,14 +164,9 @@ struct ArcSelectionSheet: View {
 #Preview("With Arcs") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // Safe: In-memory container with known schema types cannot fail in preview context
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(
-        for: Arc.self,
-        Stack.self,
-        QueueTask.self,
-        Reminder.self,
-        configurations: config
-    )
+        for: Arc.self, Stack.self, QueueTask.self, Reminder.self, configurations: config)
 
     let arc1 = Arc(title: "OEM Strategy", arcDescription: "Conference preparation", colorHex: "5E5CE6")
     let arc2 = Arc(title: "Product Launch", colorHex: "FF6B6B")
@@ -186,14 +181,9 @@ struct ArcSelectionSheet: View {
 #Preview("With Selected Arc") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // Safe: In-memory container with known schema types cannot fail in preview context
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(
-        for: Arc.self,
-        Stack.self,
-        QueueTask.self,
-        Reminder.self,
-        configurations: config
-    )
+        for: Arc.self, Stack.self, QueueTask.self, Reminder.self, configurations: config)
 
     let arc1 = Arc(title: "OEM Strategy", arcDescription: "Conference preparation", colorHex: "5E5CE6")
     let arc2 = Arc(title: "Product Launch", colorHex: "FF6B6B")
@@ -208,14 +198,9 @@ struct ArcSelectionSheet: View {
 #Preview("Empty") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // Safe: In-memory container with known schema types cannot fail in preview context
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(
-        for: Arc.self,
-        Stack.self,
-        QueueTask.self,
-        Reminder.self,
-        configurations: config
-    )
+        for: Arc.self, Stack.self, QueueTask.self, Reminder.self, configurations: config)
 
     return ArcSelectionSheet(currentArc: nil) { _ in }
         .modelContainer(container)

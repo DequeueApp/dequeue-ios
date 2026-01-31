@@ -798,7 +798,7 @@ private struct TaskHistoryRow: View {
 
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try
+    // swiftlint:disable:next force_try multiline_arguments
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,
