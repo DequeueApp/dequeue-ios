@@ -405,7 +405,7 @@ private struct QuickSelectButton: View {
 
 #Preview("Task Reminder") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,
@@ -429,7 +429,7 @@ private struct QuickSelectButton: View {
 
 #Preview("Stack Reminder") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Stack.self,
         QueueTask.self,

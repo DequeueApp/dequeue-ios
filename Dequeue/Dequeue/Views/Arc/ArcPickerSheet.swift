@@ -226,7 +226,7 @@ struct ArcPickerSheet: View {
 #Preview("With Arcs") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // Safe: In-memory container with known schema types cannot fail in preview context
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Arc.self,
         Stack.self,
@@ -250,7 +250,7 @@ struct ArcPickerSheet: View {
 #Preview("Empty") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     // Safe: In-memory container with known schema types cannot fail in preview context
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Arc.self,
         Stack.self,

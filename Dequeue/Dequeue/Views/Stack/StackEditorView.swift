@@ -521,7 +521,7 @@ extension StackEditorView {
 
 #Preview("Edit Mode") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(for: Stack.self, Attachment.self, configurations: config)
     let stack = Stack(title: "Test Stack", stackDescription: "Test description", status: .active, sortOrder: 0)
     container.mainContext.insert(stack)

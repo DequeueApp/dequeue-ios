@@ -249,7 +249,7 @@ struct AttachmentsSectionView: View {
 
 #Preview("With Attachments") {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    // swiftlint:disable:next force_try multiline_arguments
+    // swiftlint:disable:next force_try
     let container = try! ModelContainer(
         for: Attachment.self,
         configurations: config
