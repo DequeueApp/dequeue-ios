@@ -90,6 +90,10 @@ enum ProjectorService {
     static func apply(event: Event, context: ModelContext) async throws {
         guard let eventType = event.eventType else { return }
 
+        // DEQ-236: Update device lastSeenAt for ALL events from other devices
+        // This ensures "last seen" reflects actual device activity, not just foreground events
+        try updateDeviceLastSeenFromEvent(event: event, context: context)
+
         switch eventType {
         // Stack events
         case .stackCreated:
@@ -179,6 +183,39 @@ enum ProjectorService {
     }
 
     // MARK: - Device Events
+
+    /// DEQ-236: Updates device lastSeenAt whenever we process any event from that device.
+    /// This ensures other devices see accurate "last seen" timestamps reflecting actual activity,
+    /// not just when the device.discovered event fired (which only happens on foreground).
+    ///
+    /// - Parameters:
+    ///   - event: The event being processed (contains deviceId of originating device)
+    ///   - context: The model context for database operations
+    private static func updateDeviceLastSeenFromEvent(event: Event, context: ModelContext) throws {
+        let eventDeviceId = event.deviceId
+
+        // Skip if this is the current device - we track our own activity locally
+        // (ensureCurrentDeviceDiscovered and updateDeviceActivity handle the current device)
+        // Note: We can't easily check isCurrentDevice here without async, so we rely on
+        // the fact that we only receive sync events from OTHER devices anyway.
+
+        // Find device by deviceId
+        let predicate = #Predicate<Device> { device in
+            device.deviceId == eventDeviceId && device.isDeleted == false
+        }
+        let descriptor = FetchDescriptor<Device>(predicate: predicate)
+        guard let device = try context.fetch(descriptor).first else {
+            // Device not yet known - will be created when device.discovered event is processed
+            return
+        }
+
+        // Only update if this event is newer than the current lastSeenAt
+        // This handles out-of-order event processing
+        if event.timestamp > device.lastSeenAt {
+            device.lastSeenAt = event.timestamp
+            // Don't change syncState - this is a local-only update based on received events
+        }
+    }
 
     private static func applyDeviceDiscovered(event: Event, context: ModelContext) throws {
         let payload = try event.decodePayload(DeviceEventPayload.self)
