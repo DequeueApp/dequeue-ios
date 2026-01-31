@@ -85,12 +85,10 @@ jobs:
       - name: Cache Swift packages
         uses: actions/cache@v4
         with:
-          path: |
-            .build
-            ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          path: .build
+          key: ${{ runner.os }}-xcode16.2-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-xcode16.2-spm-
 
       - name: Build for iOS
         run: |
@@ -174,12 +172,10 @@ jobs:
       - name: Cache Swift packages
         uses: actions/cache@v4
         with:
-          path: |
-            .build
-            ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          path: .build
+          key: ${{ runner.os }}-xcode16.2-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-xcode16.2-spm-
 
       - name: Run Unit Tests
         run: |
@@ -250,12 +246,10 @@ jobs:
       - name: Cache Swift packages
         uses: actions/cache@v4
         with:
-          path: |
-            .build
-            ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          path: .build
+          key: ${{ runner.os }}-xcode16.2-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-xcode16.2-spm-
 
       - name: Boot Simulator
         run: |
