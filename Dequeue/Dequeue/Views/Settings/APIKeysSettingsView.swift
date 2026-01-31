@@ -149,58 +149,67 @@ private struct APIKeyRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(key.name)
-                    .font(.headline)
-                Spacer()
-                Text(key.keyPrefix)
-                    .font(.caption)
-                    .fontDesign(.monospaced)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Text("Scopes:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ForEach(key.scopes, id: \.self) { scope in
-                    Text(scope)
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.1))
-                        .foregroundStyle(Color.accentColor)
-                        .cornerRadius(4)
-                }
-            }
-
-            HStack {
-                Text("Created:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(key.createdAtDate, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if let lastUsed = key.lastUsedAtDate {
-                    Text("•")
-                        .foregroundStyle(.secondary)
-                    Text("Last used:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(lastUsed, style: .relative)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("•")
-                        .foregroundStyle(.secondary)
-                    Text("Never used")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            headerRow
+            scopesRow
+            metadataRow
         }
         .padding(.vertical, 4)
+    }
+
+    private var headerRow: some View {
+        HStack {
+            Text(key.name)
+                .font(.headline)
+            Spacer()
+            Text(key.keyPrefix)
+                .font(.caption)
+                .fontDesign(.monospaced)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var scopesRow: some View {
+        HStack {
+            Text("Scopes:")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(key.scopes, id: \.self) { scope in
+                Text(scope)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.1))
+                    .foregroundStyle(Color.accentColor)
+                    .cornerRadius(4)
+            }
+        }
+    }
+
+    private var metadataRow: some View {
+        HStack {
+            Text("Created:")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(key.createdAtDate, style: .date)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text("•")
+                .foregroundStyle(.secondary)
+
+            if let lastUsed = key.lastUsedAtDate {
+                Text("Last used:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(lastUsed, style: .relative)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Never used")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
