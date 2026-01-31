@@ -84,6 +84,7 @@ struct DeviceRow: View {
         return device.osName
     }
 
+    // swiftlint:disable:next function_body_length
     var body: some View {
         HStack(spacing: 12) {
             deviceIconView
