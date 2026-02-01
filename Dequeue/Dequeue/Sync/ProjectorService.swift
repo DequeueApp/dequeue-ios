@@ -403,7 +403,6 @@ enum ProjectorService {
     ///   - context: The SwiftData model context
     /// - Returns: Number of events successfully processed
     @discardableResult
-    // swiftlint:disable:next function_body_length
     static func applyBatch(events: [Event], context: ModelContext) async throws -> Int {
         guard !events.isEmpty else { return 0 }
 
@@ -475,7 +474,11 @@ enum ProjectorService {
         )
     }
 
-    private static func logBatchComplete(totalEvents: Int, processedCount: Int, failedEvents: [(event: Event, error: Error)]) {
+    private static func logBatchComplete(
+        totalEvents: Int,
+        processedCount: Int,
+        failedEvents: [(event: Event, error: Error)]
+    ) {
         ErrorReportingService.addBreadcrumb(
             category: "sync_batch_complete",
             message: "Batch processing completed with errors",
