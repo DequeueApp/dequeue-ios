@@ -868,8 +868,6 @@ actor SyncManager {
         var hasReminderEvents = false
     }
 
-    @MainActor
-    // swiftlint:disable:next function_body_length
     private func processIncomingEvents(_ events: [[String: Any]]) async throws {
         os_log("[Sync] Processing \(events.count) incoming events")
         var stats = EventProcessingStats()

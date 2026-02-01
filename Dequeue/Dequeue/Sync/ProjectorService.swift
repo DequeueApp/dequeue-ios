@@ -688,7 +688,6 @@ enum ProjectorService {
             break
         }
     }
-    // swiftlint:enable cyclomatic_complexity
 
     // MARK: - Device Events
 
@@ -1322,7 +1321,6 @@ enum ProjectorService {
 
     // MARK: - Tag Events
 
-    // swiftlint:disable:next function_body_length
     private static func applyTagCreated(
         event: Event,
         context: ModelContext,
