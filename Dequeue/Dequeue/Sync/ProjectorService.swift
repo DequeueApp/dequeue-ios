@@ -503,6 +503,7 @@ enum ProjectorService {
     }
 
     /// Internal apply with cache support - dispatches to category-specific handlers
+    @MainActor
     private static func apply(event: Event, context: ModelContext, cache: inout EntityLookupCache) async throws {
         guard let eventType = event.eventType else { return }
 
@@ -623,6 +624,7 @@ enum ProjectorService {
         }
     }
 
+    @MainActor
     private static func applyTagEvent(
         event: Event,
         eventType: EventType,
@@ -1321,6 +1323,7 @@ enum ProjectorService {
 
     // MARK: - Tag Events
 
+    @MainActor
     private static func applyTagCreated(
         event: Event,
         context: ModelContext,
