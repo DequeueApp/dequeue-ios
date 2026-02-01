@@ -403,6 +403,7 @@ enum ProjectorService {
     ///   - context: The SwiftData model context
     /// - Returns: Number of events successfully processed
     @discardableResult
+    @MainActor
     static func applyBatch(events: [Event], context: ModelContext) async throws -> Int {
         guard !events.isEmpty else { return 0 }
 
@@ -494,6 +495,7 @@ enum ProjectorService {
     // MARK: - Single Event Processing
 
     /// Applies a single event (backward compatible - performs individual queries)
+    @MainActor
     static func apply(event: Event, context: ModelContext) async throws {
         // Create empty cache - will fall back to individual queries
         var cache = EntityLookupCache()
