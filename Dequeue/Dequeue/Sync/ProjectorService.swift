@@ -1346,40 +1346,14 @@ enum ProjectorService {
         // DEQ-235: Check if tag with same normalized name already exists (cross-device duplicate)
         let normalizedName = payload.name.lowercased().trimmingCharacters(in: .whitespaces)
         if let existingByName = try findTagByNormalizedName(normalizedName, context: context, cache: cache) {
-            // Determine which tag is canonical using createdAt (older wins)
-            // If timestamps are equal, use lexicographically smaller ID as tie-breaker
-            let incomingCreatedAt = payload.createdAt ?? event.timestamp
-            let existingCreatedAt = existingByName.createdAt
-
-            let incomingIsCanonical: Bool
-            if incomingCreatedAt != existingCreatedAt {
-                incomingIsCanonical = incomingCreatedAt < existingCreatedAt
-            } else {
-                // Tie-breaker: smaller ID wins for deterministic ordering across devices
-                incomingIsCanonical = payload.id < existingByName.id
-            }
-
-            if incomingIsCanonical {
-                // Incoming tag is canonical - create it and migrate stacks from local duplicate
-                await handleIncomingTagIsCanonical(
-                    payload: payload,
-                    eventTimestamp: event.timestamp,
-                    localDuplicate: existingByName,
-                    normalizedName: normalizedName,
-                    context: context,
-                    cache: cache
-                )
-            } else {
-                // Local tag is canonical - don't create incoming, just set up mapping
-                await handleLocalTagIsCanonical(
-                    incomingId: payload.id,
-                    canonicalTag: existingByName,
-                    tagName: payload.name,
-                    normalizedName: normalizedName,
-                    context: context,
-                    cache: cache
-                )
-            }
+            await handleTagDuplicateConflict(
+                payload: payload,
+                eventTimestamp: event.timestamp,
+                existingTag: existingByName,
+                normalizedName: normalizedName,
+                context: context,
+                cache: cache
+            )
             return
         }
 
@@ -1401,16 +1375,12 @@ enum ProjectorService {
 
         // Resolve any pending associations for this tag
         // This handles the race condition where stack.updated arrived before tag.created
-        let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: payload.id)
-        if !pendingStackIds.isEmpty {
-            for stackId in pendingStackIds {
-                if let stack = try? findStack(id: stackId, context: context, cache: cache), !stack.isDeleted {
-                    if !stack.tagObjects.contains(where: { $0.id == tag.id }) {
-                        stack.tagObjects.append(tag)
-                    }
-                }
-            }
-        }
+        await resolvePendingTagAssociations(
+            tagIds: [payload.id],
+            canonicalTag: tag,
+            context: context,
+            cache: cache
+        )
     }
 
     /// Finds a tag by normalized name (case-insensitive).
@@ -1436,6 +1406,62 @@ enum ProjectorService {
         return allTags.first { tag in
             tag.name.lowercased().trimmingCharacters(in: .whitespaces) == normalizedName
         }
+    }
+
+    /// DEQ-235: Determines which tag is canonical and handles the duplicate accordingly.
+    /// Uses createdAt timestamp to determine canonical (older wins), with ID as tie-breaker.
+    @MainActor
+    private static func handleTagDuplicateConflict(
+        payload: TagEventPayload,
+        eventTimestamp: Date,
+        existingTag: Tag,
+        normalizedName: String,
+        context: ModelContext,
+        cache: EntityLookupCache
+    ) async {
+        // Determine which tag is canonical using createdAt (older wins)
+        // If timestamps are equal, use lexicographically smaller ID as tie-breaker
+        let incomingCreatedAt = payload.createdAt ?? eventTimestamp
+        let incomingIsCanonical = isIncomingTagCanonical(
+            incomingCreatedAt: incomingCreatedAt,
+            incomingId: payload.id,
+            existingCreatedAt: existingTag.createdAt,
+            existingId: existingTag.id
+        )
+
+        if incomingIsCanonical {
+            await handleIncomingTagIsCanonical(
+                payload: payload,
+                eventTimestamp: eventTimestamp,
+                localDuplicate: existingTag,
+                normalizedName: normalizedName,
+                context: context,
+                cache: cache
+            )
+        } else {
+            await handleLocalTagIsCanonical(
+                incomingId: payload.id,
+                canonicalTag: existingTag,
+                tagName: payload.name,
+                normalizedName: normalizedName,
+                context: context,
+                cache: cache
+            )
+        }
+    }
+
+    /// DEQ-235: Determines if the incoming tag should be canonical based on timestamps.
+    private static func isIncomingTagCanonical(
+        incomingCreatedAt: Date,
+        incomingId: String,
+        existingCreatedAt: Date,
+        existingId: String
+    ) -> Bool {
+        if incomingCreatedAt != existingCreatedAt {
+            return incomingCreatedAt < existingCreatedAt
+        }
+        // Tie-breaker: smaller ID wins for deterministic ordering across devices
+        return incomingId < existingId
     }
 
     /// DEQ-235: Handles case where incoming synced tag is the canonical one (older createdAt).
@@ -1512,25 +1538,13 @@ enum ProjectorService {
             localDuplicateId: localDuplicateId
         )
 
-        // Resolve pending associations for the incoming tag ID
-        let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: payload.id)
-        for stackId in pendingStackIds {
-            if let stack = try? findStack(id: stackId, context: context, cache: cache), !stack.isDeleted {
-                if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
-                    stack.tagObjects.append(canonicalTag)
-                }
-            }
-        }
-
-        // Also resolve any pending associations that referenced the local duplicate ID
-        let pendingForLocalId = await pendingTagAssociations.resolvePending(tagId: localDuplicate.id)
-        for stackId in pendingForLocalId {
-            if let stack = try? findStack(id: stackId, context: context, cache: cache), !stack.isDeleted {
-                if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
-                    stack.tagObjects.append(canonicalTag)
-                }
-            }
-        }
+        // Resolve pending associations for both the incoming tag ID and local duplicate ID
+        await resolvePendingTagAssociations(
+            tagIds: [payload.id, localDuplicate.id],
+            canonicalTag: canonicalTag,
+            context: context,
+            cache: cache
+        )
 
         // Soft-delete the local duplicate
         localDuplicate.isDeleted = true
@@ -1553,38 +1567,38 @@ enum ProjectorService {
         stacksFromInverseEarly: [Stack],
         context: ModelContext
     ) -> [Stack] {
-        var result = stacksFromInverseEarly
-        let existingIds = Set(result.map { $0.id })
-
-        // Query stacks directly as a fallback
+        // Query all non-deleted stacks for fallback checks
         let stackPredicate = #Predicate<Stack> { $0.isDeleted == false }
         let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
         let allStacks = (try? context.fetch(stackDescriptor)) ?? []
 
-        // Check each stack's tagObjects for the duplicate tag
-        for stack in allStacks where !existingIds.contains(stack.id) {
-            let tagIds = stack.tagObjects.map { $0.id }
-            if tagIds.contains(localDuplicateId) {
-                result.append(stack)
-            }
-        }
+        // Use a Set to dedupe as we find stacks from multiple sources
+        var foundStackIds = Set(stacksFromInverseEarly.map { $0.id })
+        var result = stacksFromInverseEarly
 
-        // Recheck inverse relationship after fetch
-        let updatedIds = Set(result.map { $0.id })
-        for stack in localDuplicate.stacks where !stack.isDeleted && !updatedIds.contains(stack.id) {
+        // Helper to add a stack if not already found
+        func addIfNew(_ stack: Stack) {
+            guard !foundStackIds.contains(stack.id) else { return }
+            foundStackIds.insert(stack.id)
             result.append(stack)
         }
 
-        // Final fallback: check by normalized name
-        let finalIds = Set(result.map { $0.id })
-        for stack in allStacks where !finalIds.contains(stack.id) {
+        // Check 1: Find stacks by direct tagId match
+        for stack in allStacks where stack.tagObjects.contains(where: { $0.id == localDuplicateId }) {
+            addIfNew(stack)
+        }
+
+        // Check 2: Recheck inverse relationship after fetch (SwiftData quirk)
+        for stack in localDuplicate.stacks where !stack.isDeleted {
+            addIfNew(stack)
+        }
+
+        // Check 3: Find by normalized name match (different ID but same name)
+        for stack in allStacks {
             let hasMatchingTag = stack.tagObjects.contains { tag in
-                tag.id == localDuplicateId ||
-                (tag.normalizedName == normalizedName && tag.id != incomingTagId)
+                tag.normalizedName == normalizedName && tag.id != incomingTagId
             }
-            if hasMatchingTag {
-                result.append(stack)
-            }
+            if hasMatchingTag { addIfNew(stack) }
         }
 
         return result
@@ -1632,17 +1646,36 @@ enum ProjectorService {
         )
 
         // Resolve pending associations for the incoming tag ID to the canonical tag
-        let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: incomingId)
-        for stackId in pendingStackIds {
-            if let stack = try? findStack(id: stackId, context: context, cache: cache), !stack.isDeleted {
-                if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
-                    stack.tagObjects.append(canonicalTag)
-                }
-            }
-        }
+        await resolvePendingTagAssociations(
+            tagIds: [incomingId],
+            canonicalTag: canonicalTag,
+            context: context,
+            cache: cache
+        )
 
         // Register mapping so future references to the incoming ID redirect to canonical tag
         await tagIdRemapping.addMapping(from: incomingId, to: canonicalTag.id)
+    }
+
+    /// DEQ-235: Helper to resolve pending tag associations for multiple tag IDs to a canonical tag.
+    @MainActor
+    private static func resolvePendingTagAssociations(
+        tagIds: [String],
+        canonicalTag: Tag,
+        context: ModelContext,
+        cache: EntityLookupCache
+    ) async {
+        for tagId in tagIds {
+            let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: tagId)
+            for stackId in pendingStackIds {
+                guard let stack = try? findStack(id: stackId, context: context, cache: cache),
+                      !stack.isDeleted,
+                      !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) else {
+                    continue
+                }
+                stack.tagObjects.append(canonicalTag)
+            }
+        }
     }
 
     private static func applyTagUpdated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {
