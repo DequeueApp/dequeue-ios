@@ -1476,7 +1476,10 @@ enum ProjectorService {
         context.insert(canonicalTag)
 
         // Migrate all stacks from the local duplicate to the canonical tag
-        let stacksToMigrate = localDuplicate.stacks.filter { !$0.isDeleted }
+        // Note: We query stacks directly rather than using localDuplicate.stacks relationship
+        // because SwiftData inverse relationships may not be reliably populated when the tag
+        // is fetched separately from the context.
+        let stacksToMigrate = (try? findStacksContainingTag(tagId: localDuplicate.id, context: context)) ?? []
         for stack in stacksToMigrate {
             // Add the canonical tag if not already present
             if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
@@ -1983,6 +1986,19 @@ enum ProjectorService {
         let predicate = #Predicate<Stack> { $0.id == id }
         let descriptor = FetchDescriptor<Stack>(predicate: predicate)
         return try context.fetch(descriptor).first
+    }
+
+    /// Finds all non-deleted stacks that contain a specific tag.
+    /// Used for tag migration when handling cross-device tag duplicates (DEQ-235).
+    /// Note: We query and filter manually because SwiftData predicates cannot traverse
+    /// many-to-many relationships reliably.
+    private static func findStacksContainingTag(tagId: String, context: ModelContext) throws -> [Stack] {
+        let predicate = #Predicate<Stack> { !$0.isDeleted }
+        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
+        let allStacks = try context.fetch(descriptor)
+        return allStacks.filter { stack in
+            stack.tagObjects.contains { $0.id == tagId }
+        }
     }
 
     /// Finds a task by ID, using cache if available (O(1)), falling back to query (O(n)).
