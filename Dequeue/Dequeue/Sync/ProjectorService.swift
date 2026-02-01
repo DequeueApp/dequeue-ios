@@ -407,22 +407,44 @@ enum ProjectorService {
     static func applyBatch(events: [Event], context: ModelContext) async throws -> Int {
         guard !events.isEmpty else { return 0 }
 
-        // Log batch processing start for debugging sync performance
+        logBatchStart(events: events)
+        var cache = try EntityLookupCache(prefetchingFor: events, context: context)
+        logCacheStats(cache: cache)
+
+        var processedCount = 0
+        var failedEvents: [(event: Event, error: Error)] = []
+
+        for event in events {
+            do {
+                try await apply(event: event, context: context, cache: &cache)
+                processedCount += 1
+            } catch {
+                failedEvents.append((event, error))
+                logEventFailure(event: event, error: error, processedCount: processedCount, totalEvents: events.count)
+            }
+        }
+
+        if !failedEvents.isEmpty {
+            logBatchComplete(totalEvents: events.count, processedCount: processedCount, failedEvents: failedEvents)
+        }
+
+        return processedCount
+    }
+
+    // MARK: - Batch Logging Helpers
+
+    private static func logBatchStart(events: [Event]) {
         ErrorReportingService.addBreadcrumb(
             category: "sync_batch",
             message: "Starting batch processing",
             data: [
                 "event_count": events.count,
-                "event_types": Dictionary(grouping: events, by: { $0.type })
-                    .mapValues { $0.count }
-                    .description
+                "event_types": Dictionary(grouping: events, by: { $0.type }).mapValues { $0.count }.description
             ]
         )
+    }
 
-        // Prefetch all entities referenced by these events (single batch query per entity type)
-        var cache = try EntityLookupCache(prefetchingFor: events, context: context)
-
-        // Log cache statistics for performance monitoring
+    private static func logCacheStats(cache: EntityLookupCache) {
         ErrorReportingService.addBreadcrumb(
             category: "sync_batch_cache",
             message: "Entity cache prefetched",
@@ -435,49 +457,35 @@ enum ProjectorService {
                 "attachments_cached": cache.attachments.count
             ]
         )
+    }
 
-        var processedCount = 0
-        var failedEvents: [(event: Event, error: Error)] = []
+    private static func logEventFailure(event: Event, error: Error, processedCount: Int, totalEvents: Int) {
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_batch_error",
+            message: "Failed to apply event in batch",
+            data: [
+                "event_type": event.type,
+                "event_id": event.id,
+                "entity_id": event.entityId ?? "unknown",
+                "error": error.localizedDescription,
+                "error_type": String(describing: type(of: error)),
+                "processed_so_far": processedCount,
+                "remaining": totalEvents - processedCount - 1
+            ]
+        )
+    }
 
-        for event in events {
-            do {
-                try await apply(event: event, context: context, cache: &cache)
-                processedCount += 1
-            } catch {
-                failedEvents.append((event, error))
-
-                // Log individual failure with detailed context
-                ErrorReportingService.addBreadcrumb(
-                    category: "sync_batch_error",
-                    message: "Failed to apply event in batch",
-                    data: [
-                        "event_type": event.type,
-                        "event_id": event.id,
-                        "entity_id": event.entityId ?? "unknown",
-                        "error": error.localizedDescription,
-                        "error_type": String(describing: type(of: error)),
-                        "processed_so_far": processedCount,
-                        "remaining": events.count - processedCount - 1
-                    ]
-                )
-            }
-        }
-
-        // Log batch completion summary
-        if !failedEvents.isEmpty {
-            ErrorReportingService.addBreadcrumb(
-                category: "sync_batch_complete",
-                message: "Batch processing completed with errors",
-                data: [
-                    "total_events": events.count,
-                    "processed_count": processedCount,
-                    "failed_count": failedEvents.count,
-                    "failed_types": failedEvents.map { $0.event.type }.joined(separator: ",")
-                ]
-            )
-        }
-
-        return processedCount
+    private static func logBatchComplete(totalEvents: Int, processedCount: Int, failedEvents: [(event: Event, error: Error)]) {
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_batch_complete",
+            message: "Batch processing completed with errors",
+            data: [
+                "total_events": totalEvents,
+                "processed_count": processedCount,
+                "failed_count": failedEvents.count,
+                "failed_types": failedEvents.map { $0.event.type }.joined(separator: ",")
+            ]
+        )
     }
 
     // MARK: - Single Event Processing
