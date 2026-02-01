@@ -29,12 +29,12 @@ private func makeTestContainer() throws -> ModelContainer {
 }
 
 @Suite("Start and Due Dates Tests", .serialized)
+@MainActor
 struct StartDueDatesTests {
 
     // MARK: - Arc Model Tests
 
     @Test("Arc initializes with startTime and dueTime")
-    @MainActor
     func arcInitializesWithDates() {
         let startDate = Date()
         let dueDate = Date().addingTimeInterval(86_400 * 7)
@@ -50,7 +50,6 @@ struct StartDueDatesTests {
     }
 
     @Test("Arc initializes without dates by default")
-    @MainActor
     func arcInitializesWithoutDates() {
         let arc = Arc(title: "Test Arc")
 
@@ -61,7 +60,6 @@ struct StartDueDatesTests {
     // MARK: - Stack Model Tests
 
     @Test("Stack already has startTime and dueTime fields")
-    @MainActor
     func stackHasDateFields() {
         let startDate = Date()
         let dueDate = Date().addingTimeInterval(86_400 * 7)
@@ -79,7 +77,6 @@ struct StartDueDatesTests {
     // MARK: - QueueTask Model Tests
 
     @Test("QueueTask initializes with startTime and dueTime")
-    @MainActor
     func taskInitializesWithDates() {
         let startDate = Date()
         let dueDate = Date().addingTimeInterval(86_400)
@@ -95,7 +92,6 @@ struct StartDueDatesTests {
     }
 
     @Test("QueueTask initializes without startTime by default")
-    @MainActor
     func taskInitializesWithoutStartTime() {
         let task = QueueTask(title: "Test Task")
 
@@ -105,7 +101,6 @@ struct StartDueDatesTests {
     // MARK: - Event State Tests
 
     @Test("StackState captures startTime and dueTime")
-    @MainActor
     func stackStateCapturesDates() {
         let startDate = Date()
         let dueDate = Date().addingTimeInterval(86_400 * 7)
@@ -123,7 +118,6 @@ struct StartDueDatesTests {
     }
 
     @Test("StackState handles nil dates")
-    @MainActor
     func stackStateHandlesNilDates() {
         let stack = Stack(title: "Test Stack")
 
@@ -134,7 +128,6 @@ struct StartDueDatesTests {
     }
 
     @Test("TaskState captures startTime and dueTime")
-    @MainActor
     func taskStateCapturesDates() {
         let startDate = Date()
         let dueDate = Date().addingTimeInterval(86_400)
@@ -152,7 +145,6 @@ struct StartDueDatesTests {
     }
 
     @Test("ArcState captures startTime and dueTime")
-    @MainActor
     func arcStateCapturesDates() {
         let startDate = Date()
         let dueDate = Date().addingTimeInterval(86_400 * 7)
@@ -172,7 +164,6 @@ struct StartDueDatesTests {
     // MARK: - Reminder Creation at 8 AM Tests
 
     @Test("Reminder creation at 8 AM on due date")
-    @MainActor
     func reminderAt8AMOnDueDate() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -217,7 +208,6 @@ struct StartDueDatesTests {
     }
 
     // MARK: - Date Filtering Tests
-    // Note: DateScheduledItem is NOT a SwiftData model, so these don't need @MainActor
 
     @Test("DateScheduledItem captures correct properties")
     func dateScheduledItemProperties() {
