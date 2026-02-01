@@ -1272,9 +1272,11 @@ struct ProjectorServiceTests {
         context.insert(localTag)
 
         // Create a stack using the local tag
+        // IMPORTANT: Insert stack into context BEFORE establishing relationships
+        // SwiftData doesn't properly track relationship changes on objects not in context
         let stack = Stack(title: "Test Stack")
-        stack.tagObjects.append(localTag)
         context.insert(stack)
+        stack.tagObjects.append(localTag)
         try context.save()
 
         // Verify initial state
@@ -1344,9 +1346,10 @@ struct ProjectorServiceTests {
         context.insert(localTag)
 
         // Create a stack using the local tag
+        // IMPORTANT: Insert stack into context BEFORE establishing relationships
         let stack = Stack(title: "Test Stack")
-        stack.tagObjects.append(localTag)
         context.insert(stack)
+        stack.tagObjects.append(localTag)
         try context.save()
 
         // Verify initial state
@@ -1415,9 +1418,10 @@ struct ProjectorServiceTests {
         context.insert(localTag)
 
         // Create a stack using the local tag
+        // IMPORTANT: Insert stack into context BEFORE establishing relationships
         let stack = Stack(title: "Test Stack")
-        stack.tagObjects.append(localTag)
         context.insert(stack)
+        stack.tagObjects.append(localTag)
         try context.save()
 
         // Incoming tag has lexicographically smaller ID (should win)
