@@ -1440,6 +1440,7 @@ enum ProjectorService {
 
     /// DEQ-235: Handles case where incoming synced tag is the canonical one (older createdAt).
     /// Creates the incoming tag and migrates all stacks from the local duplicate to it.
+    @MainActor
     private static func handleIncomingTagIsCanonical(
         payload: TagEventPayload,
         eventTimestamp: Date,
@@ -1583,6 +1584,7 @@ enum ProjectorService {
 
     /// DEQ-235: Handles case where local tag is the canonical one (older createdAt).
     /// Keeps the local tag and sets up mapping from incoming ID.
+    @MainActor
     private static func handleLocalTagIsCanonical(
         incomingId: String,
         canonicalTag: Tag,
