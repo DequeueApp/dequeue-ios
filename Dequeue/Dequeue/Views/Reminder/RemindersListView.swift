@@ -20,14 +20,14 @@ struct DateScheduledItem: Identifiable {
 
 struct RemindersListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
     @Environment(\.syncManager) private var syncManager
     @Environment(\.authService) private var authService
 
     @Query private var reminders: [Reminder]
-    @Query private var stacks: [Stack]
-    @Query private var tasks: [QueueTask]
-    @Query private var arcs: [Arc]
+    @Query var stacks: [Stack]
+    @Query var tasks: [QueueTask]
+    @Query var arcs: [Arc]
 
     @State private var reminderActionHandler: ReminderActionHandler?
 
