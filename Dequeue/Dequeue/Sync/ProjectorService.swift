@@ -1478,11 +1478,11 @@ enum ProjectorService {
         context: ModelContext,
         cache: EntityLookupCache
     ) async {
-        // DEQ-235 FIX: Capture the stacks from the inverse relationship FIRST,
-        // before any fetches or inserts that might affect SwiftData's relationship tracking.
-        // This ensures we get the stacks that are actually linked to the local duplicate tag.
+        // DEQ-235 FIX: Capture values and soft-delete FIRST, before any relationship changes.
+        // SwiftData can have issues tracking object changes after relationship modifications.
         let stacksFromInverseEarly = localDuplicate.stacks.filter { !$0.isDeleted }
         let localDuplicateId = localDuplicate.id
+        let localColorHex = localDuplicate.colorHex
 
         ErrorReportingService.addBreadcrumb(
             category: "sync_tag_dedupe",
@@ -1498,11 +1498,27 @@ enum ProjectorService {
             ]
         )
 
+        // DEQ-235 FIX: Soft-delete the local duplicate FIRST, before any relationship changes.
+        // This ensures the modification is tracked before SwiftData's relationship management
+        // potentially interferes with object state tracking.
+        localDuplicate.isDeleted = true
+        localDuplicate.updatedAt = Date()
+        localDuplicate.syncState = .pending
+
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_tag_dedupe",
+            message: "Soft-deleted local duplicate tag (before migration)",
+            data: [
+                "local_duplicate_id": localDuplicateId,
+                "is_deleted_after": String(localDuplicate.isDeleted)
+            ]
+        )
+
         // Create the canonical tag from incoming event
         let canonicalTag = Tag(
             id: payload.id,
             name: payload.name,
-            colorHex: payload.colorHex ?? localDuplicate.colorHex,  // Preserve color if incoming doesn't have one
+            colorHex: payload.colorHex ?? localColorHex,  // Preserve color if incoming doesn't have one
             syncState: .synced,
             lastSyncedAt: Date()
         )
@@ -1548,40 +1564,6 @@ enum ProjectorService {
             context: context,
             cache: cache
         )
-
-        // DEQ-235 FIX: Re-fetch the local duplicate tag by ID before soft-deleting.
-        // SwiftData can lose track of object references during complex relationship changes
-        // (e.g., when migrateStacksToCanonicalTag modifies inverse relationships).
-        // By re-fetching, we ensure we're modifying the actual persisted object.
-        let tagPredicate = #Predicate<Tag> { $0.id == localDuplicateId }
-        let tagDescriptor = FetchDescriptor<Tag>(predicate: tagPredicate)
-        if let tagToDelete = try? context.fetch(tagDescriptor).first {
-            tagToDelete.isDeleted = true
-            tagToDelete.updatedAt = Date()
-            tagToDelete.syncState = .pending
-
-            ErrorReportingService.addBreadcrumb(
-                category: "sync_tag_dedupe",
-                message: "Soft-deleted local duplicate tag",
-                data: [
-                    "local_duplicate_id": localDuplicateId,
-                    "is_deleted_after": String(tagToDelete.isDeleted)
-                ]
-            )
-        } else {
-            // Fallback: try setting on the original reference
-            localDuplicate.isDeleted = true
-            localDuplicate.updatedAt = Date()
-            localDuplicate.syncState = .pending
-
-            ErrorReportingService.addBreadcrumb(
-                category: "sync_tag_dedupe",
-                message: "Used fallback to soft-delete local duplicate (fetch returned nil)",
-                data: [
-                    "local_duplicate_id": localDuplicateId
-                ]
-            )
-        }
 
         // Register mapping from local duplicate ID to canonical tag ID
         // This ensures any future references to the old local ID resolve correctly
