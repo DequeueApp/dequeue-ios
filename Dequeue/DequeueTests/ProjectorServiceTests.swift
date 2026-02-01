@@ -119,6 +119,7 @@ struct ProjectorServiceTests {
         let stacks = try context.fetch(descriptor)
 
         #expect(stacks.count == 1)
+    }
         #expect(stacks.first?.isActive == true)
     }
 
@@ -144,6 +145,7 @@ struct ProjectorServiceTests {
         let stacks = try context.fetch(descriptor)
 
         #expect(stacks.count == 1)
+    }
         #expect(stacks.first?.isActive == false)
     }
 
@@ -464,6 +466,7 @@ struct ProjectorServiceTests {
         let descriptor = FetchDescriptor<Stack>(predicate: predicate)
         var stacks = try context.fetch(descriptor)
         #expect(stacks.count == 1)
+    }
         #expect(stacks.first?.isDeleted == false)
         #expect(stacks.first?.isActive == false)
 
@@ -478,6 +481,7 @@ struct ProjectorServiceTests {
         // Verify stack is now deleted
         stacks = try context.fetch(descriptor)
         #expect(stacks.count == 1)
+    }
         #expect(stacks.first?.isDeleted == true)
         #expect(stacks.first?.isActive == false)
 
@@ -492,6 +496,7 @@ struct ProjectorServiceTests {
         // Step 4: Verify the deleted stack was NOT activated (guard should prevent it)
         stacks = try context.fetch(descriptor)
         #expect(stacks.count == 1)
+    }
         guard let finalStack = stacks.first else {
             Issue.record("Failed to fetch stack")
             return
@@ -831,6 +836,7 @@ struct ProjectorServiceTests {
         // Verify the stack was still created
         let stacks = try context.fetch(FetchDescriptor<Stack>())
         #expect(stacks.count == 1)
+    }
     // MARK: - Batch Processing Tests (DEQ-143)
 
     /// Creates a task event payload
@@ -936,6 +942,7 @@ struct ProjectorServiceTests {
         let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
         let stacks = try context.fetch(stackDescriptor)
         #expect(stacks.count == 1)
+    }
 
         // Verify task was created and linked to stack
         let taskPredicate = #Predicate<QueueTask> { $0.id == taskId }
@@ -1143,6 +1150,7 @@ struct ProjectorServiceTests {
         let stacks = try context.fetch(stackDescriptor)
 
         #expect(stacks.count == 1)
+    }
         let stack = stacks.first!
         #expect(stack.tasks.count == 3)
 
@@ -1190,6 +1198,7 @@ struct ProjectorServiceTests {
         let stacks = try context.fetch(descriptor)
 
         #expect(stacks.count == 1)
+    }
         #expect(stacks.first?.title == "Updated Title")
         #expect(stacks.first?.isActive == true)
     }
