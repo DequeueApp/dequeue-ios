@@ -1484,51 +1484,14 @@ enum ProjectorService {
         context.insert(canonicalTag)
 
         // Migrate all stacks from the local duplicate to the canonical tag
-        // Start with stacks captured from the inverse relationship (most reliable)
-        var stacksToMigrate = stacksFromInverseEarly
-
-        // Also query stacks directly as a fallback - inverse relationships can sometimes
-        // be unreliable when tags are fetched separately from stacks
-        let stackPredicate = #Predicate<Stack> { $0.isDeleted == false }
-        let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
-        let allStacks = (try? context.fetch(stackDescriptor)) ?? []
-
-        // Find stacks by checking if their tagObjects contain the local duplicate
-        // Use ID comparison to handle cases where object identity might differ
-        for stack in allStacks {
-            // Skip if already in our migration list
-            guard !stacksToMigrate.contains(where: { $0.id == stack.id }) else { continue }
-
-            // Force access to tagObjects to trigger lazy loading, then check for match
-            let tagIds = stack.tagObjects.map { $0.id }
-            if tagIds.contains(localDuplicateId) {
-                stacksToMigrate.append(stack)
-            }
-        }
-
-        // DEQ-235 FIX: Additional fallback - check if the local duplicate tag
-        // has any stacks AFTER we've done the fetch (in case lazy loading kicks in now)
-        let stacksFromInverseAfterFetch = localDuplicate.stacks.filter { !$0.isDeleted }
-        for stack in stacksFromInverseAfterFetch {
-            if !stacksToMigrate.contains(where: { $0.id == stack.id }) {
-                stacksToMigrate.append(stack)
-            }
-        }
-
-        // DEQ-235 FIX: Final fallback - check by normalized name in case object identity is broken
-        // This handles edge cases where SwiftData's relationship tracking fails
-        for stack in allStacks {
-            guard !stacksToMigrate.contains(where: { $0.id == stack.id }) else { continue }
-
-            // Check if any of this stack's tags match the local duplicate by ID OR normalized name
-            let hasMatchingTag = stack.tagObjects.contains { tag in
-                tag.id == localDuplicateId ||
-                (tag.normalizedName == normalizedName && tag.id != payload.id)
-            }
-            if hasMatchingTag {
-                stacksToMigrate.append(stack)
-            }
-        }
+        let stacksToMigrate = findStacksToMigrate(
+            localDuplicate: localDuplicate,
+            localDuplicateId: localDuplicateId,
+            normalizedName: normalizedName,
+            incomingTagId: payload.id,
+            stacksFromInverseEarly: stacksFromInverseEarly,
+            context: context
+        )
 
         // Log the final list of stacks to migrate for debugging
         ErrorReportingService.addBreadcrumb(
@@ -1542,15 +1505,12 @@ enum ProjectorService {
             ]
         )
 
-        for stack in stacksToMigrate {
-            // Add the canonical tag if not already present
-            if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
-                stack.tagObjects.append(canonicalTag)
-            }
-            // Remove the local duplicate
-            stack.tagObjects.removeAll { $0.id == localDuplicate.id }
-            stack.syncState = .pending
-        }
+        // Perform the actual migration
+        migrateStacksToCanonicalTag(
+            stacks: stacksToMigrate,
+            canonicalTag: canonicalTag,
+            localDuplicateId: localDuplicateId
+        )
 
         // Resolve pending associations for the incoming tag ID
         let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: payload.id)
@@ -1580,6 +1540,72 @@ enum ProjectorService {
         // Register mapping from local duplicate ID to canonical tag ID
         // This ensures any future references to the old local ID resolve correctly
         await tagIdRemapping.addMapping(from: localDuplicate.id, to: canonicalTag.id)
+    }
+
+    /// DEQ-235: Helper to find all stacks that reference a duplicate tag.
+    /// Uses multiple fallback approaches to ensure we find all stacks.
+    @MainActor
+    private static func findStacksToMigrate(
+        localDuplicate: Tag,
+        localDuplicateId: String,
+        normalizedName: String,
+        incomingTagId: String,
+        stacksFromInverseEarly: [Stack],
+        context: ModelContext
+    ) -> [Stack] {
+        var result = stacksFromInverseEarly
+        let existingIds = Set(result.map { $0.id })
+
+        // Query stacks directly as a fallback
+        let stackPredicate = #Predicate<Stack> { $0.isDeleted == false }
+        let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
+        let allStacks = (try? context.fetch(stackDescriptor)) ?? []
+
+        // Check each stack's tagObjects for the duplicate tag
+        for stack in allStacks where !existingIds.contains(stack.id) {
+            let tagIds = stack.tagObjects.map { $0.id }
+            if tagIds.contains(localDuplicateId) {
+                result.append(stack)
+            }
+        }
+
+        // Recheck inverse relationship after fetch
+        let updatedIds = Set(result.map { $0.id })
+        for stack in localDuplicate.stacks where !stack.isDeleted && !updatedIds.contains(stack.id) {
+            result.append(stack)
+        }
+
+        // Final fallback: check by normalized name
+        let finalIds = Set(result.map { $0.id })
+        for stack in allStacks where !finalIds.contains(stack.id) {
+            let hasMatchingTag = stack.tagObjects.contains { tag in
+                tag.id == localDuplicateId ||
+                (tag.normalizedName == normalizedName && tag.id != incomingTagId)
+            }
+            if hasMatchingTag {
+                result.append(stack)
+            }
+        }
+
+        return result
+    }
+
+    /// DEQ-235: Helper to migrate stacks from a duplicate tag to a canonical tag.
+    @MainActor
+    private static func migrateStacksToCanonicalTag(
+        stacks: [Stack],
+        canonicalTag: Tag,
+        localDuplicateId: String
+    ) {
+        for stack in stacks {
+            // Add the canonical tag if not already present
+            if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
+                stack.tagObjects.append(canonicalTag)
+            }
+            // Remove the local duplicate
+            stack.tagObjects.removeAll { $0.id == localDuplicateId }
+            stack.syncState = .pending
+        }
     }
 
     /// DEQ-235: Handles case where local tag is the canonical one (older createdAt).
