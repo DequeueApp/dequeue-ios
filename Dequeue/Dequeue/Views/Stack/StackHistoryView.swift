@@ -168,6 +168,64 @@ struct StackHistoryView: View {
     }
 }
 
+// MARK: - Event Display Configuration
+
+/// Consolidated display properties for event types to reduce code duplication
+private struct EventDisplayConfig {
+    let label: String
+    let icon: String
+    let color: Color
+
+    /// Static configuration map for all known event types
+    private static let configMap: [String: EventDisplayConfig] = [
+        // Stack events
+        "stack.created": EventDisplayConfig(label: "Stack Created", icon: "plus.circle.fill", color: .green),
+        "stack.updated": EventDisplayConfig(label: "Stack Updated", icon: "pencil.circle.fill", color: .blue),
+        "stack.completed": EventDisplayConfig(label: "Stack Completed", icon: "checkmark.circle.fill", color: .purple),
+        "stack.activated": EventDisplayConfig(label: "Stack Activated", icon: "play.circle.fill", color: .green),
+        "stack.deactivated": EventDisplayConfig(label: "Stack Deactivated", icon: "pause.circle.fill", color: .orange),
+        "stack.closed": EventDisplayConfig(label: "Stack Closed", icon: "xmark.circle.fill", color: .gray),
+        "stack.deleted": EventDisplayConfig(label: "Stack Deleted", icon: "trash.circle.fill", color: .red),
+        "stack.reordered": EventDisplayConfig(
+            label: "Stack Reordered",
+            icon: "arrow.up.arrow.down.circle.fill",
+            color: .secondary
+        ),
+        // Task events
+        "task.created": EventDisplayConfig(label: "Task Added", icon: "checklist", color: .teal),
+        "task.updated": EventDisplayConfig(label: "Task Updated", icon: "pencil", color: .blue),
+        "task.completed": EventDisplayConfig(label: "Task Completed", icon: "checkmark.square.fill", color: .purple),
+        "task.activated": EventDisplayConfig(label: "Task Activated", icon: "star.fill", color: .cyan),
+        "task.deleted": EventDisplayConfig(label: "Task Deleted", icon: "trash", color: .red),
+        "task.reordered": EventDisplayConfig(label: "Tasks Reordered", icon: "arrow.up.arrow.down", color: .secondary),
+        // Reminder events
+        "reminder.created": EventDisplayConfig(label: "Reminder Set", icon: "bell.fill", color: .yellow),
+        "reminder.updated": EventDisplayConfig(label: "Reminder Updated", icon: "bell.badge", color: .yellow),
+        "reminder.deleted": EventDisplayConfig(label: "Reminder Removed", icon: "bell.slash", color: .red),
+        "reminder.snoozed": EventDisplayConfig(label: "Reminder Snoozed", icon: "moon.zzz.fill", color: .indigo),
+        // Tag events
+        "tag.created": EventDisplayConfig(label: "Tag Created", icon: "tag.fill", color: .pink),
+        "tag.updated": EventDisplayConfig(label: "Tag Updated", icon: "tag", color: .pink),
+        "tag.deleted": EventDisplayConfig(label: "Tag Deleted", icon: "tag.slash", color: .red),
+        // Attachment events
+        "attachment.added": EventDisplayConfig(label: "Attachment Added", icon: "paperclip.circle.fill", color: .mint),
+        "attachment.removed": EventDisplayConfig(
+            label: "Attachment Removed",
+            icon: "paperclip.badge.ellipsis",
+            color: .red
+        )
+    ]
+
+    /// Maps event types to their display configuration using dictionary lookup
+    static func config(for eventType: String) -> EventDisplayConfig {
+        configMap[eventType] ?? EventDisplayConfig(
+            label: eventType,
+            icon: "questionmark.circle.fill",
+            color: .secondary
+        )
+    }
+}
+
 // MARK: - History Row
 
 struct StackHistoryRow: View {
@@ -175,94 +233,8 @@ struct StackHistoryRow: View {
     let canRevert: Bool
     let onRevert: () -> Void
 
-    private var actionLabel: String {
-        switch event.type {
-        // Stack events
-        case "stack.created": return "Stack Created"
-        case "stack.updated": return "Stack Updated"
-        case "stack.completed": return "Stack Completed"
-        case "stack.activated": return "Stack Activated"
-        case "stack.deactivated": return "Stack Deactivated"
-        case "stack.closed": return "Stack Closed"
-        case "stack.deleted": return "Stack Deleted"
-        case "stack.reordered": return "Stack Reordered"
-        // Task events
-        case "task.created": return "Task Added"
-        case "task.updated": return "Task Updated"
-        case "task.completed": return "Task Completed"
-        case "task.activated": return "Task Activated"
-        case "task.deleted": return "Task Deleted"
-        case "task.reordered": return "Tasks Reordered"
-        // Reminder events
-        case "reminder.created": return "Reminder Set"
-        case "reminder.updated": return "Reminder Updated"
-        case "reminder.deleted": return "Reminder Removed"
-        case "reminder.snoozed": return "Reminder Snoozed"
-        // Attachment events
-        case "attachment.added": return "Attachment Added"
-        case "attachment.removed": return "Attachment Removed"
-        default: return event.type
-        }
-    }
-
-    private var actionIcon: String {
-        switch event.type {
-        // Stack events
-        case "stack.created": return "plus.circle.fill"
-        case "stack.updated": return "pencil.circle.fill"
-        case "stack.completed": return "checkmark.circle.fill"
-        case "stack.activated": return "play.circle.fill"
-        case "stack.deactivated": return "pause.circle.fill"
-        case "stack.closed": return "xmark.circle.fill"
-        case "stack.deleted": return "trash.circle.fill"
-        case "stack.reordered": return "arrow.up.arrow.down.circle.fill"
-        // Task events
-        case "task.created": return "checklist"
-        case "task.updated": return "pencil"
-        case "task.completed": return "checkmark.square.fill"
-        case "task.activated": return "star.fill"
-        case "task.deleted": return "trash"
-        case "task.reordered": return "arrow.up.arrow.down"
-        // Reminder events
-        case "reminder.created": return "bell.fill"
-        case "reminder.updated": return "bell.badge"
-        case "reminder.deleted": return "bell.slash"
-        case "reminder.snoozed": return "moon.zzz.fill"
-        // Attachment events
-        case "attachment.added": return "paperclip.circle.fill"
-        case "attachment.removed": return "paperclip.badge.ellipsis"
-        default: return "questionmark.circle.fill"
-        }
-    }
-
-    private var actionColor: Color {
-        switch event.type {
-        // Stack events
-        case "stack.created": return .green
-        case "stack.updated": return .blue
-        case "stack.completed": return .purple
-        case "stack.activated": return .green
-        case "stack.deactivated": return .orange
-        case "stack.closed": return .gray
-        case "stack.deleted": return .red
-        case "stack.reordered": return .secondary
-        // Task events
-        case "task.created": return .teal
-        case "task.updated": return .blue
-        case "task.completed": return .purple
-        case "task.activated": return .cyan
-        case "task.deleted": return .red
-        case "task.reordered": return .secondary
-        // Reminder events
-        case "reminder.created": return .yellow
-        case "reminder.updated": return .yellow
-        case "reminder.deleted": return .red
-        case "reminder.snoozed": return .indigo
-        // Attachment events
-        case "attachment.added": return .mint
-        case "attachment.removed": return .red
-        default: return .secondary
-        }
+    private var displayConfig: EventDisplayConfig {
+        EventDisplayConfig.config(for: event.type)
     }
 
     /// Extracts display details from the event payload based on event type
@@ -283,6 +255,11 @@ struct StackHistoryRow: View {
             let dateStr = payload.remindAt.formatted(date: .abbreviated, time: .shortened)
             return ("Reminder for \(dateStr)", nil)
         }
+        // Tag events
+        if event.type.hasPrefix("tag."),
+           let payload = try? event.decodePayload(TagEventPayload.self) {
+            return (payload.name, payload.colorHex)
+        }
         // Attachment events
         if event.type.hasPrefix("attachment."),
            let payload = try? event.decodePayload(AttachmentEventPayload.self) {
@@ -293,13 +270,13 @@ struct StackHistoryRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: actionIcon)
+            Image(systemName: displayConfig.icon)
                 .font(.title2)
-                .foregroundStyle(actionColor)
+                .foregroundStyle(displayConfig.color)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(actionLabel)
+                    Text(displayConfig.label)
                         .font(.headline)
                     Spacer()
                     Text(event.timestamp, style: .relative)
