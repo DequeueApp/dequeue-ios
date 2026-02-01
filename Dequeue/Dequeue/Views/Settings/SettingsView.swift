@@ -26,108 +26,12 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Account") {
-                    if let email = userEmail {
-                        Text(email)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    NavigationLink {
-                        DevicesView()
-                    } label: {
-                        Label("Devices", systemImage: "laptopcomputer.and.iphone")
-                    }
-
-                    NavigationLink {
-                        APIKeysSettingsView()
-                    } label: {
-                        Label("API Keys", systemImage: "key")
-                    }
-
-                    Button(role: .destructive) {
-                        Task {
-                            await signOut()
-                        }
-                    } label: {
-                        HStack {
-                            Text("Sign Out")
-                            if isSigningOut {
-                                Spacer()
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .disabled(isSigningOut)
-                }
-
-                Section("Preferences") {
-                    NavigationLink {
-                        TagsListView()
-                    } label: {
-                        Label("Tags", systemImage: "tag")
-                    }
-                    NavigationLink {
-                        NotificationSettingsView()
-                    } label: {
-                        Label("Notifications", systemImage: "bell.badge")
-                    }
-                    NavigationLink {
-                        AttachmentSettingsView()
-                    } label: {
-                        Label("Attachments", systemImage: "paperclip")
-                    }
-                    NavigationLink {
-                        AppearanceSettingsView()
-                    } label: {
-                        Label("Appearance", systemImage: "paintbrush")
-                    }
-                }
-
-                Section("About") {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text("\(Configuration.appVersion) (\(Configuration.buildNumber))")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Section("Advanced") {
-                    Toggle("Developer Mode", isOn: $developerModeEnabled)
-                }
-
+                accountSection
+                preferencesSection
+                aboutSection
+                advancedSection
                 if developerModeEnabled {
-                    Section("Developer") {
-                        ConnectionStatusRow(status: connectionStatus)
-
-                        NavigationLink {
-                            EventLogView()
-                        } label: {
-                            Label("Event Log", systemImage: "list.bullet.rectangle")
-                        }
-
-                        NavigationLink {
-                            SyncDebugView()
-                        } label: {
-                            Label("Sync Debug", systemImage: "arrow.triangle.2.circlepath")
-                        }
-
-                        Button("Delete All Data & Restart") {
-                            showDeleteDataConfirmation = true
-                        }
-                        .foregroundStyle(.red)
-
-                        #if DEBUG
-                        Button("Test Sentry Error") {
-                            ErrorReportingService.capture(message: "Test error from Settings", level: .error)
-                        }
-
-                        Button("Test Sentry Crash") {
-                            fatalError("Test crash from Settings")
-                        }
-                        .foregroundStyle(.red)
-                        #endif
-                    }
+                    developerSection
                 }
             }
             .navigationTitle("Settings")
@@ -141,32 +45,148 @@ struct SettingsView: View {
                 isPresented: $showDeleteDataConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Delete & Restart", role: .destructive) {
-                    deleteAllDataAndRestart()
-                }
-                Button("Cancel", role: .cancel) { }
+                deleteDataDialogButtons
             } message: {
-                Text(
-                    """
-                    This will delete all local data including stacks, tasks, events, and sync state. \
-                    The app will crash and you'll need to relaunch it. \
-                    Data will be re-synced from the server on next launch.
-                    """
-                )
+                deleteDataDialogMessage
             }
-            .task {
-                await refreshConnectionStatus()
+            .task { await refreshConnectionStatus() }
+            .task(id: developerModeEnabled) { await pollConnectionStatus() }
+        }
+    }
+
+    // MARK: - Sections
+
+    private var accountSection: some View {
+        Section("Account") {
+            if let email = userEmail {
+                Text(email)
+                    .foregroundStyle(.secondary)
             }
-            .task(id: developerModeEnabled) {
-                // Poll connection status when developer mode is enabled
-                guard developerModeEnabled else { return }
-                while !Task.isCancelled {
-                    await refreshConnectionStatus()
-                    try? await Task.sleep(for: .seconds(2))
+
+            NavigationLink {
+                DevicesView()
+            } label: {
+                Label("Devices", systemImage: "laptopcomputer.and.iphone")
+            }
+
+            NavigationLink {
+                APIKeysSettingsView()
+            } label: {
+                Label("API Keys", systemImage: "key")
+            }
+
+            Button(role: .destructive) {
+                Task { await signOut() }
+            } label: {
+                HStack {
+                    Text("Sign Out")
+                    if isSigningOut {
+                        Spacer()
+                        ProgressView()
+                    }
                 }
+            }
+            .disabled(isSigningOut)
+        }
+    }
+
+    private var preferencesSection: some View {
+        Section("Preferences") {
+            NavigationLink {
+                TagsListView()
+            } label: {
+                Label("Tags", systemImage: "tag")
+            }
+            NavigationLink {
+                NotificationSettingsView()
+            } label: {
+                Label("Notifications", systemImage: "bell.badge")
+            }
+            NavigationLink {
+                AttachmentSettingsView()
+            } label: {
+                Label("Attachments", systemImage: "paperclip")
+            }
+            NavigationLink {
+                AppearanceSettingsView()
+            } label: {
+                Label("Appearance", systemImage: "paintbrush")
             }
         }
     }
+
+    private var aboutSection: some View {
+        Section("About") {
+            HStack {
+                Text("Version")
+                Spacer()
+                Text("\(Configuration.appVersion) (\(Configuration.buildNumber))")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var advancedSection: some View {
+        Section("Advanced") {
+            Toggle("Developer Mode", isOn: $developerModeEnabled)
+        }
+    }
+
+    private var developerSection: some View {
+        Section("Developer") {
+            ConnectionStatusRow(status: connectionStatus)
+
+            NavigationLink {
+                EventLogView()
+            } label: {
+                Label("Event Log", systemImage: "list.bullet.rectangle")
+            }
+
+            NavigationLink {
+                SyncDebugView()
+            } label: {
+                Label("Sync Debug", systemImage: "arrow.triangle.2.circlepath")
+            }
+
+            Button("Delete All Data & Restart") {
+                showDeleteDataConfirmation = true
+            }
+            .foregroundStyle(.red)
+
+            #if DEBUG
+            Button("Test Sentry Error") {
+                ErrorReportingService.capture(message: "Test error from Settings", level: .error)
+            }
+
+            Button("Test Sentry Crash") {
+                fatalError("Test crash from Settings")
+            }
+            .foregroundStyle(.red)
+            #endif
+        }
+    }
+
+    // MARK: - Dialog Content
+
+    @ViewBuilder
+    private var deleteDataDialogButtons: some View {
+        Button("Delete & Restart", role: .destructive) {
+            deleteAllDataAndRestart()
+        }
+        Button("Cancel", role: .cancel) { }
+    }
+
+    private var deleteDataDialogMessage: some View {
+        Text(
+            """
+            This will delete all local data including stacks, tasks, events, and sync state. \
+            The app will crash and you'll need to relaunch it. \
+            Data will be re-synced from the server on next launch.
+            """
+        )
+    }
+
+    // MARK: - Actions
 
     private func refreshConnectionStatus() async {
         guard let syncManager = syncManager else {
@@ -176,8 +196,15 @@ struct SettingsView: View {
         connectionStatus = await syncManager.connectionStatus
     }
 
+    private func pollConnectionStatus() async {
+        guard developerModeEnabled else { return }
+        while !Task.isCancelled {
+            await refreshConnectionStatus()
+            try? await Task.sleep(for: .seconds(2))
+        }
+    }
+
     private func deleteAllDataAndRestart() {
-        // Delete SwiftData store files
         let fileManager = FileManager.default
         guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             fatalError("Could not find Application Support directory")
@@ -198,10 +225,7 @@ struct SettingsView: View {
                 try fileManager.removeItem(at: storeWalURL)
             }
 
-            // Clear sync checkpoint
             UserDefaults.standard.removeObject(forKey: "com.dequeue.lastSyncCheckpoint")
-
-            // Crash the app to force restart with fresh data
             fatalError("Data deleted - restart app to resync")
         } catch {
             ErrorReportingService.capture(error: error, context: ["action": "delete_all_data"])
@@ -230,45 +254,40 @@ private struct ConnectionStatusRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 10, height: 10)
-                .scaleEffect(isPulsing && status == .connected ? 1.2 : 1.0)
-                .opacity(isPulsing && status == .connected ? 0.7 : 1.0)
-                .animation(
-                    status == .connected
-                        ? .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
-                        : .default,
-                    value: isPulsing
-                )
-
+            statusIndicator
             Text(statusLabel)
                 .foregroundStyle(status == .connected ? .primary : .secondary)
         }
-        .onAppear {
-            isPulsing = true
-        }
+        .onAppear { isPulsing = true }
+    }
+
+    private var statusIndicator: some View {
+        Circle()
+            .fill(statusColor)
+            .frame(width: 10, height: 10)
+            .scaleEffect(isPulsing && status == .connected ? 1.2 : 1.0)
+            .opacity(isPulsing && status == .connected ? 0.7 : 1.0)
+            .animation(
+                status == .connected
+                    ? .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
+                    : .default,
+                value: isPulsing
+            )
     }
 
     private var statusColor: Color {
         switch status {
-        case .connected:
-            return .green
-        case .connecting:
-            return .orange
-        case .disconnected:
-            return .red
+        case .connected: return .green
+        case .connecting: return .orange
+        case .disconnected: return .red
         }
     }
 
     private var statusLabel: String {
         switch status {
-        case .connected:
-            return "Live Connection"
-        case .connecting:
-            return "Connecting..."
-        case .disconnected:
-            return "No Live Connection"
+        case .connected: return "Live Connection"
+        case .connecting: return "Connecting..."
+        case .disconnected: return "No Live Connection"
         }
     }
 }

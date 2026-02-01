@@ -25,7 +25,7 @@ struct ProjectorServiceTests {
     private func createTestContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try ModelContainer(
-            for: Stack.self, QueueTask.self, Reminder.self, Event.self, SyncConflict.self, Device.self,
+            for: Stack.self, QueueTask.self, Reminder.self, Event.self, SyncConflict.self, Tag.self, Device.self, Arc.self, Attachment.self,
             configurations: config
         )
     }
@@ -832,6 +832,7 @@ struct ProjectorServiceTests {
         let stacks = try context.fetch(FetchDescriptor<Stack>())
         #expect(stacks.count == 1)
     }
+
     // MARK: - Batch Processing Tests (DEQ-143)
 
     /// Creates a task event payload
@@ -853,6 +854,30 @@ struct ProjectorServiceTests {
         ]
         if let stackId = stackId {
             payload["stackId"] = stackId
+        }
+        return try JSONSerialization.data(withJSONObject: payload)
+    }
+
+    // MARK: - Cross-Device Tag Deduplication Tests (DEQ-235)
+
+    /// Creates a tag event payload that can be decoded by TagEventPayload
+    private func createTagPayload(
+        id: String,
+        name: String,
+        colorHex: String? = nil,
+        createdAt: Date? = nil
+    ) throws -> Data {
+        var payload: [String: Any] = [
+            "id": id,
+            "name": name,
+            "normalizedName": name.lowercased().trimmingCharacters(in: .whitespaces),
+            "deleted": false
+        ]
+        if let colorHex = colorHex {
+            payload["colorHex"] = colorHex
+        }
+        if let createdAt = createdAt {
+            payload["createdAt"] = Int64(createdAt.timeIntervalSince1970 * 1_000)
         }
         return try JSONSerialization.data(withJSONObject: payload)
     }
@@ -1227,5 +1252,217 @@ struct ProjectorServiceTests {
 
         let actualStackIds = Set(stacks.map { $0.id })
         #expect(actualStackIds == expectedStackIds)
+    }
+
+    @MainActor
+    @Test("DEQ-235: Cross-device tag duplicate - incoming older tag wins")
+    func crossDeviceTagDuplicateIncomingOlderWins() async throws {
+        let container = try createTestContainer()
+        let context = container.mainContext
+
+        // Simulate: Device B created a tag locally
+        let localCreatedAt = Date()
+        let localTag = Tag(
+            id: "local-tag-id",
+            name: "Work",
+            colorHex: "#FF0000",
+            createdAt: localCreatedAt,
+            syncState: .pending
+        )
+        context.insert(localTag)
+
+        // Create a stack using the local tag
+        // IMPORTANT: Insert stack into context BEFORE establishing relationships
+        // SwiftData doesn't properly track relationship changes on objects not in context
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        stack.tagObjects.append(localTag)
+        try context.save()
+
+        // Verify initial state
+        #expect(localTag.isDeleted == false)
+        #expect(stack.tagObjects.count == 1)
+        #expect(stack.tagObjects.first?.id == "local-tag-id")
+
+        // Simulate: Sync event arrives from Device A with an OLDER tag (created earlier)
+        let olderCreatedAt = localCreatedAt.addingTimeInterval(-60)  // 1 minute earlier
+        let incomingPayload = try createTagPayload(
+            id: "incoming-tag-id",
+            name: "Work",
+            colorHex: "#00FF00",
+            createdAt: olderCreatedAt
+        )
+        let incomingEvent = Event(
+            eventType: .tagCreated,
+            payload: incomingPayload,
+            entityId: "incoming-tag-id",
+            userId: "test-user",
+            deviceId: "device-a",
+            appId: "test-app"
+        )
+        context.insert(incomingEvent)
+        try context.save()
+
+        // Clear pending associations before applying events
+        await ProjectorService.clearPendingTagAssociations()
+
+        // Apply the incoming tag.created event
+        try await ProjectorService.apply(event: incomingEvent, context: context)
+        try context.save()
+
+        // Verify: incoming tag (older) should now be the canonical tag
+        let incomingTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "incoming-tag-id" })).first
+        #expect(incomingTag != nil, "Canonical tag should be created")
+        #expect(incomingTag?.isDeleted == false, "Canonical tag should not be deleted")
+        #expect(incomingTag?.name == "Work", "Canonical tag should have correct name")
+
+        // Verify: local tag should be soft-deleted
+        let updatedLocalTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "local-tag-id" })).first
+        #expect(updatedLocalTag?.isDeleted == true, "Local duplicate tag should be soft-deleted, but isDeleted=\(String(describing: updatedLocalTag?.isDeleted))")
+
+        // Verify: stack should now reference the canonical (incoming) tag
+        let updatedStack = try? context.fetch(FetchDescriptor<Stack>()).first { $0.id == stack.id }
+        let tagIds = updatedStack?.tagObjects.map { $0.id } ?? []
+        let tagCount = updatedStack?.tagObjects.count ?? -1
+        #expect(tagCount == 1, "Stack should have 1 tag but has \(tagCount). Tag IDs: \(tagIds)")
+        #expect(updatedStack?.tagObjects.first?.id == "incoming-tag-id", "Stack should reference canonical tag but references: \(tagIds)")
+    }
+
+    @MainActor
+    @Test("DEQ-235: Cross-device tag duplicate - local older tag wins")
+    func crossDeviceTagDuplicateLocalOlderWins() async throws {
+        let container = try createTestContainer()
+        let context = container.mainContext
+
+        // Simulate: Device B created a tag locally (earlier)
+        let localCreatedAt = Date().addingTimeInterval(-120)  // 2 minutes ago
+        let localTag = Tag(
+            id: "local-tag-id",
+            name: "Work",
+            colorHex: "#FF0000",
+            createdAt: localCreatedAt,
+            syncState: .synced
+        )
+        context.insert(localTag)
+
+        // Create a stack using the local tag
+        // IMPORTANT: Insert stack into context BEFORE establishing relationships
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        stack.tagObjects.append(localTag)
+        try context.save()
+
+        // Verify initial state
+        #expect(localTag.isDeleted == false)
+        #expect(stack.tagObjects.count == 1)
+        #expect(stack.tagObjects.first?.id == "local-tag-id")
+
+        // Simulate: Sync event arrives from Device A with a NEWER tag (created later)
+        let newerCreatedAt = Date()  // Now (after local tag)
+        let incomingPayload = try createTagPayload(
+            id: "incoming-tag-id",
+            name: "Work",
+            colorHex: "#00FF00",
+            createdAt: newerCreatedAt
+        )
+        let incomingEvent = Event(
+            eventType: .tagCreated,
+            payload: incomingPayload,
+            entityId: "incoming-tag-id",
+            userId: "test-user",
+            deviceId: "device-a",
+            appId: "test-app"
+        )
+        context.insert(incomingEvent)
+        try context.save()
+
+        // Clear pending associations before applying events
+        await ProjectorService.clearPendingTagAssociations()
+
+        // Apply the incoming tag.created event
+        try await ProjectorService.apply(event: incomingEvent, context: context)
+        try context.save()
+
+        // Verify: local tag (older) should still exist and not be deleted
+        let updatedLocalTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "local-tag-id" })).first
+        #expect(updatedLocalTag != nil)
+        #expect(updatedLocalTag?.isDeleted == false)
+
+        // Verify: incoming tag should NOT have been created (duplicate)
+        let incomingTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "incoming-tag-id" })).first
+        #expect(incomingTag == nil)
+
+        // Verify: stack should still reference the canonical (local) tag
+        let updatedStack = try? context.fetch(FetchDescriptor<Stack>()).first { $0.id == stack.id }
+        #expect(updatedStack?.tagObjects.count == 1)
+        #expect(updatedStack?.tagObjects.first?.id == "local-tag-id")
+    }
+
+    @MainActor
+    @Test("DEQ-235: Cross-device tag duplicate - same timestamp uses ID tie-breaker")
+    func crossDeviceTagDuplicateSameTimestampUsesIdTieBreaker() async throws {
+        let container = try createTestContainer()
+        let context = container.mainContext
+
+        // Both tags have the same createdAt timestamp
+        let sameCreatedAt = Date()
+
+        // Local tag has lexicographically larger ID
+        let localTag = Tag(
+            id: "zzz-local-tag",  // Larger ID
+            name: "Work",
+            colorHex: "#FF0000",
+            createdAt: sameCreatedAt,
+            syncState: .pending
+        )
+        context.insert(localTag)
+
+        // Create a stack using the local tag
+        // IMPORTANT: Insert stack into context BEFORE establishing relationships
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+        stack.tagObjects.append(localTag)
+        try context.save()
+
+        // Incoming tag has lexicographically smaller ID (should win)
+        let incomingPayload = try createTagPayload(
+            id: "aaa-incoming-tag",  // Smaller ID (canonical)
+            name: "Work",
+            colorHex: "#00FF00",
+            createdAt: sameCreatedAt
+        )
+        let incomingEvent = Event(
+            eventType: .tagCreated,
+            payload: incomingPayload,
+            entityId: "aaa-incoming-tag",
+            userId: "test-user",
+            deviceId: "device-a",
+            appId: "test-app"
+        )
+        context.insert(incomingEvent)
+        try context.save()
+
+        // Clear pending associations before applying events
+        await ProjectorService.clearPendingTagAssociations()
+
+        // Apply the incoming tag.created event
+        try await ProjectorService.apply(event: incomingEvent, context: context)
+        try context.save()
+
+        // Verify: incoming tag (smaller ID) should be canonical
+        let incomingTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "aaa-incoming-tag" })).first
+        #expect(incomingTag != nil, "Canonical tag should be created")
+        #expect(incomingTag?.isDeleted == false, "Canonical tag should not be deleted")
+
+        // Verify: local tag should be soft-deleted
+        let updatedLocalTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "zzz-local-tag" })).first
+        #expect(updatedLocalTag?.isDeleted == true, "Local duplicate should be soft-deleted, but isDeleted=\(String(describing: updatedLocalTag?.isDeleted))")
+
+        // Verify: stack should now reference the canonical (incoming) tag
+        let updatedStack = try? context.fetch(FetchDescriptor<Stack>()).first { $0.id == stack.id }
+        let tagIds = updatedStack?.tagObjects.map { $0.id } ?? []
+        let tagCount = updatedStack?.tagObjects.count ?? -1
+        #expect(tagCount == 1, "Stack should have 1 tag but has \(tagCount). Tag IDs: \(tagIds)")
+        #expect(updatedStack?.tagObjects.first?.id == "aaa-incoming-tag", "Stack should reference canonical tag but references: \(tagIds)")
     }
 }

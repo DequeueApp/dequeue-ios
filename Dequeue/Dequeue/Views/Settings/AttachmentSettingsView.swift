@@ -17,66 +17,72 @@ struct AttachmentSettingsView: View {
 
     var body: some View {
         List {
-            Section {
-                Picker("Download Behavior", selection: Binding(
-                    get: { settings.downloadBehavior },
-                    set: { settings.downloadBehavior = $0 }
-                )) {
-                    ForEach(AttachmentDownloadBehavior.allCases, id: \.self) { behavior in
-                        Text(behavior.displayName)
-                            .tag(behavior)
-                    }
-                }
-
-                if settings.downloadBehavior != .onDemand {
-                    Text(settings.downloadBehavior.description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text("Download")
-            }
-
-            Section {
-                Picker("Storage Quota", selection: Binding(
-                    get: { settings.storageQuota },
-                    set: { settings.storageQuota = $0 }
-                )) {
-                    ForEach(AttachmentStorageQuota.allCases, id: \.self) { quota in
-                        Text(quota.displayName)
-                            .tag(quota)
-                    }
-                }
-
-                StorageUsageRow(
-                    used: storageUsed,
-                    quota: settings.storageQuota,
-                    attachmentCount: attachmentCount,
-                    isCalculating: isCalculating
-                )
-            } header: {
-                Text("Storage")
-            } footer: {
-                if settings.storageQuota != .unlimited {
-                    // swiftlint:disable:next line_length
-                    Text("When the storage quota is reached, older cached files will be removed to make room for new downloads.")
-                }
-            }
-
-            Section {
-                Button("Clear Downloaded Files") {
-                    clearDownloadedFiles()
-                }
-                .foregroundStyle(.red)
-                .disabled(storageUsed == 0 || isCalculating)
-            } footer: {
-                // swiftlint:disable:next line_length
-                Text("This will remove all locally cached attachment files. Files will be re-downloaded when you view them.")
-            }
+            downloadSection
+            storageSection
+            clearCacheSection
         }
         .navigationTitle("Attachments")
-        .task {
-            await calculateStorageUsage()
+        .task { await calculateStorageUsage() }
+    }
+
+    // MARK: - Body Sections
+
+    private var downloadSection: some View {
+        Section {
+            Picker("Download Behavior", selection: Binding(
+                get: { settings.downloadBehavior },
+                set: { settings.downloadBehavior = $0 }
+            )) {
+                ForEach(AttachmentDownloadBehavior.allCases, id: \.self) { behavior in
+                    Text(behavior.displayName).tag(behavior)
+                }
+            }
+
+            if settings.downloadBehavior != .onDemand {
+                Text(settings.downloadBehavior.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Download")
+        }
+    }
+
+    private var storageSection: some View {
+        Section {
+            Picker("Storage Quota", selection: Binding(
+                get: { settings.storageQuota },
+                set: { settings.storageQuota = $0 }
+            )) {
+                ForEach(AttachmentStorageQuota.allCases, id: \.self) { quota in
+                    Text(quota.displayName).tag(quota)
+                }
+            }
+
+            StorageUsageRow(
+                used: storageUsed,
+                quota: settings.storageQuota,
+                attachmentCount: attachmentCount,
+                isCalculating: isCalculating
+            )
+        } header: {
+            Text("Storage")
+        } footer: {
+            if settings.storageQuota != .unlimited {
+                // swiftlint:disable:next line_length
+                Text("When the storage quota is reached, older cached files will be removed to make room for new downloads.")
+            }
+        }
+    }
+
+    private var clearCacheSection: some View {
+        Section {
+            Button("Clear Downloaded Files") { clearDownloadedFiles() }
+                .foregroundStyle(.red)
+                .disabled(storageUsed == 0 || isCalculating)
+        } footer: {
+            // swiftlint:disable:next line_length
+            Text("This will remove all locally cached attachment files. Files will be re-downloaded when you view them.")
         }
     }
 

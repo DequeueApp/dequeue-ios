@@ -1223,10 +1223,11 @@ struct TagEventPayload: Codable {
     let name: String
     let normalizedName: String
     let colorHex: String?
+    let createdAt: Date?  // Original creation timestamp from sync (DEQ-235)
     let deleted: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, name, normalizedName, colorHex, deleted
+        case id, name, normalizedName, colorHex, createdAt, deleted
     }
 
     init(from decoder: Decoder) throws {
@@ -1237,6 +1238,13 @@ struct TagEventPayload: Codable {
             ?? name.lowercased().trimmingCharacters(in: .whitespaces)
         colorHex = try container.decodeIfPresent(String.self, forKey: .colorHex)
         deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
+
+        // Decode createdAt - handle Int64 timestamp (milliseconds) or Date (DEQ-235)
+        if let timestamp = try? container.decode(Int64.self, forKey: .createdAt) {
+            createdAt = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            createdAt = try? container.decode(Date.self, forKey: .createdAt)
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1246,6 +1254,9 @@ struct TagEventPayload: Codable {
         try container.encode(normalizedName, forKey: .normalizedName)
         try container.encodeIfPresent(colorHex, forKey: .colorHex)
         try container.encode(deleted, forKey: .deleted)
+        if let createdAt = createdAt {
+            try container.encode(Int64(createdAt.timeIntervalSince1970 * 1_000), forKey: .createdAt)
+        }
     }
 }
 

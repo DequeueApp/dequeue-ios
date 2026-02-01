@@ -21,57 +21,61 @@ struct APIKeysSettingsView: View {
     @State private var newlyCreatedKey: CreateAPIKeyResponse?
 
     var body: some View {
-        Group {
-            if isLoading && apiKeys.isEmpty {
-                ProgressView("Loading API keys...")
-            } else if apiKeys.isEmpty && !isLoading {
-                emptyStateView
-            } else {
-                apiKeysList
-            }
-        }
-        .navigationTitle("API Keys")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showCreateSheet = true
-                } label: {
-                    Label("Create API Key", systemImage: "plus")
+        contentView
+            .navigationTitle("API Keys")
+            .toolbar { toolbarContent }
+            .sheet(isPresented: $showCreateSheet) { createKeySheet }
+            .sheet(item: $newlyCreatedKey) { keyResponse in
+                NewAPIKeyView(keyResponse: keyResponse) {
+                    newlyCreatedKey = nil
                 }
             }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage ?? "An unknown error occurred")
+            }
+            .task { await initializeAndLoad() }
+            .refreshable { await loadAPIKeys() }
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        if isLoading && apiKeys.isEmpty {
+            ProgressView("Loading API keys...")
+        } else if apiKeys.isEmpty && !isLoading {
+            emptyStateView
+        } else {
+            apiKeysList
         }
-        .sheet(isPresented: $showCreateSheet) {
-            CreateAPIKeySheet(
-                apiKeyService: apiKeyService,
-                onKeyCreated: { createdKey in
-                    newlyCreatedKey = createdKey
-                    Task {
-                        await loadAPIKeys()
-                    }
-                }
-            )
-        }
-        .sheet(item: $newlyCreatedKey) { keyResponse in
-            NewAPIKeyView(keyResponse: keyResponse) {
-                newlyCreatedKey = nil
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                showCreateSheet = true
+            } label: {
+                Label("Create API Key", systemImage: "plus")
             }
         }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {
-                // Dismisses alert; no additional action needed
+    }
+
+    private var createKeySheet: some View {
+        CreateAPIKeySheet(
+            apiKeyService: apiKeyService,
+            onKeyCreated: { createdKey in
+                newlyCreatedKey = createdKey
+                Task { await loadAPIKeys() }
             }
-        } message: {
-            Text(errorMessage ?? "An unknown error occurred")
+        )
+    }
+
+    private func initializeAndLoad() async {
+        if apiKeyService == nil {
+            apiKeyService = APIKeyService(authService: authService)
         }
-        .task {
-            if apiKeyService == nil {
-                apiKeyService = APIKeyService(authService: authService)
-            }
-            await loadAPIKeys()
-        }
-        .refreshable {
-            await loadAPIKeys()
-        }
+        await loadAPIKeys()
     }
 
     private var emptyStateView: some View {
@@ -145,58 +149,67 @@ private struct APIKeyRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(key.name)
-                    .font(.headline)
-                Spacer()
-                Text(key.keyPrefix)
-                    .font(.caption)
-                    .fontDesign(.monospaced)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack {
-                Text("Scopes:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ForEach(key.scopes, id: \.self) { scope in
-                    Text(scope)
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.1))
-                        .foregroundStyle(Color.accentColor)
-                        .cornerRadius(4)
-                }
-            }
-
-            HStack {
-                Text("Created:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(key.createdAtDate, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if let lastUsed = key.lastUsedAtDate {
-                    Text("•")
-                        .foregroundStyle(.secondary)
-                    Text("Last used:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(lastUsed, style: .relative)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("•")
-                        .foregroundStyle(.secondary)
-                    Text("Never used")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            headerRow
+            scopesRow
+            metadataRow
         }
         .padding(.vertical, 4)
+    }
+
+    private var headerRow: some View {
+        HStack {
+            Text(key.name)
+                .font(.headline)
+            Spacer()
+            Text(key.keyPrefix)
+                .font(.caption)
+                .fontDesign(.monospaced)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var scopesRow: some View {
+        HStack {
+            Text("Scopes:")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(key.scopes, id: \.self) { scope in
+                Text(scope)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.1))
+                    .foregroundStyle(Color.accentColor)
+                    .cornerRadius(4)
+            }
+        }
+    }
+
+    private var metadataRow: some View {
+        HStack {
+            Text("Created:")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(key.createdAtDate, style: .date)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text("•")
+                .foregroundStyle(.secondary)
+
+            if let lastUsed = key.lastUsedAtDate {
+                Text("Last used:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(lastUsed, style: .relative)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Never used")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
@@ -222,69 +235,77 @@ private struct CreateAPIKeySheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    TextField("Key Name", text: $keyName)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("Name")
-                } footer: {
-                    Text("Give this key a descriptive name (e.g., 'Ardonos', 'Zapier Integration')")
-                }
-
-                Section {
-                    ForEach(availableScopes, id: \.0) { scope, description in
-                        Toggle(isOn: Binding(
-                            get: { selectedScopes.contains(scope) },
-                            set: { isSelected in
-                                if isSelected {
-                                    selectedScopes.insert(scope)
-                                } else {
-                                    selectedScopes.remove(scope)
-                                }
-                            }
-                        )) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(scope.capitalized)
-                                    .font(.body)
-                                Text(description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Scopes")
-                } footer: {
-                    Text("Select the permissions this API key should have. You can always revoke keys later.")
-                }
+                nameSection
+                scopesSection
             }
             .navigationTitle("Create API Key")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isCreating)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        Task {
-                            await createKey()
-                        }
-                    }
-                    .disabled(keyName.isEmpty || selectedScopes.isEmpty || isCreating)
-                }
-            }
+            .toolbar { toolbarContent }
             .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) {
-                    // Dismisses alert; no additional action needed
-                }
+                Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage ?? "An unknown error occurred")
             }
+        }
+    }
+
+    private var nameSection: some View {
+        Section {
+            TextField("Key Name", text: $keyName)
+                .autocorrectionDisabled()
+        } header: {
+            Text("Name")
+        } footer: {
+            Text("Give this key a descriptive name (e.g., 'Ardonos', 'Zapier Integration')")
+        }
+    }
+
+    private var scopesSection: some View {
+        Section {
+            ForEach(availableScopes, id: \.0) { scope, description in
+                scopeToggle(scope: scope, description: description)
+            }
+        } header: {
+            Text("Scopes")
+        } footer: {
+            Text("Select the permissions this API key should have. You can always revoke keys later.")
+        }
+    }
+
+    private func scopeToggle(scope: String, description: String) -> some View {
+        Toggle(isOn: Binding(
+            get: { selectedScopes.contains(scope) },
+            set: { isSelected in
+                if isSelected {
+                    selectedScopes.insert(scope)
+                } else {
+                    selectedScopes.remove(scope)
+                }
+            }
+        )) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(scope.capitalized)
+                    .font(.body)
+                Text(description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel") { dismiss() }
+                .disabled(isCreating)
+        }
+        ToolbarItem(placement: .confirmationAction) {
+            Button("Create") {
+                Task { await createKey() }
+            }
+            .disabled(keyName.isEmpty || selectedScopes.isEmpty || isCreating)
         }
     }
 
@@ -320,70 +341,10 @@ private struct NewAPIKeyView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.green)
-
-                VStack(spacing: 8) {
-                    Text("API Key Created")
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    Text("Save this key somewhere safe. You won't be able to see it again.")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Your API Key:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    HStack {
-                        Text(displayedKey)
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            #if os(iOS)
-                            .background(Color(.secondarySystemBackground))
-                            #else
-                            .background(Color(.windowBackgroundColor))
-                            #endif
-                            .cornerRadius(8)
-
-                        Button {
-                            #if os(iOS)
-                            UIPasteboard.general.string = displayedKey
-                            #elseif os(macOS)
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(displayedKey, forType: .string)
-                            #endif
-                            showCopyConfirmation = true
-                        } label: {
-                            Image(systemName: showCopyConfirmation ? "checkmark" : "doc.on.doc")
-                                .frame(width: 44, height: 44)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(displayedKey.isEmpty)
-                    }
-                }
-                .padding()
-                #if os(iOS)
-                .background(Color(.systemGroupedBackground))
-                #else
-                .background(Color(.controlBackgroundColor))
-                #endif
-                .cornerRadius(12)
-
+                successHeader
+                apiKeyDisplaySection
                 Spacer()
-
-                Button("Done") {
-                    clearKeyAndDismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                doneButton
             }
             .padding()
             .navigationTitle("API Key Created")
@@ -392,20 +353,90 @@ private struct NewAPIKeyView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        clearKeyAndDismiss()
-                    }
+                    Button("Done") { clearKeyAndDismiss() }
                 }
             }
-            .onAppear {
-                // Copy the key to local state for display
-                displayedKey = keyResponse.key
-            }
-            .onDisappear {
-                // Security: Clear the sensitive key from memory when view disappears
-                displayedKey = ""
+            .onAppear { displayedKey = keyResponse.key }
+            .onDisappear { displayedKey = "" }
+        }
+    }
+
+    private var successHeader: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.green)
+
+            Text("API Key Created")
+                .font(.title2)
+                .fontWeight(.bold)
+
+            Text("Save this key somewhere safe. You won't be able to see it again.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private var apiKeyDisplaySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Your API Key:")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                keyTextField
+                copyButton
             }
         }
+        .padding()
+        #if os(iOS)
+        .background(Color(.systemGroupedBackground))
+        #else
+        .background(Color(.controlBackgroundColor))
+        #endif
+        .cornerRadius(12)
+    }
+
+    private var keyTextField: some View {
+        Text(displayedKey)
+            .font(.system(.body, design: .monospaced))
+            .textSelection(.enabled)
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            #if os(iOS)
+            .background(Color(.secondarySystemBackground))
+            #else
+            .background(Color(.windowBackgroundColor))
+            #endif
+            .cornerRadius(8)
+    }
+
+    private var copyButton: some View {
+        Button {
+            copyKeyToClipboard()
+            showCopyConfirmation = true
+        } label: {
+            Image(systemName: showCopyConfirmation ? "checkmark" : "doc.on.doc")
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.bordered)
+        .disabled(displayedKey.isEmpty)
+    }
+
+    private func copyKeyToClipboard() {
+        #if os(iOS)
+        UIPasteboard.general.string = displayedKey
+        #elseif os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(displayedKey, forType: .string)
+        #endif
+    }
+
+    private var doneButton: some View {
+        Button("Done") { clearKeyAndDismiss() }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
     }
 
     /// Clears the sensitive key from memory before dismissing

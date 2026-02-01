@@ -67,7 +67,7 @@ extension ArcEditorView {
     }
 
     func handleAttachmentTap(_ attachment: Attachment) {
-        Task {
+        Task { @MainActor in
             await previewCoordinator.preview(
                 attachment: attachment,
                 downloadHandler: nil
