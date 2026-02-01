@@ -394,6 +394,7 @@ enum ProjectorService {
         await tagIdRemapping.clear()
     }
 
+<<<<<<< HEAD
     // MARK: - Batch Event Processing (DEQ-143)
 
     /// Applies multiple events efficiently using batch prefetching.
@@ -688,6 +689,7 @@ enum ProjectorService {
             break
         }
     }
+    // swiftlint:enable cyclomatic_complexity
 
     // MARK: - Device Events
 
