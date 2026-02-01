@@ -394,7 +394,6 @@ enum ProjectorService {
         await tagIdRemapping.clear()
     }
 
-<<<<<<< HEAD
     // MARK: - Batch Event Processing (DEQ-143)
 
     /// Applies multiple events efficiently using batch prefetching.
