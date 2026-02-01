@@ -10,7 +10,23 @@ import SwiftData
 import Foundation
 @testable import Dequeue
 
-@Suite("Stack Model Tests")
+/// Helper to create in-memory container with all required models for relationship testing
+private func makeTestContainer(includeEvent: Bool = false) throws -> ModelContainer {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    if includeEvent {
+        return try ModelContainer(
+            for: Stack.self, QueueTask.self, Reminder.self, Event.self, Arc.self, Tag.self,
+            configurations: config
+        )
+    } else {
+        return try ModelContainer(
+            for: Stack.self, QueueTask.self, Reminder.self, Arc.self, Tag.self,
+            configurations: config
+        )
+    }
+}
+
+@Suite("Stack Model Tests", .serialized)
 struct StackTests {
     @Test("Stack initializes with default values")
     func stackInitializesWithDefaults() {
@@ -59,74 +75,98 @@ struct StackTests {
         #expect(stack.revision == 3)
     }
 
-    @Test("pendingTasks filters correctly", .disabled("Flaky test - to be debugged"))
+    @Test("pendingTasks filters correctly")
+    @MainActor
     func pendingTasksFiltersCorrectly() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, configurations: config)
-        let context = ModelContext(container)
+        let container = try makeTestContainer()
+        let context = container.mainContext
 
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
+        let stackId = stack.id
 
+        // Create tasks WITH stack reference and ALSO append to stack.tasks
         let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0, stack: stack)
-        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1, stack: stack)
-        let deletedTask = QueueTask(title: "Deleted", status: TaskStatus.pending, sortOrder: 2, isDeleted: true, stack: stack)
-
         context.insert(pendingTask)
-        context.insert(completedTask)
-        context.insert(deletedTask)
+        stack.tasks.append(pendingTask)
 
-        stack.tasks = [pendingTask, completedTask, deletedTask]
+        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1, stack: stack)
+        context.insert(completedTask)
+        stack.tasks.append(completedTask)
+
+        let deletedTask = QueueTask(title: "Deleted", status: TaskStatus.pending, sortOrder: 2, isDeleted: true, stack: stack)
+        context.insert(deletedTask)
+        stack.tasks.append(deletedTask)
 
         try context.save()
 
-        #expect(stack.pendingTasks.count == 1)
-        #expect(stack.pendingTasks.first?.title == "Pending")
+        // Re-fetch the stack to ensure we have the most current relationship state
+        // This forces SwiftData to provide the fully synchronized relationship data
+        let descriptor = FetchDescriptor<Stack>(predicate: #Predicate { $0.id == stackId })
+        let fetchedStacks = try context.fetch(descriptor)
+        let fetchedStack = try #require(fetchedStacks.first)
+
+        #expect(fetchedStack.pendingTasks.count == 1)
+        #expect(fetchedStack.pendingTasks.first?.title == "Pending")
     }
 
     @Test("completedTasks filters correctly")
+    @MainActor
     func completedTasksFiltersCorrectly() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, configurations: config)
-        let context = ModelContext(container)
+        let container = try makeTestContainer()
+        let context = container.mainContext
 
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
+        let stackId = stack.id
 
+        // Create tasks WITH stack reference and ALSO append to stack.tasks
         let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0, stack: stack)
-        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1, stack: stack)
-
         context.insert(pendingTask)
-        context.insert(completedTask)
+        stack.tasks.append(pendingTask)
 
-        stack.tasks = [pendingTask, completedTask]
+        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1, stack: stack)
+        context.insert(completedTask)
+        stack.tasks.append(completedTask)
 
         try context.save()
 
-        #expect(stack.completedTasks.count == 1)
-        #expect(stack.completedTasks.first?.title == "Completed")
+        // Re-fetch to ensure synchronized relationship state
+        let descriptor = FetchDescriptor<Stack>(predicate: #Predicate { $0.id == stackId })
+        let fetchedStacks = try context.fetch(descriptor)
+        let fetchedStack = try #require(fetchedStacks.first)
+
+        #expect(fetchedStack.completedTasks.count == 1)
+        #expect(fetchedStack.completedTasks.first?.title == "Completed")
     }
 
     @Test("activeTask returns first pending task")
+    @MainActor
     func activeTaskReturnsFirstPending() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, configurations: config)
-        let context = ModelContext(container)
+        let container = try makeTestContainer()
+        let context = container.mainContext
 
         let stack = Stack(title: "Test Stack")
         context.insert(stack)
+        let stackId = stack.id
 
+        // Create tasks WITH stack reference and ALSO append to stack.tasks
         let task1 = QueueTask(title: "First", status: TaskStatus.pending, sortOrder: 0, stack: stack)
-        let task2 = QueueTask(title: "Second", status: TaskStatus.pending, sortOrder: 1, stack: stack)
-
         context.insert(task1)
-        context.insert(task2)
+        stack.tasks.append(task1)
 
-        stack.tasks = [task1, task2]
+        let task2 = QueueTask(title: "Second", status: TaskStatus.pending, sortOrder: 1, stack: stack)
+        context.insert(task2)
+        stack.tasks.append(task2)
 
         try context.save()
 
-        #expect(stack.activeTask?.title == "First")
+        // Re-fetch to ensure synchronized relationship state
+        let descriptor = FetchDescriptor<Stack>(predicate: #Predicate { $0.id == stackId })
+        let fetchedStacks = try context.fetch(descriptor)
+        let fetchedStack = try #require(fetchedStacks.first)
+
+        #expect(fetchedStack.activeTask?.title == "First")
     }
 
     // MARK: - Stack Creation with Multiple Tasks (DEQ-129)
@@ -134,8 +174,7 @@ struct StackTests {
     @Test("Creating stack with multiple tasks")
     @MainActor
     func creatingStackWithMultipleTasks() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let container = try makeTestContainer(includeEvent: true)
         let context = ModelContext(container)
 
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
@@ -185,8 +224,7 @@ struct StackTests {
     @Test("Creating stack with no tasks")
     @MainActor
     func creatingStackWithNoTasks() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let container = try makeTestContainer(includeEvent: true)
         let context = ModelContext(container)
 
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
@@ -208,8 +246,7 @@ struct StackTests {
     @Test("Task sort order is correct when created sequentially")
     @MainActor
     func taskSortOrderCorrect() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let container = try makeTestContainer(includeEvent: true)
         let context = ModelContext(container)
 
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
