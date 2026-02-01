@@ -1310,18 +1310,20 @@ struct ProjectorServiceTests {
 
         // Verify: incoming tag (older) should now be the canonical tag
         let incomingTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "incoming-tag-id" })).first
-        #expect(incomingTag != nil)
-        #expect(incomingTag?.isDeleted == false)
-        #expect(incomingTag?.name == "Work")
+        #expect(incomingTag != nil, "Canonical tag should be created")
+        #expect(incomingTag?.isDeleted == false, "Canonical tag should not be deleted")
+        #expect(incomingTag?.name == "Work", "Canonical tag should have correct name")
 
         // Verify: local tag should be soft-deleted
         let updatedLocalTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "local-tag-id" })).first
-        #expect(updatedLocalTag?.isDeleted == true)
+        #expect(updatedLocalTag?.isDeleted == true, "Local duplicate tag should be soft-deleted, but isDeleted=\(String(describing: updatedLocalTag?.isDeleted))")
 
         // Verify: stack should now reference the canonical (incoming) tag
         let updatedStack = try? context.fetch(FetchDescriptor<Stack>()).first { $0.id == stack.id }
-        #expect(updatedStack?.tagObjects.count == 1)
-        #expect(updatedStack?.tagObjects.first?.id == "incoming-tag-id")
+        let tagIds = updatedStack?.tagObjects.map { $0.id } ?? []
+        let tagCount = updatedStack?.tagObjects.count ?? -1
+        #expect(tagCount == 1, "Stack should have 1 tag but has \(tagCount). Tag IDs: \(tagIds)")
+        #expect(updatedStack?.tagObjects.first?.id == "incoming-tag-id", "Stack should reference canonical tag but references: \(tagIds)")
     }
 
     @MainActor
@@ -1445,16 +1447,18 @@ struct ProjectorServiceTests {
 
         // Verify: incoming tag (smaller ID) should be canonical
         let incomingTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "aaa-incoming-tag" })).first
-        #expect(incomingTag != nil)
-        #expect(incomingTag?.isDeleted == false)
+        #expect(incomingTag != nil, "Canonical tag should be created")
+        #expect(incomingTag?.isDeleted == false, "Canonical tag should not be deleted")
 
         // Verify: local tag should be soft-deleted
         let updatedLocalTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "zzz-local-tag" })).first
-        #expect(updatedLocalTag?.isDeleted == true)
+        #expect(updatedLocalTag?.isDeleted == true, "Local duplicate should be soft-deleted, but isDeleted=\(String(describing: updatedLocalTag?.isDeleted))")
 
         // Verify: stack should now reference the canonical (incoming) tag
         let updatedStack = try? context.fetch(FetchDescriptor<Stack>()).first { $0.id == stack.id }
-        #expect(updatedStack?.tagObjects.count == 1)
-        #expect(updatedStack?.tagObjects.first?.id == "aaa-incoming-tag")
+        let tagIds = updatedStack?.tagObjects.map { $0.id } ?? []
+        let tagCount = updatedStack?.tagObjects.count ?? -1
+        #expect(tagCount == 1, "Stack should have 1 tag but has \(tagCount). Tag IDs: \(tagIds)")
+        #expect(updatedStack?.tagObjects.first?.id == "aaa-incoming-tag", "Stack should reference canonical tag but references: \(tagIds)")
     }
 }
