@@ -1258,7 +1258,7 @@ struct ProjectorServiceTests {
     @Test("DEQ-235: Cross-device tag duplicate - incoming older tag wins")
     func crossDeviceTagDuplicateIncomingOlderWins() async throws {
         let container = try createTestContainer()
-        let context = ModelContext(container)
+        let context = container.mainContext
 
         // Simulate: Device B created a tag locally
         let localCreatedAt = Date()
@@ -1328,7 +1328,7 @@ struct ProjectorServiceTests {
     @Test("DEQ-235: Cross-device tag duplicate - local older tag wins")
     func crossDeviceTagDuplicateLocalOlderWins() async throws {
         let container = try createTestContainer()
-        let context = ModelContext(container)
+        let context = container.mainContext
 
         // Simulate: Device B created a tag locally (earlier)
         let localCreatedAt = Date().addingTimeInterval(-120)  // 2 minutes ago
@@ -1397,7 +1397,7 @@ struct ProjectorServiceTests {
     @Test("DEQ-235: Cross-device tag duplicate - same timestamp uses ID tie-breaker")
     func crossDeviceTagDuplicateSameTimestampUsesIdTieBreaker() async throws {
         let container = try createTestContainer()
-        let context = ModelContext(container)
+        let context = container.mainContext
 
         // Both tags have the same createdAt timestamp
         let sameCreatedAt = Date()
