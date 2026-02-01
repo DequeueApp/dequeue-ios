@@ -206,19 +206,43 @@ extension StackEditorView {
         let deviceId = await DeviceService.shared.getDeviceId()
         let userId = authService.currentUserId ?? ""
         stackService = StackService(
-            modelContext: modelContext, userId: userId, deviceId: deviceId, syncManager: syncManager)
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
         taskService = TaskService(
-            modelContext: modelContext, userId: userId, deviceId: deviceId, syncManager: syncManager)
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
         arcService = ArcService(
-            modelContext: modelContext, userId: userId, deviceId: deviceId, syncManager: syncManager)
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
         notificationService = NotificationService(modelContext: modelContext)
         reminderActionHandler = ReminderActionHandler(
-            modelContext: modelContext, userId: userId, deviceId: deviceId,
-            onError: handleError, syncManager: syncManager)
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            onError: handleError,
+            syncManager: syncManager
+        )
         tagService = TagService(
-            modelContext: modelContext, userId: userId, deviceId: deviceId, syncManager: syncManager)
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
         attachmentService = AttachmentService(
-            modelContext: modelContext, userId: userId, deviceId: deviceId, syncManager: syncManager)
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
     }
 }
 
@@ -227,17 +251,24 @@ extension StackEditorView {
 extension StackEditorView {
     var alertsModifier: some ViewModifier {
         StackEditorAlertsModifier(
-            showError: $showError, errorMessage: errorMessage,
-            showDiscardAlert: $showDiscardAlert, showSaveDraftPrompt: $showSaveDraftPrompt,
-            showEditTitleAlert: $showEditTitleAlert, editedTitle: $editedTitle,
+            showError: $showError,
+            errorMessage: errorMessage,
+            showDiscardAlert: $showDiscardAlert,
+            showSaveDraftPrompt: $showSaveDraftPrompt,
+            showEditTitleAlert: $showEditTitleAlert,
+            editedTitle: $editedTitle,
             showCompleteConfirmation: $showCompleteConfirmation,
             showCloseConfirmation: $showCloseConfirmation,
             showDeleteReminderConfirmation: $showDeleteReminderConfirmation,
-            reminderToDelete: reminderToDelete, reminderActionHandler: reminderActionHandler,
+            reminderToDelete: reminderToDelete,
+            reminderActionHandler: reminderActionHandler,
             completeStackMessage: AnyView(completeStackMessage),
-            onDismiss: { dismiss() }, onDiscardDraft: discardDraftAndDismiss,
-            onCreateDraft: createDraftAndDismiss, onSaveTitle: saveStackTitle,
-            onCompleteStack: completeStack, onCloseStack: closeStack
+            onDismiss: { dismiss() },
+            onDiscardDraft: discardDraftAndDismiss,
+            onCreateDraft: createDraftAndDismiss,
+            onSaveTitle: saveStackTitle,
+            onCompleteStack: completeStack,
+            onCloseStack: closeStack
         )
     }
 }
@@ -262,7 +293,6 @@ private struct StackEditorAlertsModifier: ViewModifier {
     let onCompleteStack: (Bool) -> Void
     let onCloseStack: () -> Void
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func body(content: Content) -> some View {
         content
             .alert("Error", isPresented: $showError) { Button("OK", role: .cancel) { } } message: {
@@ -309,17 +339,26 @@ private struct StackEditorAlertsModifier: ViewModifier {
 extension StackEditorView {
     var sheetsModifier: some ViewModifier {
         StackEditorSheetsModifier(
-            showAddTask: $showAddTask, newTaskTitle: $newTaskTitle, newTaskDescription: $newTaskDescription,
-            showAddReminder: $showAddReminder, showArcSelection: $showArcSelection,
-            showSnoozePicker: $showSnoozePicker, showEditReminder: $showEditReminder,
+            showAddTask: $showAddTask,
+            newTaskTitle: $newTaskTitle,
+            newTaskDescription: $newTaskDescription,
+            showAddReminder: $showAddReminder,
+            showArcSelection: $showArcSelection,
+            showSnoozePicker: $showSnoozePicker,
+            showEditReminder: $showEditReminder,
             showAttachmentPicker: $showAttachmentPicker,
-            selectedArc: selectedArc, onArcSelected: { selectedArc = $0 },
+            selectedArc: selectedArc,
+            onArcSelected: { selectedArc = $0 },
             selectedReminderForSnooze: selectedReminderForSnooze,
             onSnoozeReminderCleared: { selectedReminderForSnooze = nil },
             selectedReminderForEdit: selectedReminderForEdit,
-            currentStack: currentStack, notificationService: notificationService,
-            reminderActionHandler: reminderActionHandler, previewCoordinator: previewCoordinator,
-            onAddTask: addTask, onCancelAddTask: cancelAddTask, onFilesSelected: handleFilesSelected,
+            currentStack: currentStack,
+            notificationService: notificationService,
+            reminderActionHandler: reminderActionHandler,
+            previewCoordinator: previewCoordinator,
+            onAddTask: addTask,
+            onCancelAddTask: cancelAddTask,
+            onFilesSelected: handleFilesSelected,
             onAttachmentError: { errorMessage = $0.localizedDescription; showError = true }
         )
     }
@@ -351,8 +390,12 @@ private struct StackEditorSheetsModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .sheet(isPresented: $showAddTask) {
-                AddTaskSheet(title: $newTaskTitle, description: $newTaskDescription,
-                             onSave: onAddTask, onCancel: onCancelAddTask)
+                AddTaskSheet(
+                    title: $newTaskTitle,
+                    description: $newTaskDescription,
+                    onSave: onAddTask,
+                    onCancel: onCancelAddTask
+                )
             }
             .sheet(isPresented: $showAddReminder) {
                 if let stack = currentStack, let service = notificationService {
@@ -373,12 +416,18 @@ private struct StackEditorSheetsModifier: ViewModifier {
             .sheet(isPresented: $showEditReminder) {
                 if let reminder = selectedReminderForEdit, let stack = currentStack,
                    let service = notificationService {
-                    AddReminderSheet(parent: .stack(stack), notificationService: service,
-                                     existingReminder: reminder)
+                    AddReminderSheet(
+                        parent: .stack(stack),
+                        notificationService: service,
+                        existingReminder: reminder
+                    )
                 }
             }
-            .attachmentPicker(isPresented: $showAttachmentPicker,
-                              onFilesSelected: onFilesSelected, onError: onAttachmentError)
+            .attachmentPicker(
+                isPresented: $showAttachmentPicker,
+                onFilesSelected: onFilesSelected,
+                onError: onAttachmentError
+            )
             .attachmentPreview(coordinator: previewCoordinator)
     }
 }
