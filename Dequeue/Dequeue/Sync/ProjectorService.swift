@@ -1476,9 +1476,13 @@ enum ProjectorService {
         context.insert(canonicalTag)
 
         // Migrate all stacks from the local duplicate to the canonical tag
-        // Use the inverse relationship directly - SwiftData maintains bidirectional relationships
-        // when you append to one side (e.g., stack.tagObjects.append(tag))
-        let stacksToMigrate = localDuplicate.stacks.filter { !$0.isDeleted }
+        // Query stacks directly - inverse relationships can be unreliable when tags are fetched separately
+        let stackPredicate = #Predicate<Stack> { !$0.isDeleted }
+        let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
+        let allStacks = (try? context.fetch(stackDescriptor)) ?? []
+        let stacksToMigrate = allStacks.filter { stack in
+            stack.tagObjects.contains { $0.id == localDuplicate.id }
+        }
         for stack in stacksToMigrate {
             // Add the canonical tag if not already present
             if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
