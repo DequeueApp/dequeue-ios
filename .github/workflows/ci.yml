@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+        run: sudo xcode-select -s /Applications/Xcode_26.0.app
 
       - name: Install iOS Platform
         run: |
@@ -132,7 +132,7 @@ jobs:
 
       - name: Select Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_26.0.1.app
+          sudo xcode-select -s /Applications/Xcode_26.0.app
           xcodebuild -version
 
       - name: Install iOS Platform
@@ -206,7 +206,7 @@ jobs:
 
       - name: Select Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_26.0.1.app
+          sudo xcode-select -s /Applications/Xcode_26.0.app
           xcodebuild -version
 
       - name: Install iOS Platform
