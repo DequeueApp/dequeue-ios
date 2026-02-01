@@ -1478,39 +1478,29 @@ enum ProjectorService {
         context: ModelContext,
         cache: EntityLookupCache
     ) async {
-        // DEQ-235 FIX: Capture values and soft-delete FIRST, before any relationship changes.
-        // SwiftData can have issues tracking object changes after relationship modifications.
-        let stacksFromInverseEarly = localDuplicate.stacks.filter { !$0.isDeleted }
+        // DEQ-235 FIX: Capture primitive values ONLY - do NOT access relationship properties
+        // before setting isDeleted. SwiftData relationship access can interfere with change tracking.
         let localDuplicateId = localDuplicate.id
         let localColorHex = localDuplicate.colorHex
+        let localCreatedAt = localDuplicate.createdAt
 
-        ErrorReportingService.addBreadcrumb(
-            category: "sync_tag_dedupe",
-            message: "Cross-device tag duplicate: incoming is canonical, replacing local",
-            data: [
-                "incoming_tag_id": payload.id,
-                "local_duplicate_id": localDuplicateId,
-                "tag_name": payload.name,
-                "normalized_name": normalizedName,
-                "incoming_created_at": payload.createdAt?.ISO8601Format() ?? "unknown",
-                "local_created_at": localDuplicate.createdAt.ISO8601Format(),
-                "stacks_from_inverse_early": stacksFromInverseEarly.map { $0.id }.joined(separator: ",")
-            ]
-        )
-
-        // DEQ-235 FIX: Soft-delete the local duplicate FIRST, before any relationship changes.
-        // This ensures the modification is tracked before SwiftData's relationship management
-        // potentially interferes with object state tracking.
+        // DEQ-235 FIX: Set isDeleted FIRST, BEFORE any relationship access or queries
+        // This ensures the change is tracked before SwiftData's relationship management kicks in
         localDuplicate.isDeleted = true
         localDuplicate.updatedAt = Date()
         localDuplicate.syncState = .pending
 
         ErrorReportingService.addBreadcrumb(
             category: "sync_tag_dedupe",
-            message: "Soft-deleted local duplicate tag (before migration)",
+            message: "Cross-device tag duplicate: incoming is canonical, soft-deleted local first",
             data: [
+                "incoming_tag_id": payload.id,
                 "local_duplicate_id": localDuplicateId,
-                "is_deleted_after": String(localDuplicate.isDeleted)
+                "tag_name": payload.name,
+                "normalized_name": normalizedName,
+                "incoming_created_at": payload.createdAt?.ISO8601Format() ?? "unknown",
+                "local_created_at": localCreatedAt.ISO8601Format(),
+                "is_deleted_set": String(localDuplicate.isDeleted)
             ]
         )
 
@@ -1518,7 +1508,7 @@ enum ProjectorService {
         let canonicalTag = Tag(
             id: payload.id,
             name: payload.name,
-            colorHex: payload.colorHex ?? localColorHex,  // Preserve color if incoming doesn't have one
+            colorHex: payload.colorHex ?? localColorHex,
             syncState: .synced,
             lastSyncedAt: Date()
         )
@@ -1528,17 +1518,14 @@ enum ProjectorService {
         canonicalTag.updatedAt = eventTimestamp
         context.insert(canonicalTag)
 
-        // Migrate all stacks from the local duplicate to the canonical tag
-        let stacksToMigrate = findStacksToMigrate(
-            localDuplicate: localDuplicate,
+        // Find stacks to migrate using direct query - avoid relationship property access
+        let stacksToMigrate = findStacksToMigrateByQuery(
             localDuplicateId: localDuplicateId,
             normalizedName: normalizedName,
             incomingTagId: payload.id,
-            stacksFromInverseEarly: stacksFromInverseEarly,
             context: context
         )
 
-        // Log the final list of stacks to migrate for debugging
         ErrorReportingService.addBreadcrumb(
             category: "sync_tag_dedupe",
             message: "Migrating stacks from local duplicate to canonical tag",
@@ -1566,54 +1553,39 @@ enum ProjectorService {
         )
 
         // Register mapping from local duplicate ID to canonical tag ID
-        // This ensures any future references to the old local ID resolve correctly
         await tagIdRemapping.addMapping(from: localDuplicateId, to: canonicalTag.id)
     }
 
-    /// DEQ-235: Helper to find all stacks that reference a duplicate tag.
-    /// Uses multiple fallback approaches to ensure we find all stacks.
+    /// DEQ-235: Find stacks to migrate using direct queries only - no relationship property access.
+    /// This avoids SwiftData relationship tracking issues that can interfere with isDeleted changes.
     @MainActor
-    private static func findStacksToMigrate(
-        localDuplicate: Tag,
+    private static func findStacksToMigrateByQuery(
         localDuplicateId: String,
         normalizedName: String,
         incomingTagId: String,
-        stacksFromInverseEarly: [Stack],
         context: ModelContext
     ) -> [Stack] {
-        // Query all non-deleted stacks for fallback checks
+        // Query all non-deleted stacks
         let stackPredicate = #Predicate<Stack> { $0.isDeleted == false }
         let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
         let allStacks = (try? context.fetch(stackDescriptor)) ?? []
 
-        // Use a Set to dedupe as we find stacks from multiple sources
-        var foundStackIds = Set(stacksFromInverseEarly.map { $0.id })
-        var result = stacksFromInverseEarly
+        var result: [Stack] = []
+        var foundStackIds = Set<String>()
 
-        // Helper to add a stack if not already found
-        func addIfNew(_ stack: Stack) {
-            guard !foundStackIds.contains(stack.id) else { return }
-            foundStackIds.insert(stack.id)
-            result.append(stack)
-        }
-
-        // Check 1: Find stacks by direct tagId match
-        for stack in allStacks where stack.tagObjects.contains(where: { $0.id == localDuplicateId }) {
-            addIfNew(stack)
-        }
-
-        // Check 2: Recheck inverse relationship after fetch (SwiftData quirk)
-        for stack in localDuplicate.stacks where !stack.isDeleted {
-            addIfNew(stack)
-        }
-
-        // Check 3: Find by normalized name match (different ID but same name)
         for stack in allStacks {
-            let matchesNormalizedName = stack.tagObjects.contains {
+            // Check if stack has the local duplicate tag by ID
+            let hasLocalDuplicateTag = stack.tagObjects.contains { $0.id == localDuplicateId }
+
+            // Also check by normalized name (different ID but same name)
+            let hasTagWithSameName = stack.tagObjects.contains {
                 $0.normalizedName == normalizedName && $0.id != incomingTagId
             }
-            guard matchesNormalizedName else { continue }
-            addIfNew(stack)
+
+            if (hasLocalDuplicateTag || hasTagWithSameName) && !foundStackIds.contains(stack.id) {
+                foundStackIds.insert(stack.id)
+                result.append(stack)
+            }
         }
 
         return result
