@@ -1594,11 +1594,8 @@ enum ProjectorService {
         }
 
         // Check 3: Find by normalized name match (different ID but same name)
-        for stack in allStacks {
-            let hasMatchingTag = stack.tagObjects.contains { tag in
-                tag.normalizedName == normalizedName && tag.id != incomingTagId
-            }
-            if hasMatchingTag { addIfNew(stack) }
+        for stack in allStacks where stack.tagObjects.contains(where: { $0.normalizedName == normalizedName && $0.id != incomingTagId }) {
+            addIfNew(stack)
         }
 
         return result
