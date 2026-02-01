@@ -297,30 +297,15 @@ struct ArcEditorView: View {
         }
     }
 
-    /// Creates a reminder at 8 AM on the due date
+    /// Creates a reminder at 8 AM on the due date (called from edit flow)
     private func createDueDateReminder() {
-        guard let arc = editingArc, let dueDate = dueDate else { return }
-
-        // Set reminder to 8:00 AM on the due date
-        var calendar = Calendar.current
-        calendar.timeZone = TimeZone.current
-        guard let reminderDate = calendar.date(
-            bySettingHour: 8,
-            minute: 0,
-            second: 0,
-            of: dueDate
-        ) else { return }
+        guard let arc = editingArc,
+              let dueDate = dueDate,
+              let reminderDate = dueDate.morningReminderTime() else { return }
 
         Task {
-            let userId = authService.currentUserId ?? ""
-            let reminderService = ReminderService(
-                modelContext: modelContext,
-                userId: userId,
-                deviceId: cachedDeviceId,
-                syncManager: syncManager
-            )
             do {
-                _ = try await reminderService.createReminder(for: arc, at: reminderDate)
+                try await createDueDateReminder(for: arc, at: reminderDate)
             } catch {
                 errorMessage = "Failed to create reminder: \(error.localizedDescription)"
                 showError = true

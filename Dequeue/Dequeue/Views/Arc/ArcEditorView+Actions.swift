@@ -67,20 +67,22 @@ extension ArcEditorView {
 
     /// Creates a reminder for the due date if appropriate
     private func createDueDateReminderIfNeeded(for arc: Arc) async {
-        guard let dueDate = dueDate else { return }
-
-        // Set reminder to 8:00 AM on the due date
-        var calendar = Calendar.current
-        calendar.timeZone = TimeZone.current
-        guard let reminderDate = calendar.date(
-            bySettingHour: 8,
-            minute: 0,
-            second: 0,
-            of: dueDate
-        ) else { return }
+        guard let dueDate = dueDate,
+              let reminderDate = dueDate.morningReminderTime() else { return }
 
         // Note: For create flow, we automatically create the reminder without prompting
         // since the user explicitly set a due date. The prompt is shown during edit flow.
+        do {
+            try await createDueDateReminder(for: arc, at: reminderDate)
+        } catch {
+            // Silent failure for create flow - just log, don't interrupt the user
+            logger.error("Failed to create due date reminder: \(error.localizedDescription)")
+        }
+    }
+
+    /// Shared helper to create a due date reminder for an arc
+    /// Throws on failure so callers can handle errors appropriately
+    func createDueDateReminder(for arc: Arc, at reminderDate: Date) async throws {
         let userId = authService.currentUserId ?? ""
         let reminderService = ReminderService(
             modelContext: modelContext,
@@ -88,12 +90,8 @@ extension ArcEditorView {
             deviceId: cachedDeviceId,
             syncManager: syncManager
         )
-        do {
-            _ = try await reminderService.createReminder(for: arc, at: reminderDate)
-            logger.info("Created due date reminder for arc: \(arc.id)")
-        } catch {
-            logger.error("Failed to create due date reminder: \(error.localizedDescription)")
-        }
+        _ = try await reminderService.createReminder(for: arc, at: reminderDate)
+        logger.info("Created due date reminder for arc: \(arc.id)")
     }
 
     func pauseArc() {
