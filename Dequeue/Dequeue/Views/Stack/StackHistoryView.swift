@@ -186,7 +186,11 @@ private struct EventDisplayConfig {
         "stack.deactivated": EventDisplayConfig(label: "Stack Deactivated", icon: "pause.circle.fill", color: .orange),
         "stack.closed": EventDisplayConfig(label: "Stack Closed", icon: "xmark.circle.fill", color: .gray),
         "stack.deleted": EventDisplayConfig(label: "Stack Deleted", icon: "trash.circle.fill", color: .red),
-        "stack.reordered": EventDisplayConfig(label: "Stack Reordered", icon: "arrow.up.arrow.down.circle.fill", color: .secondary),
+        "stack.reordered": EventDisplayConfig(
+            label: "Stack Reordered",
+            icon: "arrow.up.arrow.down.circle.fill",
+            color: .secondary
+        ),
         // Task events
         "task.created": EventDisplayConfig(label: "Task Added", icon: "checklist", color: .teal),
         "task.updated": EventDisplayConfig(label: "Task Updated", icon: "pencil", color: .blue),
@@ -205,7 +209,11 @@ private struct EventDisplayConfig {
         "tag.deleted": EventDisplayConfig(label: "Tag Deleted", icon: "tag.slash", color: .red),
         // Attachment events
         "attachment.added": EventDisplayConfig(label: "Attachment Added", icon: "paperclip.circle.fill", color: .mint),
-        "attachment.removed": EventDisplayConfig(label: "Attachment Removed", icon: "paperclip.badge.ellipsis", color: .red)
+        "attachment.removed": EventDisplayConfig(
+            label: "Attachment Removed",
+            icon: "paperclip.badge.ellipsis",
+            color: .red
+        )
     ]
 
     /// Maps event types to their display configuration using dictionary lookup
