@@ -1479,16 +1479,10 @@ enum ProjectorService {
         cache: EntityLookupCache
     ) async {
         // DEQ-235 FIX: Capture primitive values ONLY - do NOT access relationship properties
-        // before setting isDeleted. SwiftData relationship access can interfere with change tracking.
+        // before any modifications. SwiftData relationship access can interfere with change tracking.
         let localDuplicateId = localDuplicate.id
         let localColorHex = localDuplicate.colorHex
         let localCreatedAt = localDuplicate.createdAt
-
-        // DEQ-235 FIX: Set isDeleted FIRST, BEFORE any relationship access or queries
-        // This ensures the change is tracked before SwiftData's relationship management kicks in
-        localDuplicate.isDeleted = true
-        localDuplicate.updatedAt = Date()
-        localDuplicate.syncState = .pending
 
         ErrorReportingService.addBreadcrumb(
             category: "sync_tag_dedupe",
@@ -1554,6 +1548,8 @@ enum ProjectorService {
 
         // Register mapping from local duplicate ID to canonical tag ID
         await tagIdRemapping.addMapping(from: localDuplicateId, to: canonicalTag.id)
+        
+        print("DEBUG: [handleIncomingTagIsCanonical] EXIT - localDuplicateId=\(localDuplicateId), isDeleted FINAL=\(localDuplicate.isDeleted)")
     }
 
     /// DEQ-235: Find stacks to migrate using direct queries only - no relationship property access.
