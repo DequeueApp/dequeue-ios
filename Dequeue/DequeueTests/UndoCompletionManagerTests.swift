@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 /// Creates an in-memory model container for UndoCompletionManager tests
+@MainActor
 private func makeTestContainer() throws -> ModelContainer {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     return try ModelContainer(
