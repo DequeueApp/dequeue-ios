@@ -1554,9 +1554,22 @@ enum ProjectorService {
         let allTagsDescriptor = FetchDescriptor<Tag>()
         if let allTags = try? context.fetch(allTagsDescriptor),
            let tagToDelete = allTags.first(where: { $0.id == localDuplicateId }) {
+            print("DEBUG: [handleIncomingTagIsCanonical] FOUND tag to delete - id=\(tagToDelete.id), isDeleted BEFORE=\(tagToDelete.isDeleted)")
             tagToDelete.isDeleted = true
             tagToDelete.updatedAt = Date()
             tagToDelete.syncState = .pending
+            print("DEBUG: [handleIncomingTagIsCanonical] SET isDeleted=true - id=\(tagToDelete.id), isDeleted AFTER=\(tagToDelete.isDeleted)")
+            
+            // DEQ-235 CRITICAL FIX: Save immediately to persist the change
+            // SwiftData might have pending changes that could interfere
+            do {
+                try context.save()
+                print("DEBUG: [handleIncomingTagIsCanonical] SAVED - tagToDelete.isDeleted=\(tagToDelete.isDeleted)")
+            } catch {
+                print("DEBUG: [handleIncomingTagIsCanonical] SAVE FAILED - error=\(error)")
+            }
+        } else {
+            print("DEBUG: [handleIncomingTagIsCanonical] FAILED to find tag with id=\(localDuplicateId)")
         }
     }
 
