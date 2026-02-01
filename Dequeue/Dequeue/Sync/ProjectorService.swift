@@ -279,41 +279,76 @@ struct EntityLookupCache {
     }
 
     // MARK: - Batch Fetch Methods
+    //
+    // DEQ-143: These methods fetch only the needed entities using predicates.
+    // SwiftData's #Predicate supports `contains()` for IN-style queries.
+    // This ensures O(n) database work where n = number of requested IDs,
+    // rather than O(N) where N = total entities in database.
 
     private static func batchFetchStacks(ids: Set<String>, context: ModelContext) throws -> [String: Stack] {
-        let descriptor = FetchDescriptor<Stack>()
-        let allStacks = try context.fetch(descriptor)
-        return Dictionary(uniqueKeysWithValues: allStacks.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+        guard !ids.isEmpty else { return [:] }
+        let idArray = Array(ids)
+        let predicate = #Predicate<Stack> { stack in
+            idArray.contains(stack.id)
+        }
+        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
+        let stacks = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: stacks.map { ($0.id, $0) })
     }
 
     private static func batchFetchTasks(ids: Set<String>, context: ModelContext) throws -> [String: QueueTask] {
-        let descriptor = FetchDescriptor<QueueTask>()
-        let allTasks = try context.fetch(descriptor)
-        return Dictionary(uniqueKeysWithValues: allTasks.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+        guard !ids.isEmpty else { return [:] }
+        let idArray = Array(ids)
+        let predicate = #Predicate<QueueTask> { task in
+            idArray.contains(task.id)
+        }
+        let descriptor = FetchDescriptor<QueueTask>(predicate: predicate)
+        let tasks = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
     }
 
     private static func batchFetchReminders(ids: Set<String>, context: ModelContext) throws -> [String: Reminder] {
-        let descriptor = FetchDescriptor<Reminder>()
-        let allReminders = try context.fetch(descriptor)
-        return Dictionary(uniqueKeysWithValues: allReminders.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+        guard !ids.isEmpty else { return [:] }
+        let idArray = Array(ids)
+        let predicate = #Predicate<Reminder> { reminder in
+            idArray.contains(reminder.id)
+        }
+        let descriptor = FetchDescriptor<Reminder>(predicate: predicate)
+        let reminders = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: reminders.map { ($0.id, $0) })
     }
 
     private static func batchFetchTags(ids: Set<String>, context: ModelContext) throws -> [String: Tag] {
-        let descriptor = FetchDescriptor<Tag>()
-        let allTags = try context.fetch(descriptor)
-        return Dictionary(uniqueKeysWithValues: allTags.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+        guard !ids.isEmpty else { return [:] }
+        let idArray = Array(ids)
+        let predicate = #Predicate<Tag> { tag in
+            idArray.contains(tag.id)
+        }
+        let descriptor = FetchDescriptor<Tag>(predicate: predicate)
+        let tags = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: tags.map { ($0.id, $0) })
     }
 
     private static func batchFetchArcs(ids: Set<String>, context: ModelContext) throws -> [String: Arc] {
-        let descriptor = FetchDescriptor<Arc>()
-        let allArcs = try context.fetch(descriptor)
-        return Dictionary(uniqueKeysWithValues: allArcs.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+        guard !ids.isEmpty else { return [:] }
+        let idArray = Array(ids)
+        let predicate = #Predicate<Arc> { arc in
+            idArray.contains(arc.id)
+        }
+        let descriptor = FetchDescriptor<Arc>(predicate: predicate)
+        let arcs = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: arcs.map { ($0.id, $0) })
     }
 
     private static func batchFetchAttachments(ids: Set<String>, context: ModelContext) throws -> [String: Attachment] {
-        let descriptor = FetchDescriptor<Attachment>()
-        let allAttachments = try context.fetch(descriptor)
-        return Dictionary(uniqueKeysWithValues: allAttachments.filter { ids.contains($0.id) }.map { ($0.id, $0) })
+        guard !ids.isEmpty else { return [:] }
+        let idArray = Array(ids)
+        let predicate = #Predicate<Attachment> { attachment in
+            idArray.contains(attachment.id)
+        }
+        let descriptor = FetchDescriptor<Attachment>(predicate: predicate)
+        let attachments = try context.fetch(descriptor)
+        return Dictionary(uniqueKeysWithValues: attachments.map { ($0.id, $0) })
     }
 
     /// Refreshes the cache after an entity is inserted during batch processing.
@@ -371,25 +406,74 @@ enum ProjectorService {
     static func applyBatch(events: [Event], context: ModelContext) async throws -> Int {
         guard !events.isEmpty else { return 0 }
 
+        // Log batch processing start for debugging sync performance
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_batch",
+            message: "Starting batch processing",
+            data: [
+                "event_count": events.count,
+                "event_types": Dictionary(grouping: events, by: { $0.type })
+                    .mapValues { $0.count }
+                    .description
+            ]
+        )
+
         // Prefetch all entities referenced by these events (single batch query per entity type)
         var cache = try EntityLookupCache(prefetchingFor: events, context: context)
 
+        // Log cache statistics for performance monitoring
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_batch_cache",
+            message: "Entity cache prefetched",
+            data: [
+                "stacks_cached": cache.stacks.count,
+                "tasks_cached": cache.tasks.count,
+                "reminders_cached": cache.reminders.count,
+                "tags_cached": cache.tags.count,
+                "arcs_cached": cache.arcs.count,
+                "attachments_cached": cache.attachments.count
+            ]
+        )
+
         var processedCount = 0
+        var failedEvents: [(event: Event, error: Error)] = []
+
         for event in events {
             do {
                 try await apply(event: event, context: context, cache: &cache)
                 processedCount += 1
             } catch {
-                // Log but continue processing other events
+                failedEvents.append((event, error))
+
+                // Log individual failure with detailed context
                 ErrorReportingService.addBreadcrumb(
                     category: "sync_batch_error",
                     message: "Failed to apply event in batch",
                     data: [
                         "event_type": event.type,
-                        "error": error.localizedDescription
+                        "event_id": event.id,
+                        "entity_id": event.entityId ?? "unknown",
+                        "error": error.localizedDescription,
+                        "error_type": String(describing: type(of: error)),
+                        "processed_so_far": processedCount,
+                        "remaining": events.count - processedCount - 1
                     ]
                 )
             }
+        }
+
+        // Log batch completion summary
+        if !failedEvents.isEmpty {
+            ErrorReportingService.addBreadcrumb(
+                category: "sync_batch_complete",
+                message: "Batch processing completed with errors",
+                data: [
+                    "total_events": events.count,
+                    "processed_count": processedCount,
+                    "failed_count": failedEvents.count,
+                    "failed_types": failedEvents.map { $0.event.type }.joined(separator: ",")
+                ]
+            )
         }
 
         return processedCount
