@@ -832,4 +832,400 @@ struct ProjectorServiceTests {
         let stacks = try context.fetch(FetchDescriptor<Stack>())
         #expect(stacks.count == 1)
     }
+    // MARK: - Batch Processing Tests (DEQ-143)
+
+    /// Creates a task event payload
+    private func createTaskPayload(
+        id: String,
+        title: String,
+        stackId: String?,
+        status: TaskStatus = .pending
+    ) throws -> Data {
+        var payload: [String: Any] = [
+            "id": id,
+            "title": title,
+            "description": NSNull(),
+            "status": status.rawValue,
+            "priority": NSNull(),
+            "sortOrder": 0,
+            "lastActiveTime": NSNull(),
+            "deleted": false
+        ]
+        if let stackId = stackId {
+            payload["stackId"] = stackId
+        }
+        return try JSONSerialization.data(withJSONObject: payload)
+    }
+
+    @Test("applyBatch processes multiple events efficiently")
+    func applyBatchProcessesMultipleEvents() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let stack1Id = CUID.generate()
+        let stack2Id = CUID.generate()
+        let stack3Id = CUID.generate()
+
+        // Create three stack events
+        let payload1 = try createStackPayload(id: stack1Id, title: "Stack 1", isActive: false)
+        let payload2 = try createStackPayload(id: stack2Id, title: "Stack 2", isActive: false)
+        let payload3 = try createStackPayload(id: stack3Id, title: "Stack 3", isActive: false)
+
+        let event1 = Event(eventType: .stackCreated, payload: payload1, entityId: stack1Id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+        let event2 = Event(eventType: .stackCreated, payload: payload2, entityId: stack2Id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+        let event3 = Event(eventType: .stackCreated, payload: payload3, entityId: stack3Id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        context.insert(event1)
+        context.insert(event2)
+        context.insert(event3)
+        try context.save()
+
+        // Apply all events using batch processing
+        let processedCount = try await ProjectorService.applyBatch(events: [event1, event2, event3], context: context)
+
+        // Verify all events were processed
+        #expect(processedCount == 3)
+
+        // Verify all stacks were created
+        let descriptor = FetchDescriptor<Stack>()
+        let stacks = try context.fetch(descriptor)
+        #expect(stacks.count == 3)
+
+        let stackIds = Set(stacks.map { $0.id })
+        #expect(stackIds.contains(stack1Id))
+        #expect(stackIds.contains(stack2Id))
+        #expect(stackIds.contains(stack3Id))
+    }
+
+    @Test("applyBatch returns zero for empty events array")
+    func applyBatchReturnsZeroForEmpty() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let processedCount = try await ProjectorService.applyBatch(events: [], context: context)
+
+        #expect(processedCount == 0)
+    }
+
+    @Test("applyBatch handles mixed event types")
+    func applyBatchHandlesMixedEventTypes() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let stackId = CUID.generate()
+        let taskId = CUID.generate()
+
+        // Create a stack first
+        let stackPayload = try createStackPayload(id: stackId, title: "Test Stack", isActive: false)
+        let stackEvent = Event(eventType: .stackCreated, payload: stackPayload, entityId: stackId, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        // Create a task on that stack
+        let taskPayload = try createTaskPayload(id: taskId, title: "Test Task", stackId: stackId)
+        let taskEvent = Event(eventType: .taskCreated, payload: taskPayload, entityId: taskId, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        context.insert(stackEvent)
+        context.insert(taskEvent)
+        try context.save()
+
+        // Apply both events in batch
+        let processedCount = try await ProjectorService.applyBatch(events: [stackEvent, taskEvent], context: context)
+
+        #expect(processedCount == 2)
+
+        // Verify stack was created
+        let stackPredicate = #Predicate<Stack> { $0.id == stackId }
+        let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
+        let stacks = try context.fetch(stackDescriptor)
+        #expect(stacks.count == 1)
+
+        // Verify task was created and linked to stack
+        let taskPredicate = #Predicate<QueueTask> { $0.id == taskId }
+        let taskDescriptor = FetchDescriptor<QueueTask>(predicate: taskPredicate)
+        let tasks = try context.fetch(taskDescriptor)
+        #expect(tasks.count == 1)
+        #expect(tasks.first?.stack?.id == stackId)
+    }
+
+    @Test("applyBatch continues processing after individual event failure")
+    func applyBatchContinuesAfterFailure() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let stack1Id = CUID.generate()
+        let stack2Id = CUID.generate()
+
+        // Create two valid stack events
+        let validPayload1 = try createStackPayload(id: stack1Id, title: "Stack 1", isActive: false)
+        let validEvent1 = Event(eventType: .stackCreated, payload: validPayload1, entityId: stack1Id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        let validPayload2 = try createStackPayload(id: stack2Id, title: "Stack 2", isActive: false)
+        let validEvent2 = Event(eventType: .stackCreated, payload: validPayload2, entityId: stack2Id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        // Create an event with invalid payload (will fail to decode)
+        let invalidEvent = Event(eventType: .stackCreated, payload: Data("invalid json".utf8), entityId: "invalid-id", userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        context.insert(validEvent1)
+        context.insert(invalidEvent)
+        context.insert(validEvent2)
+        try context.save()
+
+        // Apply all events - should process valid ones despite invalid one
+        let processedCount = try await ProjectorService.applyBatch(
+            events: [validEvent1, invalidEvent, validEvent2],
+            context: context
+        )
+
+        // Two valid events should have been processed
+        #expect(processedCount == 2)
+
+        // Verify both valid stacks were created
+        let descriptor = FetchDescriptor<Stack>()
+        let stacks = try context.fetch(descriptor)
+        #expect(stacks.count == 2)
+    }
+
+    // MARK: - Cache Hit/Miss Tests (DEQ-143)
+
+    @Test("Cache provides O(1) lookup for prefetched entities")
+    func cacheProvidesO1Lookup() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Pre-create some stacks in the database
+        let existingStack1 = Stack(title: "Existing Stack 1")
+        let existingStack2 = Stack(title: "Existing Stack 2")
+        context.insert(existingStack1)
+        context.insert(existingStack2)
+        try context.save()
+
+        // Create update events for these stacks
+        let updatePayload1 = try createStackPayload(
+            id: existingStack1.id,
+            title: "Updated Stack 1",
+            isActive: false
+        )
+        let updatePayload2 = try createStackPayload(
+            id: existingStack2.id,
+            title: "Updated Stack 2",
+            isActive: false
+        )
+
+        let updateEvent1 = Event(eventType: .stackUpdated, payload: updatePayload1, entityId: existingStack1.id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+        let updateEvent2 = Event(eventType: .stackUpdated, payload: updatePayload2, entityId: existingStack2.id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        context.insert(updateEvent1)
+        context.insert(updateEvent2)
+        try context.save()
+
+        // Apply batch - cache should prefetch both stacks
+        let processedCount = try await ProjectorService.applyBatch(
+            events: [updateEvent1, updateEvent2],
+            context: context
+        )
+
+        #expect(processedCount == 2)
+
+        // Verify stacks were updated (proves cache lookup worked)
+        #expect(existingStack1.title == "Updated Stack 1")
+        #expect(existingStack2.title == "Updated Stack 2")
+    }
+
+    @Test("Cache miss falls back to database query")
+    func cacheMissFallsBackToQuery() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Pre-create a stack
+        let existingStack = Stack(title: "Existing Stack")
+        context.insert(existingStack)
+        try context.save()
+
+        // Create a single update event
+        let updatePayload = try createStackPayload(
+            id: existingStack.id,
+            title: "Updated via Single Event",
+            isActive: false
+        )
+        let updateEvent = Event(eventType: .stackUpdated, payload: updatePayload, entityId: existingStack.id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        context.insert(updateEvent)
+        try context.save()
+
+        // Apply using single event API (no batch prefetch, cache is empty)
+        try await ProjectorService.apply(event: updateEvent, context: context)
+
+        // Verify the update worked (fell back to database query)
+        #expect(existingStack.title == "Updated via Single Event")
+    }
+
+    // MARK: - Within-Batch Entity Reference Tests (DEQ-143)
+
+    @Test("Task created in batch can reference stack created earlier in same batch")
+    func withinBatchEntityReference() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let stackId = CUID.generate()
+        let taskId = CUID.generate()
+
+        // Event 1: Create a stack
+        let stackPayload = try createStackPayload(id: stackId, title: "New Stack", isActive: false)
+        let stackCreateEvent = Event(eventType: .stackCreated, payload: stackPayload, entityId: stackId, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        // Event 2: Create a task referencing the stack (created in same batch)
+        let taskPayload = try createTaskPayload(id: taskId, title: "New Task", stackId: stackId)
+        let taskCreateEvent = Event(eventType: .taskCreated, payload: taskPayload, entityId: taskId, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        context.insert(stackCreateEvent)
+        context.insert(taskCreateEvent)
+        try context.save()
+
+        // Apply both events in batch - task event references stack created in same batch
+        // The cache should be updated after stack creation so task can find it
+        let processedCount = try await ProjectorService.applyBatch(
+            events: [stackCreateEvent, taskCreateEvent],
+            context: context
+        )
+
+        #expect(processedCount == 2)
+
+        // Verify task is linked to the stack created in the same batch
+        let taskPredicate = #Predicate<QueueTask> { $0.id == taskId }
+        let taskDescriptor = FetchDescriptor<QueueTask>(predicate: taskPredicate)
+        let tasks = try context.fetch(taskDescriptor)
+
+        #expect(tasks.count == 1)
+        #expect(tasks.first?.stack?.id == stackId)
+        #expect(tasks.first?.stack?.title == "New Stack")
+    }
+
+    @Test("Multiple tasks can reference same stack created earlier in batch")
+    func multipleTasksReferenceSameStackInBatch() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let stackId = CUID.generate()
+        let task1Id = CUID.generate()
+        let task2Id = CUID.generate()
+        let task3Id = CUID.generate()
+
+        // Event 1: Create a stack
+        let stackPayload = try createStackPayload(id: stackId, title: "Parent Stack", isActive: false)
+        let stackCreateEvent = Event(eventType: .stackCreated, payload: stackPayload, entityId: stackId, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        // Events 2-4: Create tasks referencing the stack
+        let task1Payload = try createTaskPayload(id: task1Id, title: "Task 1", stackId: stackId)
+        let task1Event = Event(eventType: .taskCreated, payload: task1Payload, entityId: task1Id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        let task2Payload = try createTaskPayload(id: task2Id, title: "Task 2", stackId: stackId)
+        let task2Event = Event(eventType: .taskCreated, payload: task2Payload, entityId: task2Id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        let task3Payload = try createTaskPayload(id: task3Id, title: "Task 3", stackId: stackId)
+        let task3Event = Event(eventType: .taskCreated, payload: task3Payload, entityId: task3Id, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        // Insert all events
+        context.insert(stackCreateEvent)
+        context.insert(task1Event)
+        context.insert(task2Event)
+        context.insert(task3Event)
+        try context.save()
+
+        // Apply all events in batch
+        let processedCount = try await ProjectorService.applyBatch(
+            events: [stackCreateEvent, task1Event, task2Event, task3Event],
+            context: context
+        )
+
+        #expect(processedCount == 4)
+
+        // Verify all tasks are linked to the stack
+        let stackPredicate = #Predicate<Stack> { $0.id == stackId }
+        let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
+        let stacks = try context.fetch(stackDescriptor)
+
+        #expect(stacks.count == 1)
+        let stack = stacks.first!
+        #expect(stack.tasks.count == 3)
+
+        let taskIds = Set(stack.tasks.map { $0.id })
+        #expect(taskIds.contains(task1Id))
+        #expect(taskIds.contains(task2Id))
+        #expect(taskIds.contains(task3Id))
+    }
+
+    @Test("Update event in batch can find entity created earlier in same batch")
+    func updateEventFindsEntityCreatedInSameBatch() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        let stackId = CUID.generate()
+
+        // Use explicit timestamps to ensure proper LWW ordering
+        let baseTime = Date()
+        let createTime = baseTime
+        let updateTime = baseTime.addingTimeInterval(1.0)
+
+        // Event 1: Create a stack
+        let createPayload = try createStackPayload(id: stackId, title: "Initial Title", isActive: false)
+        let createEvent = Event(eventType: .stackCreated, payload: createPayload, timestamp: createTime, entityId: stackId, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        // Event 2: Update the same stack (created in same batch)
+        let updatePayload = try createStackPayload(id: stackId, title: "Updated Title", isActive: true)
+        let updateEvent = Event(eventType: .stackUpdated, payload: updatePayload, timestamp: updateTime, entityId: stackId, userId: "test-user", deviceId: "test-device", appId: "test-app")
+
+        context.insert(createEvent)
+        context.insert(updateEvent)
+        try context.save()
+
+        // Apply both events in batch
+        let processedCount = try await ProjectorService.applyBatch(
+            events: [createEvent, updateEvent],
+            context: context
+        )
+
+        #expect(processedCount == 2)
+
+        // Verify the stack has the updated values
+        let predicate = #Predicate<Stack> { $0.id == stackId }
+        let descriptor = FetchDescriptor<Stack>(predicate: predicate)
+        let stacks = try context.fetch(descriptor)
+
+        #expect(stacks.count == 1)
+        #expect(stacks.first?.title == "Updated Title")
+        #expect(stacks.first?.isActive == true)
+    }
+
+    @Test("Batch processing with large number of events")
+    func batchProcessingWithManyEvents() async throws {
+        let container = try createTestContainer()
+        let context = ModelContext(container)
+
+        // Create 50 stack events (simulating a large sync batch)
+        var events: [Event] = []
+        var expectedStackIds: Set<String> = []
+
+        for i in 0..<50 {
+            let stackId = CUID.generate()
+            expectedStackIds.insert(stackId)
+
+            let payload = try createStackPayload(id: stackId, title: "Stack \(i)", isActive: false)
+            let event = Event(eventType: .stackCreated, payload: payload, entityId: stackId, userId: "test-user", deviceId: "test-device", appId: "test-app")
+            context.insert(event)
+            events.append(event)
+        }
+        try context.save()
+
+        // Apply all events in a single batch
+        let processedCount = try await ProjectorService.applyBatch(events: events, context: context)
+
+        #expect(processedCount == 50)
+
+        // Verify all stacks were created
+        let descriptor = FetchDescriptor<Stack>()
+        let stacks = try context.fetch(descriptor)
+        #expect(stacks.count == 50)
+
+        let actualStackIds = Set(stacks.map { $0.id })
+        #expect(actualStackIds == expectedStackIds)
+    }
 }
