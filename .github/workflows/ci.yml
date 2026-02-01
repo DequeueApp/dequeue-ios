@@ -204,6 +204,7 @@ jobs:
             -destination "platform=iOS Simulator,id=$DEVICE_ID" \
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Upload Test Results
