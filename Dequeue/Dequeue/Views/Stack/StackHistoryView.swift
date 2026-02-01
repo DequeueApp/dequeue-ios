@@ -176,75 +176,45 @@ private struct EventDisplayConfig {
     let icon: String
     let color: Color
 
-    /// Maps event types to their display configuration
-    static func config(for eventType: String) -> EventDisplayConfig {
-        switch eventType {
+    /// Static configuration map for all known event types
+    private static let configMap: [String: EventDisplayConfig] = [
         // Stack events
-        case "stack.created":
-            return EventDisplayConfig(label: "Stack Created", icon: "plus.circle.fill", color: .green)
-        case "stack.updated":
-            return EventDisplayConfig(label: "Stack Updated", icon: "pencil.circle.fill", color: .blue)
-        case "stack.completed":
-            return EventDisplayConfig(label: "Stack Completed", icon: "checkmark.circle.fill", color: .purple)
-        case "stack.activated":
-            return EventDisplayConfig(label: "Stack Activated", icon: "play.circle.fill", color: .green)
-        case "stack.deactivated":
-            return EventDisplayConfig(label: "Stack Deactivated", icon: "pause.circle.fill", color: .orange)
-        case "stack.closed":
-            return EventDisplayConfig(label: "Stack Closed", icon: "xmark.circle.fill", color: .gray)
-        case "stack.deleted":
-            return EventDisplayConfig(label: "Stack Deleted", icon: "trash.circle.fill", color: .red)
-        case "stack.reordered":
-            return EventDisplayConfig(
-                label: "Stack Reordered",
-                icon: "arrow.up.arrow.down.circle.fill",
-                color: .secondary
-            )
+        "stack.created": EventDisplayConfig(label: "Stack Created", icon: "plus.circle.fill", color: .green),
+        "stack.updated": EventDisplayConfig(label: "Stack Updated", icon: "pencil.circle.fill", color: .blue),
+        "stack.completed": EventDisplayConfig(label: "Stack Completed", icon: "checkmark.circle.fill", color: .purple),
+        "stack.activated": EventDisplayConfig(label: "Stack Activated", icon: "play.circle.fill", color: .green),
+        "stack.deactivated": EventDisplayConfig(label: "Stack Deactivated", icon: "pause.circle.fill", color: .orange),
+        "stack.closed": EventDisplayConfig(label: "Stack Closed", icon: "xmark.circle.fill", color: .gray),
+        "stack.deleted": EventDisplayConfig(label: "Stack Deleted", icon: "trash.circle.fill", color: .red),
+        "stack.reordered": EventDisplayConfig(label: "Stack Reordered", icon: "arrow.up.arrow.down.circle.fill", color: .secondary),
         // Task events
-        case "task.created":
-            return EventDisplayConfig(label: "Task Added", icon: "checklist", color: .teal)
-        case "task.updated":
-            return EventDisplayConfig(label: "Task Updated", icon: "pencil", color: .blue)
-        case "task.completed":
-            return EventDisplayConfig(label: "Task Completed", icon: "checkmark.square.fill", color: .purple)
-        case "task.activated":
-            return EventDisplayConfig(label: "Task Activated", icon: "star.fill", color: .cyan)
-        case "task.deleted":
-            return EventDisplayConfig(label: "Task Deleted", icon: "trash", color: .red)
-        case "task.reordered":
-            return EventDisplayConfig(label: "Tasks Reordered", icon: "arrow.up.arrow.down", color: .secondary)
+        "task.created": EventDisplayConfig(label: "Task Added", icon: "checklist", color: .teal),
+        "task.updated": EventDisplayConfig(label: "Task Updated", icon: "pencil", color: .blue),
+        "task.completed": EventDisplayConfig(label: "Task Completed", icon: "checkmark.square.fill", color: .purple),
+        "task.activated": EventDisplayConfig(label: "Task Activated", icon: "star.fill", color: .cyan),
+        "task.deleted": EventDisplayConfig(label: "Task Deleted", icon: "trash", color: .red),
+        "task.reordered": EventDisplayConfig(label: "Tasks Reordered", icon: "arrow.up.arrow.down", color: .secondary),
         // Reminder events
-        case "reminder.created":
-            return EventDisplayConfig(label: "Reminder Set", icon: "bell.fill", color: .yellow)
-        case "reminder.updated":
-            return EventDisplayConfig(label: "Reminder Updated", icon: "bell.badge", color: .yellow)
-        case "reminder.deleted":
-            return EventDisplayConfig(label: "Reminder Removed", icon: "bell.slash", color: .red)
-        case "reminder.snoozed":
-            return EventDisplayConfig(label: "Reminder Snoozed", icon: "moon.zzz.fill", color: .indigo)
+        "reminder.created": EventDisplayConfig(label: "Reminder Set", icon: "bell.fill", color: .yellow),
+        "reminder.updated": EventDisplayConfig(label: "Reminder Updated", icon: "bell.badge", color: .yellow),
+        "reminder.deleted": EventDisplayConfig(label: "Reminder Removed", icon: "bell.slash", color: .red),
+        "reminder.snoozed": EventDisplayConfig(label: "Reminder Snoozed", icon: "moon.zzz.fill", color: .indigo),
         // Tag events
-        case "tag.created":
-            return EventDisplayConfig(label: "Tag Created", icon: "tag.fill", color: .pink)
-        case "tag.updated":
-            return EventDisplayConfig(label: "Tag Updated", icon: "tag", color: .pink)
-        case "tag.deleted":
-            return EventDisplayConfig(label: "Tag Deleted", icon: "tag.slash", color: .red)
+        "tag.created": EventDisplayConfig(label: "Tag Created", icon: "tag.fill", color: .pink),
+        "tag.updated": EventDisplayConfig(label: "Tag Updated", icon: "tag", color: .pink),
+        "tag.deleted": EventDisplayConfig(label: "Tag Deleted", icon: "tag.slash", color: .red),
         // Attachment events
-        case "attachment.added":
-            return EventDisplayConfig(label: "Attachment Added", icon: "paperclip.circle.fill", color: .mint)
-        case "attachment.removed":
-            return EventDisplayConfig(
-                label: "Attachment Removed",
-                icon: "paperclip.badge.ellipsis",
-                color: .red
-            )
-        default:
-            return EventDisplayConfig(
-                label: eventType,
-                icon: "questionmark.circle.fill",
-                color: .secondary
-            )
-        }
+        "attachment.added": EventDisplayConfig(label: "Attachment Added", icon: "paperclip.circle.fill", color: .mint),
+        "attachment.removed": EventDisplayConfig(label: "Attachment Removed", icon: "paperclip.badge.ellipsis", color: .red)
+    ]
+
+    /// Maps event types to their display configuration using dictionary lookup
+    static func config(for eventType: String) -> EventDisplayConfig {
+        configMap[eventType] ?? EventDisplayConfig(
+            label: eventType,
+            icon: "questionmark.circle.fill",
+            color: .secondary
+        )
     }
 }
 
