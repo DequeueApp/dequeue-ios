@@ -15,6 +15,7 @@ import os.log
 // MARK: - Preview State
 
 /// State for attachment preview operations
+@MainActor
 @Observable
 final class AttachmentPreviewCoordinator {
     /// The URL currently being previewed (nil when not previewing)
@@ -50,50 +51,38 @@ final class AttachmentPreviewCoordinator {
         // Check if file is available locally
         if attachment.isAvailableLocally, let resolvedPath = attachment.resolvedLocalPath {
             let url = URL(fileURLWithPath: resolvedPath)
-            await MainActor.run {
-                self.previewURL = url
-            }
+            previewURL = url
             return
         }
 
         // File not local - need to download first
         guard let downloadHandler else {
-            await MainActor.run {
-                self.errorMessage = "File not available locally and no download handler provided"
-                self.showError = true
-            }
+            errorMessage = "File not available locally and no download handler provided"
+            showError = true
             return
         }
 
         // Start download
-        await MainActor.run {
-            self.isDownloading = true
-        }
+        isDownloading = true
 
         do {
             logger.debug("Downloading attachment for preview: \(attachment.filename)")
             let localURL = try await downloadHandler(attachment)
 
-            await MainActor.run {
-                self.isDownloading = false
-                self.downloadProgress = 1.0
-                self.previewURL = localURL
-            }
+            isDownloading = false
+            downloadProgress = 1.0
+            previewURL = localURL
         } catch {
             logger.error("Failed to download attachment for preview: \(error.localizedDescription)")
-            await MainActor.run {
-                self.isDownloading = false
-                self.errorMessage = "Failed to download file: \(error.localizedDescription)"
-                self.showError = true
-            }
+            isDownloading = false
+            errorMessage = "Failed to download file: \(error.localizedDescription)"
+            showError = true
         }
     }
 
     /// Update download progress
     func updateProgress(_ progress: Double) {
-        Task { @MainActor in
-            self.downloadProgress = progress
-        }
+        downloadProgress = progress
     }
 
     /// Dismiss the preview
