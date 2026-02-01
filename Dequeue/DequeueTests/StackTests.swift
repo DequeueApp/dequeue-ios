@@ -10,7 +10,23 @@ import SwiftData
 import Foundation
 @testable import Dequeue
 
-@Suite("Stack Model Tests")
+/// Helper to create in-memory container with all required models for relationship testing
+private func makeTestContainer(includeEvent: Bool = false) throws -> ModelContainer {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    if includeEvent {
+        return try ModelContainer(
+            for: Stack.self, QueueTask.self, Reminder.self, Event.self, Arc.self, Tag.self,
+            configurations: config
+        )
+    } else {
+        return try ModelContainer(
+            for: Stack.self, QueueTask.self, Reminder.self, Arc.self, Tag.self,
+            configurations: config
+        )
+    }
+}
+
+@Suite("Stack Model Tests", .serialized)
 struct StackTests {
     @Test("Stack initializes with default values")
     func stackInitializesWithDefaults() {
@@ -62,8 +78,7 @@ struct StackTests {
     @Test("pendingTasks filters correctly")
     @MainActor
     func pendingTasksFiltersCorrectly() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, configurations: config)
+        let container = try makeTestContainer()
         let context = container.mainContext
 
         let stack = Stack(title: "Test Stack")
@@ -98,8 +113,7 @@ struct StackTests {
     @Test("completedTasks filters correctly")
     @MainActor
     func completedTasksFiltersCorrectly() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, configurations: config)
+        let container = try makeTestContainer()
         let context = container.mainContext
 
         let stack = Stack(title: "Test Stack")
@@ -129,8 +143,7 @@ struct StackTests {
     @Test("activeTask returns first pending task")
     @MainActor
     func activeTaskReturnsFirstPending() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, configurations: config)
+        let container = try makeTestContainer()
         let context = container.mainContext
 
         let stack = Stack(title: "Test Stack")
@@ -161,8 +174,7 @@ struct StackTests {
     @Test("Creating stack with multiple tasks")
     @MainActor
     func creatingStackWithMultipleTasks() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let container = try makeTestContainer(includeEvent: true)
         let context = ModelContext(container)
 
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
@@ -212,8 +224,7 @@ struct StackTests {
     @Test("Creating stack with no tasks")
     @MainActor
     func creatingStackWithNoTasks() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let container = try makeTestContainer(includeEvent: true)
         let context = ModelContext(container)
 
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
@@ -235,8 +246,7 @@ struct StackTests {
     @Test("Task sort order is correct when created sequentially")
     @MainActor
     func taskSortOrderCorrect() async throws {
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Stack.self, QueueTask.self, Reminder.self, Event.self, configurations: config)
+        let container = try makeTestContainer(includeEvent: true)
         let context = ModelContext(container)
 
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
