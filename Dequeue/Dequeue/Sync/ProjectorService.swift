@@ -403,6 +403,7 @@ enum ProjectorService {
     ///   - context: The SwiftData model context
     /// - Returns: Number of events successfully processed
     @discardableResult
+    // swiftlint:disable:next function_body_length
     static func applyBatch(events: [Event], context: ModelContext) async throws -> Int {
         guard !events.isEmpty else { return 0 }
 
