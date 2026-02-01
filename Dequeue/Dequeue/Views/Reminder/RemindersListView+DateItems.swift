@@ -238,7 +238,11 @@ extension RemindersListView {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
+                    #if os(iOS)
                     .background(Color(.systemGray5))
+                    #else
+                    .background(Color.gray.opacity(0.2))
+                    #endif
                     .clipShape(Capsule())
             }
         }
