@@ -197,37 +197,9 @@ final class ArcService {
             arc.colorHex = colorHex
         }
 
-        // Handle startTime updates
-        if let startTimeUpdate = startTime {
-            switch startTimeUpdate {
-            case .clear:
-                if arc.startTime != nil {
-                    changes["startTime"] = ["from": arc.startTime as Any, "to": NSNull()]
-                    arc.startTime = nil
-                }
-            case .set(let date):
-                if arc.startTime != date {
-                    changes["startTime"] = ["from": arc.startTime as Any, "to": date]
-                    arc.startTime = date
-                }
-            }
-        }
-
-        // Handle dueTime updates
-        if let dueTimeUpdate = dueTime {
-            switch dueTimeUpdate {
-            case .clear:
-                if arc.dueTime != nil {
-                    changes["dueTime"] = ["from": arc.dueTime as Any, "to": NSNull()]
-                    arc.dueTime = nil
-                }
-            case .set(let date):
-                if arc.dueTime != date {
-                    changes["dueTime"] = ["from": arc.dueTime as Any, "to": date]
-                    arc.dueTime = date
-                }
-            }
-        }
+        // Handle date updates using helper function
+        applyDateUpdate(startTime, to: &arc.startTime, key: "startTime", changes: &changes)
+        applyDateUpdate(dueTime, to: &arc.dueTime, key: "dueTime", changes: &changes)
 
         guard !changes.isEmpty else { return }
 
@@ -419,6 +391,26 @@ final class ArcService {
 
     private func triggerSync() {
         syncManager?.triggerImmediatePush()
+    }
+
+    /// Helper to apply a DateUpdate to a date field and record the change
+    private func applyDateUpdate(
+        _ update: DateUpdate?,
+        to date: inout Date?,
+        key: String,
+        changes: inout [String: Any]
+    ) {
+        guard let update = update else { return }
+        switch update {
+        case .clear where date != nil:
+            changes[key] = ["from": date as Any, "to": NSNull()]
+            date = nil
+        case .set(let newDate) where date != newDate:
+            changes[key] = ["from": date as Any, "to": newDate]
+            date = newDate
+        default:
+            break
+        }
     }
 }
 
