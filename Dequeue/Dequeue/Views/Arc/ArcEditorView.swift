@@ -52,6 +52,10 @@ struct ArcEditorView: View {
     @State var title: String = ""
     @State var arcDescription: String = ""
     @State var selectedColorHex: String = "5E5CE6" // Default indigo
+    @State var startDate: Date?
+    @State var dueDate: Date?
+    @State var hasStartDate: Bool = false
+    @State var hasDueDate: Bool = false
 
     // UI state
     @State var showError = false
@@ -69,6 +73,7 @@ struct ArcEditorView: View {
     @State var showSnoozePicker = false
     @State var reminderToDelete: Reminder?
     @State var showDeleteReminderConfirmation = false
+    @State var showDueDateReminderPrompt = false
 
     // Attachment state
     @State var showAttachmentPicker = false
@@ -119,6 +124,11 @@ struct ArcEditorView: View {
                 // Color section
                 Section("Accent Color") {
                     colorPicker
+                }
+
+                // Dates section
+                Section("Dates") {
+                    datesSection
                 }
 
                 // Stacks section (edit mode only)
@@ -275,6 +285,46 @@ struct ArcEditorView: View {
                 Text("Are you sure you want to delete this attachment?")
             }
             .attachmentPreview(coordinator: previewCoordinator)
+            // Due date reminder prompt
+            .alert("Create Reminder?", isPresented: $showDueDateReminderPrompt) {
+                Button("Yes, remind me") {
+                    createDueDateReminder()
+                }
+                Button("No thanks", role: .cancel) { }
+            } message: {
+                Text("Would you like to create a reminder for this due date at 8:00 AM?")
+            }
+        }
+    }
+
+    /// Creates a reminder at 8 AM on the due date
+    private func createDueDateReminder() {
+        guard let arc = editingArc, let dueDate = dueDate else { return }
+
+        // Set reminder to 8:00 AM on the due date
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone.current
+        guard let reminderDate = calendar.date(
+            bySettingHour: 8,
+            minute: 0,
+            second: 0,
+            of: dueDate
+        ) else { return }
+
+        Task {
+            let userId = authService.currentUserId ?? ""
+            let reminderService = ReminderService(
+                modelContext: modelContext,
+                userId: userId,
+                deviceId: cachedDeviceId,
+                syncManager: syncManager
+            )
+            do {
+                _ = try await reminderService.createReminder(for: arc, at: reminderDate)
+            } catch {
+                errorMessage = "Failed to create reminder: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 }

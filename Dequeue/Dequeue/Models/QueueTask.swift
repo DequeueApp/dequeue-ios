@@ -13,6 +13,7 @@ final class QueueTask {
     @Attribute(.unique) var id: String
     var title: String
     var taskDescription: String?
+    var startTime: Date?
     var dueTime: Date?
     var locationAddress: String?
     var locationLatitude: Double?
@@ -45,6 +46,7 @@ final class QueueTask {
         id: String = CUID.generate(),
         title: String,
         taskDescription: String? = nil,
+        startTime: Date? = nil,
         dueTime: Date? = nil,
         locationAddress: String? = nil,
         locationLatitude: Double? = nil,
@@ -69,6 +71,7 @@ final class QueueTask {
         self.id = id
         self.title = title
         self.taskDescription = taskDescription
+        self.startTime = startTime
         self.dueTime = dueTime
         self.locationAddress = locationAddress
         self.locationLatitude = locationLatitude

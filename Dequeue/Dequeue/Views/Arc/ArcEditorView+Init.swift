@@ -56,6 +56,10 @@ extension ArcEditorView {
             title = arc.title
             arcDescription = arc.arcDescription ?? ""
             selectedColorHex = arc.colorHex ?? "5E5CE6"
+            startDate = arc.startTime
+            hasStartDate = arc.startTime != nil
+            dueDate = arc.dueTime
+            hasDueDate = arc.dueTime != nil
         }
     }
 }

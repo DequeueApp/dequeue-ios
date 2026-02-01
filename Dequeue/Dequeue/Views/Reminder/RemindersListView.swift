@@ -3,21 +3,31 @@
 //  Dequeue
 //
 //  Shows all upcoming and overdue reminders (DEQ-22)
+//  Also shows items with start/due dates approaching
 //
 
 import SwiftUI
 import SwiftData
 
+/// Represents an item (Stack, Task, Arc) that has a scheduled date
+struct DateScheduledItem: Identifiable {
+    let id: String
+    let title: String
+    let date: Date
+    let parentType: ParentType
+    let isStartDate: Bool  // true = start date, false = due date
+}
+
 struct RemindersListView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
     @Environment(\.syncManager) private var syncManager
     @Environment(\.authService) private var authService
 
     @Query private var reminders: [Reminder]
-    @Query private var stacks: [Stack]
-    @Query private var tasks: [QueueTask]
-    @Query private var arcs: [Arc]
+    @Query var stacks: [Stack]
+    @Query var tasks: [QueueTask]
+    @Query var arcs: [Arc]
 
     @State private var reminderActionHandler: ReminderActionHandler?
 
@@ -81,12 +91,21 @@ struct RemindersListView: View {
             .sorted { $0.remindAt < $1.remindAt }
     }
 
+    /// Whether there are any items or reminders to show
+    /// Note: startingSoonItems, dueSoonItems, overdueItems are defined in RemindersListView+DateItems.swift
+    var hasAnyContent: Bool {
+        !activeReminders.isEmpty ||
+        !startingSoonItems.isEmpty ||
+        !dueSoonItems.isEmpty ||
+        !overdueItems.isEmpty
+    }
+
     // MARK: - Body
 
     var body: some View {
         NavigationStack {
             Group {
-                if activeReminders.isEmpty {
+                if !hasAnyContent {
                     emptyState
                 } else {
                     remindersList
@@ -155,9 +174,9 @@ struct RemindersListView: View {
 
     private var emptyState: some View {
         ContentUnavailableView(
-            "No Reminders",
+            "Nothing Scheduled",
             systemImage: "bell.slash",
-            description: Text("You don't have any active reminders.\nAdd reminders from tasks or stacks.")
+            description: Text("No reminders or items with upcoming dates.\nAdd dates to your stacks, tasks, or arcs.")
         )
     }
 
@@ -165,8 +184,24 @@ struct RemindersListView: View {
 
     private var remindersList: some View {
         List {
+            // Overdue items section (items past their due date)
+            if !overdueItems.isEmpty {
+                overdueItemsSection
+            }
+
+            // Overdue reminders section
             if !overdueReminders.isEmpty {
                 overdueSection
+            }
+
+            // Due soon section (items due in next 48 hours)
+            if !dueSoonItems.isEmpty {
+                dueSoonSection
+            }
+
+            // Starting soon section (items starting in next 24 hours)
+            if !startingSoonItems.isEmpty {
+                startingSoonSection
             }
 
             if !todayReminders.isEmpty {
@@ -188,6 +223,10 @@ struct RemindersListView: View {
         #endif
     }
 
+    // MARK: - Reminder Sections
+    // Note: Date-based item sections (overdueItemsSection, dueSoonSection, startingSoonSection)
+    // are defined in RemindersListView+DateItems.swift
+
     private var overdueSection: some View {
         Section {
             ForEach(overdueReminders) { reminder in
@@ -197,7 +236,7 @@ struct RemindersListView: View {
             HStack {
                 Image(systemName: "exclamationmark.circle.fill")
                     .foregroundStyle(.red)
-                Text("Overdue")
+                Text("Overdue Reminders")
             }
         }
     }

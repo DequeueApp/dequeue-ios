@@ -24,6 +24,12 @@ final class Arc {
     var isDeleted: Bool
 
     // Sync fields (standard pattern)
+    /// Optional start date for the arc
+    var startTime: Date?
+    /// Optional due date for the arc
+    var dueTime: Date?
+
+    // Sync fields (standard pattern)
     var userId: String?
     var deviceId: String?
     var syncStateRawValue: String
@@ -109,6 +115,8 @@ final class Arc {
         status: ArcStatus = .active,
         sortOrder: Int = 0,
         colorHex: String? = nil,
+        startTime: Date? = nil,
+        dueTime: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         isDeleted: Bool = false,
@@ -125,6 +133,8 @@ final class Arc {
         self.statusRawValue = status.rawValue
         self.sortOrder = sortOrder
         self.colorHex = colorHex
+        self.startTime = startTime
+        self.dueTime = dueTime
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isDeleted = isDeleted

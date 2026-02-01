@@ -564,4 +564,151 @@ struct ArcServiceTests {
         #expect(arc.colorHex == "FF0000")
         #expect(arc.syncState == .pending) // Should be marked for sync
     }
+
+    // MARK: - Start and Due Date Tests
+
+    @Test("createArc creates arc with start and due dates")
+    @MainActor
+    func createArcSetsStartAndDueDates() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let startDate = Date()
+        let dueDate = Date().addingTimeInterval(86_400 * 7) // 7 days later
+
+        let arc = try await service.createArc(
+            title: "Test Arc",
+            startTime: startDate,
+            dueTime: dueDate
+        )
+
+        #expect(arc.startTime == startDate)
+        #expect(arc.dueTime == dueDate)
+    }
+
+    @Test("createArc creates arc without dates by default")
+    @MainActor
+    func createArcWithoutDatesHasNilDates() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let arc = try await service.createArc(title: "Test Arc")
+
+        #expect(arc.startTime == nil)
+        #expect(arc.dueTime == nil)
+    }
+
+    @Test("updateArc sets start date")
+    @MainActor
+    func updateArcSetsStartDate() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let arc = try await service.createArc(title: "Test Arc")
+        let startDate = Date()
+
+        try await service.updateArc(arc, startTime: .set(startDate))
+
+        #expect(arc.startTime == startDate)
+    }
+
+    @Test("updateArc sets due date")
+    @MainActor
+    func updateArcSetsDueDate() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let arc = try await service.createArc(title: "Test Arc")
+        let dueDate = Date().addingTimeInterval(86_400 * 7)
+
+        try await service.updateArc(arc, dueTime: .set(dueDate))
+
+        #expect(arc.dueTime == dueDate)
+    }
+
+    @Test("updateArc clears start date when set to clear")
+    @MainActor
+    func updateArcClearsStartDate() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let startDate = Date()
+        let arc = try await service.createArc(title: "Test Arc", startTime: startDate)
+        #expect(arc.startTime != nil)
+
+        try await service.updateArc(arc, startTime: .clear)
+
+        #expect(arc.startTime == nil)
+    }
+
+    @Test("updateArc clears due date when set to clear")
+    @MainActor
+    func updateArcClearsDueDate() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let dueDate = Date().addingTimeInterval(86_400 * 7)
+        let arc = try await service.createArc(title: "Test Arc", dueTime: dueDate)
+        #expect(arc.dueTime != nil)
+
+        try await service.updateArc(arc, dueTime: .clear)
+
+        #expect(arc.dueTime == nil)
+    }
+
+    @Test("updateArc preserves existing dates when not specified")
+    @MainActor
+    func updateArcPreservesDatesWhenNotSpecified() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let startDate = Date()
+        let dueDate = Date().addingTimeInterval(86_400 * 7)
+        let arc = try await service.createArc(
+            title: "Test Arc",
+            startTime: startDate,
+            dueTime: dueDate
+        )
+
+        // Update only the title, dates should be preserved
+        try await service.updateArc(arc, title: "Updated Title")
+
+        #expect(arc.startTime == startDate)
+        #expect(arc.dueTime == dueDate)
+    }
 }

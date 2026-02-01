@@ -25,11 +25,11 @@ private let maxActiveArcs = 5
 /// - Deleting an arc removes stacks from it but doesn't delete them
 @MainActor
 final class ArcService {
-    private let modelContext: ModelContext
-    private let eventService: EventService
+    let modelContext: ModelContext
+    let eventService: EventService
     private let userId: String?
-    private let deviceId: String
-    private weak var syncManager: SyncManager?
+    let deviceId: String
+    private(set) weak var syncManager: SyncManager?
 
     /// Creates a new ArcService instance.
     /// - Parameters:
@@ -103,6 +103,8 @@ final class ArcService {
         title: String,
         description: String? = nil,
         colorHex: String? = nil,
+        startTime: Date? = nil,
+        dueTime: Date? = nil,
         status: ArcStatus = .active
     ) async throws -> Arc {
         // Check constraint for active arcs
@@ -123,6 +125,8 @@ final class ArcService {
             status: status,
             sortOrder: nextSortOrder,
             colorHex: colorHex,
+            startTime: startTime,
+            dueTime: dueTime,
             userId: userId,
             deviceId: deviceId,
             syncState: .pending
@@ -151,11 +155,20 @@ final class ArcService {
     ///   - description: New description, or nil to keep current
     ///   - colorHex: New color hex value, or nil to keep current
     /// - Throws: `ArcServiceError.invalidTitle` if title is provided but empty or whitespace-only
+    /// Wrapper type to distinguish "set to nil" from "don't change" for optional Date fields.
+    /// Use `.clear` to explicitly set the date to nil, `.set(date)` to update, or `nil` to leave unchanged.
+    enum DateUpdate {
+        case clear
+        case set(Date)
+    }
+
     func updateArc(
         _ arc: Arc,
         title: String? = nil,
         description: String? = nil,
-        colorHex: String? = nil
+        colorHex: String? = nil,
+        startTime: DateUpdate? = nil,
+        dueTime: DateUpdate? = nil
     ) async throws {
         // Validate and normalize title if provided
         var normalizedTitle: String?
@@ -183,6 +196,10 @@ final class ArcService {
             changes["colorHex"] = ["from": arc.colorHex as Any, "to": colorHex]
             arc.colorHex = colorHex
         }
+
+        // Handle date updates using helper function
+        applyDateUpdate(startTime, to: &arc.startTime, key: "startTime", changes: &changes)
+        applyDateUpdate(dueTime, to: &arc.dueTime, key: "dueTime", changes: &changes)
 
         guard !changes.isEmpty else { return }
 
@@ -368,104 +385,32 @@ final class ArcService {
         triggerSync()
     }
 
-    // MARK: - Sync Support
-
-    /// Creates or updates an arc from a sync event (used by ProjectorService)
-    func upsertFromSync( // swiftlint:disable:this function_parameter_count
-        id: String,
-        title: String,
-        description: String?,
-        status: ArcStatus,
-        sortOrder: Int,
-        colorHex: String?,
-        createdAt: Date,
-        updatedAt: Date,
-        isDeleted: Bool,
-        userId: String?,
-        revision: Int,
-        serverId: String?
-    ) throws -> Arc {
-        if let existing = try fetchByIdIncludingDeleted(id) {
-            // Update existing arc
-            existing.title = title
-            existing.arcDescription = description
-            existing.status = status
-            existing.sortOrder = sortOrder
-            existing.colorHex = colorHex
-            existing.createdAt = createdAt
-            existing.updatedAt = updatedAt
-            existing.isDeleted = isDeleted
-            existing.userId = userId
-            existing.revision = revision
-            existing.serverId = serverId
-            existing.syncState = .synced
-            existing.lastSyncedAt = Date()
-
-            try modelContext.save()
-            return existing
-        } else {
-            // Create new arc from sync
-            let arc = Arc(
-                id: id,
-                title: title,
-                arcDescription: description,
-                status: status,
-                sortOrder: sortOrder,
-                colorHex: colorHex,
-                createdAt: createdAt,
-                updatedAt: updatedAt,
-                isDeleted: isDeleted,
-                userId: userId,
-                deviceId: deviceId,
-                syncState: .synced,
-                lastSyncedAt: Date(),
-                serverId: serverId,
-                revision: revision
-            )
-
-            modelContext.insert(arc)
-            try modelContext.save()
-            return arc
-        }
-    }
-
-    /// Fetches an arc by ID including deleted ones (for sync)
-    private func fetchByIdIncludingDeleted(_ id: String) throws -> Arc? {
-        let descriptor = FetchDescriptor<Arc>(
-            predicate: #Predicate<Arc> { $0.id == id }
-        )
-        return try modelContext.fetch(descriptor).first
-    }
-
-    // MARK: - History Revert
-
-    /// Reverts an arc to a historical state from a previous event
-    /// - Parameters:
-    ///   - arc: The arc to revert
-    ///   - event: The historical event containing the desired state
-    func revertToHistoricalState(_ arc: Arc, from event: Event) async throws {
-        let historicalPayload = try event.decodePayload(ArcEventPayload.self)
-
-        // Apply historical values
-        arc.title = historicalPayload.title
-        arc.arcDescription = historicalPayload.description
-        arc.status = historicalPayload.status
-        arc.sortOrder = historicalPayload.sortOrder
-        arc.colorHex = historicalPayload.colorHex
-        arc.updatedAt = Date()  // Current time - this IS a new edit
-        arc.syncState = .pending
-        arc.revision += 1
-
-        // Record as a NEW update event (preserves immutable history)
-        try await eventService.recordArcUpdated(arc)
-        try modelContext.save()
-        syncManager?.triggerImmediatePush()
-    }
-
     // MARK: - Private Helpers
+    // Note: upsertFromSync and fetchByIdIncludingDeleted are defined in ArcService+Sync.swift
+    // Note: revertToHistoricalState is defined in ArcService+History.swift
 
     private func triggerSync() {
         syncManager?.triggerImmediatePush()
+    }
+
+    /// Helper to apply a DateUpdate to a date field and record the change
+    private func applyDateUpdate(
+        _ update: DateUpdate?,
+        to date: inout Date?,
+        key: String,
+        changes: inout [String: Any]
+    ) {
+        guard let update = update else { return }
+        switch update {
+        case .clear where date != nil:
+            changes[key] = ["from": date as Any, "to": NSNull()]
+            date = nil
+        case .set(let newDate) where date != newDate:
+            changes[key] = ["from": date as Any, "to": newDate]
+            date = newDate
+        default:
+            break
+        }
     }
 }
 
