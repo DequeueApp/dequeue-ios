@@ -1448,16 +1448,23 @@ enum ProjectorService {
         context: ModelContext,
         cache: EntityLookupCache
     ) async {
+        // DEQ-235 FIX: Capture the stacks from the inverse relationship FIRST,
+        // before any fetches or inserts that might affect SwiftData's relationship tracking.
+        // This ensures we get the stacks that are actually linked to the local duplicate tag.
+        let stacksFromInverseEarly = localDuplicate.stacks.filter { !$0.isDeleted }
+        let localDuplicateId = localDuplicate.id
+
         ErrorReportingService.addBreadcrumb(
             category: "sync_tag_dedupe",
             message: "Cross-device tag duplicate: incoming is canonical, replacing local",
             data: [
                 "incoming_tag_id": payload.id,
-                "local_duplicate_id": localDuplicate.id,
+                "local_duplicate_id": localDuplicateId,
                 "tag_name": payload.name,
                 "normalized_name": normalizedName,
                 "incoming_created_at": payload.createdAt?.ISO8601Format() ?? "unknown",
-                "local_created_at": localDuplicate.createdAt.ISO8601Format()
+                "local_created_at": localDuplicate.createdAt.ISO8601Format(),
+                "stacks_from_inverse_early": stacksFromInverseEarly.map { $0.id }.joined(separator: ",")
             ]
         )
 
@@ -1476,25 +1483,64 @@ enum ProjectorService {
         context.insert(canonicalTag)
 
         // Migrate all stacks from the local duplicate to the canonical tag
-        // Query stacks directly - inverse relationships can be unreliable when tags are fetched separately
-        // Also try the inverse relationship as a fallback for stacks that were just created in this context
-        let localDuplicateId = localDuplicate.id
+        // Start with stacks captured from the inverse relationship (most reliable)
+        var stacksToMigrate = stacksFromInverseEarly
+
+        // Also query stacks directly as a fallback - inverse relationships can sometimes
+        // be unreliable when tags are fetched separately from stacks
         let stackPredicate = #Predicate<Stack> { $0.isDeleted == false }
         let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
         let allStacks = (try? context.fetch(stackDescriptor)) ?? []
 
         // Find stacks by checking if their tagObjects contain the local duplicate
         // Use ID comparison to handle cases where object identity might differ
-        var stacksToMigrate = allStacks.filter { stack in
-            stack.tagObjects.contains { $0.id == localDuplicateId }
+        for stack in allStacks {
+            // Skip if already in our migration list
+            guard !stacksToMigrate.contains(where: { $0.id == stack.id }) else { continue }
+
+            // Force access to tagObjects to trigger lazy loading, then check for match
+            let tagIds = stack.tagObjects.map { $0.id }
+            if tagIds.contains(localDuplicateId) {
+                stacksToMigrate.append(stack)
+            }
         }
 
-        // Fallback: also check the inverse relationship on the tag itself
-        // This handles cases where the tag was added to a stack in the same context session
-        let stacksFromInverse = localDuplicate.stacks.filter { !$0.isDeleted }
-        for stack in stacksFromInverse where !stacksToMigrate.contains(where: { $0.id == stack.id }) {
-            stacksToMigrate.append(stack)
+        // DEQ-235 FIX: Additional fallback - check if the local duplicate tag
+        // has any stacks AFTER we've done the fetch (in case lazy loading kicks in now)
+        let stacksFromInverseAfterFetch = localDuplicate.stacks.filter { !$0.isDeleted }
+        for stack in stacksFromInverseAfterFetch {
+            if !stacksToMigrate.contains(where: { $0.id == stack.id }) {
+                stacksToMigrate.append(stack)
+            }
         }
+
+        // DEQ-235 FIX: Final fallback - check by normalized name in case object identity is broken
+        // This handles edge cases where SwiftData's relationship tracking fails
+        for stack in allStacks {
+            guard !stacksToMigrate.contains(where: { $0.id == stack.id }) else { continue }
+
+            // Check if any of this stack's tags match the local duplicate by ID OR normalized name
+            let hasMatchingTag = stack.tagObjects.contains { tag in
+                tag.id == localDuplicateId ||
+                (tag.normalizedName == normalizedName && tag.id != payload.id)
+            }
+            if hasMatchingTag {
+                stacksToMigrate.append(stack)
+            }
+        }
+
+        // Log the final list of stacks to migrate for debugging
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_tag_dedupe",
+            message: "Migrating stacks from local duplicate to canonical tag",
+            data: [
+                "canonical_tag_id": payload.id,
+                "local_duplicate_id": localDuplicateId,
+                "stacks_to_migrate_count": stacksToMigrate.count,
+                "stacks_to_migrate_ids": stacksToMigrate.map { $0.id }.joined(separator: ",")
+            ]
+        )
+
         for stack in stacksToMigrate {
             // Add the canonical tag if not already present
             if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
