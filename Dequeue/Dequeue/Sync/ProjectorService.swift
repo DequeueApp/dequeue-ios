@@ -1486,15 +1486,14 @@ enum ProjectorService {
 
         ErrorReportingService.addBreadcrumb(
             category: "sync_tag_dedupe",
-            message: "Cross-device tag duplicate: incoming is canonical, soft-deleted local first",
+            message: "Cross-device tag duplicate: incoming is canonical, replacing local",
             data: [
                 "incoming_tag_id": payload.id,
                 "local_duplicate_id": localDuplicateId,
                 "tag_name": payload.name,
                 "normalized_name": normalizedName,
                 "incoming_created_at": payload.createdAt?.ISO8601Format() ?? "unknown",
-                "local_created_at": localCreatedAt.ISO8601Format(),
-                "is_deleted_set": String(localDuplicate.isDeleted)
+                "local_created_at": localCreatedAt.ISO8601Format()
             ]
         )
 
@@ -1548,8 +1547,17 @@ enum ProjectorService {
 
         // Register mapping from local duplicate ID to canonical tag ID
         await tagIdRemapping.addMapping(from: localDuplicateId, to: canonicalTag.id)
-        
-        print("DEBUG: [handleIncomingTagIsCanonical] EXIT - localDuplicateId=\(localDuplicateId), isDeleted FINAL=\(localDuplicate.isDeleted)")
+
+        // DEQ-235 FIX: Set isDeleted at the VERY END, after all relationship modifications.
+        // Use a fresh fetch to ensure we're modifying the correct object in the context.
+        // SwiftData can have issues with object references after relationship changes.
+        let allTagsDescriptor = FetchDescriptor<Tag>()
+        if let allTags = try? context.fetch(allTagsDescriptor),
+           let tagToDelete = allTags.first(where: { $0.id == localDuplicateId }) {
+            tagToDelete.isDeleted = true
+            tagToDelete.updatedAt = Date()
+            tagToDelete.syncState = .pending
+        }
     }
 
     /// DEQ-235: Find stacks to migrate using direct queries only - no relationship property access.
