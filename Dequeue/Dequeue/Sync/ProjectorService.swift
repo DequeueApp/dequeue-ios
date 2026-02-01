@@ -1543,20 +1543,49 @@ enum ProjectorService {
 
         // Resolve pending associations for both the incoming tag ID and local duplicate ID
         await resolvePendingTagAssociations(
-            tagIds: [payload.id, localDuplicate.id],
+            tagIds: [payload.id, localDuplicateId],
             canonicalTag: canonicalTag,
             context: context,
             cache: cache
         )
 
-        // Soft-delete the local duplicate
-        localDuplicate.isDeleted = true
-        localDuplicate.updatedAt = Date()
-        localDuplicate.syncState = .pending
+        // DEQ-235 FIX: Re-fetch the local duplicate tag by ID before soft-deleting.
+        // SwiftData can lose track of object references during complex relationship changes
+        // (e.g., when migrateStacksToCanonicalTag modifies inverse relationships).
+        // By re-fetching, we ensure we're modifying the actual persisted object.
+        let tagPredicate = #Predicate<Tag> { $0.id == localDuplicateId }
+        let tagDescriptor = FetchDescriptor<Tag>(predicate: tagPredicate)
+        if let tagToDelete = try? context.fetch(tagDescriptor).first {
+            tagToDelete.isDeleted = true
+            tagToDelete.updatedAt = Date()
+            tagToDelete.syncState = .pending
+
+            ErrorReportingService.addBreadcrumb(
+                category: "sync_tag_dedupe",
+                message: "Soft-deleted local duplicate tag",
+                data: [
+                    "local_duplicate_id": localDuplicateId,
+                    "is_deleted_after": String(tagToDelete.isDeleted)
+                ]
+            )
+        } else {
+            // Fallback: try setting on the original reference
+            localDuplicate.isDeleted = true
+            localDuplicate.updatedAt = Date()
+            localDuplicate.syncState = .pending
+
+            ErrorReportingService.addBreadcrumb(
+                category: "sync_tag_dedupe",
+                message: "Used fallback to soft-delete local duplicate (fetch returned nil)",
+                data: [
+                    "local_duplicate_id": localDuplicateId
+                ]
+            )
+        }
 
         // Register mapping from local duplicate ID to canonical tag ID
         // This ensures any future references to the old local ID resolve correctly
-        await tagIdRemapping.addMapping(from: localDuplicate.id, to: canonicalTag.id)
+        await tagIdRemapping.addMapping(from: localDuplicateId, to: canonicalTag.id)
     }
 
     /// DEQ-235: Helper to find all stacks that reference a duplicate tag.
