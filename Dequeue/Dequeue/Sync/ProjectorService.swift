@@ -1492,10 +1492,8 @@ enum ProjectorService {
         // Fallback: also check the inverse relationship on the tag itself
         // This handles cases where the tag was added to a stack in the same context session
         let stacksFromInverse = localDuplicate.stacks.filter { !$0.isDeleted }
-        for stack in stacksFromInverse {
-            if !stacksToMigrate.contains(where: { $0.id == stack.id }) {
-                stacksToMigrate.append(stack)
-            }
+        for stack in stacksFromInverse where !stacksToMigrate.contains(where: { $0.id == stack.id }) {
+            stacksToMigrate.append(stack)
         }
         for stack in stacksToMigrate {
             // Add the canonical tag if not already present
