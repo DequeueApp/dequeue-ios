@@ -1477,11 +1477,25 @@ enum ProjectorService {
 
         // Migrate all stacks from the local duplicate to the canonical tag
         // Query stacks directly - inverse relationships can be unreliable when tags are fetched separately
-        let stackPredicate = #Predicate<Stack> { !$0.isDeleted }
+        // Also try the inverse relationship as a fallback for stacks that were just created in this context
+        let localDuplicateId = localDuplicate.id
+        let stackPredicate = #Predicate<Stack> { $0.isDeleted == false }
         let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
         let allStacks = (try? context.fetch(stackDescriptor)) ?? []
-        let stacksToMigrate = allStacks.filter { stack in
-            stack.tagObjects.contains { $0.id == localDuplicate.id }
+
+        // Find stacks by checking if their tagObjects contain the local duplicate
+        // Use ID comparison to handle cases where object identity might differ
+        var stacksToMigrate = allStacks.filter { stack in
+            stack.tagObjects.contains { $0.id == localDuplicateId }
+        }
+
+        // Fallback: also check the inverse relationship on the tag itself
+        // This handles cases where the tag was added to a stack in the same context session
+        let stacksFromInverse = localDuplicate.stacks.filter { !$0.isDeleted }
+        for stack in stacksFromInverse {
+            if !stacksToMigrate.contains(where: { $0.id == stack.id }) {
+                stacksToMigrate.append(stack)
+            }
         }
         for stack in stacksToMigrate {
             // Add the canonical tag if not already present
