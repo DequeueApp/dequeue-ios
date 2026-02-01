@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Event Model Tests")
+@MainActor
 struct EventTests {
     @Test("Event initializes with type string")
     func eventInitializesWithTypeString() throws {

@@ -20,6 +20,7 @@ private struct TestError: Error {
 }
 
 @Suite("Attachment Model Tests")
+@MainActor
 struct AttachmentTests {
     @Test("Attachment initializes with default values")
     func attachmentInitializesWithDefaults() {
@@ -426,6 +427,7 @@ struct AttachmentTests {
 // MARK: - Path Migration & Resolution Tests
 
 @Suite("Attachment Path Migration Tests")
+@MainActor
 struct AttachmentPathMigrationTests {
     @Test("migrateToRelativePath converts absolute path to relative")
     func migrateToRelativePathConvertsAbsolutePath() {

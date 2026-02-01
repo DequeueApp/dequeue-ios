@@ -10,6 +10,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("SyncManager WebSocket Push Tests")
+@MainActor
 struct SyncManagerWebSocketPushTests {
     // MARK: - WebSocket Push Configuration Tests
 

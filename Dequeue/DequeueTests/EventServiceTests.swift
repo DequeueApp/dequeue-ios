@@ -54,6 +54,7 @@ private func makeAttachmentPayload(
 }
 
 @Suite("EventService FetchByIds Tests", .serialized)
+@MainActor
 struct EventServiceFetchByIdsTests {
     @Test("fetchEventsByIds returns events matching provided IDs")
     @MainActor
@@ -174,6 +175,7 @@ struct EventServiceFetchByIdsTests {
 // MARK: - Stack History Tests
 
 @Suite("EventService StackHistory Tests", .serialized)
+@MainActor
 struct EventServiceStackHistoryTests {
     @Test("fetchStackHistoryWithRelated returns stack events")
     @MainActor
@@ -418,6 +420,7 @@ struct EventServiceStackHistoryTests {
 // MARK: - Task History Tests
 
 @Suite("EventService TaskHistory Tests", .serialized)
+@MainActor
 struct EventServiceTaskHistoryTests {
     @Test("fetchTaskHistoryWithRelated returns task events")
     @MainActor
