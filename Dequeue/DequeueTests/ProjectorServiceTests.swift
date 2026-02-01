@@ -1308,12 +1308,7 @@ struct ProjectorServiceTests {
 
         // Apply the incoming tag.created event
         try await ProjectorService.apply(event: incomingEvent, context: context)
-        
-        print("DEBUG: [TEST] AFTER APPLY, BEFORE SAVE - localTag.isDeleted=\(localTag.isDeleted)")
-        
         try context.save()
-        
-        print("DEBUG: [TEST] AFTER SAVE - localTag.isDeleted=\(localTag.isDeleted)")
 
         // Verify: incoming tag (older) should now be the canonical tag
         let incomingTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "incoming-tag-id" })).first
@@ -1323,7 +1318,6 @@ struct ProjectorServiceTests {
 
         // Verify: local tag should be soft-deleted
         let updatedLocalTag = try? context.fetch(FetchDescriptor<Dequeue.Tag>(predicate: #Predicate { $0.id == "local-tag-id" })).first
-        print("DEBUG: [TEST] FETCHED updatedLocalTag.isDeleted=\(String(describing: updatedLocalTag?.isDeleted)), same object as localTag? \(updatedLocalTag === localTag)")
         #expect(updatedLocalTag?.isDeleted == true, "Local duplicate tag should be soft-deleted, but isDeleted=\(String(describing: updatedLocalTag?.isDeleted))")
 
         // Verify: stack should now reference the canonical (incoming) tag
