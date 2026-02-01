@@ -3,10 +3,20 @@
 //  Dequeue
 //
 //  Shows all upcoming and overdue reminders (DEQ-22)
+//  Also shows items with start/due dates approaching
 //
 
 import SwiftUI
 import SwiftData
+
+/// Represents an item (Stack, Task, Arc) that has a scheduled date
+struct DateScheduledItem: Identifiable {
+    let id: String
+    let title: String
+    let date: Date
+    let parentType: ParentType
+    let isStartDate: Bool  // true = start date, false = due date
+}
 
 struct RemindersListView: View {
     @Environment(\.modelContext) private var modelContext
@@ -81,12 +91,168 @@ struct RemindersListView: View {
             .sorted { $0.remindAt < $1.remindAt }
     }
 
+    // MARK: - Filtered Items by Dates
+
+    /// Items (Stacks, Tasks, Arcs) with startTime in the next 24 hours
+    private var startingSoonItems: [DateScheduledItem] {
+        let now = Date()
+        let in24Hours = now.addingTimeInterval(24 * 60 * 60)
+
+        var items: [DateScheduledItem] = []
+
+        // Stacks starting soon
+        for stack in stacks where stack.status == .active {
+            if let startTime = stack.startTime, startTime > now && startTime <= in24Hours {
+                items.append(DateScheduledItem(
+                    id: stack.id,
+                    title: stack.title,
+                    date: startTime,
+                    parentType: .stack,
+                    isStartDate: true
+                ))
+            }
+        }
+
+        // Tasks starting soon
+        for task in tasks where task.status == .pending {
+            if let startTime = task.startTime, startTime > now && startTime <= in24Hours {
+                items.append(DateScheduledItem(
+                    id: task.id,
+                    title: task.title,
+                    date: startTime,
+                    parentType: .task,
+                    isStartDate: true
+                ))
+            }
+        }
+
+        // Arcs starting soon
+        for arc in arcs where arc.status == .active {
+            if let startTime = arc.startTime, startTime > now && startTime <= in24Hours {
+                items.append(DateScheduledItem(
+                    id: arc.id,
+                    title: arc.title,
+                    date: startTime,
+                    parentType: .arc,
+                    isStartDate: true
+                ))
+            }
+        }
+
+        return items.sorted { $0.date < $1.date }
+    }
+
+    /// Items (Stacks, Tasks, Arcs) with dueTime in the next 48 hours (but not overdue)
+    private var dueSoonItems: [DateScheduledItem] {
+        let now = Date()
+        let in48Hours = now.addingTimeInterval(48 * 60 * 60)
+
+        var items: [DateScheduledItem] = []
+
+        // Stacks due soon
+        for stack in stacks where stack.status == .active {
+            if let dueTime = stack.dueTime, dueTime > now && dueTime <= in48Hours {
+                items.append(DateScheduledItem(
+                    id: stack.id,
+                    title: stack.title,
+                    date: dueTime,
+                    parentType: .stack,
+                    isStartDate: false
+                ))
+            }
+        }
+
+        // Tasks due soon
+        for task in tasks where task.status == .pending {
+            if let dueTime = task.dueTime, dueTime > now && dueTime <= in48Hours {
+                items.append(DateScheduledItem(
+                    id: task.id,
+                    title: task.title,
+                    date: dueTime,
+                    parentType: .task,
+                    isStartDate: false
+                ))
+            }
+        }
+
+        // Arcs due soon
+        for arc in arcs where arc.status == .active {
+            if let dueTime = arc.dueTime, dueTime > now && dueTime <= in48Hours {
+                items.append(DateScheduledItem(
+                    id: arc.id,
+                    title: arc.title,
+                    date: dueTime,
+                    parentType: .arc,
+                    isStartDate: false
+                ))
+            }
+        }
+
+        return items.sorted { $0.date < $1.date }
+    }
+
+    /// Items (Stacks, Tasks, Arcs) that are past their dueTime but not completed
+    private var overdueItems: [DateScheduledItem] {
+        let now = Date()
+
+        var items: [DateScheduledItem] = []
+
+        // Stacks overdue
+        for stack in stacks where stack.status == .active {
+            if let dueTime = stack.dueTime, dueTime <= now {
+                items.append(DateScheduledItem(
+                    id: stack.id,
+                    title: stack.title,
+                    date: dueTime,
+                    parentType: .stack,
+                    isStartDate: false
+                ))
+            }
+        }
+
+        // Tasks overdue
+        for task in tasks where task.status == .pending {
+            if let dueTime = task.dueTime, dueTime <= now {
+                items.append(DateScheduledItem(
+                    id: task.id,
+                    title: task.title,
+                    date: dueTime,
+                    parentType: .task,
+                    isStartDate: false
+                ))
+            }
+        }
+
+        // Arcs overdue
+        for arc in arcs where arc.status == .active {
+            if let dueTime = arc.dueTime, dueTime <= now {
+                items.append(DateScheduledItem(
+                    id: arc.id,
+                    title: arc.title,
+                    date: dueTime,
+                    parentType: .arc,
+                    isStartDate: false
+                ))
+            }
+        }
+
+        return items.sorted { $0.date < $1.date }
+    }
+
+    /// Whether there are any items or reminders to show
+    private var hasAnyContent: Bool {
+        !activeReminders.isEmpty ||
+        !startingSoonItems.isEmpty ||
+        !dueSoonItems.isEmpty ||
+        !overdueItems.isEmpty
+    }
+
     // MARK: - Body
 
     var body: some View {
         NavigationStack {
             Group {
-                if activeReminders.isEmpty {
+                if !hasAnyContent {
                     emptyState
                 } else {
                     remindersList
@@ -155,9 +321,9 @@ struct RemindersListView: View {
 
     private var emptyState: some View {
         ContentUnavailableView(
-            "No Reminders",
+            "Nothing Scheduled",
             systemImage: "bell.slash",
-            description: Text("You don't have any active reminders.\nAdd reminders from tasks or stacks.")
+            description: Text("No reminders or items with upcoming dates.\nAdd dates to your stacks, tasks, or arcs.")
         )
     }
 
@@ -165,8 +331,24 @@ struct RemindersListView: View {
 
     private var remindersList: some View {
         List {
+            // Overdue items section (items past their due date)
+            if !overdueItems.isEmpty {
+                overdueItemsSection
+            }
+
+            // Overdue reminders section
             if !overdueReminders.isEmpty {
                 overdueSection
+            }
+
+            // Due soon section (items due in next 48 hours)
+            if !dueSoonItems.isEmpty {
+                dueSoonSection
+            }
+
+            // Starting soon section (items starting in next 24 hours)
+            if !startingSoonItems.isEmpty {
+                startingSoonSection
             }
 
             if !todayReminders.isEmpty {
@@ -188,6 +370,111 @@ struct RemindersListView: View {
         #endif
     }
 
+    // MARK: - Date-Based Item Sections
+
+    private var overdueItemsSection: some View {
+        Section {
+            ForEach(overdueItems) { item in
+                dateScheduledItemRow(for: item, isOverdue: true)
+            }
+        } header: {
+            HStack {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                Text("Overdue Items")
+            }
+        }
+    }
+
+    private var dueSoonSection: some View {
+        Section {
+            ForEach(dueSoonItems) { item in
+                dateScheduledItemRow(for: item, isOverdue: false)
+            }
+        } header: {
+            HStack {
+                Image(systemName: "clock.badge.exclamationmark")
+                    .foregroundStyle(.orange)
+                Text("Due Soon")
+            }
+        }
+    }
+
+    private var startingSoonSection: some View {
+        Section {
+            ForEach(startingSoonItems) { item in
+                dateScheduledItemRow(for: item, isOverdue: false)
+            }
+        } header: {
+            HStack {
+                Image(systemName: "play.circle.fill")
+                    .foregroundStyle(.green)
+                Text("Starting Soon")
+            }
+        }
+    }
+
+    private func dateScheduledItemRow(for item: DateScheduledItem, isOverdue: Bool) -> some View {
+        Button {
+            // Dismiss sheet first, then navigate
+            dismiss()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                onGoToItem?(item.id, item.parentType)
+            }
+        } label: {
+            HStack {
+                // Icon based on type
+                Image(systemName: iconForParentType(item.parentType))
+                    .foregroundStyle(isOverdue ? .red : .secondary)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.title)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                    HStack {
+                        Text(item.isStartDate ? "Starts" : "Due")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(item.date.smartFormatted())
+                            .font(.caption)
+                            .foregroundStyle(isOverdue ? .red : .secondary)
+                    }
+                }
+
+                Spacer()
+
+                // Type label
+                Text(labelForParentType(item.parentType))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color(.systemGray5))
+                    .clipShape(Capsule())
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func iconForParentType(_ type: ParentType) -> String {
+        switch type {
+        case .stack: return "tray.full"
+        case .task: return "checkmark.circle"
+        case .arc: return "point.3.filled.connected.trianglepath.dotted"
+        }
+    }
+
+    private func labelForParentType(_ type: ParentType) -> String {
+        switch type {
+        case .stack: return "Stack"
+        case .task: return "Task"
+        case .arc: return "Arc"
+        }
+    }
+
+    // MARK: - Reminder Sections
+
     private var overdueSection: some View {
         Section {
             ForEach(overdueReminders) { reminder in
@@ -197,7 +484,7 @@ struct RemindersListView: View {
             HStack {
                 Image(systemName: "exclamationmark.circle.fill")
                     .foregroundStyle(.red)
-                Text("Overdue")
+                Text("Overdue Reminders")
             }
         }
     }

@@ -103,6 +103,8 @@ final class ArcService {
         title: String,
         description: String? = nil,
         colorHex: String? = nil,
+        startTime: Date? = nil,
+        dueTime: Date? = nil,
         status: ArcStatus = .active
     ) async throws -> Arc {
         // Check constraint for active arcs
@@ -123,6 +125,8 @@ final class ArcService {
             status: status,
             sortOrder: nextSortOrder,
             colorHex: colorHex,
+            startTime: startTime,
+            dueTime: dueTime,
             userId: userId,
             deviceId: deviceId,
             syncState: .pending
@@ -151,11 +155,20 @@ final class ArcService {
     ///   - description: New description, or nil to keep current
     ///   - colorHex: New color hex value, or nil to keep current
     /// - Throws: `ArcServiceError.invalidTitle` if title is provided but empty or whitespace-only
+    /// Wrapper type to distinguish "set to nil" from "don't change" for optional Date fields.
+    /// Use `.clear` to explicitly set the date to nil, `.set(date)` to update, or `nil` to leave unchanged.
+    enum DateUpdate {
+        case clear
+        case set(Date)
+    }
+
     func updateArc(
         _ arc: Arc,
         title: String? = nil,
         description: String? = nil,
-        colorHex: String? = nil
+        colorHex: String? = nil,
+        startTime: DateUpdate? = nil,
+        dueTime: DateUpdate? = nil
     ) async throws {
         // Validate and normalize title if provided
         var normalizedTitle: String?
@@ -182,6 +195,38 @@ final class ArcService {
         if let colorHex = colorHex, colorHex != arc.colorHex {
             changes["colorHex"] = ["from": arc.colorHex as Any, "to": colorHex]
             arc.colorHex = colorHex
+        }
+
+        // Handle startTime updates
+        if let startTimeUpdate = startTime {
+            switch startTimeUpdate {
+            case .clear:
+                if arc.startTime != nil {
+                    changes["startTime"] = ["from": arc.startTime as Any, "to": NSNull()]
+                    arc.startTime = nil
+                }
+            case .set(let date):
+                if arc.startTime != date {
+                    changes["startTime"] = ["from": arc.startTime as Any, "to": date]
+                    arc.startTime = date
+                }
+            }
+        }
+
+        // Handle dueTime updates
+        if let dueTimeUpdate = dueTime {
+            switch dueTimeUpdate {
+            case .clear:
+                if arc.dueTime != nil {
+                    changes["dueTime"] = ["from": arc.dueTime as Any, "to": NSNull()]
+                    arc.dueTime = nil
+                }
+            case .set(let date):
+                if arc.dueTime != date {
+                    changes["dueTime"] = ["from": arc.dueTime as Any, "to": date]
+                    arc.dueTime = date
+                }
+            }
         }
 
         guard !changes.isEmpty else { return }
