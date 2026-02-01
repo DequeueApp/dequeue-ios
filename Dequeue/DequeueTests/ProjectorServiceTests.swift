@@ -1254,6 +1254,7 @@ struct ProjectorServiceTests {
         #expect(actualStackIds == expectedStackIds)
     }
 
+    @MainActor
     @Test("DEQ-235: Cross-device tag duplicate - incoming older tag wins")
     func crossDeviceTagDuplicateIncomingOlderWins() async throws {
         let container = try createTestContainer()
@@ -1323,6 +1324,7 @@ struct ProjectorServiceTests {
         #expect(updatedStack?.tagObjects.first?.id == "incoming-tag-id")
     }
 
+    @MainActor
     @Test("DEQ-235: Cross-device tag duplicate - local older tag wins")
     func crossDeviceTagDuplicateLocalOlderWins() async throws {
         let container = try createTestContainer()
@@ -1391,6 +1393,7 @@ struct ProjectorServiceTests {
         #expect(updatedStack?.tagObjects.first?.id == "local-tag-id")
     }
 
+    @MainActor
     @Test("DEQ-235: Cross-device tag duplicate - same timestamp uses ID tie-breaker")
     func crossDeviceTagDuplicateSameTimestampUsesIdTieBreaker() async throws {
         let container = try createTestContainer()
