@@ -25,11 +25,11 @@ private func makeTestContainer() throws -> ModelContainer {
 }
 
 @Suite("TaskService Tests", .serialized)
+@MainActor
 struct TaskServiceTests {
     // MARK: - Create Task Tests (DEQ-7)
 
     @Test("createTask creates a new task with title")
-    @MainActor
     func createTaskWithTitle() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -47,7 +47,6 @@ struct TaskServiceTests {
     }
 
     @Test("createTask creates a task with description")
-    @MainActor
     func createTaskWithDescription() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -68,7 +67,6 @@ struct TaskServiceTests {
     }
 
     @Test("createTask assigns correct sort order")
-    @MainActor
     func createTaskAssignsSortOrder() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -87,7 +85,6 @@ struct TaskServiceTests {
     }
 
     @Test("createTask allows custom sort order")
-    @MainActor
     func createTaskWithCustomSortOrder() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -102,7 +99,6 @@ struct TaskServiceTests {
     }
 
     @Test("createTask sets sync state to pending")
-    @MainActor
     func createTaskSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -117,7 +113,6 @@ struct TaskServiceTests {
     }
 
     @Test("created task appears in stack's pendingTasks")
-    @MainActor
     func createdTaskAppearsInPendingTasks() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -135,7 +130,6 @@ struct TaskServiceTests {
     // MARK: - Mark Complete Tests
 
     @Test("markAsCompleted changes task status")
-    @MainActor
     func markAsCompletedChangesStatus() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -153,7 +147,6 @@ struct TaskServiceTests {
     }
 
     @Test("completed task moves from pendingTasks to completedTasks")
-    @MainActor
     func completedTaskMovesToCompletedList() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext

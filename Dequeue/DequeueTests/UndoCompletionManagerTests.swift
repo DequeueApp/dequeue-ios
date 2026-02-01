@@ -24,11 +24,11 @@ private func makeTestContainer() throws -> ModelContainer {
 }
 
 @Suite("UndoCompletionManager Tests", .serialized)
+@MainActor
 struct UndoCompletionManagerTests {
     // MARK: - Initial State Tests
 
     @Test("Manager initializes with no pending completion")
-    @MainActor
     func managerInitializesEmpty() {
         let manager = UndoCompletionManager()
 
@@ -40,7 +40,6 @@ struct UndoCompletionManagerTests {
     // MARK: - Start Delayed Completion Tests
 
     @Test("startDelayedCompletion sets pending stack")
-    @MainActor
     func startDelayedCompletionSetsPendingStack() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -58,7 +57,6 @@ struct UndoCompletionManagerTests {
     }
 
     @Test("startDelayedCompletion resets progress to zero")
-    @MainActor
     func startDelayedCompletionResetsProgress() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -75,7 +73,6 @@ struct UndoCompletionManagerTests {
     }
 
     @Test("Starting new completion cancels previous one")
-    @MainActor
     func startingNewCompletionCancelsPrevious() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -99,7 +96,6 @@ struct UndoCompletionManagerTests {
     // MARK: - Undo Completion Tests
 
     @Test("undoCompletion clears pending stack")
-    @MainActor
     func undoCompletionClearsPendingStack() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -120,7 +116,6 @@ struct UndoCompletionManagerTests {
     }
 
     @Test("undoCompletion resets progress")
-    @MainActor
     func undoCompletionResetsProgress() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -138,7 +133,6 @@ struct UndoCompletionManagerTests {
     }
 
     @Test("undoCompletion is safe to call with no pending completion")
-    @MainActor
     func undoCompletionSafeWhenNoPending() {
         let manager = UndoCompletionManager()
 
@@ -150,7 +144,6 @@ struct UndoCompletionManagerTests {
     }
 
     @Test("Stack remains active after undo")
-    @MainActor
     func stackRemainsActiveAfterUndo() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -171,7 +164,6 @@ struct UndoCompletionManagerTests {
     // MARK: - Grace Period Completion Tests
 
     @Test("Stack is completed after grace period")
-    @MainActor
     func stackCompletedAfterGracePeriod() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -194,7 +186,6 @@ struct UndoCompletionManagerTests {
     }
 
     @Test("Stack is NOT completed if undone before grace period")
-    @MainActor
     func stackNotCompletedIfUndone() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -221,7 +212,6 @@ struct UndoCompletionManagerTests {
     // MARK: - Progress Tests
 
     @Test("Progress increases over time")
-    @MainActor
     func progressIncreasesOverTime() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -249,7 +239,6 @@ struct UndoCompletionManagerTests {
     }
 
     @Test("Progress is approximately correct at midpoint")
-    @MainActor
     func progressApproximatelyCorrectAtMidpoint() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -277,7 +266,6 @@ struct UndoCompletionManagerTests {
     // MARK: - Configuration Tests
 
     @Test("Manager works without syncManager")
-    @MainActor
     func managerWorksWithoutSyncManager() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -302,7 +290,6 @@ struct UndoCompletionManagerTests {
     // MARK: - Edge Cases
 
     @Test("Multiple rapid start/undo cycles work correctly")
-    @MainActor
     func multipleRapidStartUndoCycles() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -327,7 +314,6 @@ struct UndoCompletionManagerTests {
     }
 
     @Test("Grace period duration is 5 seconds")
-    @MainActor
     func gracePeriodDurationIsFiveSeconds() {
         #expect(UndoCompletionManager.gracePeriodDuration == 5.0)
     }
@@ -336,9 +322,9 @@ struct UndoCompletionManagerTests {
 // MARK: - Stack Completion with Tasks Tests
 
 @Suite("UndoCompletionManager Task Handling Tests", .serialized)
+@MainActor
 struct UndoCompletionManagerTaskTests {
     @Test("Completing stack also completes all pending tasks")
-    @MainActor
     func completingStackCompletesAllTasks() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -373,7 +359,6 @@ struct UndoCompletionManagerTaskTests {
     }
 
     @Test("Already completed tasks remain completed after stack completion")
-    @MainActor
     func alreadyCompletedTasksRemainCompleted() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
