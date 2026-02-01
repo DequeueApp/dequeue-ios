@@ -15,8 +15,9 @@ struct MainTabView: View {
     @Environment(\.syncManager) private var syncManager
     @Environment(\.authService) private var authService
 
-    @Query(filter: #Predicate<Stack> { !$0.isDeleted }) private var allStacks: [Stack]
-    @Query(filter: #Predicate<QueueTask> { !$0.isDeleted }) private var allTasks: [QueueTask]
+    // DEQ-142: Removed @Query for allStacks and allTasks
+    // These were only used for deep link navigation (rare event)
+    // Now fetched lazily in handleDeepLink() to avoid 2 queries on every init
 
     @State private var selectedTab = 0
     @State private var cachedDeviceId: String = ""
@@ -214,23 +215,9 @@ struct MainTabView: View {
             return
         }
 
-        // Find the target Stack to navigate to
-        let targetStack: Stack?
-
-        switch destination.parentType {
-        case .stack:
-            targetStack = allStacks.first { $0.id == destination.parentId }
-        case .task:
-            // Find the task, then get its parent stack
-            if let task = allTasks.first(where: { $0.id == destination.parentId }) {
-                targetStack = task.stack
-            } else {
-                targetStack = nil
-            }
-        case .arc:
-            // Arcs don't have a detail view yet - could navigate to Arcs tab in future
-            targetStack = nil
-        }
+        // DEQ-142: Fetch stack/task lazily only when deep link is triggered
+        // This avoids 2 @Query fetches on every MainTabView init
+        let targetStack: Stack? = findTargetStack(for: destination)
 
         guard let stack = targetStack else { return }
 
@@ -243,6 +230,36 @@ struct MainTabView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(300))
             activeStackForDetail = stack
+        }
+    }
+
+    /// Lazily fetches the target stack for a deep link destination
+    /// DEQ-142: Moved from @Query properties to on-demand fetch
+    private func findTargetStack(for destination: DeepLinkDestination) -> Stack? {
+        switch destination.parentType {
+        case .stack:
+            // Fetch single stack by ID
+            let stackId = destination.parentId
+            let predicate = #Predicate<Stack> { stack in
+                stack.id == stackId && !stack.isDeleted
+            }
+            var descriptor = FetchDescriptor<Stack>(predicate: predicate)
+            descriptor.fetchLimit = 1
+            return try? modelContext.fetch(descriptor).first
+
+        case .task:
+            // Fetch single task by ID and get its parent stack
+            let taskId = destination.parentId
+            let predicate = #Predicate<QueueTask> { task in
+                task.id == taskId && !task.isDeleted
+            }
+            var descriptor = FetchDescriptor<QueueTask>(predicate: predicate)
+            descriptor.fetchLimit = 1
+            return try? modelContext.fetch(descriptor).first?.stack
+
+        case .arc:
+            // Arcs don't have a detail view yet - could navigate to Arcs tab in future
+            return nil
         }
     }
 

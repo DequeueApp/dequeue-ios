@@ -45,17 +45,25 @@ jobs:
 
       - name: Install iOS Platform
         run: |
-          # Check if iOS platform is available
-          echo "Checking available platforms..."
-          xcodebuild -showsdks | grep -i ios || true
+          echo "Checking available iOS runtimes..."
+          xcrun simctl list runtimes | grep -i iOS || true
           
-          # Download iOS platform if not installed
-          echo "Downloading iOS platform (this may take a few minutes)..."
-          xcodebuild -downloadPlatform iOS || true
+          # Download iOS platform if iOS 26.0 is not available
+          if ! xcrun simctl list runtimes | grep -q "iOS 26.0"; then
+            echo "iOS 26.0 runtime not found, downloading iOS platform..."
+            xcodebuild -downloadPlatform iOS
+          else
+            echo "iOS 26.0 runtime already available"
+          fi
           
-          # List available runtimes
-          echo "Available runtimes:"
+          echo "Available runtimes after download:"
           xcrun simctl list runtimes
+          
+          # Verify iOS 26 is available (26.0, 26.1, or 26.2)
+          if ! xcrun simctl list runtimes | grep -q "iOS 26"; then
+            echo "Error: iOS 26.x runtime not available after download"
+            exit 1
+          fi
 
       - name: Create iOS Simulator
         run: |
@@ -63,12 +71,12 @@ jobs:
           echo "Available device types:"
           xcrun simctl list devicetypes | grep -i iphone | head -10
           
-          # List available runtimes
-          echo "Available runtimes:"
-          xcrun simctl list runtimes | grep -i ios
-          
-          # Create iPhone 16 Pro simulator using available runtime
-          RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS" | tail -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          # Prefer iOS 26.0 runtime for compatibility with deployment target
+          RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS 26.0" | head -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          if [ -z "$RUNTIME" ]; then
+            # Fall back to any iOS 26 runtime
+            RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS 26" | head -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          fi
           echo "Using runtime: $RUNTIME"
           xcrun simctl create "iPhone 16 Pro CI" "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro" "$RUNTIME" 2>/dev/null || true
           
@@ -140,14 +148,34 @@ jobs:
 
       - name: Install iOS Platform
         run: |
-          echo "Downloading iOS platform..."
-          xcodebuild -downloadPlatform iOS || true
-          echo "Available runtimes:"
+          echo "Checking available iOS runtimes..."
+          xcrun simctl list runtimes | grep -i iOS || true
+          
+          # Download iOS platform if iOS 26.0 is not available
+          if ! xcrun simctl list runtimes | grep -q "iOS 26.0"; then
+            echo "iOS 26.0 runtime not found, downloading iOS platform..."
+            xcodebuild -downloadPlatform iOS
+          else
+            echo "iOS 26.0 runtime already available"
+          fi
+          
+          echo "Available runtimes after download:"
           xcrun simctl list runtimes
+          
+          # Verify iOS 26 is available (26.0, 26.1, or 26.2)
+          if ! xcrun simctl list runtimes | grep -q "iOS 26"; then
+            echo "Error: iOS 26.x runtime not available after download"
+            exit 1
+          fi
 
       - name: Create iOS Simulator
         run: |
-          RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS" | tail -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          # Prefer iOS 26.0 runtime for compatibility with deployment target
+          RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS 26.0" | head -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          if [ -z "$RUNTIME" ]; then
+            # Fall back to any iOS 26 runtime
+            RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS 26" | head -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          fi
           echo "Using runtime: $RUNTIME"
           xcrun simctl create "iPhone 16 Pro CI" "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro" "$RUNTIME" 2>/dev/null || true
           xcrun simctl list devices available | grep -i "iphone 16"
@@ -202,14 +230,34 @@ jobs:
 
       - name: Install iOS Platform
         run: |
-          echo "Downloading iOS platform..."
-          xcodebuild -downloadPlatform iOS || true
-          echo "Available runtimes:"
+          echo "Checking available iOS runtimes..."
+          xcrun simctl list runtimes | grep -i iOS || true
+          
+          # Download iOS platform if iOS 26.0 is not available
+          if ! xcrun simctl list runtimes | grep -q "iOS 26.0"; then
+            echo "iOS 26.0 runtime not found, downloading iOS platform..."
+            xcodebuild -downloadPlatform iOS
+          else
+            echo "iOS 26.0 runtime already available"
+          fi
+          
+          echo "Available runtimes after download:"
           xcrun simctl list runtimes
+          
+          # Verify iOS 26 is available (26.0, 26.1, or 26.2)
+          if ! xcrun simctl list runtimes | grep -q "iOS 26"; then
+            echo "Error: iOS 26.x runtime not available after download"
+            exit 1
+          fi
 
       - name: Create iOS Simulator
         run: |
-          RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS" | tail -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          # Prefer iOS 26.0 runtime for compatibility with deployment target
+          RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS 26.0" | head -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          if [ -z "$RUNTIME" ]; then
+            # Fall back to any iOS 26 runtime
+            RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS 26" | head -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
+          fi
           echo "Using runtime: $RUNTIME"
           xcrun simctl create "iPhone 16 Pro CI" "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro" "$RUNTIME" 2>/dev/null || true
           xcrun simctl list devices available | grep -i "iphone 16"
