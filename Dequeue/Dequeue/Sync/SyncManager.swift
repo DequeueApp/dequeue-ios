@@ -868,6 +868,7 @@ actor SyncManager {
         var hasReminderEvents = false
     }
 
+    @MainActor
     private func processIncomingEvents(_ events: [[String: Any]]) async throws {
         os_log("[Sync] Processing \(events.count) incoming events")
         var stats = EventProcessingStats()
