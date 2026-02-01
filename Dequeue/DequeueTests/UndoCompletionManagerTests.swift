@@ -24,6 +24,7 @@ private func makeTestContainer() throws -> ModelContainer {
 }
 
 @Suite("UndoCompletionManager Tests", .serialized)
+@MainActor
 struct UndoCompletionManagerTests {
     // MARK: - Initial State Tests
 
@@ -336,6 +337,7 @@ struct UndoCompletionManagerTests {
 // MARK: - Stack Completion with Tasks Tests
 
 @Suite("UndoCompletionManager Task Handling Tests", .serialized)
+@MainActor
 struct UndoCompletionManagerTaskTests {
     @Test("Completing stack also completes all pending tasks")
     @MainActor

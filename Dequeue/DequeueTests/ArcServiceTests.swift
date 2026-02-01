@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("ArcService Tests", .serialized)
+@MainActor
 struct ArcServiceTests {
     // MARK: - Test Helpers
 

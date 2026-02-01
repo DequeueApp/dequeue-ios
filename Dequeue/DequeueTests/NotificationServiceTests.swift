@@ -142,6 +142,7 @@ private struct TestContext {
 // MARK: - Tests
 
 @Suite("NotificationService Tests", .serialized)
+@MainActor
 struct NotificationServiceTests {
     // MARK: - Permission Tests
 

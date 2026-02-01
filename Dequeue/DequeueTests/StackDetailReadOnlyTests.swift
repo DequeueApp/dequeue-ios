@@ -28,6 +28,7 @@ private func passesCompletedViewFilter(_ stack: Stack) -> Bool {
 }
 
 @Suite("Stack Detail Read-Only Tests", .serialized)
+@MainActor
 struct StackDetailReadOnlyTests {
     // MARK: - Completed Stack Filter Tests
 

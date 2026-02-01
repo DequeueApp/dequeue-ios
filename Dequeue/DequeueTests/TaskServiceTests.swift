@@ -25,6 +25,7 @@ private func makeTestContainer() throws -> ModelContainer {
 }
 
 @Suite("TaskService Tests", .serialized)
+@MainActor
 struct TaskServiceTests {
     // MARK: - Create Task Tests (DEQ-7)
 

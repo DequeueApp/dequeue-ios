@@ -10,6 +10,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("DownloadManager Tests")
+@MainActor
 struct DownloadManagerTests {
     // MARK: - DownloadProgress Tests
 

@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Device Model Tests")
+@MainActor
 struct DeviceTests {
     @Test("Device initializes with required fields")
     func deviceInitializesWithRequiredFields() {

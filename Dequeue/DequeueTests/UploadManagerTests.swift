@@ -10,6 +10,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("UploadManager Tests")
+@MainActor
 struct UploadManagerTests {
     // MARK: - UploadProgress Tests
 

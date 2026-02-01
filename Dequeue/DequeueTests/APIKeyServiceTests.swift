@@ -11,30 +11,87 @@ import Foundation
 
 // MARK: - Mock URLSession for Network Tests
 
-/// Thread-safe storage for the mock request handler
-/// Uses a lock to ensure visibility across threads (MainActor -> URLSession background thread)
+/// Thread-safe storage for mock request handlers, keyed by session identifier
+/// Uses per-session isolation to avoid parallel test interference
 private final class MockURLProtocolStorage: @unchecked Sendable {
     static let shared = MockURLProtocolStorage()
-    
+
     private let lock = NSLock()
-    private var storedHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
-    
+    private var handlers: [ObjectIdentifier: (URLRequest) throws -> (HTTPURLResponse, Data)] = [:]
+
+    func setHandler(
+        for session: URLSession,
+        handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        handlers[ObjectIdentifier(session)] = handler
+    }
+
+    func handler(for session: URLSession) -> ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        lock.lock()
+        defer { lock.unlock() }
+        return handlers[ObjectIdentifier(session)]
+    }
+
+    func removeHandler(for session: URLSession) {
+        lock.lock()
+        defer { lock.unlock() }
+        handlers.removeValue(forKey: ObjectIdentifier(session))
+    }
+
+    // Fallback for when we can't determine the session (uses URL-based lookup)
+    private var urlHandlers: [String: (URLRequest) throws -> (HTTPURLResponse, Data)] = [:]
+
+    func setURLHandler(
+        for baseURL: String,
+        handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        urlHandlers[baseURL] = handler
+    }
+
+    func urlHandler(for url: URL) -> ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        lock.lock()
+        defer { lock.unlock() }
+        // Find handler by matching URL prefix
+        for (baseURL, handler) in urlHandlers {
+            if url.absoluteString.hasPrefix(baseURL) {
+                return handler
+            }
+        }
+        return nil
+    }
+
+    func removeURLHandler(for baseURL: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        urlHandlers.removeValue(forKey: baseURL)
+    }
+
+    // Legacy global handler for backward compatibility
+    private var globalHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+
     var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
         get {
             lock.lock()
             defer { lock.unlock() }
-            return storedHandler
+            return globalHandler
         }
         set {
             lock.lock()
             defer { lock.unlock() }
-            storedHandler = newValue
+            globalHandler = newValue
         }
     }
 }
 
 /// Mock URLProtocol for intercepting network requests in tests
 private final class MockURLProtocol: URLProtocol {
+    // Each test gets a unique base URL to avoid collisions
+    nonisolated(unsafe) static var testBaseURL: String = "https://test.example.com"
+
     override class func canInit(with request: URLRequest) -> Bool {
         true
     }
@@ -45,8 +102,29 @@ private final class MockURLProtocol: URLProtocol {
     }
 
     override func startLoading() {
+        // Try URL-based handler first (most specific)
+        if let url = request.url,
+           let handler = MockURLProtocolStorage.shared.urlHandler(for: url) {
+            do {
+                let (response, data) = try handler(request)
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocol(self, didLoad: data)
+                client?.urlProtocolDidFinishLoading(self)
+            } catch {
+                client?.urlProtocol(self, didFailWithError: error)
+            }
+            return
+        }
+
+        // Fall back to global handler
         guard let handler = MockURLProtocolStorage.shared.requestHandler else {
-            fatalError("Handler not set")
+            let error = NSError(
+                domain: "MockURLProtocol",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "No handler configured for request"]
+            )
+            client?.urlProtocol(self, didFailWithError: error)
+            return
         }
 
         do {
@@ -71,8 +149,42 @@ private func makeMockURLSession() -> URLSession {
     return URLSession(configuration: config)
 }
 
-/// Base URL used for mock HTTP responses in tests
-private let testBaseURL = URL(string: "https://example.com")!
+/// Test context that provides isolated mock networking per test
+private struct TestNetworkContext {
+    let session: URLSession
+    let baseURL: String
+    let mockAuth: MockAuthService
+
+    init() {
+        session = makeMockURLSession()
+        // Each test gets a unique base URL to ensure handler isolation
+        baseURL = "https://test-\(UUID().uuidString).example.com"
+        mockAuth = MockAuthService()
+        mockAuth.mockSignIn()
+    }
+
+    func setHandler(_ handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)) {
+        MockURLProtocolStorage.shared.setURLHandler(for: baseURL, handler: handler)
+    }
+
+    func makeService() -> APIKeyService {
+        APIKeyService(authService: mockAuth, urlSession: session)
+    }
+
+    func makeResponse(statusCode: Int, json: String) -> (HTTPURLResponse, Data) {
+        let response = HTTPURLResponse(
+            url: URL(string: baseURL)!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (response, json.data(using: .utf8)!)
+    }
+
+    func cleanup() {
+        MockURLProtocolStorage.shared.removeURLHandler(for: baseURL)
+    }
+}
 
 @Suite("APIKeyService Tests", .serialized)
 @MainActor
@@ -320,9 +432,10 @@ struct APIKeyServiceTests {
 
     @Test("createAPIKey throws error for empty name")
     func testCreateAPIKeyEmptyNameThrows() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let service = APIKeyService(authService: mockAuth, urlSession: makeMockURLSession())
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
+
+        let service = ctx.makeService()
 
         await #expect(throws: APIKeyError.self) {
             _ = try await service.createAPIKey(name: "", scopes: ["read"])
@@ -331,10 +444,10 @@ struct APIKeyServiceTests {
 
     @Test("createAPIKey throws error for name exceeding max length")
     func testCreateAPIKeyNameTooLongThrows() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let service = APIKeyService(authService: mockAuth, urlSession: makeMockURLSession())
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
+        let service = ctx.makeService()
         let longName = String(repeating: "a", count: 65)
 
         await #expect(throws: APIKeyError.self) {
@@ -344,9 +457,10 @@ struct APIKeyServiceTests {
 
     @Test("createAPIKey throws error for invalid characters in name")
     func testCreateAPIKeyInvalidCharactersThrows() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let service = APIKeyService(authService: mockAuth, urlSession: makeMockURLSession())
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
+
+        let service = ctx.makeService()
 
         await #expect(throws: APIKeyError.self) {
             _ = try await service.createAPIKey(name: "test<script>", scopes: ["read"])
@@ -355,9 +469,10 @@ struct APIKeyServiceTests {
 
     @Test("createAPIKey throws error for empty scopes")
     func testCreateAPIKeyEmptyScopesThrows() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let service = APIKeyService(authService: mockAuth, urlSession: makeMockURLSession())
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
+
+        let service = ctx.makeService()
 
         await #expect(throws: APIKeyError.self) {
             _ = try await service.createAPIKey(name: "Test Key", scopes: [])
@@ -366,9 +481,10 @@ struct APIKeyServiceTests {
 
     @Test("createAPIKey throws error for invalid scope values")
     func testCreateAPIKeyInvalidScopesThrows() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let service = APIKeyService(authService: mockAuth, urlSession: makeMockURLSession())
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
+
+        let service = ctx.makeService()
 
         await #expect(throws: APIKeyError.self) {
             _ = try await service.createAPIKey(name: "Test Key", scopes: ["read", "delete"])
@@ -377,12 +493,11 @@ struct APIKeyServiceTests {
 
     @Test("createAPIKey accepts valid name and scopes")
     func testCreateAPIKeyValidInput() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
-            let json = """
+            ctx.makeResponse(statusCode: 200, json: """
             {
                 "id": "key-123",
                 "name": "Valid Key",
@@ -391,17 +506,10 @@ struct APIKeyServiceTests {
                 "scopes": ["read", "write"],
                 "createdAt": 1704067200000
             }
-            """
-            let response = HTTPURLResponse(
-                url: testBaseURL,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, json.data(using: .utf8)!)
+            """)
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
         let result = try await service.createAPIKey(name: "Valid Key", scopes: ["read", "write"])
 
         #expect(result.id == "key-123")
@@ -412,12 +520,11 @@ struct APIKeyServiceTests {
 
     @Test("listAPIKeys returns keys on success")
     func testListAPIKeysSuccess() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
-            let json = """
+            ctx.makeResponse(statusCode: 200, json: """
             [
                 {
                     "id": "key-1",
@@ -436,17 +543,10 @@ struct APIKeyServiceTests {
                     "lastUsedAt": 1704240000000
                 }
             ]
-            """
-            let response = HTTPURLResponse(
-                url: testBaseURL,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, json.data(using: .utf8)!)
+            """)
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
         let keys = try await service.listAPIKeys()
 
         #expect(keys.count == 2)
@@ -458,24 +558,16 @@ struct APIKeyServiceTests {
 
     @Test("listAPIKeys handles 401 unauthorized")
     func testListAPIKeysUnauthorized() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
-            let json = """
+            ctx.makeResponse(statusCode: 401, json: """
             {"error": "Invalid token"}
-            """
-            let response = HTTPURLResponse(
-                url: testBaseURL,
-                statusCode: 401,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, json.data(using: .utf8)!)
+            """)
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
 
         do {
             _ = try await service.listAPIKeys()
@@ -492,24 +584,16 @@ struct APIKeyServiceTests {
 
     @Test("listAPIKeys handles 403 forbidden")
     func testListAPIKeysForbidden() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
-            let json = """
+            ctx.makeResponse(statusCode: 403, json: """
             {"error": "Access denied"}
-            """
-            let response = HTTPURLResponse(
-                url: testBaseURL,
-                statusCode: 403,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, json.data(using: .utf8)!)
+            """)
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
 
         do {
             _ = try await service.listAPIKeys()
@@ -526,24 +610,16 @@ struct APIKeyServiceTests {
 
     @Test("listAPIKeys handles 500 server error")
     func testListAPIKeysServerError() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
-            let json = """
+            ctx.makeResponse(statusCode: 500, json: """
             {"error": "Internal server error"}
-            """
-            let response = HTTPURLResponse(
-                url: testBaseURL,
-                statusCode: 500,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, json.data(using: .utf8)!)
+            """)
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
 
         do {
             _ = try await service.listAPIKeys()
@@ -559,12 +635,11 @@ struct APIKeyServiceTests {
 
     @Test("createAPIKey returns key response on success")
     func testCreateAPIKeySuccess() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
-            let json = """
+            ctx.makeResponse(statusCode: 201, json: """
             {
                 "id": "key-new",
                 "name": "My New Key",
@@ -573,17 +648,10 @@ struct APIKeyServiceTests {
                 "scopes": ["read", "write"],
                 "createdAt": 1704067200000
             }
-            """
-            let response = HTTPURLResponse(
-                url: testBaseURL,
-                statusCode: 201,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, json.data(using: .utf8)!)
+            """)
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
         let result = try await service.createAPIKey(name: "My New Key", scopes: ["read", "write"])
 
         #expect(result.id == "key-new")
@@ -595,24 +663,16 @@ struct APIKeyServiceTests {
 
     @Test("createAPIKey handles 401 unauthorized")
     func testCreateAPIKeyUnauthorized() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
-            let json = """
+            ctx.makeResponse(statusCode: 401, json: """
             {"error": "Authentication required"}
-            """
-            let response = HTTPURLResponse(
-                url: testBaseURL,
-                statusCode: 401,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, json.data(using: .utf8)!)
+            """)
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
 
         do {
             _ = try await service.createAPIKey(name: "Test Key", scopes: ["read"])
@@ -629,13 +689,12 @@ struct APIKeyServiceTests {
 
     @Test("revokeAPIKey succeeds with 200 response")
     func testRevokeAPIKeySuccess() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
             let response = HTTPURLResponse(
-                url: testBaseURL,
+                url: URL(string: ctx.baseURL)!,
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: nil
@@ -643,7 +702,7 @@ struct APIKeyServiceTests {
             return (response, Data())
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
 
         // Should not throw
         try await service.revokeAPIKey(id: "key-to-revoke")
@@ -651,13 +710,12 @@ struct APIKeyServiceTests {
 
     @Test("revokeAPIKey succeeds with 204 no content")
     func testRevokeAPIKeyNoContent() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
             let response = HTTPURLResponse(
-                url: testBaseURL,
+                url: URL(string: ctx.baseURL)!,
                 statusCode: 204,
                 httpVersion: nil,
                 headerFields: nil
@@ -665,7 +723,7 @@ struct APIKeyServiceTests {
             return (response, Data())
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
 
         // Should not throw
         try await service.revokeAPIKey(id: "key-123")
@@ -673,24 +731,16 @@ struct APIKeyServiceTests {
 
     @Test("revokeAPIKey handles 404 not found")
     func testRevokeAPIKeyNotFound() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
-            let json = """
+            ctx.makeResponse(statusCode: 404, json: """
             {"error": "API key not found"}
-            """
-            let response = HTTPURLResponse(
-                url: testBaseURL,
-                statusCode: 404,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, json.data(using: .utf8)!)
+            """)
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
 
         do {
             try await service.revokeAPIKey(id: "nonexistent-key")
@@ -707,24 +757,16 @@ struct APIKeyServiceTests {
 
     @Test("revokeAPIKey handles 403 forbidden")
     func testRevokeAPIKeyForbidden() async throws {
-        let mockAuth = MockAuthService()
-        mockAuth.mockSignIn()
-        let mockSession = makeMockURLSession()
+        let ctx = TestNetworkContext()
+        defer { ctx.cleanup() }
 
         MockURLProtocolStorage.shared.requestHandler = { _ in
-            let json = """
+            ctx.makeResponse(statusCode: 403, json: """
             {"error": "Cannot revoke this key"}
-            """
-            let response = HTTPURLResponse(
-                url: testBaseURL,
-                statusCode: 403,
-                httpVersion: nil,
-                headerFields: nil
-            )!
-            return (response, json.data(using: .utf8)!)
+            """)
         }
 
-        let service = APIKeyService(authService: mockAuth, urlSession: mockSession)
+        let service = ctx.makeService()
 
         do {
             try await service.revokeAPIKey(id: "protected-key")

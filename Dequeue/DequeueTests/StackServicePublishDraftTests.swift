@@ -20,6 +20,7 @@ private struct StackUpdatedPayloadReadable: Decodable {
 }
 
 @Suite("StackService PublishDraft Tests", .serialized)
+@MainActor
 struct StackServicePublishDraftTests {
     // MARK: - Test Helpers
 

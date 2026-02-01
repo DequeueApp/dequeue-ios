@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Active Stack Constraint Tests")
+@MainActor
 struct ActiveStackConstraintTests {
     // MARK: - Test Helpers
 

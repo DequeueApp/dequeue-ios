@@ -25,6 +25,7 @@ private func makeTestContainer() throws -> ModelContainer {
 }
 
 @Suite("ReminderService Tests", .serialized)
+@MainActor
 struct ReminderServiceTests {
     // MARK: - Create Reminder for Task Tests
 
@@ -432,6 +433,7 @@ struct ReminderServiceTests {
 // MARK: - Query and Event Tests
 
 @Suite("ReminderService Query Tests", .serialized)
+@MainActor
 struct ReminderServiceQueryTests {
     // MARK: - Get Upcoming Reminders Tests
 

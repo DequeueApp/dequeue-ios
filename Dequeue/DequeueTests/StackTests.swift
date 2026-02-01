@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Stack Model Tests")
+@MainActor
 struct StackTests {
     @Test("Stack initializes with default values")
     func stackInitializesWithDefaults() {

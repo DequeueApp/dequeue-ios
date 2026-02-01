@@ -46,6 +46,7 @@ private func cleanupTemporaryFile(_ url: URL) {
 }
 
 @Suite("AttachmentService Tests", .serialized)
+@MainActor
 struct AttachmentServiceTests {
     // MARK: - Create Attachment Tests
 
