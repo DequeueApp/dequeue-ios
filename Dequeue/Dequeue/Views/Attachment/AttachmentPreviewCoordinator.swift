@@ -41,7 +41,7 @@ final class AttachmentPreviewCoordinator {
     ///   - downloadHandler: Optional handler to download the file if not available locally
     func preview(
         attachment: Attachment,
-        downloadHandler: ((Attachment) async throws -> URL)?
+        downloadHandler: (@MainActor (Attachment) async throws -> URL)?
     ) async {
         // Reset state
         errorMessage = nil
