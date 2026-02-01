@@ -150,6 +150,7 @@ private func makeMockURLSession() -> URLSession {
 }
 
 /// Test context that provides isolated mock networking per test
+@MainActor
 private struct TestNetworkContext {
     let session: URLSession
     let baseURL: String
