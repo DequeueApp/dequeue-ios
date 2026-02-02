@@ -30,8 +30,7 @@ internal struct InitialSyncLoadingView: View {
                 .foregroundStyle(.secondary)
                 .rotationEffect(.degrees(isAnimating ? 360 : 0))
                 .animation(
-                    .linear(duration: Constants.animationDuration)
-                    .repeatForever(autoreverses: false),
+                    .linear(duration: Constants.animationDuration).repeatForever(autoreverses: false),
                     value: isAnimating
                 )
 
