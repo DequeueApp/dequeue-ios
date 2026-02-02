@@ -367,7 +367,10 @@ struct TaskDetailView: View {
                 ),
                 displayedComponents: [.date, .hourAndMinute]
             )
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            .swipeActions(
+                edge: .trailing,
+                allowsFullSwipe: true
+            ) {
                 if task.startTime != nil {
                     Button(role: .destructive) {
                         clearTaskStartDate()
@@ -387,7 +390,10 @@ struct TaskDetailView: View {
                 ),
                 displayedComponents: [.date, .hourAndMinute]
             )
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            .swipeActions(
+                edge: .trailing,
+                allowsFullSwipe: true
+            ) {
                 if task.dueTime != nil {
                     Button(role: .destructive) {
                         clearTaskDueDate()
