@@ -503,14 +503,15 @@ actor SyncManager {
         async let stacksTask = fetchProjectionResource(StackProjection.self, url: "\(baseURL)/v1/stacks", token: token)
         async let arcsTask = fetchProjectionResource(ArcProjection.self, url: "\(baseURL)/v1/arcs", token: token)
         async let tagsTask = fetchProjectionResource(TagProjection.self, url: "\(baseURL)/v1/tags", token: token)
+        async let remindersTask = fetchProjectionResource(ReminderProjection.self, url: "\(baseURL)/v1/reminders", token: token)
 
         do {
-            let (stacks, arcs, tags) = try await (stacksTask, arcsTask, tagsTask)
+            let (stacks, arcs, tags, reminders) = try await (stacksTask, arcsTask, tagsTask, remindersTask)
 
-            os_log("[Sync] Fetched projections: \(stacks.count) stacks, \(arcs.count) arcs, \(tags.count) tags")
+            os_log("[Sync] Fetched projections: \(stacks.count) stacks, \(arcs.count) arcs, \(tags.count) tags, \(reminders.count) reminders")
 
             // Populate local models
-            try await populateFromProjections(stacks: stacks, arcs: arcs, tags: tags)
+            try await populateFromProjections(stacks: stacks, arcs: arcs, tags: tags, reminders: reminders)
 
             // Set checkpoint to now (all future events will be synced incrementally)
             let checkpoint = Self.iso8601Standard.string(from: Date())
@@ -523,7 +524,7 @@ actor SyncManager {
                 syncId: syncId,
                 method: "projection",
                 duration: duration,
-                resourcesFetched: stacks.count + arcs.count + tags.count
+                resourcesFetched: stacks.count + arcs.count + tags.count + reminders.count
             )
         } catch {
             os_log("[Sync] Projection sync failed: \(error.localizedDescription)")
@@ -577,11 +578,12 @@ actor SyncManager {
     }
 
     /// Populates local SwiftData models from projection data.
-    /// Order matters: Arcs before Stacks (foreign key), Tags before Stack-Tag associations.
+    /// Order matters: Arcs before Stacks (foreign key), Tags before Stack-Tag associations, Reminders last.
     private func populateFromProjections(
         stacks: [StackProjection],
         arcs: [ArcProjection],
-        tags: [TagProjection]
+        tags: [TagProjection],
+        reminders: [ReminderProjection]
     ) async throws {
         let context = ModelContext(modelContainer)
 
@@ -664,8 +666,44 @@ actor SyncManager {
             }
         }
 
+        // 5. Create Reminders (must be after Stacks, Arcs, Tasks are created for foreign key refs)
+        for reminderData in reminders {
+            let reminder = Reminder()
+            reminder.id = reminderData.id
+            reminder.triggerTime = parseISO8601(reminderData.triggerTime) ?? Date()
+            reminder.notificationSent = reminderData.notificationSent
+            reminder.isDeleted = reminderData.isDeleted
+            reminder.createdAt = parseISO8601(reminderData.createdAt) ?? Date()
+
+            // Link to Stack if present
+            if let stackId = reminderData.stackId {
+                let fetchDescriptor = FetchDescriptor<Stack>(predicate: #Predicate<Stack> { $0.id == stackId })
+                if let stack = try context.fetch(fetchDescriptor).first {
+                    reminder.stack = stack
+                }
+            }
+
+            // Link to Arc if present
+            if let arcId = reminderData.arcId {
+                let fetchDescriptor = FetchDescriptor<Arc>(predicate: #Predicate<Arc> { $0.id == arcId })
+                if let arc = try context.fetch(fetchDescriptor).first {
+                    reminder.arc = arc
+                }
+            }
+
+            // Link to Task if present
+            if let taskId = reminderData.taskId {
+                let fetchDescriptor = FetchDescriptor<QueueTask>(predicate: #Predicate<QueueTask> { $0.id == taskId })
+                if let task = try context.fetch(fetchDescriptor).first {
+                    reminder.task = task
+                }
+            }
+
+            context.insert(reminder)
+        }
+
         try context.save()
-        os_log("[Sync] Successfully populated \(stacks.count) stacks, \(arcs.count) arcs, \(tags.count) tags")
+        os_log("[Sync] Successfully populated \(stacks.count) stacks, \(arcs.count) arcs, \(tags.count) tags, \(reminders.count) reminders")
     }
 
     // MARK: - Helpers
