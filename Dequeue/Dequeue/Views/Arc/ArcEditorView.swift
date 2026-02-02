@@ -18,7 +18,7 @@ struct ArcEditorView: View {
         case edit(Arc)
 
         static func == (lhs: Mode, rhs: Mode) -> Bool {
-            switch (lhs, rhs) {
+            switch lhs, rhs {
             case (.create, .create):
                 return true
             case let (.edit(arc1), .edit(arc2)):

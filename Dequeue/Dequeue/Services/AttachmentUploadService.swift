@@ -120,7 +120,7 @@ enum AttachmentUploadError: LocalizedError, Equatable {
     }
 
     static func == (lhs: AttachmentUploadError, rhs: AttachmentUploadError) -> Bool {
-        switch (lhs, rhs) {
+        switch lhs, rhs {
         case (.notAuthenticated, .notAuthenticated):
             return true
         case let (.quotaExceeded(u1, l1), .quotaExceeded(u2, l2)):
