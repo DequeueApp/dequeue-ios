@@ -90,6 +90,8 @@ struct StackEditorView: View {
         let id = UUID()
         var title: String
         var description: String?
+        var startTime: Date?
+        var dueTime: Date?
     }
 
     // Edit mode state
@@ -113,6 +115,8 @@ struct StackEditorView: View {
     @State var showAddTask = false
     @State var newTaskTitle = ""
     @State var newTaskDescription = ""
+    @State var newTaskStartTime: Date?
+    @State var newTaskDueTime: Date?
     @State var showAddReminder = false
     @State var showSnoozePicker = false
     @State var selectedReminderForSnooze: Reminder?
@@ -343,6 +347,8 @@ extension StackEditorView {
             showAddTask: $showAddTask,
             newTaskTitle: $newTaskTitle,
             newTaskDescription: $newTaskDescription,
+            newTaskStartTime: $newTaskStartTime,
+            newTaskDueTime: $newTaskDueTime,
             showAddReminder: $showAddReminder,
             showArcSelection: $showArcSelection,
             showSnoozePicker: $showSnoozePicker,
@@ -369,6 +375,8 @@ private struct StackEditorSheetsModifier: ViewModifier {
     @Binding var showAddTask: Bool
     @Binding var newTaskTitle: String
     @Binding var newTaskDescription: String
+    @Binding var newTaskStartTime: Date?
+    @Binding var newTaskDueTime: Date?
     @Binding var showAddReminder: Bool
     @Binding var showArcSelection: Bool
     @Binding var showSnoozePicker: Bool
@@ -394,6 +402,8 @@ private struct StackEditorSheetsModifier: ViewModifier {
                 AddTaskSheet(
                     title: $newTaskTitle,
                     description: $newTaskDescription,
+                    startTime: $newTaskStartTime,
+                    dueTime: $newTaskDueTime,
                     onSave: onAddTask,
                     onCancel: onCancelAddTask
                 )

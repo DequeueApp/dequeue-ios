@@ -443,6 +443,8 @@ extension StackEditorView {
                 let task = try await taskSvc.createTask(
                     title: pendingTask.title,
                     description: pendingTask.description,
+                    startTime: pendingTask.startTime,
+                    dueTime: pendingTask.dueTime,
                     stack: stack
                 )
                 logger.info("Task created: \(task.id)")
