@@ -316,10 +316,17 @@ struct AttachmentServiceTests {
 
         let service = AttachmentService(modelContext: context, userId: "test-user", deviceId: "test-device")
         let attachment = try await service.createAttachment(for: stack.id, parentType: .stack, fileURL: fileURL)
+        let attachmentId = attachment.id
 
         try await service.deleteAttachment(attachment)
 
-        #expect(attachment.isDeleted == true)
+        // Re-fetch to verify persistence (avoid SwiftData staleness)
+        let descriptor = FetchDescriptor<Attachment>(
+            predicate: #Predicate { $0.id == attachmentId }
+        )
+        let attachments = try context.fetch(descriptor)
+        #expect(attachments.count == 1)
+        #expect(attachments.first?.isDeleted == true)
     }
 
     @Test("deleteAttachment records event")
