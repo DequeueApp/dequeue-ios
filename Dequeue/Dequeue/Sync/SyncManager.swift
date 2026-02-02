@@ -28,6 +28,79 @@ private struct PullResult {
     let hasMore: Bool
 }
 
+// MARK: - Projection Sync Types (DEQ-230)
+
+/// Generic response wrapper for projection API endpoints
+private struct ProjectionResponse<T: Decodable>: Decodable {
+    let data: [T]
+    let pagination: PaginationMeta?
+    
+    struct PaginationMeta: Decodable {
+        let nextCursor: String?
+        let hasMore: Bool
+        let limit: Int
+    }
+}
+
+/// Projection data structures matching dequeue-api responses
+private struct StackProjection: Decodable {
+    let id: String
+    let title: String
+    let description: String?
+    let status: String
+    let isActive: Bool
+    let isDeleted: Bool
+    let arcId: String?
+    let tags: [String]?
+    let startTime: String?
+    let dueTime: String?
+    let createdAt: String
+    let updatedAt: String
+    let tasks: [TaskProjection]?
+}
+
+private struct TaskProjection: Decodable {
+    let id: String
+    let stackId: String
+    let title: String
+    let description: String?
+    let sortOrder: Int
+    let status: String
+    let isActive: Bool
+    let startTime: String?
+    let dueTime: String?
+    let createdAt: String
+    let updatedAt: String
+}
+
+private struct ArcProjection: Decodable {
+    let id: String
+    let title: String
+    let description: String?
+    let color: String?
+    let isDeleted: Bool
+    let createdAt: String
+    let updatedAt: String
+}
+
+private struct TagProjection: Decodable {
+    let id: String
+    let name: String
+    let color: String?
+    let createdAt: String
+}
+
+private struct ReminderProjection: Decodable {
+    let id: String
+    let stackId: String?
+    let arcId: String?
+    let taskId: String?
+    let triggerTime: String
+    let notificationSent: Bool
+    let isDeleted: Bool
+    let createdAt: String
+}
+
 // swiftlint:disable:next type_body_length
 actor SyncManager {
     private var webSocketTask: URLSessionWebSocketTask?
@@ -262,6 +335,19 @@ actor SyncManager {
         // Cache deviceId at connection time to avoid actor hops during push
         self.deviceId = await DeviceService.shared.getDeviceId()
 
+        // DEQ-230: Use projection sync for new devices (much faster than event replay)
+        if await isInitialSync() {
+            os_log("[Sync] New device detected, using projection-based sync")
+            do {
+                try await syncViaProjections()
+                os_log("[Sync] Projection sync succeeded")
+            } catch {
+                os_log("[Sync] Projection sync failed (\(error)), falling back to event replay")
+                // Fallback to traditional event replay if projections fail
+                try await pullEvents()
+            }
+        }
+
         try await connectWebSocket()
         startSyncTasks()
     }
@@ -384,6 +470,231 @@ actor SyncManager {
             return newToken
         }
         return token
+    }
+
+    // MARK: - Projection Sync (DEQ-230)
+
+    /// Performs initial sync using REST API projections instead of event replay.
+    /// This is significantly faster for new devices with no local state.
+    ///
+    /// Flow:
+    /// 1. Fetch current state from /v1/stacks, /v1/arcs, /v1/tags endpoints
+    /// 2. Populate local SwiftData models directly
+    /// 3. Set checkpoint to current time
+    /// 4. Continue with real-time WebSocket sync
+    ///
+    /// Falls back to event replay if projection fetch fails.
+    func syncViaProjections() async throws {
+        let startTime = Date()
+        let syncId = Self.generateSyncId()
+        os_log("[Sync] Projection sync started: syncId=\(syncId)")
+
+        _isInitialSyncInProgress = true
+        defer { _isInitialSyncInProgress = false }
+
+        guard let token = try await refreshToken() else {
+            os_log("[Sync] Projection sync failed: Not authenticated")
+            throw SyncError.notAuthenticated
+        }
+
+        let baseURL = await MainActor.run { Configuration.syncAPIBaseURL }
+
+        // Fetch all resource types in parallel
+        async let stacksTask = fetchProjectionResource(StackProjection.self, url: "\(baseURL)/v1/stacks", token: token)
+        async let arcsTask = fetchProjectionResource(ArcProjection.self, url: "\(baseURL)/v1/arcs", token: token)
+        async let tagsTask = fetchProjectionResource(TagProjection.self, url: "\(baseURL)/v1/tags", token: token)
+
+        do {
+            let (stacks, arcs, tags) = try await (stacksTask, arcsTask, tagsTask)
+
+            os_log("[Sync] Fetched projections: \(stacks.count) stacks, \(arcs.count) arcs, \(tags.count) tags")
+
+            // Populate local models
+            try await populateFromProjections(stacks: stacks, arcs: arcs, tags: tags)
+
+            // Set checkpoint to now (all future events will be synced incrementally)
+            let checkpoint = Self.iso8601Standard.string(from: Date())
+            saveLastSyncCheckpoint(checkpoint)
+
+            let duration = Date().timeIntervalSince(startTime)
+            os_log("[Sync] Projection sync complete: syncId=\(syncId), duration=\(String(format: \"%.2f\", duration))s")
+
+            await ErrorReportingService.logSyncCompleted(
+                syncId: syncId,
+                method: "projection",
+                duration: duration,
+                resourcesFetched: stacks.count + arcs.count + tags.count
+            )
+        } catch {
+            os_log("[Sync] Projection sync failed: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    /// Fetches a paginated projection resource, handling pagination automatically.
+    private func fetchProjectionResource<T: Decodable>(
+        _ type: T.Type,
+        url: String,
+        token: String
+    ) async throws -> [T] {
+        var allResults: [T] = []
+        var currentURL: String? = url
+
+        while let urlString = currentURL {
+            var request = URLRequest(url: URL(string: urlString)!)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                os_log("[Sync] Invalid response type for \(urlString)")
+                throw SyncError.pullFailed
+            }
+
+            guard httpResponse.statusCode == 200 else {
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    os_log("[Sync] Projection fetch failed (\(httpResponse.statusCode)): \(responseBody)")
+                }
+                throw SyncError.pullFailed
+            }
+
+            let decoded = try JSONDecoder().decode(ProjectionResponse<T>.self, from: data)
+            allResults.append(contentsOf: decoded.data)
+
+            // Handle pagination
+            if let pagination = decoded.pagination,
+               pagination.hasMore,
+               let nextCursor = pagination.nextCursor {
+                currentURL = "\(url)?cursor=\(nextCursor)"
+            } else {
+                currentURL = nil
+            }
+        }
+
+        return allResults
+    }
+
+    /// Populates local SwiftData models from projection data.
+    /// Order matters: Arcs before Stacks (foreign key), Tags before Stack-Tag associations.
+    private func populateFromProjections(
+        stacks: [StackProjection],
+        arcs: [ArcProjection],
+        tags: [TagProjection]
+    ) async throws {
+        let context = ModelContext(modelContainer)
+
+        // 1. Create Arcs first (Stacks reference arcId)
+        for arcData in arcs {
+            let arc = Arc()
+            arc.id = arcData.id
+            arc.title = arcData.title
+            arc.stackDescription = arcData.description ?? ""
+            arc.color = arcData.color ?? ""
+            arc.isDeleted = arcData.isDeleted
+            arc.createdAt = parseISO8601(arcData.createdAt) ?? Date()
+            arc.updatedAt = parseISO8601(arcData.updatedAt) ?? Date()
+            context.insert(arc)
+        }
+
+        // 2. Create Tags (Stacks reference tags by ID)
+        var tagMap: [String: Tag] = [:]
+        for tagData in tags {
+            let tag = Tag()
+            tag.id = tagData.id
+            tag.name = tagData.name
+            tag.color = tagData.color ?? ""
+            tag.createdAt = parseISO8601(tagData.createdAt) ?? Date()
+            context.insert(tag)
+            tagMap[tag.id] = tag
+        }
+
+        // 3. Create Stacks
+        for stackData in stacks {
+            let stack = Stack()
+            stack.id = stackData.id
+            stack.title = stackData.title
+            stack.stackDescription = stackData.description ?? ""
+            stack.status = parseStackStatus(stackData.status)
+            stack.isActive = stackData.isActive
+            stack.isDeleted = stackData.isDeleted
+            stack.startTime = parseISO8601(stackData.startTime)
+            stack.dueTime = parseISO8601(stackData.dueTime)
+            stack.createdAt = parseISO8601(stackData.createdAt) ?? Date()
+            stack.updatedAt = parseISO8601(stackData.updatedAt) ?? Date()
+
+            // Link to Arc if present
+            if let arcId = stackData.arcId {
+                let fetchDescriptor = FetchDescriptor<Arc>(predicate: #Predicate<Arc> { $0.id == arcId })
+                if let arc = try context.fetch(fetchDescriptor).first {
+                    stack.arc = arc
+                }
+            }
+
+            // Link to Tags
+            if let tagIds = stackData.tags {
+                for tagId in tagIds {
+                    if let tag = tagMap[tagId] {
+                        stack.tags?.insert(tag)
+                    }
+                }
+            }
+
+            context.insert(stack)
+
+            // 4. Create Tasks for this Stack
+            if let tasks = stackData.tasks {
+                for taskData in tasks {
+                    let task = QueueTask()
+                    task.id = taskData.id
+                    task.stackId = taskData.stackId
+                    task.title = taskData.title
+                    task.taskDescription = taskData.description ?? ""
+                    task.sortOrder = taskData.sortOrder
+                    task.status = parseTaskStatus(taskData.status)
+                    task.isActive = taskData.isActive
+                    task.startTime = parseISO8601(taskData.startTime)
+                    task.dueTime = parseISO8601(taskData.dueTime)
+                    task.createdAt = parseISO8601(taskData.createdAt) ?? Date()
+                    task.updatedAt = parseISO8601(taskData.updatedAt) ?? Date()
+                    task.stack = stack
+                    context.insert(task)
+                }
+            }
+        }
+
+        try context.save()
+        os_log("[Sync] Successfully populated \(stacks.count) stacks, \(arcs.count) arcs, \(tags.count) tags")
+    }
+
+    // MARK: - Helpers
+
+    /// Parses ISO8601 date string, returns nil if invalid
+    private func parseISO8601(_ string: String?) -> Date? {
+        guard let string = string else { return nil }
+        return Self.iso8601Standard.date(from: string)
+    }
+
+    /// Parses stack status string to enum
+    private func parseStackStatus(_ status: String) -> StackStatus {
+        switch status.lowercased() {
+        case "draft": return .draft
+        case "in_progress": return .inProgress
+        case "completed": return .completed
+        case "closed": return .closed
+        default: return .draft
+        }
+    }
+
+    /// Parses task status string to enum
+    private func parseTaskStatus(_ status: String) -> TaskStatus {
+        switch status.lowercased() {
+        case "pending": return .pending
+        case "in_progress": return .inProgress
+        case "completed": return .completed
+        default: return .pending
+        }
     }
 
     // MARK: - Push Events
