@@ -86,16 +86,16 @@ struct StackTests {
         context.insert(stack)
         let stackId = stack.id
 
-        // Create tasks WITH stack reference and ALSO append to stack.tasks
-        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0, stack: stack)
+        // Create tasks WITHOUT stack param, then establish relationship via stack.tasks only
+        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0)
         context.insert(pendingTask)
         stack.tasks.append(pendingTask)
 
-        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1, stack: stack)
+        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1)
         context.insert(completedTask)
         stack.tasks.append(completedTask)
 
-        let deletedTask = QueueTask(title: "Deleted", status: TaskStatus.pending, sortOrder: 2, isDeleted: true, stack: stack)
+        let deletedTask = QueueTask(title: "Deleted", status: TaskStatus.pending, sortOrder: 2, isDeleted: true)
         context.insert(deletedTask)
         stack.tasks.append(deletedTask)
 
@@ -121,12 +121,12 @@ struct StackTests {
         context.insert(stack)
         let stackId = stack.id
 
-        // Create tasks WITH stack reference and ALSO append to stack.tasks
-        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0, stack: stack)
+        // Create tasks WITHOUT stack param, then establish relationship via stack.tasks only
+        let pendingTask = QueueTask(title: "Pending", status: TaskStatus.pending, sortOrder: 0)
         context.insert(pendingTask)
         stack.tasks.append(pendingTask)
 
-        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1, stack: stack)
+        let completedTask = QueueTask(title: "Completed", status: TaskStatus.completed, sortOrder: 1)
         context.insert(completedTask)
         stack.tasks.append(completedTask)
 
@@ -151,12 +151,12 @@ struct StackTests {
         context.insert(stack)
         let stackId = stack.id
 
-        // Create tasks WITH stack reference and ALSO append to stack.tasks
-        let task1 = QueueTask(title: "First", status: TaskStatus.pending, sortOrder: 0, stack: stack)
+        // Create tasks WITHOUT stack param, then establish relationship via stack.tasks only
+        let task1 = QueueTask(title: "First", status: TaskStatus.pending, sortOrder: 0)
         context.insert(task1)
         stack.tasks.append(task1)
 
-        let task2 = QueueTask(title: "Second", status: TaskStatus.pending, sortOrder: 1, stack: stack)
+        let task2 = QueueTask(title: "Second", status: TaskStatus.pending, sortOrder: 1)
         context.insert(task2)
         stack.tasks.append(task2)
 
