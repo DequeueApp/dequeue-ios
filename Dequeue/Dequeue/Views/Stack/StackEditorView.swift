@@ -89,6 +89,8 @@ struct StackEditorView: View {
         let id = UUID()
         var title: String
         var description: String?
+        var startTime: Date?
+        var dueTime: Date?
     }
 
     // Edit mode state
@@ -112,6 +114,8 @@ struct StackEditorView: View {
     @State var showAddTask = false
     @State var newTaskTitle = ""
     @State var newTaskDescription = ""
+    @State var newTaskStartTime: Date?
+    @State var newTaskDueTime: Date?
     @State var showAddReminder = false
     @State var showSnoozePicker = false
     @State var selectedReminderForSnooze: Reminder?
@@ -282,6 +286,8 @@ struct StackEditorView: View {
                 AddTaskSheet(
                     title: $newTaskTitle,
                     description: $newTaskDescription,
+                    startTime: $newTaskStartTime,
+                    dueTime: $newTaskDueTime,
                     onSave: addTask,
                     onCancel: cancelAddTask
                 )
