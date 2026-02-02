@@ -16,9 +16,9 @@ import UIKit
 final class HapticManager {
     /// Shared singleton instance
     static let shared = HapticManager()
-    
+
     private init() {}
-    
+
     /// Triggers a success haptic (e.g., task completion, successful action)
     func success() {
         #if os(iOS)
@@ -26,7 +26,7 @@ final class HapticManager {
         generator.notificationOccurred(.success)
         #endif
     }
-    
+
     /// Triggers a selection haptic (e.g., selecting an item, activating a stack)
     func selection() {
         #if os(iOS)
@@ -34,7 +34,7 @@ final class HapticManager {
         generator.selectionChanged()
         #endif
     }
-    
+
     /// Triggers a warning haptic (e.g., delete confirmation, destructive action)
     func warning() {
         #if os(iOS)
@@ -42,7 +42,7 @@ final class HapticManager {
         generator.notificationOccurred(.warning)
         #endif
     }
-    
+
     /// Triggers a light impact haptic (e.g., drag operations)
     func impact(style: ImpactStyle = .light) {
         #if os(iOS)
@@ -58,7 +58,7 @@ final class HapticManager {
         generator.impactOccurred()
         #endif
     }
-    
+
     /// Haptic impact styles
     enum ImpactStyle {
         case light
