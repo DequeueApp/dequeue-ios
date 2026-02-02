@@ -69,6 +69,8 @@ struct StackEditorView: View {
     @State var title: String = ""
     @State var stackDescription: String = ""
     @State var setAsActive: Bool = false
+    @State var selectedStartDate: Date?
+    @State var selectedDueDate: Date?
     @State var pendingTasks: [PendingTask] = []
     @State var selectedTags: [Tag] = []
     @State var selectedArc: Arc?

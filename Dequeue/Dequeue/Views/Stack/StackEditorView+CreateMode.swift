@@ -36,6 +36,8 @@ extension StackEditorView {
                      "Otherwise, it will be added to your backlog.")
             }
 
+            createModeDatesSection
+
             createModeArcSection
 
             createModeTagsSection
@@ -45,6 +47,42 @@ extension StackEditorView {
             remindersSection
 
             attachmentsSection
+        }
+    }
+
+    // MARK: - Create Mode Dates Section
+
+    var createModeDatesSection: some View {
+        Section("Dates") {
+            DatePicker("Start Date", selection: Binding(
+                get: { selectedStartDate ?? Date() },
+                set: { selectedStartDate = $0 }
+            ), displayedComponents: [.date, .hourAndMinute])
+            .deleteDisabled(selectedStartDate == nil)
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                if selectedStartDate != nil {
+                    Button(role: .destructive) {
+                        selectedStartDate = nil
+                    } label: {
+                        Label("Clear", systemImage: "xmark")
+                    }
+                }
+            }
+            
+            DatePicker("Due Date", selection: Binding(
+                get: { selectedDueDate ?? Date() },
+                set: { selectedDueDate = $0 }
+            ), displayedComponents: [.date, .hourAndMinute])
+            .deleteDisabled(selectedDueDate == nil)
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                if selectedDueDate != nil {
+                    Button(role: .destructive) {
+                        selectedDueDate = nil
+                    } label: {
+                        Label("Clear", systemImage: "xmark")
+                    }
+                }
+            }
         }
     }
 
@@ -244,6 +282,8 @@ extension StackEditorView {
                 let draft = try await service.createStack(
                     title: title,
                     description: stackDescription.isEmpty ? nil : stackDescription,
+                    startTime: selectedStartDate,
+                    dueTime: selectedDueDate,
                     isDraft: true
                 )
                 draftStack = draft
@@ -365,7 +405,9 @@ extension StackEditorView {
             let stack = try await stackSvc.createStack(
                 title: title,
                 description: stackDescription.isEmpty ? nil : stackDescription,
-                setAsActive: setAsActive
+                setAsActive: setAsActive,
+                startTime: selectedStartDate,
+                dueTime: selectedDueDate
             )
             logger.info("Stack created: \(stack.id)")
             return stack
@@ -439,6 +481,8 @@ extension StackEditorView {
                     let draft = try await service.createStack(
                         title: title,
                         description: stackDescription.isEmpty ? nil : stackDescription,
+                        startTime: selectedStartDate,
+                        dueTime: selectedDueDate,
                         isDraft: true
                     )
                     draftStack = draft
