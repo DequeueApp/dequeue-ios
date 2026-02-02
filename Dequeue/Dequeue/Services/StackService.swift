@@ -38,7 +38,7 @@ enum StackServiceError: LocalizedError, Equatable {
     }
 
     static func == (lhs: StackServiceError, rhs: StackServiceError) -> Bool {
-        switch (lhs, rhs) {
+        switch lhs, rhs {
         case (.cannotActivateDeletedStack, .cannotActivateDeletedStack):
             return true
         case (.cannotActivateDraftStack, .cannotActivateDraftStack):
