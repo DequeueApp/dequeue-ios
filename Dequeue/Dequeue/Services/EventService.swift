@@ -417,7 +417,7 @@ final class EventService {
         return try modelContext.fetch(descriptor)
     }
 
-    /// Fetches all events related to a stack, including events for its tasks, reminders, and attachments
+    /// Fetches all events related to a stack, including events for its tasks, reminders, tags, and attachments
     func fetchStackHistoryWithRelated(for stack: Stack) throws -> [Event] {
         // Collect all entity IDs we need to query
         var entityIds: Set<String> = [stack.id]
@@ -430,6 +430,11 @@ final class EventService {
         // Add reminder IDs (both stack reminders and task reminders)
         for reminder in stack.reminders {
             entityIds.insert(reminder.id)
+        }
+
+        // Add tag IDs (tags associated with this stack)
+        for tag in stack.tagObjects {
+            entityIds.insert(tag.id)
         }
 
         // Convert to array for predicate (predicates work with arrays)

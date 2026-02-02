@@ -5,6 +5,8 @@
 //  Unified view for creating and editing stacks (DEQ-99)
 //
 
+// swiftlint:disable file_length
+
 import SwiftUI
 import SwiftData
 import os
@@ -171,117 +173,228 @@ struct StackEditorView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if isCreateMode {
-                    createModeContent
-                } else {
-                    editModeContent
-                }
-            }
-            #if os(macOS)
-            .frame(minWidth: 500, minHeight: 400)
-            #endif
-            .navigationTitle(displayedTitle)
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar { toolbarContent }
-            .task {
-                guard stackService == nil else { return }
-                let deviceId = await DeviceService.shared.getDeviceId()
-                let userId = authService.currentUserId ?? ""
-                stackService = StackService(
-                    modelContext: modelContext,
-                    userId: userId,
-                    deviceId: deviceId,
-                    syncManager: syncManager
-                )
-                taskService = TaskService(
-                    modelContext: modelContext,
-                    userId: userId,
-                    deviceId: deviceId,
-                    syncManager: syncManager
-                )
-                arcService = ArcService(
-                    modelContext: modelContext,
-                    userId: userId,
-                    deviceId: deviceId,
-                    syncManager: syncManager
-                )
-                notificationService = NotificationService(modelContext: modelContext)
-                reminderActionHandler = ReminderActionHandler(
-                    modelContext: modelContext,
-                    userId: userId,
-                    deviceId: deviceId,
-                    onError: handleError,
-                    syncManager: syncManager
-                )
-                tagService = TagService(
-                    modelContext: modelContext,
-                    userId: userId,
-                    deviceId: deviceId,
-                    syncManager: syncManager
-                )
-                attachmentService = AttachmentService(
-                    modelContext: modelContext,
-                    userId: userId,
-                    deviceId: deviceId,
-                    syncManager: syncManager
-                )
-            }
-            .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) { }
-            } message: {
+            mainContent
+                .toolbar { toolbarContent }
+                .task { await initializeServices() }
+                .modifier(alertsModifier)
+                .modifier(sheetsModifier)
+                .modifier(lifecycleModifier)
+        }
+    }
+}
+
+// MARK: - Content & Service Initialization
+
+extension StackEditorView {
+    @ViewBuilder
+    var mainContent: some View {
+        Group {
+            if isCreateMode { createModeContent } else { editModeContent }
+        }
+        #if os(macOS)
+        .frame(minWidth: 500, minHeight: 400)
+        #endif
+        .navigationTitle(displayedTitle)
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+
+    @MainActor
+    func initializeServices() async {
+        guard stackService == nil else { return }
+        let deviceId = await DeviceService.shared.getDeviceId()
+        let userId = authService.currentUserId ?? ""
+        stackService = StackService(
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
+        taskService = TaskService(
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
+        arcService = ArcService(
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
+        notificationService = NotificationService(modelContext: modelContext)
+        reminderActionHandler = ReminderActionHandler(
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            onError: handleError,
+            syncManager: syncManager
+        )
+        tagService = TagService(
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
+        attachmentService = AttachmentService(
+            modelContext: modelContext,
+            userId: userId,
+            deviceId: deviceId,
+            syncManager: syncManager
+        )
+    }
+}
+
+// MARK: - Alert Modifiers
+
+extension StackEditorView {
+    var alertsModifier: some ViewModifier {
+        StackEditorAlertsModifier(
+            showError: $showError,
+            errorMessage: errorMessage,
+            showDiscardAlert: $showDiscardAlert,
+            showSaveDraftPrompt: $showSaveDraftPrompt,
+            showEditTitleAlert: $showEditTitleAlert,
+            editedTitle: $editedTitle,
+            showCompleteConfirmation: $showCompleteConfirmation,
+            showCloseConfirmation: $showCloseConfirmation,
+            showDeleteReminderConfirmation: $showDeleteReminderConfirmation,
+            reminderToDelete: reminderToDelete,
+            reminderActionHandler: reminderActionHandler,
+            completeStackMessage: AnyView(completeStackMessage),
+            onDismiss: { dismiss() },
+            onDiscardDraft: discardDraftAndDismiss,
+            onCreateDraft: createDraftAndDismiss,
+            onSaveTitle: saveStackTitle,
+            onCompleteStack: completeStack,
+            onCloseStack: closeStack
+        )
+    }
+}
+
+private struct StackEditorAlertsModifier: ViewModifier {
+    @Binding var showError: Bool
+    let errorMessage: String
+    @Binding var showDiscardAlert: Bool
+    @Binding var showSaveDraftPrompt: Bool
+    @Binding var showEditTitleAlert: Bool
+    @Binding var editedTitle: String
+    @Binding var showCompleteConfirmation: Bool
+    @Binding var showCloseConfirmation: Bool
+    @Binding var showDeleteReminderConfirmation: Bool
+    let reminderToDelete: Reminder?
+    let reminderActionHandler: ReminderActionHandler?
+    let completeStackMessage: AnyView
+    let onDismiss: () -> Void
+    let onDiscardDraft: () -> Void
+    let onCreateDraft: () -> Void
+    let onSaveTitle: () -> Void
+    let onCompleteStack: (Bool) -> Void
+    let onCloseStack: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Error", isPresented: $showError) { Button("OK", role: .cancel) { } } message: {
                 Text(errorMessage)
             }
-            // Sheets and dialogs
             .alert("Discard Draft?", isPresented: $showDiscardAlert) {
-                Button("Keep Draft") { dismiss() }
-                Button("Discard", role: .destructive) { discardDraftAndDismiss() }
+                Button("Keep Draft") { onDismiss() }
+                Button("Discard", role: .destructive) { onDiscardDraft() }
                 Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("Your draft has been auto-saved. Would you like to keep it or discard it?")
-            }
+            } message: { Text("Your draft has been auto-saved. Would you like to keep it or discard it?") }
             .alert("Save Draft?", isPresented: $showSaveDraftPrompt) {
-                Button("Save Draft") {
-                    createDraftAndDismiss()
-                }
-                Button("Discard", role: .destructive) { dismiss() }
+                Button("Save Draft") { onCreateDraft() }
+                Button("Discard", role: .destructive) { onDismiss() }
                 Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("You have unsaved content. Would you like to save it as a draft?")
-            }
+            } message: { Text("You have unsaved content. Would you like to save it as a draft?") }
             .alert("Edit Title", isPresented: $showEditTitleAlert) {
                 TextField("Title", text: $editedTitle)
-                Button("Save") {
-                    saveStackTitle()
-                }
-                .disabled(editedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button("Cancel", role: .cancel) {
-                    editedTitle = ""
-                }
-            } message: {
-                Text("Enter a new title for this stack")
-            }
+                Button("Save") { onSaveTitle() }
+                    .disabled(editedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Cancel", role: .cancel) { editedTitle = "" }
+            } message: { Text("Enter a new title for this stack") }
             .confirmationDialog("Complete Stack", isPresented: $showCompleteConfirmation, titleVisibility: .visible) {
-                Button("Complete All Tasks & Stack") { completeStack(completeAllTasks: true) }
-                Button("Complete Stack Only") { completeStack(completeAllTasks: false) }
+                Button("Complete All Tasks & Stack") { onCompleteStack(true) }
+                Button("Complete Stack Only") { onCompleteStack(false) }
                 Button("Cancel", role: .cancel) { }
-            } message: {
-                completeStackMessage
-            }
+            } message: { completeStackMessage }
             .confirmationDialog("Close Stack", isPresented: $showCloseConfirmation, titleVisibility: .visible) {
-                Button("Close Without Completing", role: .destructive) { closeStack() }
+                Button("Close Without Completing", role: .destructive) { onCloseStack() }
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This will close the stack without completing it. You can find it in completed stacks later.")
             }
+            .confirmationDialog("Delete Reminder", isPresented: $showDeleteReminderConfirmation) {
+                Button("Delete", role: .destructive) {
+                    if let reminder = reminderToDelete { reminderActionHandler?.delete(reminder) }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: { Text("Are you sure you want to delete this reminder?") }
+    }
+}
+
+// MARK: - Sheet Modifiers
+
+extension StackEditorView {
+    var sheetsModifier: some ViewModifier {
+        StackEditorSheetsModifier(
+            showAddTask: $showAddTask,
+            newTaskTitle: $newTaskTitle,
+            newTaskDescription: $newTaskDescription,
+            showAddReminder: $showAddReminder,
+            showArcSelection: $showArcSelection,
+            showSnoozePicker: $showSnoozePicker,
+            showEditReminder: $showEditReminder,
+            showAttachmentPicker: $showAttachmentPicker,
+            selectedArc: selectedArc,
+            onArcSelected: { selectedArc = $0 },
+            selectedReminderForSnooze: selectedReminderForSnooze,
+            onSnoozeReminderCleared: { selectedReminderForSnooze = nil },
+            selectedReminderForEdit: selectedReminderForEdit,
+            currentStack: currentStack,
+            notificationService: notificationService,
+            reminderActionHandler: reminderActionHandler,
+            previewCoordinator: previewCoordinator,
+            onAddTask: addTask,
+            onCancelAddTask: cancelAddTask,
+            onFilesSelected: handleFilesSelected,
+            onAttachmentError: { errorMessage = $0.localizedDescription; showError = true }
+        )
+    }
+}
+
+private struct StackEditorSheetsModifier: ViewModifier {
+    @Binding var showAddTask: Bool
+    @Binding var newTaskTitle: String
+    @Binding var newTaskDescription: String
+    @Binding var showAddReminder: Bool
+    @Binding var showArcSelection: Bool
+    @Binding var showSnoozePicker: Bool
+    @Binding var showEditReminder: Bool
+    @Binding var showAttachmentPicker: Bool
+    let selectedArc: Arc?
+    let onArcSelected: (Arc?) -> Void
+    let selectedReminderForSnooze: Reminder?
+    let onSnoozeReminderCleared: () -> Void
+    let selectedReminderForEdit: Reminder?
+    let currentStack: Stack?
+    let notificationService: NotificationService?
+    let reminderActionHandler: ReminderActionHandler?
+    let previewCoordinator: AttachmentPreviewCoordinator
+    let onAddTask: () -> Void
+    let onCancelAddTask: () -> Void
+    let onFilesSelected: ([URL]) -> Void
+    let onAttachmentError: (AttachmentPickerError) -> Void
+
+    func body(content: Content) -> some View {
+        content
             .sheet(isPresented: $showAddTask) {
                 AddTaskSheet(
                     title: $newTaskTitle,
                     description: $newTaskDescription,
-                    onSave: addTask,
-                    onCancel: cancelAddTask
+                    onSave: onAddTask,
+                    onCancel: onCancelAddTask
                 )
             }
             .sheet(isPresented: $showAddReminder) {
@@ -290,25 +403,18 @@ struct StackEditorView: View {
                 }
             }
             .sheet(isPresented: $showArcSelection) {
-                ArcSelectionSheet(currentArc: selectedArc) { arc in
-                    selectedArc = arc
-                }
+                ArcSelectionSheet(currentArc: selectedArc) { onArcSelected($0) }
             }
             .sheet(isPresented: $showSnoozePicker) {
                 if let reminder = selectedReminderForSnooze {
-                    SnoozePickerSheet(
-                        isPresented: $showSnoozePicker,
-                        reminder: reminder,
-                        onSnooze: { snoozeUntil in
-                            reminderActionHandler?.snooze(reminder, until: snoozeUntil)
-                            selectedReminderForSnooze = nil
-                        }
-                    )
+                    SnoozePickerSheet(isPresented: $showSnoozePicker, reminder: reminder) { snoozeUntil in
+                        reminderActionHandler?.snooze(reminder, until: snoozeUntil)
+                        onSnoozeReminderCleared()
+                    }
                 }
             }
             .sheet(isPresented: $showEditReminder) {
-                if let reminder = selectedReminderForEdit,
-                   let stack = currentStack,
+                if let reminder = selectedReminderForEdit, let stack = currentStack,
                    let service = notificationService {
                     AddReminderSheet(
                         parent: .stack(stack),
@@ -317,45 +423,45 @@ struct StackEditorView: View {
                     )
                 }
             }
-            .confirmationDialog("Delete Reminder", isPresented: $showDeleteReminderConfirmation) {
-                Button("Delete", role: .destructive) {
-                    if let reminder = reminderToDelete {
-                        reminderActionHandler?.delete(reminder)
-                    }
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("Are you sure you want to delete this reminder?")
-            }
             .attachmentPicker(
                 isPresented: $showAttachmentPicker,
-                onFilesSelected: handleFilesSelected,
-                onError: { error in
-                    attachmentPickerError = error
-                    errorMessage = error.localizedDescription
-                    showError = true
-                }
+                onFilesSelected: onFilesSelected,
+                onError: onAttachmentError
             )
             .attachmentPreview(coordinator: previewCoordinator)
-            // Prevent swipe-to-dismiss when there's unsaved content
+    }
+}
+
+// MARK: - Lifecycle Modifiers
+
+extension StackEditorView {
+    var lifecycleModifier: some ViewModifier {
+        StackEditorLifecycleModifier(
+            hasUnsavedContent: hasUnsavedContent,
+            onBackground: saveOnBackground,
+            onDisappear: { activeStatusTask?.cancel(); activeStatusTask = nil }
+        )
+    }
+}
+
+private struct StackEditorLifecycleModifier: ViewModifier {
+    let hasUnsavedContent: Bool
+    let onBackground: () -> Void
+    let onDisappear: () -> Void
+
+    func body(content: Content) -> some View {
+        content
             .interactiveDismissDisabled(hasUnsavedContent)
             #if os(iOS)
-            // Save pending changes when app enters background
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-                saveOnBackground()
+                onBackground()
             }
             #elseif os(macOS)
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in
-                saveOnBackground()
+                onBackground()
             }
             #endif
-            // Cancel any pending async operations when view disappears
-            // This prevents race conditions where tasks complete after view is gone
-            .onDisappear {
-                activeStatusTask?.cancel()
-                activeStatusTask = nil
-            }
-        }
+            .onDisappear { onDisappear() }
     }
 }
 
