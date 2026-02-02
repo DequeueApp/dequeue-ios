@@ -31,6 +31,13 @@ extension StackEditorView {
 
             createModeDatesSection
 
+            Section {
+                Toggle("Set as Active Stack", isOn: $setAsActive)
+            } footer: {
+                Text("If enabled, this stack will become your active stack immediately. " +
+                     "Otherwise, it will be added to your backlog.")
+            }
+
             createModeArcSection
 
             createModeTagsSection
@@ -407,7 +414,8 @@ extension StackEditorView {
                 title: title,
                 description: stackDescription.isEmpty ? nil : stackDescription,
                 startTime: selectedStartDate,
-                dueTime: selectedDueDate
+                dueTime: selectedDueDate,
+                setAsActive: setAsActive
             )
             logger.info("Stack created: \(stack.id)")
             return stack
