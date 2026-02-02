@@ -1551,31 +1551,12 @@ enum ProjectorService {
         // Register mapping from local duplicate ID to canonical tag ID
         await tagIdRemapping.addMapping(from: localDuplicateId, to: canonicalTag.id)
 
-        // DEQ-235 FIX: Set isDeleted at the VERY END, after all relationship modifications.
-        // Use a fresh fetch to ensure we're modifying the correct object in the context.
-        // SwiftData can have issues with object references after relationship changes.
-        let allTagsDescriptor = FetchDescriptor<Tag>()
-        if let allTags = try? context.fetch(allTagsDescriptor),
-           let tagToDelete = allTags.first(where: { $0.id == localDuplicateId }) {
-            tagToDelete.isDeleted = true
-            tagToDelete.updatedAt = Date()
-            tagToDelete.syncState = .pending
-
-            // DEQ-235 CRITICAL FIX: Save immediately to persist the change
-            // SwiftData might have pending changes that could interfere
-            do {
-                try context.save()
-            } catch {
-                ErrorReportingService.addBreadcrumb(
-                    category: "sync_tag_dedupe",
-                    message: "Failed to save after soft-deleting duplicate tag",
-                    data: [
-                        "local_duplicate_id": localDuplicateId,
-                        "error": error.localizedDescription
-                    ]
-                )
-            }
-        }
+        // DEQ-235 FIX: Soft-delete the local duplicate tag at the VERY END.
+        // Access the passed-in localDuplicate directly instead of re-fetching.
+        // The original object reference should still be valid in the context.
+        localDuplicate.isDeleted = true
+        localDuplicate.updatedAt = Date()
+        localDuplicate.syncState = .pending
     }
 
     /// DEQ-235: Find stacks to migrate using direct queries only - no relationship property access.
