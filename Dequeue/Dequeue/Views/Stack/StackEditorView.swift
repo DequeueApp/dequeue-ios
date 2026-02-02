@@ -149,30 +149,6 @@ struct StackEditorView: View {
         }
     }
 
-    private var navigationTitle: String {
-        switch mode {
-        case .create:
-            return draftStack != nil ? "Edit Draft" : "New Stack"
-        case .edit(let stack):
-            return stack.title
-        }
-    }
-
-    /// Whether to show a custom title view with edit button (for edit mode, non-read-only)
-    private var showsCustomTitle: Bool {
-        !isCreateMode && !isReadOnly
-    }
-
-    /// The title to display in the navigation bar (empty when using custom editable title)
-    private var displayedTitle: String {
-        showsCustomTitle ? "" : navigationTitle
-    }
-
-    /// Whether there's unsaved content that should prevent accidental dismissal
-    private var hasUnsavedContent: Bool {
-        isCreateMode && (!title.isEmpty || !stackDescription.isEmpty || draftStack != nil)
-    }
-
     // MARK: - Body
 
     var body: some View {
@@ -364,6 +340,34 @@ struct StackEditorView: View {
                 activeStatusTask = nil
             }
         }
+    }
+}
+
+// MARK: - Helper Computed Properties
+
+private extension StackEditorView {
+    var navigationTitle: String {
+        switch mode {
+        case .create:
+            return draftStack != nil ? "Edit Draft" : "New Stack"
+        case .edit(let stack):
+            return stack.title
+        }
+    }
+
+    /// Whether to show a custom title view with edit button (for edit mode, non-read-only)
+    var showsCustomTitle: Bool {
+        !isCreateMode && !isReadOnly
+    }
+
+    /// The title to display in the navigation bar (empty when using custom editable title)
+    var displayedTitle: String {
+        showsCustomTitle ? "" : navigationTitle
+    }
+
+    /// Whether there's unsaved content that should prevent accidental dismissal
+    var hasUnsavedContent: Bool {
+        isCreateMode && (!title.isEmpty || !stackDescription.isEmpty || draftStack != nil)
     }
 }
 
