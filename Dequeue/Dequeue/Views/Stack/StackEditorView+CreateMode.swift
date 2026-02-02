@@ -65,7 +65,7 @@ extension StackEditorView {
                     }
                 }
             }
-            
+
             DatePicker(
                 "Due Date",
                 selection: Binding(
