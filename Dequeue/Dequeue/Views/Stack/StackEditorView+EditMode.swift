@@ -38,7 +38,7 @@ extension StackEditorView {
 
     @ViewBuilder
     var completionStatusBanner: some View {
-        if case .edit(let stack) = mode, (stack.status != .active || stack.isDeleted) {
+        if case .edit(let stack) = mode, stack.status != .active || stack.isDeleted {
             Section {
                 StackCompletionStatusBanner(stack: stack)
             }
