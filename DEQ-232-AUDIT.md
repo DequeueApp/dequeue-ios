@@ -1,6 +1,6 @@
 # DEQ-232 Service Actor Isolation Audit
 
-**Date:** 2026-02-02  
+**Date:** 2026-02-02
 **Auditor:** Ada
 
 ## 3-Bucket Pattern Reference
@@ -43,7 +43,7 @@
 
 ### ⚠️ Needs Decision: UploadRetryManager
 
-**Current:** `@MainActor final class`  
+**Current:** `@MainActor final class`
 **Suggested:** `actor`
 
 **Reasoning:**
