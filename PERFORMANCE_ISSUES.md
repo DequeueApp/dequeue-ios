@@ -399,7 +399,7 @@ While this only happens once per view, it can cause a noticeable hitch when typi
 | 8 | moveStacks no save | Medium | Easy | HomeView.swift:157 | ✅ COMPLETED | N/A |
 | 9 | DeviceId actor hop | Low-Med | Easy | SyncManager.swift:244 | ✅ COMPLETED | N/A |
 | 10 | Multiple fetches setAsActive | Low-Med | Easy | StackService.swift:275 | 🟢 Open | [DEQ-144](https://linear.app/dequeue/issue/DEQ-144) |
-| 11 | Event history fetch all | Low | Medium | EventService.swift:262 | 🟢 Open | [DEQ-145](https://linear.app/dequeue/issue/DEQ-145) |
+| 11 | Event history fetch all | Low | Medium | EventService.swift:262 | ⏳ In PR | [DEQ-145](https://linear.app/dequeue/issue/DEQ-145) → [PR #227](https://github.com/DequeueApp/dequeue-ios/pull/227) |
 | 12 | DateFormatter per push | Low | Easy | SyncManager.swift:256 | ✅ COMPLETED | N/A |
 | 13 | onChange database call | Low | Easy | StackEditorView+CreateMode.swift:24 | 🟢 Open | [DEQ-146](https://linear.app/dequeue/issue/DEQ-146) |
 
