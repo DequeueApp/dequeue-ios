@@ -290,10 +290,8 @@ final class AttachmentUploadService: AttachmentUploadServiceProtocol {
 
     private func getAuthToken() async throws -> String {
         do {
-            // AuthService is @MainActor, so we need to hop to MainActor to call it
-            return try await MainActor.run {
-                try await authService.getAuthToken()
-            }
+            // AuthService is @MainActor, await will automatically hop to MainActor
+            return try await authService.getAuthToken()
         } catch {
             throw AttachmentUploadError.notAuthenticated
         }
