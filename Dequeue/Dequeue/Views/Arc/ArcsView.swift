@@ -168,12 +168,7 @@ struct ArcsView: View {
     // Safe: In-memory container with known schema types cannot fail in preview context
     // swiftlint:disable:next force_try
     let container = try! ModelContainer(
-        for: Arc.self,
-        Stack.self,
-        QueueTask.self,
-        Reminder.self,
-        configurations: config
-    )
+        for: Arc.self, Stack.self, QueueTask.self, Reminder.self, configurations: config)
 
     // Create sample arcs
     let context = container.mainContext

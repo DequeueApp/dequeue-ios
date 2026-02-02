@@ -55,48 +55,63 @@ struct StackActiveStatusBanner: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    private var statusTitle: String {
-        if isLoading {
-            return "Updating..."
+    /// Consolidated state to reduce cyclomatic complexity
+    private enum BannerState {
+        case loading
+        case active
+        case inactive
+
+        var title: String {
+            switch self {
+            case .loading: return "Updating..."
+            case .active: return "Currently Active"
+            case .inactive: return "Start Working"
+            }
         }
-        return stack.isActive ? "Currently Active" : "Start Working"
+
+        var description: String {
+            switch self {
+            case .loading: return "Please wait..."
+            case .active: return "Tap to deactivate this stack"
+            case .inactive: return "Tap to set as your active stack"
+            }
+        }
+
+        var backgroundColor: Color {
+            switch self {
+            case .loading: return Color.gray.opacity(0.1)
+            case .active: return Color.green.opacity(0.1)
+            case .inactive: return Color.orange.opacity(0.1)
+            }
+        }
+
+        var accessibilityLabel: String {
+            switch self {
+            case .loading: return "Updating stack status"
+            case .active: return "Stack is currently active"
+            case .inactive: return "Stack is not active"
+            }
+        }
+
+        var accessibilityHint: String {
+            switch self {
+            case .loading: return "Please wait while the status is being updated"
+            case .active: return "Double tap to deactivate this stack"
+            case .inactive: return "Double tap to set this as your active stack"
+            }
+        }
     }
 
-    private var statusDescription: String {
-        if isLoading {
-            return "Please wait..."
-        }
-        return stack.isActive
-            ? "Tap to deactivate this stack"
-            : "Tap to set as your active stack"
+    private var bannerState: BannerState {
+        if isLoading { return .loading }
+        return stack.isActive ? .active : .inactive
     }
 
-    private var bannerBackgroundColor: Color {
-        if isLoading {
-            return Color.gray.opacity(0.1)
-        }
-        return stack.isActive
-            ? Color.green.opacity(0.1)
-            : Color.orange.opacity(0.1)
-    }
-
-    private var accessibilityLabelText: String {
-        if isLoading {
-            return "Updating stack status"
-        }
-        return stack.isActive
-            ? "Stack is currently active"
-            : "Stack is not active"
-    }
-
-    private var accessibilityHintText: String {
-        if isLoading {
-            return "Please wait while the status is being updated"
-        }
-        return stack.isActive
-            ? "Double tap to deactivate this stack"
-            : "Double tap to set this as your active stack"
-    }
+    private var statusTitle: String { bannerState.title }
+    private var statusDescription: String { bannerState.description }
+    private var bannerBackgroundColor: Color { bannerState.backgroundColor }
+    private var accessibilityLabelText: String { bannerState.accessibilityLabel }
+    private var accessibilityHintText: String { bannerState.accessibilityHint }
 }
 
 #Preview("Not Active") {
