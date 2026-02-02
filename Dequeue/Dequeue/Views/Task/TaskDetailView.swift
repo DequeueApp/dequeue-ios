@@ -376,7 +376,7 @@ struct TaskDetailView: View {
                     }
                 }
             }
-            
+
             DatePicker(
                 "Due Date",
                 selection: Binding(
