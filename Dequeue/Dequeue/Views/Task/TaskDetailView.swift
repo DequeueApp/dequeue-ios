@@ -5,8 +5,6 @@
 //  View and edit an individual task
 //
 
-// swiftlint:disable file_length
-
 import SwiftUI
 import SwiftData
 

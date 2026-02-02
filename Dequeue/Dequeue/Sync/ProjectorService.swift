@@ -8,7 +8,10 @@
 // swiftlint:disable file_length
 
 import Foundation
+import os.log
 import SwiftData
+
+private let debugLogger = Logger(subsystem: "app.dequeue", category: "DEQ235Debug")
 
 // MARK: - Thread-Safe Pending Tag Associations
 
@@ -403,6 +406,7 @@ enum ProjectorService {
     ///   - context: The SwiftData model context
     /// - Returns: Number of events successfully processed
     @discardableResult
+    @MainActor
     static func applyBatch(events: [Event], context: ModelContext) async throws -> Int {
         guard !events.isEmpty else { return 0 }
 
@@ -494,6 +498,7 @@ enum ProjectorService {
     // MARK: - Single Event Processing
 
     /// Applies a single event (backward compatible - performs individual queries)
+    @MainActor
     static func apply(event: Event, context: ModelContext) async throws {
         // Create empty cache - will fall back to individual queries
         var cache = EntityLookupCache()
@@ -501,6 +506,7 @@ enum ProjectorService {
     }
 
     /// Internal apply with cache support - dispatches to category-specific handlers
+    @MainActor
     private static func apply(event: Event, context: ModelContext, cache: inout EntityLookupCache) async throws {
         guard let eventType = event.eventType else { return }
 
@@ -621,6 +627,7 @@ enum ProjectorService {
         }
     }
 
+    @MainActor
     private static func applyTagEvent(
         event: Event,
         eventType: EventType,
@@ -1319,6 +1326,7 @@ enum ProjectorService {
 
     // MARK: - Tag Events
 
+    @MainActor
     private static func applyTagCreated(
         event: Event,
         context: ModelContext,
@@ -1341,13 +1349,13 @@ enum ProjectorService {
             return
         }
 
-        // DEQ-197: Check if tag with same normalized name already exists (cross-device duplicate)
+        // DEQ-235: Check if tag with same normalized name already exists (cross-device duplicate)
         let normalizedName = payload.name.lowercased().trimmingCharacters(in: .whitespaces)
         if let existingByName = try findTagByNormalizedName(normalizedName, context: context, cache: cache) {
-            await handleCrossDeviceTagDuplicate(
-                incomingId: payload.id,
+            await handleTagDuplicateConflict(
+                payload: payload,
+                eventTimestamp: event.timestamp,
                 existingTag: existingByName,
-                tagName: payload.name,
                 normalizedName: normalizedName,
                 context: context,
                 cache: cache
@@ -1363,22 +1371,22 @@ enum ProjectorService {
             syncState: .synced,
             lastSyncedAt: Date()
         )
+        // Use original createdAt from payload if available
+        if let createdAt = payload.createdAt {
+            tag.createdAt = createdAt
+        }
         tag.updatedAt = event.timestamp  // LWW: Use event timestamp
         context.insert(tag)
         cache.insert(tag: tag)  // DEQ-143: Update cache for subsequent events
 
         // Resolve any pending associations for this tag
         // This handles the race condition where stack.updated arrived before tag.created
-        let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: payload.id)
-        if !pendingStackIds.isEmpty {
-            for stackId in pendingStackIds {
-                if let stack = try? findStack(id: stackId, context: context, cache: cache), !stack.isDeleted {
-                    if !stack.tagObjects.contains(where: { $0.id == tag.id }) {
-                        stack.tagObjects.append(tag)
-                    }
-                }
-            }
-        }
+        await resolvePendingTagAssociations(
+            tagIds: [payload.id],
+            canonicalTag: tag,
+            context: context,
+            cache: cache
+        )
     }
 
     /// Finds a tag by normalized name (case-insensitive).
@@ -1406,10 +1414,226 @@ enum ProjectorService {
         }
     }
 
-    /// Handles a cross-device duplicate tag by merging the incoming tag into the existing one
-    private static func handleCrossDeviceTagDuplicate(
-        incomingId: String,
+    /// DEQ-235: Determines which tag is canonical and handles the duplicate accordingly.
+    /// Uses createdAt timestamp to determine canonical (older wins), with ID as tie-breaker.
+    @MainActor
+    private static func handleTagDuplicateConflict(
+        payload: TagEventPayload,
+        eventTimestamp: Date,
         existingTag: Tag,
+        normalizedName: String,
+        context: ModelContext,
+        cache: EntityLookupCache
+    ) async {
+        // Determine which tag is canonical using createdAt (older wins)
+        // If timestamps are equal, use lexicographically smaller ID as tie-breaker
+        let incomingCreatedAt = payload.createdAt ?? eventTimestamp
+        let incomingIsCanonical = isIncomingTagCanonical(
+            incomingCreatedAt: incomingCreatedAt,
+            incomingId: payload.id,
+            existingCreatedAt: existingTag.createdAt,
+            existingId: existingTag.id
+        )
+
+        if incomingIsCanonical {
+            await handleIncomingTagIsCanonical(
+                payload: payload,
+                eventTimestamp: eventTimestamp,
+                localDuplicate: existingTag,
+                normalizedName: normalizedName,
+                context: context,
+                cache: cache
+            )
+        } else {
+            await handleLocalTagIsCanonical(
+                incomingId: payload.id,
+                canonicalTag: existingTag,
+                tagName: payload.name,
+                normalizedName: normalizedName,
+                context: context,
+                cache: cache
+            )
+        }
+    }
+
+    /// DEQ-235: Determines if the incoming tag should be canonical based on timestamps.
+    private static func isIncomingTagCanonical(
+        incomingCreatedAt: Date,
+        incomingId: String,
+        existingCreatedAt: Date,
+        existingId: String
+    ) -> Bool {
+        if incomingCreatedAt != existingCreatedAt {
+            return incomingCreatedAt < existingCreatedAt
+        }
+        // Tie-breaker: smaller ID wins for deterministic ordering across devices
+        return incomingId < existingId
+    }
+
+    /// DEQ-235: Handles case where incoming synced tag is the canonical one (older createdAt).
+    /// Creates the incoming tag and migrates all stacks from the local duplicate to it.
+    @MainActor
+    private static func handleIncomingTagIsCanonical(
+        payload: TagEventPayload,
+        eventTimestamp: Date,
+        localDuplicate: Tag,
+        normalizedName: String,
+        context: ModelContext,
+        cache: EntityLookupCache
+    ) async {
+        // DEQ-235 FIX: Capture primitive values ONLY - do NOT access relationship properties
+        // before any modifications. SwiftData relationship access can interfere with change tracking.
+        let localDuplicateId = localDuplicate.id
+        let localColorHex = localDuplicate.colorHex
+        let localCreatedAt = localDuplicate.createdAt
+
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_tag_dedupe",
+            message: "Cross-device tag duplicate: incoming is canonical, replacing local",
+            data: [
+                "incoming_tag_id": payload.id,
+                "local_duplicate_id": localDuplicateId,
+                "tag_name": payload.name,
+                "normalized_name": normalizedName,
+                "incoming_created_at": payload.createdAt?.ISO8601Format() ?? "unknown",
+                "local_created_at": localCreatedAt.ISO8601Format()
+            ]
+        )
+
+        // Create the canonical tag from incoming event
+        let canonicalTag = Tag(
+            id: payload.id,
+            name: payload.name,
+            colorHex: payload.colorHex ?? localColorHex,
+            syncState: .synced,
+            lastSyncedAt: Date()
+        )
+        if let createdAt = payload.createdAt {
+            canonicalTag.createdAt = createdAt
+        }
+        canonicalTag.updatedAt = eventTimestamp
+        context.insert(canonicalTag)
+
+        // Find stacks to migrate using direct query - avoid relationship property access
+        let stacksToMigrate = findStacksToMigrateByQuery(
+            localDuplicateId: localDuplicateId,
+            normalizedName: normalizedName,
+            incomingTagId: payload.id,
+            context: context
+        )
+
+        ErrorReportingService.addBreadcrumb(
+            category: "sync_tag_dedupe",
+            message: "Migrating stacks from local duplicate to canonical tag",
+            data: [
+                "canonical_tag_id": payload.id,
+                "local_duplicate_id": localDuplicateId,
+                "stacks_to_migrate_count": stacksToMigrate.count,
+                "stacks_to_migrate_ids": stacksToMigrate.map { $0.id }.joined(separator: ",")
+            ]
+        )
+
+        // Perform the actual migration
+        migrateStacksToCanonicalTag(
+            stacks: stacksToMigrate,
+            canonicalTag: canonicalTag,
+            localDuplicateId: localDuplicateId
+        )
+
+        // Resolve pending associations for both the incoming tag ID and local duplicate ID
+        await resolvePendingTagAssociations(
+            tagIds: [payload.id, localDuplicateId],
+            canonicalTag: canonicalTag,
+            context: context,
+            cache: cache
+        )
+
+        // Register mapping from local duplicate ID to canonical tag ID
+        await tagIdRemapping.addMapping(from: localDuplicateId, to: canonicalTag.id)
+
+        // DEQ-235 FIX: Soft-delete the local duplicate tag at the VERY END.
+        // Access the passed-in localDuplicate directly instead of re-fetching.
+        // The original object reference should still be valid in the context.
+        localDuplicate.isDeleted = true
+        localDuplicate.updatedAt = Date()
+        localDuplicate.syncState = .pending
+
+        // DEQ-235 CRITICAL: Save immediately to persist the soft-delete
+        // SwiftData needs this to properly handle the isDeleted change
+        // after relationship modifications
+        do {
+            try context.save()
+        } catch {
+            ErrorReportingService.addBreadcrumb(
+                category: "sync_tag_dedupe",
+                message: "Failed to save after soft-deleting duplicate tag",
+                data: [
+                    "local_duplicate_id": localDuplicateId,
+                    "error": error.localizedDescription
+                ]
+            )
+        }
+    }
+
+    /// DEQ-235: Find stacks to migrate using direct queries only - no relationship property access.
+    /// This avoids SwiftData relationship tracking issues that can interfere with isDeleted changes.
+    @MainActor
+    private static func findStacksToMigrateByQuery(
+        localDuplicateId: String,
+        normalizedName: String,
+        incomingTagId: String,
+        context: ModelContext
+    ) -> [Stack] {
+        // Query all non-deleted stacks
+        let stackPredicate = #Predicate<Stack> { $0.isDeleted == false }
+        let stackDescriptor = FetchDescriptor<Stack>(predicate: stackPredicate)
+        let allStacks = (try? context.fetch(stackDescriptor)) ?? []
+
+        var result: [Stack] = []
+        var foundStackIds = Set<String>()
+
+        for stack in allStacks {
+            // Check if stack has the local duplicate tag by ID
+            let hasLocalDuplicateTag = stack.tagObjects.contains { $0.id == localDuplicateId }
+
+            // Also check by normalized name (different ID but same name)
+            let hasTagWithSameName = stack.tagObjects.contains {
+                $0.normalizedName == normalizedName && $0.id != incomingTagId
+            }
+
+            if (hasLocalDuplicateTag || hasTagWithSameName) && !foundStackIds.contains(stack.id) {
+                foundStackIds.insert(stack.id)
+                result.append(stack)
+            }
+        }
+
+        return result
+    }
+
+    /// DEQ-235: Helper to migrate stacks from a duplicate tag to a canonical tag.
+    @MainActor
+    private static func migrateStacksToCanonicalTag(
+        stacks: [Stack],
+        canonicalTag: Tag,
+        localDuplicateId: String
+    ) {
+        for stack in stacks {
+            // Add the canonical tag if not already present
+            if !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) {
+                stack.tagObjects.append(canonicalTag)
+            }
+            // Remove the local duplicate
+            stack.tagObjects.removeAll { $0.id == localDuplicateId }
+            stack.syncState = .pending
+        }
+    }
+
+    /// DEQ-235: Handles case where local tag is the canonical one (older createdAt).
+    /// Keeps the local tag and sets up mapping from incoming ID.
+    @MainActor
+    private static func handleLocalTagIsCanonical(
+        incomingId: String,
+        canonicalTag: Tag,
         tagName: String,
         normalizedName: String,
         context: ModelContext,
@@ -1417,27 +1641,47 @@ enum ProjectorService {
     ) async {
         ErrorReportingService.addBreadcrumb(
             category: "sync_tag_dedupe",
-            message: "Cross-device tag duplicate detected and merged",
+            message: "Cross-device tag duplicate: local is canonical, keeping local",
             data: [
                 "incoming_tag_id": incomingId,
-                "existing_tag_id": existingTag.id,
+                "canonical_tag_id": canonicalTag.id,
                 "tag_name": tagName,
-                "normalized_name": normalizedName
+                "normalized_name": normalizedName,
+                "local_created_at": canonicalTag.createdAt.ISO8601Format()
             ]
         )
 
-        // Resolve pending associations for the incoming tag ID to the existing tag
-        let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: incomingId)
-        for stackId in pendingStackIds {
-            if let stack = try? findStack(id: stackId, context: context, cache: cache), !stack.isDeleted {
-                if !stack.tagObjects.contains(where: { $0.id == existingTag.id }) {
-                    stack.tagObjects.append(existingTag)
+        // Resolve pending associations for the incoming tag ID to the canonical tag
+        await resolvePendingTagAssociations(
+            tagIds: [incomingId],
+            canonicalTag: canonicalTag,
+            context: context,
+            cache: cache
+        )
+
+        // Register mapping so future references to the incoming ID redirect to canonical tag
+        await tagIdRemapping.addMapping(from: incomingId, to: canonicalTag.id)
+    }
+
+    /// DEQ-235: Helper to resolve pending tag associations for multiple tag IDs to a canonical tag.
+    @MainActor
+    private static func resolvePendingTagAssociations(
+        tagIds: [String],
+        canonicalTag: Tag,
+        context: ModelContext,
+        cache: EntityLookupCache
+    ) async {
+        for tagId in tagIds {
+            let pendingStackIds = await pendingTagAssociations.resolvePending(tagId: tagId)
+            for stackId in pendingStackIds {
+                guard let stack = try? findStack(id: stackId, context: context, cache: cache),
+                      !stack.isDeleted,
+                      !stack.tagObjects.contains(where: { $0.id == canonicalTag.id }) else {
+                    continue
                 }
+                stack.tagObjects.append(canonicalTag)
             }
         }
-
-        // Register mapping so future references to the incoming ID redirect to existing tag
-        await tagIdRemapping.addMapping(from: incomingId, to: existingTag.id)
     }
 
     private static func applyTagUpdated(event: Event, context: ModelContext, cache: EntityLookupCache) throws {

@@ -84,7 +84,7 @@ enum APIKeyError: LocalizedError {
 /// Service for managing API keys via the Dequeue API
 /// Network-only service - does not use @MainActor per CLAUDE.md guidelines
 /// (only services interacting with SwiftData ModelContext should use @MainActor)
-final class APIKeyService {
+final class APIKeyService: @unchecked Sendable {
     private let authService: any AuthServiceProtocol
     private let urlSession: URLSession
 

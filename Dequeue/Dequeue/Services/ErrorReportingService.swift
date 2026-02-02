@@ -78,7 +78,6 @@ enum ErrorReportingService {
         return false
     }
 
-    // swiftlint:disable function_body_length
     /// Configures Sentry SDK asynchronously to avoid blocking app launch.
     /// This should be called from a Task context, not during App init.
     ///
@@ -215,7 +214,6 @@ enum ErrorReportingService {
             }
         }
     }
-    // swiftlint:enable function_body_length
 
     // MARK: - User Context
 
@@ -330,6 +328,7 @@ enum ErrorReportingService {
     /// Converts SentryLevel to a human-readable string for console output
     private static func levelString(for level: SentryLevel) -> String {
         switch level {
+        case .none: return "NONE"
         case .debug: return "DEBUG"
         case .info: return "INFO"
         case .warning: return "WARNING"
@@ -343,6 +342,7 @@ enum ErrorReportingService {
     private static func sendToSentryLogger(_ message: String, level: SentryLevel, attributes: [String: String]) {
         let logger = SentrySDK.logger
         switch level {
+        case .none: logger.trace(message, attributes: attributes)
         case .debug: logger.debug(message, attributes: attributes)
         case .info: logger.info(message, attributes: attributes)
         case .warning: logger.warn(message, attributes: attributes)

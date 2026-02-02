@@ -86,52 +86,66 @@ struct DeviceRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: deviceIcon)
-                .font(.title2)
-                .foregroundStyle(isCurrentDevice ? .blue : .secondary)
-                .frame(width: 32)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(device.name)
-                        .fontWeight(isCurrentDevice ? .semibold : .regular)
-
-                    if isCurrentDevice {
-                        Text("This Device")
-                            .font(.caption)
-                            .foregroundStyle(.blue)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.blue.opacity(0.1))
-                            .clipShape(Capsule())
-                    }
-                }
-
-                HStack(spacing: 4) {
-                    if let model = device.model {
-                        Text(model)
-                    }
-                    Text("•")
-                    Text(osInfo)
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
+            deviceIconView
+            deviceInfoView
             Spacer()
-
-            if !isCurrentDevice {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Last seen")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    Text(lastSeenText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            lastSeenView
         }
         .padding(.vertical, 4)
+    }
+
+    private var deviceIconView: some View {
+        Image(systemName: deviceIcon)
+            .font(.title2)
+            .foregroundStyle(isCurrentDevice ? .blue : .secondary)
+            .frame(width: 32)
+    }
+
+    private var deviceInfoView: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(device.name)
+                    .fontWeight(isCurrentDevice ? .semibold : .regular)
+
+                if isCurrentDevice {
+                    currentDeviceBadge
+                }
+            }
+
+            HStack(spacing: 4) {
+                if let model = device.model {
+                    Text(model)
+                }
+                Text("•")
+                Text(osInfo)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private var currentDeviceBadge: some View {
+        Text("This Device")
+            .font(.caption)
+            .foregroundStyle(.blue)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.blue.opacity(0.1))
+            .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var lastSeenView: some View {
+        if !isCurrentDevice {
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("Last seen")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Text(lastSeenText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 

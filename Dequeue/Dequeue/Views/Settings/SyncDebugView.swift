@@ -25,100 +25,122 @@ struct SyncDebugView: View {
 
     var body: some View {
         List {
-            Section("Sync Status") {
-                LabeledContent("Pending Events", value: "\(pendingEvents.count)")
-                LabeledContent("Last Checkpoint", value: lastSyncCheckpoint)
-                LabeledContent("Device ID", value: currentDeviceId)
-                    .font(.system(.body, design: .monospaced))
-            }
-
-            Section("Pending Events Preview") {
-                if pendingEvents.isEmpty {
-                    Text("No pending events")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(pendingEvents.prefix(10)) { event in
-                        HStack {
-                            Text(event.type)
-                                .font(.caption)
-                            Spacer()
-                            Text(event.timestamp.formatted(date: .omitted, time: .shortened))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    if pendingEvents.count > 10 {
-                        Text("... and \(pendingEvents.count - 10) more")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            Section("Manual Sync") {
-                Button {
-                    Task { await manualPull() }
-                } label: {
-                    HStack {
-                        Label("Pull from Server", systemImage: "arrow.down.circle")
-                        if isPulling {
-                            Spacer()
-                            ProgressView()
-                        }
-                    }
-                }
-                .disabled(isPulling || syncManager == nil)
-
-                Button {
-                    Task { await manualPush() }
-                } label: {
-                    HStack {
-                        Label("Push to Server", systemImage: "arrow.up.circle")
-                        if isPushing {
-                            Spacer()
-                            ProgressView()
-                        }
-                    }
-                }
-                .disabled(isPushing || syncManager == nil)
-
-                if syncManager == nil {
-                    Text("Sync manager not available")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section("Actions") {
-                Button {
-                    resetSyncCheckpoint()
-                } label: {
-                    Label("Reset Sync Checkpoint", systemImage: "arrow.counterclockwise")
-                }
-
-                Button(role: .destructive) {
-                    clearAllEvents()
-                } label: {
-                    Label("Clear All Events", systemImage: "trash")
-                }
-            }
-
+            syncStatusSection
+            pendingEventsSection
+            manualSyncSection
+            actionsSection
             if let result = syncResult {
-                Section("Last Operation") {
-                    Text(result)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                lastOperationSection(result: result)
             }
         }
         .navigationTitle("Sync Debug")
-        .task {
-            await loadDebugInfo()
-        }
-        .refreshable {
-            await loadDebugInfo()
+        .task { await loadDebugInfo() }
+        .refreshable { await loadDebugInfo() }
+    }
+
+    // MARK: - Sections
+
+    private var syncStatusSection: some View {
+        Section("Sync Status") {
+            LabeledContent("Pending Events", value: "\(pendingEvents.count)")
+            LabeledContent("Last Checkpoint", value: lastSyncCheckpoint)
+            LabeledContent("Device ID", value: currentDeviceId)
+                .font(.system(.body, design: .monospaced))
         }
     }
+
+    private var pendingEventsSection: some View {
+        Section("Pending Events Preview") {
+            if pendingEvents.isEmpty {
+                Text("No pending events")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(pendingEvents.prefix(10)) { event in
+                    HStack {
+                        Text(event.type)
+                            .font(.caption)
+                        Spacer()
+                        Text(event.timestamp.formatted(date: .omitted, time: .shortened))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if pendingEvents.count > 10 {
+                    Text("... and \(pendingEvents.count - 10) more")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var manualSyncSection: some View {
+        Section("Manual Sync") {
+            pullButton
+            pushButton
+            if syncManager == nil {
+                Text("Sync manager not available")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var pullButton: some View {
+        Button {
+            Task { await manualPull() }
+        } label: {
+            HStack {
+                Label("Pull from Server", systemImage: "arrow.down.circle")
+                if isPulling {
+                    Spacer()
+                    ProgressView()
+                }
+            }
+        }
+        .disabled(isPulling || syncManager == nil)
+    }
+
+    private var pushButton: some View {
+        Button {
+            Task { await manualPush() }
+        } label: {
+            HStack {
+                Label("Push to Server", systemImage: "arrow.up.circle")
+                if isPushing {
+                    Spacer()
+                    ProgressView()
+                }
+            }
+        }
+        .disabled(isPushing || syncManager == nil)
+    }
+
+    private var actionsSection: some View {
+        Section("Actions") {
+            Button {
+                resetSyncCheckpoint()
+            } label: {
+                Label("Reset Sync Checkpoint", systemImage: "arrow.counterclockwise")
+            }
+
+            Button(role: .destructive) {
+                clearAllEvents()
+            } label: {
+                Label("Clear All Events", systemImage: "trash")
+            }
+        }
+    }
+
+    private func lastOperationSection(result: String) -> some View {
+        Section("Last Operation") {
+            Text(result)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Actions
 
     private func loadDebugInfo() async {
         currentDeviceId = await DeviceService.shared.getDeviceId()
