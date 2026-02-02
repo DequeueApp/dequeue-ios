@@ -751,7 +751,7 @@ actor SyncManager {
     }
 
     /// Process the pull response and return result with event count and pagination info
-    private func processPullResponse( // 
+    private func processPullResponse( //
         _ data: Data
     ) async throws -> PullResult {
         // Log raw response for debugging
