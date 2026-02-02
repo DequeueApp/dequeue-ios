@@ -348,6 +348,7 @@ extension InProgressStacksListView {
     }
 
     func deleteStack(_ stack: Stack) {
+        HapticManager.shared.warning()
         guard let service = stackService else {
             errorMessage = "Initializing... please try again."
             showError = true

@@ -506,6 +506,7 @@ struct TaskDetailView: View {
         Task {
             do {
                 try await service.markAsCompleted(task)
+                HapticManager.shared.success()
             } catch {
                 showError(error)
             }
