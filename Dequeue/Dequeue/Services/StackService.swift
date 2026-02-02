@@ -320,6 +320,8 @@ final class StackService {
         try await eventService.recordStackCompleted(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
+
+        HapticManager.shared.success()
     }
 
     func setAsActive(_ stack: Stack) async throws {
@@ -374,6 +376,8 @@ final class StackService {
         try await eventService.recordStackReordered(activeStacks)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
+
+        HapticManager.shared.selection()
 
         // MARK: Post-condition validation (fix rather than throw)
         try validateAndFixSingleActiveConstraint(keeping: stack.id)
