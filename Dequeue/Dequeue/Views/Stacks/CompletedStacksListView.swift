@@ -12,14 +12,17 @@ struct CompletedStacksListView: View {
     @Query private var completedStacks: [Stack]
 
     init() {
-        // Include both completed and closed stacks (closed stacks are ones that
-        // were dismissed without completing - the UI says "find it in completed stacks later")
+        // Include completed, closed, and deleted stacks
+        // - completed: successfully finished
+        // - closed: dismissed without completing
+        // - isDeleted=true: explicitly deleted
         let completedRaw = StackStatus.completed.rawValue
         let closedRaw = StackStatus.closed.rawValue
         _completedStacks = Query(
             filter: #Predicate<Stack> { stack in
-                stack.isDeleted == false &&
-                (stack.statusRawValue == completedRaw || stack.statusRawValue == closedRaw)
+                // Show deleted stacks, or stacks with completed/closed status
+                stack.isDeleted == true ||
+                (stack.isDeleted == false && (stack.statusRawValue == completedRaw || stack.statusRawValue == closedRaw))
             },
             sort: \Stack.updatedAt,
             order: .reverse
@@ -40,9 +43,9 @@ struct CompletedStacksListView: View {
 
     private var emptyState: some View {
         ContentUnavailableView(
-            "No Completed Stacks",
+            "No Completed or Deleted Stacks",
             systemImage: "checkmark.circle",
-            description: Text("Completed stacks will appear here")
+            description: Text("Completed, closed, and deleted stacks will appear here")
         )
     }
 
@@ -54,17 +57,50 @@ struct CompletedStacksListView: View {
                 NavigationLink {
                     StackEditorView(mode: .edit(stack), isReadOnly: true)
                 } label: {
-                    VStack(alignment: .leading) {
-                        Text(stack.title)
-                            .font(.headline)
-                        Text("Created \(stack.createdAt, style: .relative) ago")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 12) {
+                        statusIndicator(for: stack)
+                        VStack(alignment: .leading) {
+                            Text(stack.title)
+                                .font(.headline)
+                            Text("Created \(stack.createdAt, style: .relative) ago")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
         }
         .listStyle(.plain)
+    }
+
+    // MARK: - Status Indicator
+
+    @ViewBuilder
+    private func statusIndicator(for stack: Stack) -> some View {
+        if stack.isDeleted {
+            // Deleted stacks get red trash icon
+            Image(systemName: "trash.circle.fill")
+                .foregroundStyle(.red)
+                .imageScale(.medium)
+                .accessibilityLabel("Deleted")
+        } else {
+            switch stack.status {
+            case .completed:
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .imageScale(.medium)
+                    .accessibilityLabel("Completed successfully")
+            case .closed:
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.orange)
+                    .imageScale(.medium)
+                    .accessibilityLabel("Closed without completing")
+            default:
+                Image(systemName: "circle")
+                    .foregroundStyle(.secondary)
+                    .imageScale(.medium)
+            }
+        }
     }
 }
 
