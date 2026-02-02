@@ -10,11 +10,11 @@ import SwiftData
 
 struct StackCompletionStatusBanner: View {
     let stack: Stack
-    
+
     @Environment(\.modelContext) private var modelContext
     @State private var completionEvent: Event?
     @State private var isLoading = true
-    
+
     var body: some View {
         if !isLoading, stack.status != .active {
             VStack(alignment: .leading, spacing: 8) {
@@ -22,23 +22,23 @@ struct StackCompletionStatusBanner: View {
                     statusIcon
                         .font(.title2)
                         .foregroundStyle(statusColor)
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         Text(statusTitle)
                             .font(.headline)
                             .foregroundStyle(statusColor)
-                        
+
                         if let event = completionEvent {
                             Text(timestampText(for: event))
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
-                        
+
                         Text(taskCompletionSummary)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     Spacer()
                 }
                 .padding()
@@ -50,9 +50,9 @@ struct StackCompletionStatusBanner: View {
             }
         }
     }
-    
+
     // MARK: - Computed Properties
-    
+
     private var statusIcon: Image {
         if stack.isDeleted {
             return Image(systemName: "trash.circle.fill")
@@ -64,7 +64,7 @@ struct StackCompletionStatusBanner: View {
             return Image(systemName: "circle.fill")
         }
     }
-    
+
     private var statusColor: Color {
         if stack.isDeleted {
             return .red
@@ -76,7 +76,7 @@ struct StackCompletionStatusBanner: View {
             return .gray
         }
     }
-    
+
     private var statusTitle: String {
         if stack.isDeleted {
             return "Deleted"
@@ -88,11 +88,11 @@ struct StackCompletionStatusBanner: View {
             return "Unknown Status"
         }
     }
-    
+
     private var taskCompletionSummary: String {
         let totalTasks = stack.tasks.count
         let completedCount = stack.completedTasks.count
-        
+
         if totalTasks == 0 {
             return "No tasks"
         } else if completedCount == totalTasks {
@@ -101,20 +101,20 @@ struct StackCompletionStatusBanner: View {
             return "\(completedCount) of \(totalTasks) task\(totalTasks == 1 ? "" : "s") completed"
         }
     }
-    
+
     private func timestampText(for event: Event) -> String {
         let timeStyle: Date.FormatStyle = .dateTime
             .hour()
             .minute()
-        
+
         let dateStyle: Date.FormatStyle = .dateTime
             .month(.wide)
             .day()
             .year()
-        
+
         let time = event.timestamp.formatted(timeStyle)
         let date = event.timestamp.formatted(dateStyle)
-        
+
         if stack.isDeleted {
             return "Deleted at \(time) on \(date)"
         } else if stack.status == .completed {
@@ -125,18 +125,18 @@ struct StackCompletionStatusBanner: View {
             return "Updated at \(time) on \(date)"
         }
     }
-    
+
     // MARK: - Data Loading
-    
+
     private func loadCompletionEvent() async {
         isLoading = true
         defer { isLoading = false }
-        
+
         let service = EventService.readOnly(modelContext: modelContext)
-        
+
         do {
             let events = try service.fetchStackHistoryWithRelated(for: stack)
-            
+
             // Find the most recent completion/closure/deletion event
             completionEvent = events.first { event in
                 event.type == "stack.completed" ||
