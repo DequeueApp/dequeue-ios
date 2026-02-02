@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("ArcService Tests", .serialized)
+@MainActor
 struct ArcServiceTests {
     // MARK: - Test Helpers
 
@@ -33,7 +34,6 @@ struct ArcServiceTests {
     // MARK: - Create Arc Tests
 
     @Test("createArc creates arc with correct title")
-    @MainActor
     func createArcSetsTitle() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -49,7 +49,6 @@ struct ArcServiceTests {
     }
 
     @Test("createArc creates arc with description")
-    @MainActor
     func createArcSetsDescription() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -65,7 +64,6 @@ struct ArcServiceTests {
     }
 
     @Test("createArc creates arc with color")
-    @MainActor
     func createArcSetsColor() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -81,7 +79,6 @@ struct ArcServiceTests {
     }
 
     @Test("createArc sets initial status to active")
-    @MainActor
     func createArcSetsActiveStatus() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -97,7 +94,6 @@ struct ArcServiceTests {
     }
 
     @Test("createArc sets syncState to pending")
-    @MainActor
     func createArcSetsSyncState() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -113,7 +109,6 @@ struct ArcServiceTests {
     }
 
     @Test("createArc enforces max active arcs limit")
-    @MainActor
     func createArcEnforcesLimit() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -137,7 +132,6 @@ struct ArcServiceTests {
     // MARK: - Update Arc Tests
 
     @Test("updateArc changes title")
-    @MainActor
     func updateArcChangesTitle() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -154,7 +148,6 @@ struct ArcServiceTests {
     }
 
     @Test("updateArc changes description")
-    @MainActor
     func updateArcChangesDescription() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -171,7 +164,6 @@ struct ArcServiceTests {
     }
 
     @Test("updateArc changes color")
-    @MainActor
     func updateArcChangesColor() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -190,7 +182,6 @@ struct ArcServiceTests {
     // MARK: - Delete Arc Tests
 
     @Test("deleteArc removes stacks from arc")
-    @MainActor
     func deleteArcRemovesStacks() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -214,7 +205,6 @@ struct ArcServiceTests {
     }
 
     @Test("deleteArc updates arc metadata")
-    @MainActor
     func deleteArcUpdatesMetadata() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -239,7 +229,6 @@ struct ArcServiceTests {
     // MARK: - Status Operations Tests
 
     @Test("markAsCompleted sets status to completed")
-    @MainActor
     func markAsCompletedSetsStatus() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -256,7 +245,6 @@ struct ArcServiceTests {
     }
 
     @Test("pause sets status to paused")
-    @MainActor
     func pauseSetsStatus() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -273,7 +261,6 @@ struct ArcServiceTests {
     }
 
     @Test("resume sets status to active")
-    @MainActor
     func resumeSetsStatus() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -291,7 +278,6 @@ struct ArcServiceTests {
     }
 
     @Test("resume from completed sets status to active")
-    @MainActor
     func resumeFromCompletedSetsStatus() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -311,7 +297,6 @@ struct ArcServiceTests {
     // MARK: - Stack Assignment Tests
 
     @Test("assignStack sets stack's arc property")
-    @MainActor
     func assignStackSetsArcProperty() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -333,7 +318,6 @@ struct ArcServiceTests {
     }
 
     @Test("assignStack adds stack to arc's stacks array")
-    @MainActor
     func assignStackAddsToArray() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -354,7 +338,6 @@ struct ArcServiceTests {
     }
 
     @Test("removeStack clears stack's arc property")
-    @MainActor
     func removeStackClearsArcProperty() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -379,7 +362,6 @@ struct ArcServiceTests {
     // MARK: - Reorder Tests
 
     @Test("updateSortOrders updates arc sort orders")
-    @MainActor
     func updateSortOrdersChangesOrder() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -403,7 +385,6 @@ struct ArcServiceTests {
     }
 
     @Test("updateSortOrders sets syncState to pending")
-    @MainActor
     func updateSortOrdersSetsSyncState() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -431,7 +412,6 @@ struct ArcServiceTests {
     // MARK: - Query Tests
 
     @Test("canCreateNewArc returns true when under limit")
-    @MainActor
     func canCreateNewArcUnderLimit() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -448,7 +428,6 @@ struct ArcServiceTests {
     }
 
     @Test("canCreateNewArc returns false when at limit")
-    @MainActor
     func canCreateNewArcAtLimit() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -466,7 +445,6 @@ struct ArcServiceTests {
     }
 
     @Test("paused arcs don't count toward limit")
-    @MainActor
     func pausedArcsDontCountTowardLimit() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -489,7 +467,6 @@ struct ArcServiceTests {
     }
 
     @Test("completed arcs don't count toward limit")
-    @MainActor
     func completedArcsDontCountTowardLimit() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -514,7 +491,6 @@ struct ArcServiceTests {
     // MARK: - History Revert Tests
 
     @Test("revertToHistoricalState restores arc to previous state")
-    @MainActor
     func revertToHistoricalStateRestoresPreviousState() async throws {
         let container = try Self.makeTestContainer()
         let context = container.mainContext
@@ -563,5 +539,145 @@ struct ArcServiceTests {
         #expect(arc.arcDescription == "Original Description")
         #expect(arc.colorHex == "FF0000")
         #expect(arc.syncState == .pending) // Should be marked for sync
+    }
+
+    // MARK: - Start and Due Date Tests
+
+    @Test("createArc creates arc with start and due dates")
+    func createArcSetsStartAndDueDates() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let startDate = Date()
+        let dueDate = Date().addingTimeInterval(86_400 * 7) // 7 days later
+
+        let arc = try await service.createArc(
+            title: "Test Arc",
+            startTime: startDate,
+            dueTime: dueDate
+        )
+
+        #expect(arc.startTime == startDate)
+        #expect(arc.dueTime == dueDate)
+    }
+
+    @Test("createArc creates arc without dates by default")
+    func createArcWithoutDatesHasNilDates() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let arc = try await service.createArc(title: "Test Arc")
+
+        #expect(arc.startTime == nil)
+        #expect(arc.dueTime == nil)
+    }
+
+    @Test("updateArc sets start date")
+    func updateArcSetsStartDate() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let arc = try await service.createArc(title: "Test Arc")
+        let startDate = Date()
+
+        try await service.updateArc(arc, startTime: .set(startDate))
+
+        #expect(arc.startTime == startDate)
+    }
+
+    @Test("updateArc sets due date")
+    func updateArcSetsDueDate() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let arc = try await service.createArc(title: "Test Arc")
+        let dueDate = Date().addingTimeInterval(86_400 * 7)
+
+        try await service.updateArc(arc, dueTime: .set(dueDate))
+
+        #expect(arc.dueTime == dueDate)
+    }
+
+    @Test("updateArc clears start date when set to clear")
+    func updateArcClearsStartDate() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let startDate = Date()
+        let arc = try await service.createArc(title: "Test Arc", startTime: startDate)
+        #expect(arc.startTime != nil)
+
+        try await service.updateArc(arc, startTime: .clear)
+
+        #expect(arc.startTime == nil)
+    }
+
+    @Test("updateArc clears due date when set to clear")
+    func updateArcClearsDueDate() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let dueDate = Date().addingTimeInterval(86_400 * 7)
+        let arc = try await service.createArc(title: "Test Arc", dueTime: dueDate)
+        #expect(arc.dueTime != nil)
+
+        try await service.updateArc(arc, dueTime: .clear)
+
+        #expect(arc.dueTime == nil)
+    }
+
+    @Test("updateArc preserves existing dates when not specified")
+    func updateArcPreservesDatesWhenNotSpecified() async throws {
+        let container = try Self.makeTestContainer()
+        let context = container.mainContext
+        let service = ArcService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let startDate = Date()
+        let dueDate = Date().addingTimeInterval(86_400 * 7)
+        let arc = try await service.createArc(
+            title: "Test Arc",
+            startTime: startDate,
+            dueTime: dueDate
+        )
+
+        // Update only the title, dates should be preserved
+        try await service.updateArc(arc, title: "Updated Title")
+
+        #expect(arc.startTime == startDate)
+        #expect(arc.dueTime == dueDate)
     }
 }

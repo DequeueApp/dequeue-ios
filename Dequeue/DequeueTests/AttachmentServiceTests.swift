@@ -46,11 +46,11 @@ private func cleanupTemporaryFile(_ url: URL) {
 }
 
 @Suite("AttachmentService Tests", .serialized)
+@MainActor
 struct AttachmentServiceTests {
     // MARK: - Create Attachment Tests
 
     @Test("createAttachment creates attachment for stack")
-    @MainActor
     func createAttachmentForStack() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -75,7 +75,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("createAttachment creates attachment for task")
-    @MainActor
     func createAttachmentForTask() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -97,7 +96,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("createAttachment throws for non-existent parent stack")
-    @MainActor
     func createAttachmentThrowsForMissingStack() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -113,7 +111,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("createAttachment throws for non-existent parent task")
-    @MainActor
     func createAttachmentThrowsForMissingTask() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -129,7 +126,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("createAttachment throws for missing file")
-    @MainActor
     func createAttachmentThrowsForMissingFile() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -146,7 +142,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("createAttachment throws for file exceeding size limit")
-    @MainActor
     func createAttachmentThrowsForOversizedFile() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -174,7 +169,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("createAttachment records event")
-    @MainActor
     func createAttachmentRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -201,7 +195,6 @@ struct AttachmentServiceTests {
     // MARK: - Read Attachment Tests
 
     @Test("getAttachments returns attachments for parent")
-    @MainActor
     func getAttachmentsForParent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -227,7 +220,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("getAttachments excludes deleted attachments")
-    @MainActor
     func getAttachmentsExcludesDeleted() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -255,7 +247,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("getAttachment returns attachment by ID")
-    @MainActor
     func getAttachmentById() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -274,7 +265,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("getAttachment throws for non-existent ID")
-    @MainActor
     func getAttachmentThrowsForMissingId() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -289,7 +279,6 @@ struct AttachmentServiceTests {
     // MARK: - Update Attachment Tests
 
     @Test("updateUploadState updates state correctly")
-    @MainActor
     func updateUploadState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -314,7 +303,6 @@ struct AttachmentServiceTests {
     // MARK: - Delete Attachment Tests
 
     @Test("deleteAttachment soft deletes attachment", .disabled("Flaky test - needs investigation. See DEQ-199"))
-    @MainActor
     func deleteAttachmentSoftDeletes() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -334,7 +322,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("deleteAttachment records event")
-    @MainActor
     func deleteAttachmentRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -360,7 +347,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("deleteAttachments deletes all attachments for parent")
-    @MainActor
     func deleteAttachmentsForParent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -389,7 +375,6 @@ struct AttachmentServiceTests {
     // MARK: - MIME Type Tests
 
     @Test("mimeType returns correct type for common extensions")
-    @MainActor
     func mimeTypeForCommonExtensions() {
         #expect(AttachmentService.mimeType(for: URL(fileURLWithPath: "/test.txt")) == "text/plain")
         #expect(AttachmentService.mimeType(for: URL(fileURLWithPath: "/test.pdf")) == "application/pdf")
@@ -399,7 +384,6 @@ struct AttachmentServiceTests {
     }
 
     @Test("mimeType returns octet-stream for unknown extensions")
-    @MainActor
     func mimeTypeForUnknownExtension() {
         #expect(AttachmentService.mimeType(for: URL(fileURLWithPath: "/test.xyz123")) == "application/octet-stream")
     }

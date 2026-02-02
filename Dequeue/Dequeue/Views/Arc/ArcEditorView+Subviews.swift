@@ -13,6 +13,70 @@ private let logger = Logger(subsystem: "com.dequeue", category: "ArcEditorView+S
 // MARK: - Subviews Extension
 
 extension ArcEditorView {
+    // MARK: - Dates Section
+
+    @ViewBuilder
+    var datesSection: some View {
+        // Start Date
+        Toggle(isOn: $hasStartDate) {
+            HStack {
+                Image(systemName: "calendar")
+                    .foregroundStyle(.blue)
+                Text("Start Date")
+            }
+        }
+        .onChange(of: hasStartDate) { _, newValue in
+            if newValue && startDate == nil {
+                startDate = Date()
+            }
+        }
+
+        if hasStartDate {
+            DatePicker(
+                "Start",
+                selection: Binding(
+                    get: { startDate ?? Date() },
+                    set: { startDate = $0 }
+                ),
+                displayedComponents: [.date]
+            )
+            .datePickerStyle(.compact)
+        }
+
+        // Due Date
+        Toggle(isOn: $hasDueDate) {
+            HStack {
+                Image(systemName: "clock")
+                    .foregroundStyle(.orange)
+                Text("Due Date")
+            }
+        }
+        .onChange(of: hasDueDate) { _, newValue in
+            if newValue && dueDate == nil {
+                dueDate = Date()
+            }
+        }
+
+        if hasDueDate {
+            DatePicker(
+                "Due",
+                selection: Binding(
+                    get: { dueDate ?? Date() },
+                    set: { newDate in
+                        let oldDate = dueDate
+                        dueDate = newDate
+                        // Prompt for reminder when due date is first set or changed significantly
+                        if mode != .create && oldDate == nil && editingArc != nil {
+                            showDueDateReminderPrompt = true
+                        }
+                    }
+                ),
+                displayedComponents: [.date]
+            )
+            .datePickerStyle(.compact)
+        }
+    }
+
     // MARK: - Color Picker
 
     var colorPicker: some View {

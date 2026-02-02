@@ -37,6 +37,11 @@ struct DequeueApp: App {
     /// Threshold for showing user feedback about sync issues
     private let syncFailureThreshold = 3
 
+    /// Check if running in a test environment (unit tests use app as TEST_HOST)
+    private static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     init() {
         // Note: ErrorReportingService.configure() is now called asynchronously
         // in the body to avoid blocking app launch (was causing 12+ second hangs)
@@ -52,9 +57,12 @@ struct DequeueApp: App {
             Tag.self,
             Arc.self
         ])
+
+        // Use in-memory store when running tests to avoid file system issues
+        // and ensure test isolation
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: false,
+            isStoredInMemoryOnly: Self.isRunningTests,
             cloudKitDatabase: .none
         )
 

@@ -28,6 +28,7 @@ private func passesCompletedViewFilter(_ stack: Stack) -> Bool {
 }
 
 @Suite("Stack Detail Read-Only Tests", .serialized)
+@MainActor
 struct StackDetailReadOnlyTests {
     // MARK: - Completed Stack Filter Tests
 
@@ -72,7 +73,6 @@ struct StackDetailReadOnlyTests {
     // MARK: - Read-Only Stack Tests
 
     @Test("completed stack has correct status")
-    @MainActor
     func completedStackHasCorrectStatus() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -85,7 +85,6 @@ struct StackDetailReadOnlyTests {
     }
 
     @Test("closed stack has correct status")
-    @MainActor
     func closedStackHasCorrectStatus() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -98,7 +97,6 @@ struct StackDetailReadOnlyTests {
     }
 
     @Test("stack with tasks can be viewed read-only")
-    @MainActor
     func stackWithTasksCanBeViewedReadOnly() throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -121,7 +119,6 @@ struct StackDetailReadOnlyTests {
     }
 
     @Test("stack description is accessible read-only")
-    @MainActor
     func stackDescriptionIsAccessibleReadOnly() throws {
         let container = try makeTestContainer()
         let context = container.mainContext

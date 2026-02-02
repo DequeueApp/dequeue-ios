@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Dequeue Core Tests")
+@MainActor
 struct DequeueTests {
     @Test("Models can be inserted into container")
     func modelsCanBeInserted() throws {

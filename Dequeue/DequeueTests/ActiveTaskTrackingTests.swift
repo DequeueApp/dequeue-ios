@@ -58,6 +58,7 @@ private struct TestContext {
 }
 
 @Suite("Active Task Tracking Tests", .serialized)
+@MainActor
 struct ActiveTaskTrackingTests {
     // MARK: - Stack Model Tests
 

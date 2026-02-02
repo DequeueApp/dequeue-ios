@@ -87,26 +87,33 @@ final class AttachmentSettings: @unchecked Sendable {
 
     // MARK: - Properties
 
+    /// The UserDefaults instance used for persistence
+    private let defaults: UserDefaults
+
     /// When to automatically download attachments
     var downloadBehavior: AttachmentDownloadBehavior {
         didSet {
-            UserDefaults.standard.set(downloadBehavior.rawValue, forKey: Keys.downloadBehavior)
+            defaults.set(downloadBehavior.rawValue, forKey: Keys.downloadBehavior)
         }
     }
 
     /// Maximum local storage for attachments
     var storageQuota: AttachmentStorageQuota {
         didSet {
-            UserDefaults.standard.set(storageQuota.rawValue, forKey: Keys.storageQuota)
-            UserDefaults.standard.set(true, forKey: Keys.storageQuotaSet)
+            defaults.set(storageQuota.rawValue, forKey: Keys.storageQuota)
+            defaults.set(true, forKey: Keys.storageQuotaSet)
         }
     }
 
     // MARK: - Initialization
 
-    init() {
+    /// Initialize with a specific UserDefaults instance
+    /// - Parameter defaults: The UserDefaults to use for persistence. Defaults to `.standard`.
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+
         // Load download behavior
-        if let savedBehavior = UserDefaults.standard.string(forKey: Keys.downloadBehavior),
+        if let savedBehavior = defaults.string(forKey: Keys.downloadBehavior),
            let behavior = AttachmentDownloadBehavior(rawValue: savedBehavior) {
             self.downloadBehavior = behavior
         } else {
@@ -114,11 +121,11 @@ final class AttachmentSettings: @unchecked Sendable {
         }
 
         // Load storage quota
-        if !UserDefaults.standard.bool(forKey: Keys.storageQuotaSet) {
+        if !defaults.bool(forKey: Keys.storageQuotaSet) {
             // Not set yet, use default
             self.storageQuota = .fiveGB
         } else {
-            let savedQuota = UserDefaults.standard.integer(forKey: Keys.storageQuota)
+            let savedQuota = defaults.integer(forKey: Keys.storageQuota)
             if let quota = AttachmentStorageQuota(rawValue: Int64(savedQuota)) {
                 self.storageQuota = quota
             } else {

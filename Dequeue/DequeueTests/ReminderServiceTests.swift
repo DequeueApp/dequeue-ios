@@ -25,11 +25,11 @@ private func makeTestContainer() throws -> ModelContainer {
 }
 
 @Suite("ReminderService Tests", .serialized)
+@MainActor
 struct ReminderServiceTests {
     // MARK: - Create Reminder for Task Tests
 
     @Test("createReminder for task creates reminder with correct parentId")
-    @MainActor
     func createReminderForTaskSetsParentId() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -49,7 +49,6 @@ struct ReminderServiceTests {
     }
 
     @Test("createReminder for task sets correct remindAt date")
-    @MainActor
     func createReminderForTaskSetsRemindAt() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -68,7 +67,6 @@ struct ReminderServiceTests {
     }
 
     @Test("createReminder for task sets status to active")
-    @MainActor
     func createReminderForTaskSetsActiveStatus() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -86,7 +84,6 @@ struct ReminderServiceTests {
     }
 
     @Test("createReminder for task sets syncState to pending")
-    @MainActor
     func createReminderForTaskSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -106,7 +103,6 @@ struct ReminderServiceTests {
     // MARK: - Create Reminder for Stack Tests
 
     @Test("createReminder for stack creates reminder with correct parentId")
-    @MainActor
     func createReminderForStackSetsParentId() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -123,7 +119,6 @@ struct ReminderServiceTests {
     }
 
     @Test("createReminder for stack sets correct remindAt date")
-    @MainActor
     func createReminderForStackSetsRemindAt() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -141,7 +136,6 @@ struct ReminderServiceTests {
     // MARK: - Update Reminder Tests
 
     @Test("updateReminder changes remindAt date")
-    @MainActor
     func updateReminderChangesRemindAt() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -160,7 +154,6 @@ struct ReminderServiceTests {
     }
 
     @Test("updateReminder sets syncState to pending")
-    @MainActor
     func updateReminderSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -181,7 +174,6 @@ struct ReminderServiceTests {
     }
 
     @Test("updateReminder updates updatedAt timestamp")
-    @MainActor
     func updateReminderUpdatesTimestamp() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -203,7 +195,6 @@ struct ReminderServiceTests {
     // MARK: - Snooze Reminder Tests
 
     @Test("snoozeReminder sets snoozedFrom to original remindAt")
-    @MainActor
     func snoozeReminderSetsSnoozedFrom() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -222,7 +213,6 @@ struct ReminderServiceTests {
     }
 
     @Test("snoozeReminder updates remindAt to new date")
-    @MainActor
     func snoozeReminderUpdatesRemindAt() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -240,7 +230,6 @@ struct ReminderServiceTests {
     }
 
     @Test("snoozeReminder sets status to snoozed")
-    @MainActor
     func snoozeReminderSetsStatus() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -257,7 +246,6 @@ struct ReminderServiceTests {
     }
 
     @Test("snoozeReminder sets syncState to pending")
-    @MainActor
     func snoozeReminderSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -278,7 +266,6 @@ struct ReminderServiceTests {
     // MARK: - Dismiss Reminder Tests
 
     @Test("dismissReminder sets status to fired")
-    @MainActor
     func dismissReminderSetsStatus() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -297,7 +284,6 @@ struct ReminderServiceTests {
     }
 
     @Test("dismissReminder sets syncState to pending")
-    @MainActor
     func dismissReminderSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -316,7 +302,6 @@ struct ReminderServiceTests {
     }
 
     @Test("dismissReminder updates updatedAt timestamp")
-    @MainActor
     func dismissReminderUpdatesTimestamp() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -334,7 +319,6 @@ struct ReminderServiceTests {
     }
 
     @Test("dismissReminder removes reminder from overdue list")
-    @MainActor
     func dismissReminderRemovesFromOverdue() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -365,7 +349,6 @@ struct ReminderServiceTests {
     }
 
     @Test("dismissReminder records reminderUpdated event")
-    @MainActor
     func dismissReminderRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -387,7 +370,6 @@ struct ReminderServiceTests {
     // MARK: - Delete Reminder Tests
 
     @Test("deleteReminder sets isDeleted to true")
-    @MainActor
     func deleteReminderSetsIsDeleted() async throws {
         // This test validates deleteReminder() sets isDeleted=true
         // We know this works because getUpcomingRemindersExcludesDeleted passes
@@ -410,7 +392,6 @@ struct ReminderServiceTests {
     }
 
     @Test("deleteReminder sets syncState to pending")
-    @MainActor
     func deleteReminderSetsSyncState() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -432,11 +413,11 @@ struct ReminderServiceTests {
 // MARK: - Query and Event Tests
 
 @Suite("ReminderService Query Tests", .serialized)
+@MainActor
 struct ReminderServiceQueryTests {
     // MARK: - Get Upcoming Reminders Tests
 
     @Test("getUpcomingReminders returns only future reminders")
-    @MainActor
     func getUpcomingRemindersReturnsFuture() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -465,7 +446,6 @@ struct ReminderServiceQueryTests {
     }
 
     @Test("getUpcomingReminders excludes deleted reminders")
-    @MainActor
     func getUpcomingRemindersExcludesDeleted() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -483,7 +463,6 @@ struct ReminderServiceQueryTests {
     }
 
     @Test("getUpcomingReminders returns only active status reminders")
-    @MainActor
     func getUpcomingRemindersReturnsOnlyActive() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -503,7 +482,6 @@ struct ReminderServiceQueryTests {
     }
 
     @Test("getUpcomingReminders returns reminders sorted by remindAt")
-    @MainActor
     func getUpcomingRemindersSortedByDate() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -525,7 +503,6 @@ struct ReminderServiceQueryTests {
     // MARK: - Get Overdue Reminders Tests
 
     @Test("getOverdueReminders returns only past reminders")
-    @MainActor
     func getOverdueRemindersReturnsPast() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -554,7 +531,6 @@ struct ReminderServiceQueryTests {
     }
 
     @Test("getOverdueReminders excludes deleted reminders")
-    @MainActor
     func getOverdueRemindersExcludesDeleted() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -582,7 +558,6 @@ struct ReminderServiceQueryTests {
     // MARK: - Get Reminders by Parent Tests
 
     @Test("getReminders for task returns only reminders for that task")
-    @MainActor
     func getRemindersForTaskFiltersCorrectly() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -608,7 +583,6 @@ struct ReminderServiceQueryTests {
     }
 
     @Test("getReminders for stack returns only reminders for that stack")
-    @MainActor
     func getRemindersForStackFiltersCorrectly() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -630,7 +604,6 @@ struct ReminderServiceQueryTests {
     }
 
     @Test("getReminders for parent excludes deleted reminders")
-    @MainActor
     func getRemindersForParentExcludesDeleted() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -653,7 +626,6 @@ struct ReminderServiceQueryTests {
     // MARK: - Event Recording Tests
 
     @Test("createReminder records reminderCreated event")
-    @MainActor
     func createReminderRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -672,7 +644,6 @@ struct ReminderServiceQueryTests {
     }
 
     @Test("updateReminder records reminderUpdated event")
-    @MainActor
     func updateReminderRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -691,7 +662,6 @@ struct ReminderServiceQueryTests {
     }
 
     @Test("snoozeReminder records reminderSnoozed event")
-    @MainActor
     func snoozeReminderRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
@@ -710,7 +680,6 @@ struct ReminderServiceQueryTests {
     }
 
     @Test("deleteReminder records reminderDeleted event")
-    @MainActor
     func deleteReminderRecordsEvent() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext

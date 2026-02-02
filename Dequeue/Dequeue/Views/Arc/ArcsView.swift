@@ -99,24 +99,24 @@ struct ArcsView: View {
     }
 
     private var arcsList: some View {
-        ScrollView {
-            LazyVStack(spacing: 16) {
-                ForEach(arcs) { arc in
-                    ArcCardView(
-                        arc: arc,
-                        onTap: {
-                            selectedArc = arc
-                        },
-                        onAddStackTap: {
-                            arcForStackPicker = arc
-                            showStackPicker = true
-                        }
-                    )
-                }
-                .onMove(perform: moveArcs)
+        List {
+            ForEach(arcs) { arc in
+                ArcCardView(
+                    arc: arc,
+                    onTap: {
+                        selectedArc = arc
+                    },
+                    onAddStackTap: {
+                        arcForStackPicker = arc
+                        showStackPicker = true
+                    }
+                )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
             }
-            .padding()
+            .onMove(perform: moveArcs)
         }
+        .listStyle(.plain)
         .refreshable {
             // Trigger sync refresh
             await refreshArcs()
