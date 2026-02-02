@@ -15,6 +15,7 @@ private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView
 extension StackEditorView {
     var editModeContent: some View {
         List {
+            completionStatusBanner
             activeStatusBanner
             descriptionSection
             editModeTagsSection
@@ -30,6 +31,17 @@ extension StackEditorView {
             actionsSection
             detailsSection
             eventHistorySection
+        }
+    }
+
+    // MARK: - Completion Status Banner
+
+    @ViewBuilder
+    var completionStatusBanner: some View {
+        if case .edit(let stack) = mode, (stack.status != .active || stack.isDeleted) {
+            Section {
+                StackCompletionStatusBanner(stack: stack)
+            }
         }
     }
 
