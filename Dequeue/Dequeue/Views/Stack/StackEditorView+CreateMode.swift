@@ -32,7 +32,8 @@ extension StackEditorView {
             Section {
                 Toggle("Set as Active Stack", isOn: $setAsActive)
             } footer: {
-                Text("If enabled, this stack will become your active stack immediately. Otherwise, it will be added to your backlog.")
+                Text("If enabled, this stack will become your active stack immediately. " +
+                     "Otherwise, it will be added to your backlog.")
             }
 
             createModeArcSection

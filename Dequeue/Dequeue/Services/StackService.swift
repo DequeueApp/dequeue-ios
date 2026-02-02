@@ -167,7 +167,8 @@ final class StackService {
     }
 
     /// Validates that at most one stack has isActive = true.
-    /// If multiple stacks have isActive = true (e.g., from sync), silently fixes by keeping only the target stack active.
+    /// If multiple stacks have isActive = true (e.g., from sync), silently fixes by keeping
+    /// only the target stack active.
     /// - Parameter targetStackId: The ID of the stack that should remain active (pass nil to just check without fixing)
     /// - Returns: True if constraint was valid or was fixed, false if no target provided and multiple found
     @discardableResult
