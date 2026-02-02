@@ -149,8 +149,7 @@ enum AttachmentUploadError: LocalizedError, Equatable {
 
 // MARK: - Service Protocol
 
-@MainActor
-protocol AttachmentUploadServiceProtocol {
+protocol AttachmentUploadServiceProtocol: Sendable {
     /// Requests a presigned URL for uploading an attachment
     /// - Parameters:
     ///   - filename: The original filename
@@ -194,7 +193,6 @@ protocol AttachmentUploadServiceProtocol {
 
 // MARK: - Implementation
 
-@MainActor
 final class AttachmentUploadService: AttachmentUploadServiceProtocol {
     private let session: URLSession
     private let authService: AuthServiceProtocol
@@ -292,7 +290,10 @@ final class AttachmentUploadService: AttachmentUploadServiceProtocol {
 
     private func getAuthToken() async throws -> String {
         do {
-            return try await authService.getAuthToken()
+            // AuthService is @MainActor, so we need to hop to MainActor to call it
+            return try await MainActor.run {
+                try await authService.getAuthToken()
+            }
         } catch {
             throw AttachmentUploadError.notAuthenticated
         }
