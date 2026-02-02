@@ -22,7 +22,8 @@ struct CompletedStacksListView: View {
             filter: #Predicate<Stack> { stack in
                 // Show deleted stacks, or stacks with completed/closed status
                 stack.isDeleted == true ||
-                (stack.isDeleted == false && (stack.statusRawValue == completedRaw || stack.statusRawValue == closedRaw))
+                (stack.isDeleted == false &&
+                 (stack.statusRawValue == completedRaw || stack.statusRawValue == closedRaw))
             },
             sort: \Stack.updatedAt,
             order: .reverse
