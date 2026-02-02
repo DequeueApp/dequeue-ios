@@ -74,11 +74,22 @@ final class StackService {
     func createStack(
         title: String,
         description: String? = nil,
+        setAsActive: Bool = false,
         isDraft: Bool = false
     ) async throws -> Stack {
         // Check if this will be the first non-draft active stack
         let existingActiveStacks = try getActiveStacks()
-        let shouldBeActive = !isDraft && existingActiveStacks.isEmpty
+        let shouldBeActive = !isDraft && (setAsActive || existingActiveStacks.isEmpty)
+
+        // If user wants to set as active and there are existing active stacks, deactivate them
+        if shouldBeActive && !existingActiveStacks.isEmpty {
+            for activeStack in existingActiveStacks {
+                try await eventService.recordStackDeactivated(activeStack)
+                activeStack.isActive = false
+                activeStack.updatedAt = Date()
+                activeStack.syncState = .pending
+            }
+        }
 
         // Determine sortOrder: active stack gets 0, inactive stacks get next available
         // Query ALL non-deleted stacks (not just active) to prevent sortOrder collisions

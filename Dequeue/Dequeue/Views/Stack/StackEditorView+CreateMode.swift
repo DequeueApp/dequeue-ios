@@ -29,6 +29,12 @@ extension StackEditorView {
                 handleFocusChange(from: oldValue, to: newValue)
             }
 
+            Section {
+                Toggle("Set as Active Stack", isOn: $setAsActive)
+            } footer: {
+                Text("If enabled, this stack will become your active stack immediately. Otherwise, it will be added to your backlog.")
+            }
+
             createModeArcSection
 
             createModeTagsSection
@@ -357,7 +363,8 @@ extension StackEditorView {
         } else {
             let stack = try await stackSvc.createStack(
                 title: title,
-                description: stackDescription.isEmpty ? nil : stackDescription
+                description: stackDescription.isEmpty ? nil : stackDescription,
+                setAsActive: setAsActive
             )
             logger.info("Stack created: \(stack.id)")
             return stack
