@@ -20,6 +20,7 @@ private struct StackUpdatedPayloadReadable: Decodable {
 }
 
 @Suite("StackService PublishDraft Tests", .serialized)
+@MainActor
 struct StackServicePublishDraftTests {
     // MARK: - Test Helpers
 
@@ -34,7 +35,6 @@ struct StackServicePublishDraftTests {
     // MARK: - publishDraft Event Tests
 
     @Test("publishDraft emits stack.updated event, not stack.created")
-    @MainActor
     func publishDraftEmitsUpdatedEvent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -69,7 +69,6 @@ struct StackServicePublishDraftTests {
     }
 
     @Test("Draft creation followed by publish produces exactly one stack.created event")
-    @MainActor
     func draftCreationAndPublishProducesOneCreatedEvent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -97,7 +96,6 @@ struct StackServicePublishDraftTests {
     }
 
     @Test("publishDraft stack.updated event contains isDraft = false")
-    @MainActor
     func publishDraftEventContainsCorrectState() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -125,7 +123,6 @@ struct StackServicePublishDraftTests {
     }
 
     @Test("publishDraft is idempotent - calling on non-draft stack does nothing")
-    @MainActor
     func publishDraftIdempotentForNonDraft() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -152,7 +149,6 @@ struct StackServicePublishDraftTests {
     }
 
     @Test("publishDraft updates syncState to pending")
-    @MainActor
     func publishDraftSetsSyncStatePending() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -170,7 +166,6 @@ struct StackServicePublishDraftTests {
     }
 
     @Test("publishDraft updates updatedAt timestamp")
-    @MainActor
     func publishDraftUpdatesTimestamp() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -190,7 +185,6 @@ struct StackServicePublishDraftTests {
     // MARK: - Full Flow Integration Tests
 
     @Test("Complete draft lifecycle: create, update, publish produces correct events")
-    @MainActor
     func completeDraftLifecycleProducesCorrectEvents() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -225,7 +219,6 @@ struct StackServicePublishDraftTests {
     }
 
     @Test("Draft created with isDraft=true, published stack has isDraft=false")
-    @MainActor
     func draftStateTransitionsCorrectly() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -246,7 +239,6 @@ struct StackServicePublishDraftTests {
     // MARK: - Event Payload Verification Tests
 
     @Test("stack.created event for draft has isDraft = true in payload")
-    @MainActor
     func draftCreatedEventHasIsDraftTrue() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -270,7 +262,6 @@ struct StackServicePublishDraftTests {
     }
 
     @Test("Multiple drafts can be created and published independently")
-    @MainActor
     func multipleDraftsIndependent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)

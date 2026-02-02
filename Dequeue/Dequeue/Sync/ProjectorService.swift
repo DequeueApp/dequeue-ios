@@ -1853,6 +1853,8 @@ enum ProjectorService {
         arc.status = payload.status
         arc.sortOrder = payload.sortOrder
         arc.colorHex = payload.colorHex
+        arc.startTime = payload.startTime
+        arc.dueTime = payload.dueTime
         arc.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         arc.syncState = .synced
         arc.lastSyncedAt = Date()
@@ -1977,6 +1979,8 @@ enum ProjectorService {
         stack.status = payload.status
         stack.priority = payload.priority
         stack.sortOrder = payload.sortOrder
+        stack.startTime = payload.startTime
+        stack.dueTime = payload.dueTime
         stack.isDraft = payload.isDraft
         stack.isActive = payload.isActive
         stack.activeTaskId = payload.activeTaskId
@@ -2073,6 +2077,8 @@ enum ProjectorService {
         task.status = payload.status
         task.priority = payload.priority
         task.sortOrder = payload.sortOrder
+        task.startTime = payload.startTime
+        task.dueTime = payload.dueTime
         task.lastActiveTime = payload.lastActiveTime
         task.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         task.syncState = .synced

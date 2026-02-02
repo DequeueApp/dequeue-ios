@@ -601,7 +601,9 @@ struct StackState: Codable {
     let status: String
     let priority: Int?
     let sortOrder: Int
-    let createdAt: Int64  // Unix timestamp in milliseconds
+    let startTime: Int64?  // Unix timestamp in milliseconds (optional)
+    let dueTime: Int64?    // Unix timestamp in milliseconds (optional)
+    let createdAt: Int64   // Unix timestamp in milliseconds
     let updatedAt: Int64
     let deleted: Bool
     let isDraft: Bool
@@ -617,6 +619,8 @@ struct StackState: Codable {
             status: stack.status.rawValue,
             priority: stack.priority,
             sortOrder: stack.sortOrder,
+            startTime: stack.startTime.map { Int64($0.timeIntervalSince1970 * 1_000) },
+            dueTime: stack.dueTime.map { Int64($0.timeIntervalSince1970 * 1_000) },
             createdAt: Int64(stack.createdAt.timeIntervalSince1970 * 1_000),
             updatedAt: Int64(stack.updatedAt.timeIntervalSince1970 * 1_000),
             deleted: stack.isDeleted,
@@ -637,6 +641,8 @@ struct TaskState: Codable {
     let status: String
     let priority: Int?
     let sortOrder: Int
+    let startTime: Int64?   // Unix timestamp in milliseconds (optional)
+    let dueTime: Int64?     // Unix timestamp in milliseconds (optional)
     let lastActiveTime: Int64?
     let createdAt: Int64
     let updatedAt: Int64
@@ -651,6 +657,8 @@ struct TaskState: Codable {
             status: task.status.rawValue,
             priority: task.priority,
             sortOrder: task.sortOrder,
+            startTime: task.startTime.map { Int64($0.timeIntervalSince1970 * 1_000) },
+            dueTime: task.dueTime.map { Int64($0.timeIntervalSince1970 * 1_000) },
             lastActiveTime: task.lastActiveTime.map { Int64($0.timeIntervalSince1970 * 1_000) },
             createdAt: Int64(task.createdAt.timeIntervalSince1970 * 1_000),
             updatedAt: Int64(task.updatedAt.timeIntervalSince1970 * 1_000),
@@ -773,7 +781,9 @@ struct ArcState: Codable {
     let status: String
     let sortOrder: Int
     let colorHex: String?
-    let createdAt: Int64  // Unix timestamp in milliseconds
+    let startTime: Int64?  // Unix timestamp in milliseconds (optional)
+    let dueTime: Int64?    // Unix timestamp in milliseconds (optional)
+    let createdAt: Int64   // Unix timestamp in milliseconds
     let updatedAt: Int64
     let deleted: Bool
     let stackIds: [String]
@@ -786,6 +796,8 @@ struct ArcState: Codable {
             status: arc.status.rawValue,
             sortOrder: arc.sortOrder,
             colorHex: arc.colorHex,
+            startTime: arc.startTime.map { Int64($0.timeIntervalSince1970 * 1_000) },
+            dueTime: arc.dueTime.map { Int64($0.timeIntervalSince1970 * 1_000) },
             createdAt: Int64(arc.createdAt.timeIntervalSince1970 * 1_000),
             updatedAt: Int64(arc.updatedAt.timeIntervalSince1970 * 1_000),
             deleted: arc.isDeleted,
@@ -1028,6 +1040,8 @@ struct StackEventPayload: Codable {
     let status: StackStatus
     let priority: Int?
     let sortOrder: Int
+    let startTime: Date?   // Optional start date
+    let dueTime: Date?     // Optional due date
     let isDraft: Bool
     let isActive: Bool
     let activeTaskId: String?
@@ -1038,6 +1052,7 @@ struct StackEventPayload: Codable {
     // Handle status as string from server
     enum CodingKeys: String, CodingKey {
         case id, title, description, status, priority, sortOrder
+        case startTime, dueTime
         case isDraft, isActive, activeTaskId, deleted, tagIds, createdAt
     }
 
@@ -1057,6 +1072,21 @@ struct StackEventPayload: Codable {
 
         priority = try container.decodeIfPresent(Int.self, forKey: .priority)
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+
+        // Decode startTime - handle Int64 timestamp (milliseconds) or Date
+        if let timestamp = try? container.decode(Int64.self, forKey: .startTime) {
+            startTime = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            startTime = try? container.decode(Date.self, forKey: .startTime)
+        }
+
+        // Decode dueTime - handle Int64 timestamp (milliseconds) or Date
+        if let timestamp = try? container.decode(Int64.self, forKey: .dueTime) {
+            dueTime = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            dueTime = try? container.decode(Date.self, forKey: .dueTime)
+        }
+
         isDraft = try container.decodeIfPresent(Bool.self, forKey: .isDraft) ?? false
         isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? false
         activeTaskId = try container.decodeIfPresent(String.self, forKey: .activeTaskId)
@@ -1079,6 +1109,12 @@ struct StackEventPayload: Codable {
         try container.encode(status.rawValue, forKey: .status)
         try container.encodeIfPresent(priority, forKey: .priority)
         try container.encode(sortOrder, forKey: .sortOrder)
+        if let startTime {
+            try container.encode(Int64(startTime.timeIntervalSince1970 * 1_000), forKey: .startTime)
+        }
+        if let dueTime {
+            try container.encode(Int64(dueTime.timeIntervalSince1970 * 1_000), forKey: .dueTime)
+        }
         try container.encode(isDraft, forKey: .isDraft)
         try container.encode(isActive, forKey: .isActive)
         try container.encodeIfPresent(activeTaskId, forKey: .activeTaskId)
@@ -1099,13 +1135,15 @@ struct TaskEventPayload: Codable {
     let status: TaskStatus
     let priority: Int?
     let sortOrder: Int
+    let startTime: Date?   // Optional start date
+    let dueTime: Date?     // Optional due date
     let lastActiveTime: Date?
     let deleted: Bool
     let createdAt: Date?  // Original creation timestamp from sync
 
     enum CodingKeys: String, CodingKey {
         case id, stackId, title, description, status, priority
-        case sortOrder, lastActiveTime, deleted, createdAt
+        case sortOrder, startTime, dueTime, lastActiveTime, deleted, createdAt
     }
 
     init(from decoder: Decoder) throws {
@@ -1125,6 +1163,20 @@ struct TaskEventPayload: Codable {
 
         priority = try container.decodeIfPresent(Int.self, forKey: .priority)
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+
+        // Decode startTime - handle Int64 timestamp (milliseconds) or Date
+        if let timestamp = try? container.decode(Int64.self, forKey: .startTime) {
+            startTime = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            startTime = try? container.decode(Date.self, forKey: .startTime)
+        }
+
+        // Decode dueTime - handle Int64 timestamp (milliseconds) or Date
+        if let timestamp = try? container.decode(Int64.self, forKey: .dueTime) {
+            dueTime = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            dueTime = try? container.decode(Date.self, forKey: .dueTime)
+        }
 
         // Decode lastActiveTime - handle both Int64 timestamp and Date
         if let timestamp = try container.decodeIfPresent(Int64.self, forKey: .lastActiveTime) {
@@ -1152,6 +1204,12 @@ struct TaskEventPayload: Codable {
         try container.encode(status.rawValue, forKey: .status)
         try container.encodeIfPresent(priority, forKey: .priority)
         try container.encode(sortOrder, forKey: .sortOrder)
+        if let startTime {
+            try container.encode(Int64(startTime.timeIntervalSince1970 * 1_000), forKey: .startTime)
+        }
+        if let dueTime {
+            try container.encode(Int64(dueTime.timeIntervalSince1970 * 1_000), forKey: .dueTime)
+        }
         if let lastActiveTime = lastActiveTime {
             try container.encode(Int64(lastActiveTime.timeIntervalSince1970 * 1_000), forKey: .lastActiveTime)
         }
@@ -1317,11 +1375,14 @@ struct ArcEventPayload: Codable {
     let status: ArcStatus
     let sortOrder: Int
     let colorHex: String?
+    let startTime: Date?   // Optional start date
+    let dueTime: Date?     // Optional due date
     let deleted: Bool
     let stackIds: [String]
 
     enum CodingKeys: String, CodingKey {
-        case id, title, description, status, sortOrder, colorHex, deleted, stackIds
+        case id, title, description, status, sortOrder, colorHex
+        case startTime, dueTime, deleted, stackIds
     }
 
     init(from decoder: Decoder) throws {
@@ -1340,6 +1401,21 @@ struct ArcEventPayload: Codable {
 
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         colorHex = try container.decodeIfPresent(String.self, forKey: .colorHex)
+
+        // Decode startTime - handle Int64 timestamp (milliseconds) or Date
+        if let timestamp = try? container.decode(Int64.self, forKey: .startTime) {
+            startTime = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            startTime = try? container.decode(Date.self, forKey: .startTime)
+        }
+
+        // Decode dueTime - handle Int64 timestamp (milliseconds) or Date
+        if let timestamp = try? container.decode(Int64.self, forKey: .dueTime) {
+            dueTime = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            dueTime = try? container.decode(Date.self, forKey: .dueTime)
+        }
+
         deleted = try container.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
         stackIds = try container.decodeIfPresent([String].self, forKey: .stackIds) ?? []
     }
@@ -1352,6 +1428,12 @@ struct ArcEventPayload: Codable {
         try container.encode(status.rawValue, forKey: .status)
         try container.encode(sortOrder, forKey: .sortOrder)
         try container.encodeIfPresent(colorHex, forKey: .colorHex)
+        if let startTime {
+            try container.encode(Int64(startTime.timeIntervalSince1970 * 1_000), forKey: .startTime)
+        }
+        if let dueTime {
+            try container.encode(Int64(dueTime.timeIntervalSince1970 * 1_000), forKey: .dueTime)
+        }
         try container.encode(deleted, forKey: .deleted)
         try container.encode(stackIds, forKey: .stackIds)
     }

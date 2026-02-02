@@ -10,11 +10,11 @@ import Foundation
 @testable import Dequeue
 
 @Suite("DownloadManager Tests")
+@MainActor
 struct DownloadManagerTests {
     // MARK: - DownloadProgress Tests
 
     @Test("DownloadProgress calculates fraction completed correctly")
-    @MainActor
     func progressFractionCalculation() {
         let progress = DownloadProgress(
             attachmentId: "test-id",
@@ -26,7 +26,6 @@ struct DownloadManagerTests {
     }
 
     @Test("DownloadProgress handles zero total bytes")
-    @MainActor
     func progressZeroTotalBytes() {
         let progress = DownloadProgress(
             attachmentId: "test-id",
@@ -38,7 +37,6 @@ struct DownloadManagerTests {
     }
 
     @Test("DownloadProgress handles completed download")
-    @MainActor
     func progressCompletedDownload() {
         let progress = DownloadProgress(
             attachmentId: "test-id",
@@ -119,7 +117,6 @@ struct DownloadManagerTests {
     }
 
     @Test("MockDownloadManager simulates progress")
-    @MainActor
     func mockSimulatesProgress() async throws {
         let mock = MockDownloadManager()
         // swiftlint:disable:next force_unwrapping

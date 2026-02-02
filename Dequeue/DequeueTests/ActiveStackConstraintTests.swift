@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Active Stack Constraint Tests")
+@MainActor
 struct ActiveStackConstraintTests {
     // MARK: - Test Helpers
 
@@ -39,7 +40,6 @@ struct ActiveStackConstraintTests {
     // MARK: - StackService.createStack Tests
 
     @Test("First non-draft stack becomes active automatically")
-    @MainActor
     func firstStackBecomesActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -51,7 +51,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("Draft stacks do not become active")
-    @MainActor
     func draftStacksNotActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -63,7 +62,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("Second stack is not active when first exists")
-    @MainActor
     func secondStackNotActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -79,7 +77,6 @@ struct ActiveStackConstraintTests {
     // MARK: - StackService.setAsActive Tests
 
     @Test("setAsActive activates target stack")
-    @MainActor
     func setAsActiveActivatesTarget() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -98,7 +95,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("setAsActive deactivates all other stacks")
-    @MainActor
     func setAsActiveDeactivatesOthers() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -122,7 +118,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("Only one stack is active after multiple setAsActive calls")
-    @MainActor
     func onlyOneActiveAfterMultipleCalls() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -145,7 +140,6 @@ struct ActiveStackConstraintTests {
     // MARK: - getCurrentActiveStack Tests
 
     @Test("getCurrentActiveStack returns the active stack")
-    @MainActor
     func getCurrentActiveStackReturnsActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -159,7 +153,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("getCurrentActiveStack returns nil when no active stack")
-    @MainActor
     func getCurrentActiveStackReturnsNilWhenNone() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -176,7 +169,6 @@ struct ActiveStackConstraintTests {
     // MARK: - Migration Tests
 
     @Test("Migration activates first stack when none are active")
-    @MainActor
     func migrationActivatesFirstStack() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -201,7 +193,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("Migration keeps single active stack unchanged")
-    @MainActor
     func migrationKeepsSingleActiveUnchanged() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -221,7 +212,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("Migration resolves multiple active stacks")
-    @MainActor
     func migrationResolvesMultipleActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -247,7 +237,6 @@ struct ActiveStackConstraintTests {
     // MARK: - Persistence Tests
 
     @Test("isActive state persists across fetch")
-    @MainActor
     func isActiveStatePersists() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -269,7 +258,6 @@ struct ActiveStackConstraintTests {
     // MARK: - Deactivation Event Tests (DEQ-24)
 
     @Test("setAsActive emits stack.deactivated event for previously active stack")
-    @MainActor
     func setAsActiveEmitsDeactivatedEvent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -304,7 +292,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("stack.deactivated event is recorded BEFORE stack.activated event")
-    @MainActor
     func deactivatedEventBeforeActivatedEvent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -337,7 +324,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("No deactivation event when activating same stack")
-    @MainActor
     func noDeactivationEventForSameStack() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -363,7 +349,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("Deactivation event captures stack state while still active")
-    @MainActor
     func deactivationEventCapturesActiveState() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -397,7 +382,6 @@ struct ActiveStackConstraintTests {
     // MARK: - markAsCompleted Deactivation Tests (DEQ-131)
 
     @Test("markAsCompleted deactivates active stack")
-    @MainActor
     func markAsCompletedDeactivatesActiveStack() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -413,7 +397,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("markAsCompleted emits deactivation event for active stack")
-    @MainActor
     func markAsCompletedEmitsDeactivationEvent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -444,7 +427,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("markAsCompleted does not emit deactivation event for inactive stack")
-    @MainActor
     func markAsCompletedNoDeactivationForInactiveStack() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -472,7 +454,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("markAsCompleted with completeAllTasks completes pending tasks")
-    @MainActor
     func markAsCompletedCompletesAllPendingTasks() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -500,7 +481,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("markAsCompleted without completeAllTasks leaves tasks unchanged")
-    @MainActor
     func markAsCompletedLeavesTasksUnchanged() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -522,7 +502,6 @@ struct ActiveStackConstraintTests {
     // MARK: - StackService.deactivateStack Tests (DEQ-148)
 
     @Test("deactivateStack sets isActive to false")
-    @MainActor
     func deactivateStackSetsIsActiveFalse() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -537,7 +516,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("deactivateStack is idempotent - calling on non-active stack is safe")
-    @MainActor
     func deactivateStackIsIdempotent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -558,7 +536,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("After deactivation, getCurrentActiveStack returns nil")
-    @MainActor
     func afterDeactivationNoActiveStack() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -573,7 +550,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("deactivateStack creates a stack.deactivated event")
-    @MainActor
     func deactivateStackCreatesEvent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -600,7 +576,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("Can deactivate and then reactivate a stack")
-    @MainActor
     func canDeactivateAndReactivate() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -617,7 +592,6 @@ struct ActiveStackConstraintTests {
     }
 
     @Test("Deactivating the only active stack leaves zero active stacks")
-    @MainActor
     func deactivatingOnlyStackLeavesZeroActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)

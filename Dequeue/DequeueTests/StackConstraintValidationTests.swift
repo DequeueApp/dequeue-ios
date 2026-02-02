@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Stack Constraint Validation Tests")
+@MainActor
 struct StackConstraintValidationTests {
     // MARK: - Test Helpers
 
@@ -28,7 +29,6 @@ struct StackConstraintValidationTests {
     // MARK: - Pre-condition Validation Tests
 
     @Test("setAsActive throws error for draft stack")
-    @MainActor
     func setAsActiveThrowsForDraftStack() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -44,7 +44,6 @@ struct StackConstraintValidationTests {
     // MARK: - Post-condition Validation Tests
 
     @Test("validateAndFixSingleActiveConstraint returns true with zero active stacks")
-    @MainActor
     func validateConstraintPassesWithZeroActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -60,7 +59,6 @@ struct StackConstraintValidationTests {
     }
 
     @Test("validateAndFixSingleActiveConstraint returns true with one active stack")
-    @MainActor
     func validateConstraintPassesWithOneActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -74,7 +72,6 @@ struct StackConstraintValidationTests {
     }
 
     @Test("validateAndFixSingleActiveConstraint fixes multiple active stacks when target provided")
-    @MainActor
     func validateConstraintFixesMultipleActiveWithTarget() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -97,7 +94,6 @@ struct StackConstraintValidationTests {
     }
 
     @Test("validateAndFixSingleActiveConstraint returns false with multiple active stacks and no target")
-    @MainActor
     func validateConstraintReturnsFalseWithMultipleActiveNoTarget() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -120,7 +116,6 @@ struct StackConstraintValidationTests {
     // MARK: - Atomicity Tests
 
     @Test("setAsActive ensures only one stack is active after operation")
-    @MainActor
     func setAsActiveEnsuresSingleActive() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -147,7 +142,6 @@ struct StackConstraintValidationTests {
     }
 
     @Test("setAsActive deactivates all other stacks")
-    @MainActor
     func setAsActiveDeactivatesOthers() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -175,7 +169,6 @@ struct StackConstraintValidationTests {
     }
 
     @Test("Rapid activation switching maintains constraint")
-    @MainActor
     func rapidActivationMaintainsConstraint() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -223,7 +216,6 @@ struct StackConstraintValidationTests {
     // MARK: - Edge Case Tests
 
     @Test("Activating already active stack is idempotent")
-    @MainActor
     func activatingActiveStackIsIdempotent() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -242,7 +234,6 @@ struct StackConstraintValidationTests {
     }
 
     @Test("Constraint validation ignores deleted stacks")
-    @MainActor
     func constraintIgnoresDeletedStacks() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -265,7 +256,6 @@ struct StackConstraintValidationTests {
     }
 
     @Test("Constraint validation ignores draft stacks")
-    @MainActor
     func constraintIgnoresDraftStacks() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
@@ -286,7 +276,6 @@ struct StackConstraintValidationTests {
     // MARK: - Sync Scenario Tests
 
     @Test("setAsActive handles stacks with isActive=true from sync")
-    @MainActor
     func setAsActiveHandlesSyncedStacks() async throws {
         let container = try createTestContainer()
         let context = ModelContext(container)
