@@ -1557,6 +1557,22 @@ enum ProjectorService {
         localDuplicate.isDeleted = true
         localDuplicate.updatedAt = Date()
         localDuplicate.syncState = .pending
+
+        // DEQ-235 CRITICAL: Save immediately to persist the soft-delete
+        // SwiftData needs this to properly handle the isDeleted change
+        // after relationship modifications
+        do {
+            try context.save()
+        } catch {
+            ErrorReportingService.addBreadcrumb(
+                category: "sync_tag_dedupe",
+                message: "Failed to save after soft-deleting duplicate tag",
+                data: [
+                    "local_duplicate_id": localDuplicateId,
+                    "error": error.localizedDescription
+                ]
+            )
+        }
     }
 
     /// DEQ-235: Find stacks to migrate using direct queries only - no relationship property access.
