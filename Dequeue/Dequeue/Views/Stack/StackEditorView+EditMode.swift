@@ -18,6 +18,7 @@ extension StackEditorView {
             completionStatusBanner
             activeStatusBanner
             descriptionSection
+            datesSection
             editModeTagsSection
             arcSection
             pendingTasksSection
@@ -192,6 +193,55 @@ extension StackEditorView {
         }
     }
 
+    // MARK: - Dates Section
+
+    @ViewBuilder
+    var datesSection: some View {
+        if case .edit(let stack) = mode, !isReadOnly {
+            Section("Dates") {
+                DatePicker(
+                    "Start Date",
+                    selection: Binding(
+                        get: { stack.startTime ?? Date() },
+                        set: { newDate in
+                            updateStackStartDate(stack: stack, newDate: newDate)
+                        }
+                    ),
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    if stack.startTime != nil {
+                        Button(role: .destructive) {
+                            clearStackStartDate(stack: stack)
+                        } label: {
+                            Label("Clear", systemImage: "xmark")
+                        }
+                    }
+                }
+                
+                DatePicker(
+                    "Due Date",
+                    selection: Binding(
+                        get: { stack.dueTime ?? Date() },
+                        set: { newDate in
+                            updateStackDueDate(stack: stack, newDate: newDate)
+                        }
+                    ),
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    if stack.dueTime != nil {
+                        Button(role: .destructive) {
+                            clearStackDueDate(stack: stack)
+                        } label: {
+                            Label("Clear", systemImage: "xmark")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     var descriptionContent: some View {
         if case .edit(let stack) = mode {
@@ -282,6 +332,68 @@ extension StackEditorView {
             }
         } footer: {
             Text("View the complete history of changes to this stack")
+        }
+    }
+
+    // MARK: - Date Update Helpers
+
+    private func updateStackStartDate(stack: Stack, newDate: Date) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+        Task {
+            do {
+                try await service.updateStackDates(stack, startTime: newDate, dueTime: stack.dueTime)
+            } catch {
+                handleError(error)
+            }
+        }
+    }
+
+    private func clearStackStartDate(stack: Stack) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+        Task {
+            do {
+                try await service.updateStackDates(stack, startTime: nil, dueTime: stack.dueTime)
+            } catch {
+                handleError(error)
+            }
+        }
+    }
+
+    private func updateStackDueDate(stack: Stack, newDate: Date) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+        Task {
+            do {
+                try await service.updateStackDates(stack, startTime: stack.startTime, dueTime: newDate)
+            } catch {
+                handleError(error)
+            }
+        }
+    }
+
+    private func clearStackDueDate(stack: Stack) {
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+        Task {
+            do {
+                try await service.updateStackDates(stack, startTime: stack.startTime, dueTime: nil)
+            } catch {
+                handleError(error)
+            }
         }
     }
 }

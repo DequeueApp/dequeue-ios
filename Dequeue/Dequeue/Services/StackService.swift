@@ -74,6 +74,8 @@ final class StackService {
     func createStack(
         title: String,
         description: String? = nil,
+        startTime: Date? = nil,
+        dueTime: Date? = nil,
         isDraft: Bool = false
     ) async throws -> Stack {
         // Check if this will be the first non-draft active stack
@@ -95,6 +97,8 @@ final class StackService {
         let stack = Stack(
             title: title,
             stackDescription: description,
+            startTime: startTime,
+            dueTime: dueTime,
             status: .active,
             sortOrder: sortOrder,
             isDraft: isDraft,
@@ -263,6 +267,18 @@ final class StackService {
         try modelContext.save()
         logger.info("updateStack: context saved")
         syncManager?.triggerImmediatePush()
+    }
+
+    func updateStackDates(_ stack: Stack, startTime: Date?, dueTime: Date?) async throws {
+        stack.startTime = startTime
+        stack.dueTime = dueTime
+        stack.updatedAt = Date()
+        stack.syncState = .pending
+
+        try await eventService.recordStackUpdated(stack)
+        try modelContext.save()
+        syncManager?.triggerImmediatePush()
+        logger.info("Updated stack dates: startTime=\(startTime?.description ?? "nil"), dueTime=\(dueTime?.description ?? "nil")")
     }
 
     func publishDraft(_ stack: Stack) async throws {

@@ -68,6 +68,8 @@ struct StackEditorView: View {
     // Create mode state
     @State var title: String = ""
     @State var stackDescription: String = ""
+    @State var selectedStartDate: Date?
+    @State var selectedDueDate: Date?
     @State var pendingTasks: [PendingTask] = []
     @State var selectedTags: [Tag] = []
     @State var selectedArc: Arc?
