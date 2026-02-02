@@ -40,7 +40,7 @@ struct AddTaskSheet: View {
                             }
                         }
                     }
-                    
+
                     DatePicker("Due Date", selection: Binding(
                         get: { dueTime ?? Date() },
                         set: { dueTime = $0 }
