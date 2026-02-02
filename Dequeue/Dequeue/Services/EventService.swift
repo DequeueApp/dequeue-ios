@@ -548,18 +548,19 @@ final class EventService {
             entityIds.insert(attachment.id)
         }
 
-        // Fetch all events (SwiftData predicates don't support complex contains with optionals)
-        // We'll filter in memory after fetching
+        // Convert to array for predicate (predicates work with arrays)
+        let entityIdArray = Array(entityIds)
+
+        // Fetch events by entityId using database predicate
+        // Use flatMap to handle optional entityId, same as fetchStackHistoryWithRelated
+        let entityPredicate = #Predicate<Event> { event in
+            event.entityId.flatMap { entityIdArray.contains($0) } ?? false
+        }
         let descriptor = FetchDescriptor<Event>(
+            predicate: entityPredicate,
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
         )
-        let allEvents = try modelContext.fetch(descriptor)
-
-        // Filter to only events for our entity IDs
-        return allEvents.filter { event in
-            guard let eventEntityId = event.entityId else { return false }
-            return entityIds.contains(eventEntityId)
-        }
+        return try modelContext.fetch(descriptor)
     }
 
     // MARK: - Private
