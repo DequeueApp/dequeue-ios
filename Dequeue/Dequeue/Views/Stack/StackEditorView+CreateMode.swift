@@ -47,10 +47,14 @@ extension StackEditorView {
 
     var createModeDatesSection: some View {
         Section("Dates") {
-            DatePicker("Start Date", selection: Binding(
-                get: { selectedStartDate ?? Date() },
-                set: { selectedStartDate = $0 }
-            ), displayedComponents: [.date, .hourAndMinute])
+            DatePicker(
+                "Start Date",
+                selection: Binding(
+                    get: { selectedStartDate ?? Date() },
+                    set: { selectedStartDate = $0 }
+                ),
+                displayedComponents: [.date, .hourAndMinute]
+            )
             .deleteDisabled(selectedStartDate == nil)
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 if selectedStartDate != nil {
@@ -62,10 +66,14 @@ extension StackEditorView {
                 }
             }
             
-            DatePicker("Due Date", selection: Binding(
-                get: { selectedDueDate ?? Date() },
-                set: { selectedDueDate = $0 }
-            ), displayedComponents: [.date, .hourAndMinute])
+            DatePicker(
+                "Due Date",
+                selection: Binding(
+                    get: { selectedDueDate ?? Date() },
+                    set: { selectedDueDate = $0 }
+                ),
+                displayedComponents: [.date, .hourAndMinute]
+            )
             .deleteDisabled(selectedDueDate == nil)
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 if selectedDueDate != nil {

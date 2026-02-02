@@ -27,10 +27,14 @@ struct AddTaskSheet: View {
                 }
 
                 Section("Dates") {
-                    DatePicker("Start Date", selection: Binding(
-                        get: { startTime ?? Date() },
-                        set: { startTime = $0 }
-                    ), displayedComponents: [.date, .hourAndMinute])
+                    DatePicker(
+                        "Start Date",
+                        selection: Binding(
+                            get: { startTime ?? Date() },
+                            set: { startTime = $0 }
+                        ),
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         if startTime != nil {
                             Button(role: .destructive) {
@@ -41,10 +45,14 @@ struct AddTaskSheet: View {
                         }
                     }
 
-                    DatePicker("Due Date", selection: Binding(
-                        get: { dueTime ?? Date() },
-                        set: { dueTime = $0 }
-                    ), displayedComponents: [.date, .hourAndMinute])
+                    DatePicker(
+                        "Due Date",
+                        selection: Binding(
+                            get: { dueTime ?? Date() },
+                            set: { dueTime = $0 }
+                        ),
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         if dueTime != nil {
                             Button(role: .destructive) {
