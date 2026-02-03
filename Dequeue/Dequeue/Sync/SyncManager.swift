@@ -594,42 +594,45 @@ actor SyncManager {
 
         // 1. Create Arcs first (Stacks reference arcId)
         for arcData in arcs {
-            let arc = Arc()
-            arc.id = arcData.id
-            arc.title = arcData.title
-            arc.stackDescription = arcData.description ?? ""
-            arc.color = arcData.color ?? ""
-            arc.isDeleted = arcData.isDeleted
-            arc.createdAt = parseISO8601(arcData.createdAt) ?? Date()
-            arc.updatedAt = parseISO8601(arcData.updatedAt) ?? Date()
+            let arc = Arc(
+                id: arcData.id,
+                title: arcData.title,
+                arcDescription: arcData.description,
+                colorHex: arcData.color,
+                createdAt: parseISO8601(arcData.createdAt) ?? Date(),
+                updatedAt: parseISO8601(arcData.updatedAt) ?? Date(),
+                isDeleted: arcData.isDeleted
+            )
             context.insert(arc)
         }
 
         // 2. Create Tags (Stacks reference tags by ID)
         var tagMap: [String: Tag] = [:]
         for tagData in tags {
-            let tag = Tag()
-            tag.id = tagData.id
-            tag.name = tagData.name
-            tag.color = tagData.color ?? ""
-            tag.createdAt = parseISO8601(tagData.createdAt) ?? Date()
+            let tag = Tag(
+                id: tagData.id,
+                name: tagData.name,
+                colorHex: tagData.color,
+                createdAt: parseISO8601(tagData.createdAt) ?? Date()
+            )
             context.insert(tag)
             tagMap[tag.id] = tag
         }
 
         // 3. Create Stacks
         for stackData in stacks {
-            let stack = Stack()
-            stack.id = stackData.id
-            stack.title = stackData.title
-            stack.stackDescription = stackData.description ?? ""
+            let stack = Stack(
+                id: stackData.id,
+                title: stackData.title,
+                stackDescription: stackData.description,
+                startTime: parseISO8601(stackData.startTime),
+                dueTime: parseISO8601(stackData.dueTime),
+                createdAt: parseISO8601(stackData.createdAt) ?? Date(),
+                updatedAt: parseISO8601(stackData.updatedAt) ?? Date(),
+                isDeleted: stackData.isDeleted,
+                isActive: stackData.isActive
+            )
             stack.status = parseStackStatus(stackData.status)
-            stack.isActive = stackData.isActive
-            stack.isDeleted = stackData.isDeleted
-            stack.startTime = parseISO8601(stackData.startTime)
-            stack.dueTime = parseISO8601(stackData.dueTime)
-            stack.createdAt = parseISO8601(stackData.createdAt) ?? Date()
-            stack.updatedAt = parseISO8601(stackData.updatedAt) ?? Date()
 
             // Link to Arc if present
             if let arcId = stackData.arcId {
@@ -653,19 +656,20 @@ actor SyncManager {
             // 4. Create Tasks for this Stack
             if let tasks = stackData.tasks {
                 for taskData in tasks {
-                    let task = QueueTask()
-                    task.id = taskData.id
+                    let task = QueueTask(
+                        id: taskData.id,
+                        title: taskData.title,
+                        taskDescription: taskData.description,
+                        startTime: parseISO8601(taskData.startTime),
+                        dueTime: parseISO8601(taskData.dueTime),
+                        status: parseTaskStatus(taskData.status),
+                        sortOrder: taskData.sortOrder,
+                        createdAt: parseISO8601(taskData.createdAt) ?? Date(),
+                        updatedAt: parseISO8601(taskData.updatedAt) ?? Date(),
+                        stack: stack
+                    )
                     task.stackId = taskData.stackId
-                    task.title = taskData.title
-                    task.taskDescription = taskData.description ?? ""
-                    task.sortOrder = taskData.sortOrder
-                    task.status = parseTaskStatus(taskData.status)
                     task.isActive = taskData.isActive
-                    task.startTime = parseISO8601(taskData.startTime)
-                    task.dueTime = parseISO8601(taskData.dueTime)
-                    task.createdAt = parseISO8601(taskData.createdAt) ?? Date()
-                    task.updatedAt = parseISO8601(taskData.updatedAt) ?? Date()
-                    task.stack = stack
                     context.insert(task)
                 }
             }
@@ -673,13 +677,32 @@ actor SyncManager {
 
         // 5. Create Reminders (must be after Stacks, Arcs, Tasks are created for foreign key refs)
         for reminderData in reminders {
-            let reminder = Reminder()
-            reminder.id = reminderData.id
-            reminder.triggerTime = parseISO8601(reminderData.triggerTime) ?? Date()
-            reminder.notificationSent = reminderData.notificationSent
-            reminder.isDeleted = reminderData.isDeleted
-            reminder.createdAt = parseISO8601(reminderData.createdAt) ?? Date()
+            // Determine parent type and ID
+            let (parentType, parentId): (ParentType, String)
+            if let stackId = reminderData.stackId {
+                parentType = .stack
+                parentId = stackId
+            } else if let taskId = reminderData.taskId {
+                parentType = .task
+                parentId = taskId
+            } else if let arcId = reminderData.arcId {
+                parentType = .arc
+                parentId = arcId
+            } else {
+                // Skip reminders with no parent (data inconsistency)
+                os_log("[Sync] Skipping reminder \(reminderData.id) - no parent ID")
+                continue
+            }
 
+            let reminder = Reminder(
+                id: reminderData.id,
+                parentId: parentId,
+                parentType: parentType,
+                remindAt: parseISO8601(reminderData.triggerTime) ?? Date(),
+                createdAt: parseISO8601(reminderData.createdAt) ?? Date(),
+                isDeleted: reminderData.isDeleted
+            )
+            
             // Link to Stack if present
             if let stackId = reminderData.stackId {
                 let fetchDescriptor = FetchDescriptor<Stack>(predicate: #Predicate<Stack> { $0.id == stackId })
@@ -722,11 +745,14 @@ actor SyncManager {
     /// Parses stack status string to enum
     private func parseStackStatus(_ status: String) -> StackStatus {
         switch status.lowercased() {
-        case "draft": return .draft
-        case "in_progress": return .inProgress
+        case "active": return .active
         case "completed": return .completed
         case "closed": return .closed
-        default: return .draft
+        case "archived": return .archived
+        // Map legacy/API values to current model
+        case "draft": return .active  // Draft stacks are active
+        case "in_progress": return .active
+        default: return .active
         }
     }
 
@@ -734,8 +760,11 @@ actor SyncManager {
     private func parseTaskStatus(_ status: String) -> TaskStatus {
         switch status.lowercased() {
         case "pending": return .pending
-        case "in_progress": return .inProgress
         case "completed": return .completed
+        case "blocked": return .blocked
+        case "closed": return .closed
+        // Map legacy/API values to current model
+        case "in_progress": return .pending  // In-progress tasks are pending
         default: return .pending
         }
     }
