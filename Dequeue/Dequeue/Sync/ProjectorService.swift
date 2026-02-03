@@ -1601,7 +1601,8 @@ enum ProjectorService {
                 $0.normalizedName == normalizedName && $0.id != incomingTagId
             }
 
-            if (hasLocalDuplicateTag || hasTagWithSameName) && !foundStackIds.contains(stack.id) {
+            let hasTagIssue = hasLocalDuplicateTag || hasTagWithSameName
+            if hasTagIssue && !foundStackIds.contains(stack.id) {
                 foundStackIds.insert(stack.id)
                 result.append(stack)
             }
