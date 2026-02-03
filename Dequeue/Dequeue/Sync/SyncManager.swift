@@ -518,7 +518,8 @@ actor SyncManager {
             saveLastSyncCheckpoint(checkpoint)
 
             let duration = Date().timeIntervalSince(startTime)
-            os_log("[Sync] Projection sync complete: syncId=\(syncId), duration=\(String(format: \"%.2f\", duration))s")
+            let durationFormatted = String(format: "%.2f", duration)
+            os_log("[Sync] Projection sync complete: syncId=\(syncId), duration=\(durationFormatted)s")
 
             await ErrorReportingService.logSyncCompleted(
                 syncId: syncId,
