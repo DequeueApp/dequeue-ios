@@ -17,7 +17,7 @@ struct StackEditorView: View {
         case edit(Stack)
 
         static func == (lhs: Mode, rhs: Mode) -> Bool {
-            switch lhs, rhs {
+            switch (lhs, rhs) {
             case (.create, .create):
                 return true
             case let (.edit(stack1), .edit(stack2)):
