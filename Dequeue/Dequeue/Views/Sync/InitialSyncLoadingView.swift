@@ -30,7 +30,11 @@ struct InitialSyncLoadingView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #if os(macOS)
+        .background(Color(nsColor: .windowBackgroundColor))
+        #else
         .background(Color(.systemBackground))
+        #endif
     }
 }
 
