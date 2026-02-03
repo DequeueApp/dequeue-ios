@@ -25,6 +25,33 @@ Native iOS, iPadOS, and macOS task management app built with SwiftUI and SwiftDa
 2. Select your target device/simulator
 3. Build and run (⌘R)
 
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+xcodebuild test -project Dequeue.xcodeproj -scheme Dequeue -destination 'platform=macOS'
+
+# Run specific test suite
+xcodebuild test -project Dequeue.xcodeproj -scheme Dequeue -destination 'platform=macOS' -only-testing:DequeueTests/TaskServiceTests
+
+# Run tests in Xcode
+⌘U (or Product > Test)
+```
+
+### Code Quality
+
+```bash
+# Lint code (from Dequeue/ directory)
+cd Dequeue && swiftlint lint
+
+# Auto-fix violations
+cd Dequeue && swiftlint --fix
+```
+
+**Important:** Always run SwiftLint and build locally before pushing. CI quota is limited.
+
 ## Architecture
 
 ```
@@ -46,6 +73,59 @@ Dequeue/
 - **Offline-First** - Full local database, sync when online
 - **Reminders** - Push notifications with snooze
 - **Cross-Platform** - iPhone, iPad, and Mac
+
+## Testing
+
+The project uses Swift Testing framework (not XCTest). Test files live in `DequeueTests/`.
+
+### Test Structure
+
+```swift
+import Testing
+@testable import Dequeue
+
+@Suite("Service Tests", .serialized)
+@MainActor
+struct MyServiceTests {
+    @Test("description of test")
+    func testSomething() async throws {
+        // Given
+        let container = try makeTestContainer()
+        
+        // When
+        let result = try await doSomething()
+        
+        // Then
+        #expect(result == expected)
+    }
+}
+```
+
+### Coverage
+
+| Service | Tests | Coverage |
+|---------|-------|----------|
+| TaskService | ✅ | High |
+| StackService | ✅ | High |
+| TagService | ✅ | High |
+| EventService | ✅ | Medium |
+| SyncManager | ✅ | Medium |
+| ProjectorService | ⚠️ | Medium (some edge cases disabled) |
+| AttachmentService | ✅ | Medium |
+| ReminderService | ✅ | Medium |
+| Others | ❌ | Low/None |
+
+## CI/CD
+
+GitHub Actions runs on every PR:
+- SwiftLint (code style)
+- Claude Code Review (AI review)
+- Build (iOS + macOS)
+- Unit Tests
+- UI Tests
+- SonarCloud (code analysis)
+
+**All checks must pass before merge.** CI runs can take 50-60+ minutes on macOS runners.
 
 ## Related Repositories
 
