@@ -206,18 +206,18 @@ jobs:
           echo "Booting simulator..."
           xcrun simctl boot "$DEVICE_ID" || true
           
-          # Wait for simulator to be ready (with 5 min timeout)
+          # Wait for simulator to be ready (with 10 min timeout for platform slowness)
           # Using native bash instead of timeout command (not available on macOS runners)
           echo "Waiting for simulator boot..."
           SECONDS=0
-          MAX_WAIT=300
+          MAX_WAIT=600
           xcrun simctl bootstatus "$DEVICE_ID" -b &
           BOOT_PID=$!
           
           while kill -0 $BOOT_PID 2>/dev/null; do
             if [ $SECONDS -ge $MAX_WAIT ]; then
               kill $BOOT_PID 2>/dev/null || true
-              echo "::error::Simulator failed to boot within 5 minutes"
+              echo "::error::Simulator failed to boot within 10 minutes"
               exit 1
             fi
             sleep 1
@@ -406,18 +406,18 @@ jobs:
           echo "Booting simulator..."
           xcrun simctl boot "$DEVICE_ID" || true
           
-          # Wait for simulator to be ready (with 5 min timeout)
+          # Wait for simulator to be ready (with 10 min timeout for platform slowness)
           # Using native bash instead of timeout command (not available on macOS runners)
           echo "Waiting for simulator boot..."
           SECONDS=0
-          MAX_WAIT=300
+          MAX_WAIT=600
           xcrun simctl bootstatus "$DEVICE_ID" -b &
           BOOT_PID=$!
           
           while kill -0 $BOOT_PID 2>/dev/null; do
             if [ $SECONDS -ge $MAX_WAIT ]; then
               kill $BOOT_PID 2>/dev/null || true
-              echo "::error::Simulator failed to boot within 5 minutes"
+              echo "::error::Simulator failed to boot within 10 minutes"
               exit 1
             fi
             sleep 1
