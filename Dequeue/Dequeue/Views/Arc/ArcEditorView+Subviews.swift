@@ -40,7 +40,7 @@ extension ArcEditorView {
                 ),
                 displayedComponents: [.date]
             )
-            .datePickerStyle(.compact)
+            .applyDatePickerStyle()
         }
 
         // Due Date
@@ -73,7 +73,7 @@ extension ArcEditorView {
                 ),
                 displayedComponents: [.date]
             )
-            .datePickerStyle(.compact)
+            .applyDatePickerStyle()
         }
     }
 
