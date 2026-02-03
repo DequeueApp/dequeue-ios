@@ -386,7 +386,12 @@ private struct DatePickerStyleModifier: ViewModifier {
             case .compact:
                 content.datePickerStyle(.compact)
             case .wheel:
+                #if os(iOS)
                 content.datePickerStyle(.wheel)
+                #else
+                // Wheel style unavailable on macOS, fall back to graphical
+                content.datePickerStyle(.graphical)
+                #endif
             }
         }
     }
@@ -405,7 +410,12 @@ private struct TimePickerStyleModifier: ViewModifier {
             case .automatic:
                 content
             case .wheel:
+                #if os(iOS)
                 content.datePickerStyle(.wheel)
+                #else
+                // Wheel style unavailable on macOS, fall back to automatic
+                content
+                #endif
             }
         }
     }
