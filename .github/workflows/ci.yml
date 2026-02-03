@@ -15,6 +15,7 @@ jobs:
   swiftlint:
     name: SwiftLint
     runs-on: macos-15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -33,6 +34,7 @@ jobs:
     name: Build iOS
     runs-on: macos-15
     needs: swiftlint
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -114,6 +116,7 @@ jobs:
     name: Build macOS
     runs-on: macos-15
     needs: swiftlint
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -136,6 +139,7 @@ jobs:
     name: Unit Tests
     runs-on: macos-15
     needs: swiftlint
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -198,10 +202,15 @@ jobs:
           
           echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
           
-          # Pre-boot the simulator to avoid timeout issues
+          # Pre-boot the simulator with timeout
+          echo "Booting simulator..."
           xcrun simctl boot "$DEVICE_ID" || true
-          # Wait for simulator to be ready
-          xcrun simctl bootstatus "$DEVICE_ID" -b
+          
+          # Wait for simulator to be ready (with 5 min timeout)
+          timeout 300 xcrun simctl bootstatus "$DEVICE_ID" -b || {
+            echo "::error::Simulator failed to boot within 5 minutes"
+            exit 1
+          }
 
       - name: Run Unit Tests
         id: run-tests
@@ -311,6 +320,7 @@ jobs:
     name: UI Tests
     runs-on: macos-15
     needs: swiftlint
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -373,10 +383,15 @@ jobs:
           
           echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
           
-          # Pre-boot the simulator to avoid timeout issues
+          # Pre-boot the simulator with timeout
+          echo "Booting simulator..."
           xcrun simctl boot "$DEVICE_ID" || true
-          # Wait for simulator to be ready
-          xcrun simctl bootstatus "$DEVICE_ID" -b
+          
+          # Wait for simulator to be ready (with 5 min timeout)
+          timeout 300 xcrun simctl bootstatus "$DEVICE_ID" -b || {
+            echo "::error::Simulator failed to boot within 5 minutes"
+            exit 1
+          }
 
       - name: Run UI Tests
         run: |
