@@ -323,6 +323,8 @@ extension StackEditorView {
             showAddTask: $showAddTask,
             newTaskTitle: $newTaskTitle,
             newTaskDescription: $newTaskDescription,
+            newTaskStartTime: $newTaskStartTime,
+            newTaskDueTime: $newTaskDueTime,
             showAddReminder: $showAddReminder,
             showArcSelection: $showArcSelection,
             showSnoozePicker: $showSnoozePicker,
@@ -349,6 +351,8 @@ private struct StackEditorSheetsModifier: ViewModifier {
     @Binding var showAddTask: Bool
     @Binding var newTaskTitle: String
     @Binding var newTaskDescription: String
+    @Binding var newTaskStartTime: Date?
+    @Binding var newTaskDueTime: Date?
     @Binding var showAddReminder: Bool
     @Binding var showArcSelection: Bool
     @Binding var showSnoozePicker: Bool
