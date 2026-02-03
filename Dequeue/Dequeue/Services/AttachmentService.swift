@@ -56,7 +56,7 @@ enum AttachmentServiceError: LocalizedError, Equatable {
     }
 
     static func == (lhs: AttachmentServiceError, rhs: AttachmentServiceError) -> Bool {
-        switch lhs, rhs {
+        switch (lhs, rhs) {
         case let (.fileNotFound(lhsURL), .fileNotFound(rhsURL)):
             return lhsURL == rhsURL
         case let (.fileTooLarge(lhsSize, lhsMax), .fileTooLarge(rhsSize, rhsMax)):

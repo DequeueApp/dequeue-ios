@@ -39,7 +39,7 @@ enum TagServiceError: LocalizedError, Equatable {
     }
 
     static func == (lhs: TagServiceError, rhs: TagServiceError) -> Bool {
-        switch lhs, rhs {
+        switch (lhs, rhs) {
         case (.emptyTagName, .emptyTagName):
             return true
         case let (.tagNameTooLong(lhsMax), .tagNameTooLong(rhsMax)):
