@@ -321,8 +321,8 @@ struct AttachmentServiceTests {
         try await service.deleteAttachment(attachment)
 
         // Re-fetch to verify persistence (avoid SwiftData staleness)
-        let descriptor = FetchDescriptor<Attachment>(
-            predicate: #Predicate { $0.id == attachmentId }
+        let descriptor = FetchDescriptor<Dequeue.Attachment>(
+            predicate: #Predicate<Dequeue.Attachment> { $0.id == attachmentId }
         )
         let attachments = try context.fetch(descriptor)
         #expect(attachments.count == 1)
