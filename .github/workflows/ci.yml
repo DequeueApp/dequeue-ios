@@ -202,15 +202,34 @@ jobs:
           
           echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
           
-          # Pre-boot the simulator with timeout
+          # Pre-boot the simulator
           echo "Booting simulator..."
           xcrun simctl boot "$DEVICE_ID" || true
           
           # Wait for simulator to be ready (with 5 min timeout)
-          timeout 300 xcrun simctl bootstatus "$DEVICE_ID" -b || {
-            echo "::error::Simulator failed to boot within 5 minutes"
+          # Using native bash instead of timeout command (not available on macOS runners)
+          echo "Waiting for simulator boot..."
+          SECONDS=0
+          MAX_WAIT=300
+          xcrun simctl bootstatus "$DEVICE_ID" -b &
+          BOOT_PID=$!
+          
+          while kill -0 $BOOT_PID 2>/dev/null; do
+            if [ $SECONDS -ge $MAX_WAIT ]; then
+              kill $BOOT_PID 2>/dev/null || true
+              echo "::error::Simulator failed to boot within 5 minutes"
+              exit 1
+            fi
+            sleep 1
+          done
+          
+          wait $BOOT_PID
+          BOOT_EXIT=$?
+          if [ $BOOT_EXIT -ne 0 ]; then
+            echo "::error::Simulator boot failed with exit code $BOOT_EXIT"
             exit 1
-          }
+          fi
+          echo "Simulator booted successfully"
 
       - name: Run Unit Tests
         id: run-tests
@@ -383,15 +402,34 @@ jobs:
           
           echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
           
-          # Pre-boot the simulator with timeout
+          # Pre-boot the simulator
           echo "Booting simulator..."
           xcrun simctl boot "$DEVICE_ID" || true
           
           # Wait for simulator to be ready (with 5 min timeout)
-          timeout 300 xcrun simctl bootstatus "$DEVICE_ID" -b || {
-            echo "::error::Simulator failed to boot within 5 minutes"
+          # Using native bash instead of timeout command (not available on macOS runners)
+          echo "Waiting for simulator boot..."
+          SECONDS=0
+          MAX_WAIT=300
+          xcrun simctl bootstatus "$DEVICE_ID" -b &
+          BOOT_PID=$!
+          
+          while kill -0 $BOOT_PID 2>/dev/null; do
+            if [ $SECONDS -ge $MAX_WAIT ]; then
+              kill $BOOT_PID 2>/dev/null || true
+              echo "::error::Simulator failed to boot within 5 minutes"
+              exit 1
+            fi
+            sleep 1
+          done
+          
+          wait $BOOT_PID
+          BOOT_EXIT=$?
+          if [ $BOOT_EXIT -ne 0 ]; then
+            echo "::error::Simulator boot failed with exit code $BOOT_EXIT"
             exit 1
-          }
+          fi
+          echo "Simulator booted successfully"
 
       - name: Run UI Tests
         run: |
