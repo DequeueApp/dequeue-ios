@@ -542,7 +542,11 @@ actor SyncManager {
         var currentURL: String? = url
 
         while let urlString = currentURL {
-            var request = URLRequest(url: URL(string: urlString)!)
+            guard let url = URL(string: urlString) else {
+                os_log("[Sync] Invalid URL string: \(urlString)")
+                throw SyncError.pullFailed
+            }
+            var request = URLRequest(url: url)
             request.httpMethod = "GET"
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
