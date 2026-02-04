@@ -31,12 +31,13 @@ private struct PullResult {
 // MARK: - Projection Sync Types (DEQ-230)
 
 /// Generic response wrapper for projection API endpoints
-/// Requires Sendable to safely cross actor boundaries during concurrent fetch
-private struct ProjectionResponse<T: Decodable & Sendable>: Decodable, Sendable {
+/// Requires Sendable to safely cross actor boundaries during concurrent fetch.
+/// Uses @preconcurrency Decodable to allow decoding in actor-isolated contexts (Swift 6 concurrency).
+private struct ProjectionResponse<T: Decodable & Sendable>: @preconcurrency Decodable, Sendable {
     let data: [T]
     let pagination: PaginationMeta?
 
-    struct PaginationMeta: Decodable, Sendable {
+    struct PaginationMeta: @preconcurrency Decodable, Sendable {
         let nextCursor: String?
         let hasMore: Bool
         let limit: Int
@@ -45,8 +46,9 @@ private struct ProjectionResponse<T: Decodable & Sendable>: Decodable, Sendable 
 
 /// Projection data structures matching dequeue-api responses
 /// All projection types are Sendable (simple value types with only Sendable properties)
-/// to allow safe transfer across actor isolation boundaries during concurrent fetch
-private struct StackProjection: Decodable, Sendable {
+/// to allow safe transfer across actor isolation boundaries during concurrent fetch.
+/// Uses @preconcurrency Decodable for Swift 6 actor isolation compatibility.
+private struct StackProjection: @preconcurrency Decodable, Sendable {
     let id: String
     let title: String
     let description: String?
@@ -62,7 +64,7 @@ private struct StackProjection: Decodable, Sendable {
     let tasks: [TaskProjection]?
 }
 
-private struct TaskProjection: Decodable, Sendable {
+private struct TaskProjection: @preconcurrency Decodable, Sendable {
     let id: String
     let stackId: String
     let title: String
@@ -76,7 +78,7 @@ private struct TaskProjection: Decodable, Sendable {
     let updatedAt: String
 }
 
-private struct ArcProjection: Decodable, Sendable {
+private struct ArcProjection: @preconcurrency Decodable, Sendable {
     let id: String
     let title: String
     let description: String?
@@ -86,14 +88,14 @@ private struct ArcProjection: Decodable, Sendable {
     let updatedAt: String
 }
 
-private struct TagProjection: Decodable, Sendable {
+private struct TagProjection: @preconcurrency Decodable, Sendable {
     let id: String
     let name: String
     let color: String?
     let createdAt: String
 }
 
-private struct ReminderProjection: Decodable, Sendable {
+private struct ReminderProjection: @preconcurrency Decodable, Sendable {
     let id: String
     let stackId: String?
     let arcId: String?
@@ -666,6 +668,8 @@ actor SyncManager {
             context.insert(stack)
 
             // 4. Create Tasks for this Stack
+            // Note: task.stack relationship is set via initializer; QueueTask doesn't have
+            // separate stackId/isActive properties - it uses the stack relationship and status enum
             if let tasks = stackData.tasks {
                 for taskData in tasks {
                     let task = QueueTask(
@@ -680,8 +684,6 @@ actor SyncManager {
                         updatedAt: parseISO8601(taskData.updatedAt) ?? Date(),
                         stack: stack
                     )
-                    task.stackId = taskData.stackId
-                    task.isActive = taskData.isActive
                     context.insert(task)
                 }
             }
@@ -748,14 +750,16 @@ actor SyncManager {
 
     // MARK: - Helpers
 
-    /// Parses ISO8601 date string, returns nil if invalid
-    private func parseISO8601(_ string: String?) -> Date? {
+    /// Parses ISO8601 date string, returns nil if invalid.
+    /// Marked nonisolated because it only does pure string parsing with no actor state access.
+    private nonisolated func parseISO8601(_ string: String?) -> Date? {
         guard let string = string else { return nil }
         return Self.iso8601Standard.date(from: string)
     }
 
-    /// Parses stack status string to enum
-    private func parseStackStatus(_ status: String) -> StackStatus {
+    /// Parses stack status string to enum.
+    /// Marked nonisolated because it only does pure string parsing with no actor state access.
+    private nonisolated func parseStackStatus(_ status: String) -> StackStatus {
         switch status.lowercased() {
         case "active": return .active
         case "completed": return .completed
@@ -768,8 +772,9 @@ actor SyncManager {
         }
     }
 
-    /// Parses task status string to enum
-    private func parseTaskStatus(_ status: String) -> TaskStatus {
+    /// Parses task status string to enum.
+    /// Marked nonisolated because it only does pure string parsing with no actor state access.
+    private nonisolated func parseTaskStatus(_ status: String) -> TaskStatus {
         switch status.lowercased() {
         case "pending": return .pending
         case "completed": return .completed
