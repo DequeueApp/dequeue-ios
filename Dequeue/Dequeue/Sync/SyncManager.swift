@@ -529,11 +529,11 @@ actor SyncManager {
             let durationFormatted = String(format: "%.2f", duration)
             os_log("[Sync] Projection sync complete: syncId=\(syncId), duration=\(durationFormatted)s")
 
-            await ErrorReportingService.logSyncCompleted(
+            await ErrorReportingService.logSyncComplete(
                 syncId: syncId,
-                method: "projection",
                 duration: duration,
-                resourcesFetched: stacks.count + arcs.count + tags.count + reminders.count
+                itemsUploaded: 0,  // Projection sync only downloads
+                itemsDownloaded: stacks.count + arcs.count + tags.count + reminders.count
             )
         } catch {
             os_log("[Sync] Projection sync failed: \(error.localizedDescription)")
@@ -593,6 +593,8 @@ actor SyncManager {
 
     /// Populates local SwiftData models from projection data.
     /// Order matters: Arcs before Stacks (foreign key), Tags before Stack-Tag associations, Reminders last.
+    /// Runs on MainActor as required for SwiftData ModelContext operations.
+    @MainActor
     private func populateFromProjections(
         stacks: [StackProjection],
         arcs: [ArcProjection],
@@ -651,11 +653,12 @@ actor SyncManager {
                 }
             }
 
-            // Link to Tags (use tagObjects relationship, not tags string array)
+            // Populate tags: both the string array (tag IDs) and tagObjects relationship
             if let tagIds = stackData.tags {
+                stack.tags = tagIds  // String array of tag IDs
                 for tagId in tagIds {
                     if let tag = tagMap[tagId] {
-                        stack.tagObjects.append(tag)
+                        stack.tagObjects.append(tag)  // Relationship to Tag objects
                     }
                 }
             }
