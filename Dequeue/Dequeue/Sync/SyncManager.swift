@@ -752,14 +752,14 @@ actor SyncManager {
 
     /// Parses ISO8601 date string, returns nil if invalid.
     /// Marked nonisolated because it only does pure string parsing with no actor state access.
-    private nonisolated func parseISO8601(_ string: String?) -> Date? {
+    nonisolated private func parseISO8601(_ string: String?) -> Date? {
         guard let string = string else { return nil }
         return Self.iso8601Standard.date(from: string)
     }
 
     /// Parses stack status string to enum.
     /// Marked nonisolated because it only does pure string parsing with no actor state access.
-    private nonisolated func parseStackStatus(_ status: String) -> StackStatus {
+    nonisolated private func parseStackStatus(_ status: String) -> StackStatus {
         switch status.lowercased() {
         case "active": return .active
         case "completed": return .completed
@@ -774,7 +774,7 @@ actor SyncManager {
 
     /// Parses task status string to enum.
     /// Marked nonisolated because it only does pure string parsing with no actor state access.
-    private nonisolated func parseTaskStatus(_ status: String) -> TaskStatus {
+    nonisolated private func parseTaskStatus(_ status: String) -> TaskStatus {
         switch status.lowercased() {
         case "pending": return .pending
         case "completed": return .completed
