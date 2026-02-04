@@ -15,6 +15,9 @@ struct StacksView: View {
         case completed = "Completed"
     }
 
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.syncManager) private var syncManager
+
     @Query(filter: #Predicate<Reminder> { reminder in
         reminder.isDeleted == false
     }) private var allReminders: [Reminder]
@@ -22,6 +25,7 @@ struct StacksView: View {
     @State private var selectedFilter: StackFilter = .inProgress
     @State private var showAddSheet = false
     @State private var showRemindersSheet = false
+    @State private var syncStatusViewModel: SyncStatusViewModel?
 
     /// Count of reminders needing attention (overdue or due today)
     private var urgentReminderCount: Int {
@@ -35,27 +39,13 @@ struct StacksView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Segmented control for filtering
-                Picker("Filter", selection: $selectedFilter) {
-                    ForEach(StackFilter.allCases, id: \.self) { filter in
-                        Text(filter.rawValue).tag(filter)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .accessibilityLabel("Stack filter")
-                .accessibilityHint("Select to filter stacks by status")
-
-                // Content based on selection
-                switch selectedFilter {
-                case .inProgress:
-                    InProgressStacksListView()
-                case .drafts:
-                    DraftsStacksListView()
-                case .completed:
-                    CompletedStacksListView()
+            Group {
+                if let syncStatus = syncStatusViewModel, syncStatus.isInitialSyncInProgress {
+                    // Show loading view during initial sync to prevent flickering
+                    InitialSyncLoadingView(eventsProcessed: syncStatus.initialSyncEventsProcessed)
+                } else {
+                    // Show normal stacks content after initial sync completes
+                    stacksContent
                 }
             }
             .navigationTitle("Stacks")
@@ -87,12 +77,48 @@ struct StacksView: View {
                     }
                 }
             }
+            .task {
+                // Initialize sync status view model
+                if syncStatusViewModel == nil {
+                    let viewModel = SyncStatusViewModel(modelContext: modelContext)
+                    if let manager = syncManager {
+                        viewModel.setSyncManager(manager)
+                    }
+                    syncStatusViewModel = viewModel
+                }
+            }
         }
         .sheet(isPresented: $showAddSheet) {
             StackEditorView(mode: .create)
         }
         .sheet(isPresented: $showRemindersSheet) {
             RemindersListView()
+        }
+    }
+
+    private var stacksContent: some View {
+        VStack(spacing: 0) {
+            // Segmented control for filtering
+            Picker("Filter", selection: $selectedFilter) {
+                ForEach(StackFilter.allCases, id: \.self) { filter in
+                    Text(filter.rawValue).tag(filter)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .accessibilityLabel("Stack filter")
+            .accessibilityHint("Select to filter stacks by status")
+
+            // Content based on selection
+            switch selectedFilter {
+            case .inProgress:
+                InProgressStacksListView()
+            case .drafts:
+                DraftsStacksListView()
+            case .completed:
+                CompletedStacksListView()
+            }
         }
     }
 
