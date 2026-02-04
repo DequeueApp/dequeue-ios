@@ -31,11 +31,12 @@ private struct PullResult {
 // MARK: - Projection Sync Types (DEQ-230)
 
 /// Generic response wrapper for projection API endpoints
-private struct ProjectionResponse<T: Decodable>: Decodable {
+/// Requires Sendable to safely cross actor boundaries during concurrent fetch
+private struct ProjectionResponse<T: Decodable & Sendable>: Decodable, Sendable {
     let data: [T]
     let pagination: PaginationMeta?
 
-    struct PaginationMeta: Decodable {
+    struct PaginationMeta: Decodable, Sendable {
         let nextCursor: String?
         let hasMore: Bool
         let limit: Int
@@ -43,7 +44,9 @@ private struct ProjectionResponse<T: Decodable>: Decodable {
 }
 
 /// Projection data structures matching dequeue-api responses
-private struct StackProjection: Decodable {
+/// All projection types are Sendable (simple value types with only Sendable properties)
+/// to allow safe transfer across actor isolation boundaries during concurrent fetch
+private struct StackProjection: Decodable, Sendable {
     let id: String
     let title: String
     let description: String?
@@ -59,7 +62,7 @@ private struct StackProjection: Decodable {
     let tasks: [TaskProjection]?
 }
 
-private struct TaskProjection: Decodable {
+private struct TaskProjection: Decodable, Sendable {
     let id: String
     let stackId: String
     let title: String
@@ -73,7 +76,7 @@ private struct TaskProjection: Decodable {
     let updatedAt: String
 }
 
-private struct ArcProjection: Decodable {
+private struct ArcProjection: Decodable, Sendable {
     let id: String
     let title: String
     let description: String?
@@ -83,14 +86,14 @@ private struct ArcProjection: Decodable {
     let updatedAt: String
 }
 
-private struct TagProjection: Decodable {
+private struct TagProjection: Decodable, Sendable {
     let id: String
     let name: String
     let color: String?
     let createdAt: String
 }
 
-private struct ReminderProjection: Decodable {
+private struct ReminderProjection: Decodable, Sendable {
     let id: String
     let stackId: String?
     let arcId: String?
@@ -500,13 +503,18 @@ actor SyncManager {
         let baseURL = await MainActor.run { Configuration.syncAPIBaseURL }
 
         // Fetch all resource types in parallel
-        async let stacksTask = fetchProjectionResource(StackProjection.self, url: "\(baseURL)/v1/stacks", token: token)
-        async let arcsTask = fetchProjectionResource(ArcProjection.self, url: "\(baseURL)/v1/arcs", token: token)
-        async let tagsTask = fetchProjectionResource(TagProjection.self, url: "\(baseURL)/v1/tags", token: token)
-        async let remindersTask = fetchProjectionResource(ReminderProjection.self, url: "\(baseURL)/v1/reminders", token: token)
+        // Note: Explicit type annotations help the type-checker avoid timeout on complex expressions
+        async let stacksTask: [StackProjection] = fetchProjectionResource(StackProjection.self, url: "\(baseURL)/v1/stacks", token: token)
+        async let arcsTask: [ArcProjection] = fetchProjectionResource(ArcProjection.self, url: "\(baseURL)/v1/arcs", token: token)
+        async let tagsTask: [TagProjection] = fetchProjectionResource(TagProjection.self, url: "\(baseURL)/v1/tags", token: token)
+        async let remindersTask: [ReminderProjection] = fetchProjectionResource(ReminderProjection.self, url: "\(baseURL)/v1/reminders", token: token)
 
         do {
-            let (stacks, arcs, tags, reminders) = try await (stacksTask, arcsTask, tagsTask, remindersTask)
+            // Await each task individually to help the type-checker
+            let stacks = try await stacksTask
+            let arcs = try await arcsTask
+            let tags = try await tagsTask
+            let reminders = try await remindersTask
 
             os_log("[Sync] Fetched projections: \(stacks.count) stacks, \(arcs.count) arcs, \(tags.count) tags, \(reminders.count) reminders")
 
@@ -534,7 +542,8 @@ actor SyncManager {
     }
 
     /// Fetches a paginated projection resource, handling pagination automatically.
-    private func fetchProjectionResource<T: Decodable>(
+    /// Requires Sendable to allow safe transfer of results across actor boundaries.
+    private func fetchProjectionResource<T: Decodable & Sendable>(
         _ type: T.Type,
         url: String,
         token: String
@@ -642,11 +651,11 @@ actor SyncManager {
                 }
             }
 
-            // Link to Tags
+            // Link to Tags (use tagObjects relationship, not tags string array)
             if let tagIds = stackData.tags {
                 for tagId in tagIds {
                     if let tag = tagMap[tagId] {
-                        stack.tags?.insert(tag)
+                        stack.tagObjects.append(tag)
                     }
                 }
             }
