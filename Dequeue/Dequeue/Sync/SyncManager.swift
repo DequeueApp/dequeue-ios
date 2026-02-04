@@ -339,7 +339,7 @@ actor SyncManager {
         self.deviceId = await DeviceService.shared.getDeviceId()
 
         // DEQ-230: Use projection sync for new devices (much faster than event replay)
-        if await isInitialSync() {
+        if isInitialSync() {
             os_log("[Sync] New device detected, using projection-based sync")
             do {
                 try await syncViaProjections()
