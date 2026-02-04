@@ -236,7 +236,13 @@ jobs:
         run: |
           echo "Using device ID: $DEVICE_ID"
           
-          # Run tests, capturing exit code
+          # Run tests with timeout (30 min max for platform slowness)
+          # Using native bash timeout pattern (timeout command not available on macOS runners)
+          echo "Starting unit tests..."
+          SECONDS=0
+          MAX_WAIT=1800
+          
+          # Run tests in background, capturing exit code
           # Swift Testing + xcodebuild can return exit code 65 even when all tests pass
           # due to test runner crashes during result reporting
           set +e
@@ -247,11 +253,25 @@ jobs:
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO &
+          TEST_PID=$!
+          
+          # Wait with timeout
+          while kill -0 $TEST_PID 2>/dev/null; do
+            if [ $SECONDS -ge $MAX_WAIT ]; then
+              kill $TEST_PID 2>/dev/null || true
+              echo "::error::Unit tests exceeded 30 minute timeout"
+              exit 1
+            fi
+            sleep 2
+          done
+          
+          wait $TEST_PID
           XCODEBUILD_EXIT=$?
           set -e
           
           echo "xcodebuild exit code: $XCODEBUILD_EXIT"
+          echo "Unit tests completed in $SECONDS seconds"
           echo "xcodebuild_exit=$XCODEBUILD_EXIT" >> $GITHUB_OUTPUT
 
       - name: Parse Test Results
@@ -433,6 +453,12 @@ jobs:
 
       - name: Run UI Tests
         run: |
+          # Run tests with timeout (30 min max for platform slowness)
+          # Using native bash timeout pattern (timeout command not available on macOS runners)
+          echo "Starting UI tests..."
+          SECONDS=0
+          MAX_WAIT=1800
+          
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
@@ -440,7 +466,29 @@ jobs:
             -only-testing:DequeueUITests \
             -resultBundlePath UITestResults.xcresult \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO &
+          TEST_PID=$!
+          
+          # Wait with timeout
+          while kill -0 $TEST_PID 2>/dev/null; do
+            if [ $SECONDS -ge $MAX_WAIT ]; then
+              kill $TEST_PID 2>/dev/null || true
+              echo "::error::UI tests exceeded 30 minute timeout"
+              exit 1
+            fi
+            sleep 2
+          done
+          
+          wait $TEST_PID
+          TEST_EXIT=$?
+          
+          echo "xcodebuild exit code: $TEST_EXIT"
+          echo "UI tests completed in $SECONDS seconds"
+          
+          if [ $TEST_EXIT -ne 0 ]; then
+            echo "::error::UI tests failed with exit code $TEST_EXIT"
+            exit $TEST_EXIT
+          fi
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
