@@ -173,6 +173,21 @@ final class AttachmentService {
         let localPath = try copyFileToAttachmentsDirectory(fileURL: fileURL, attachmentId: attachment.id)
         attachment.localPath = localPath
 
+        // Generate thumbnail for supported image types
+        if attachment.supportsThumbnail {
+            do {
+                let generator = ThumbnailGenerator()
+                let thumbnailData = try await generator.generateThumbnail(from: URL(fileURLWithPath: localPath))
+                attachment.thumbnailData = thumbnailData
+            } catch {
+                // Non-fatal: log but continue - thumbnail generation failure shouldn't block attachment creation
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["attachmentId": attachment.id, "mimeType": mimeType]
+                )
+            }
+        }
+
         // Insert into context and save - clean up file if save fails
         modelContext.insert(attachment)
 
@@ -281,6 +296,21 @@ final class AttachmentService {
         // DownloadManager saves to: Attachments/attachment-id/filename
         attachment.localPath = "\(attachment.id)/\(attachment.filename)"
         attachment.updatedAt = Date()
+
+        // Generate thumbnail for supported image types if not already present
+        if attachment.supportsThumbnail && attachment.thumbnailData == nil {
+            do {
+                let generator = ThumbnailGenerator()
+                let thumbnailData = try await generator.generateThumbnail(from: localURL)
+                attachment.thumbnailData = thumbnailData
+            } catch {
+                // Non-fatal: log but continue - thumbnail generation failure shouldn't block download
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["attachmentId": attachment.id, "mimeType": attachment.mimeType]
+                )
+            }
+        }
 
         do {
             try modelContext.save()
