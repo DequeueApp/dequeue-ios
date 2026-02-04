@@ -2,49 +2,61 @@
 //  ArcsView.swift
 //  Dequeue
 //
-//  Main view for displaying and managing Arcs
+//  Main view for displaying and managing Arcs with status filtering
 //
 
 import SwiftUI
 import SwiftData
 
 struct ArcsView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.syncManager) private var syncManager
-    @Environment(\.authService) private var authService
+    enum ArcFilter: String, CaseIterable {
+        case inProgress = "In Progress"
+        case paused = "Paused"
+        case completed = "Completed"
+    }
 
-    @Query(
-        filter: #Predicate<Arc> { !$0.isDeleted },
-        sort: \Arc.sortOrder
-    ) private var arcs: [Arc]
-
+    @State private var selectedFilter: ArcFilter = .inProgress
     @State private var showAddSheet = false
-    @State private var selectedArc: Arc?
-    @State private var showStackPicker = false
-    @State private var arcForStackPicker: Arc?
-    @State private var cachedDeviceId: String = ""
-    @State private var arcService: ArcService?
 
     /// Maximum number of active arcs allowed
     private let maxActiveArcs = 5
 
-    /// Active arcs count (not paused, not completed, not archived)
-    private var activeArcsCount: Int {
-        arcs.filter { $0.status == .active }.count
-    }
+    /// Active arcs count - fetch on demand for "Add" button state
+    @Query(
+        filter: #Predicate<Arc> { arc in
+            arc.isDeleted == false &&
+            arc.statusRawValue == "active"
+        }
+    ) private var activeArcs: [Arc]
 
     /// Whether user can create new arcs
     private var canCreateNewArc: Bool {
-        activeArcsCount < maxActiveArcs
+        activeArcs.count < maxActiveArcs
     }
 
     var body: some View {
         NavigationStack {
-            Group {
-                if arcs.isEmpty {
-                    emptyState
-                } else {
-                    arcsList
+            VStack(spacing: 0) {
+                // Segmented control for filtering
+                Picker("Filter", selection: $selectedFilter) {
+                    ForEach(ArcFilter.allCases, id: \.self) { filter in
+                        Text(filter.rawValue).tag(filter)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .accessibilityLabel("Arc filter")
+                .accessibilityHint("Select to filter arcs by status")
+
+                // Content based on selection
+                switch selectedFilter {
+                case .inProgress:
+                    ActiveArcsListView()
+                case .paused:
+                    PausedArcsListView()
+                case .completed:
+                    CompletedArcsListView()
                 }
             }
             .navigationTitle("Arcs")
@@ -57,71 +69,9 @@ struct ArcsView: View {
         .sheet(isPresented: $showAddSheet) {
             ArcEditorView(mode: .create)
         }
-        .sheet(item: $selectedArc) { arc in
-            ArcEditorView(mode: .edit(arc))
-        }
-        .sheet(item: $arcForStackPicker) { arc in
-            StackPickerForArcSheet(arc: arc)
-        }
-        .task {
-            if cachedDeviceId.isEmpty {
-                cachedDeviceId = await DeviceService.shared.getDeviceId()
-            }
-            if arcService == nil {
-                arcService = ArcService(
-                    modelContext: modelContext,
-                    userId: authService.currentUserId,
-                    deviceId: cachedDeviceId,
-                    syncManager: syncManager
-                )
-            }
-        }
     }
 
     // MARK: - Subviews
-
-    private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Arcs", systemImage: "rays")
-        } description: {
-            Text("""
-                Arcs help you organize related stacks into higher-level goals.
-                Create your first arc to get started.
-                """)
-        } actions: {
-            Button {
-                showAddSheet = true
-            } label: {
-                Label("Create Arc", systemImage: "plus")
-            }
-            .buttonStyle(.borderedProminent)
-        }
-    }
-
-    private var arcsList: some View {
-        List {
-            ForEach(arcs) { arc in
-                ArcCardView(
-                    arc: arc,
-                    onTap: {
-                        selectedArc = arc
-                    },
-                    onAddStackTap: {
-                        arcForStackPicker = arc
-                        showStackPicker = true
-                    }
-                )
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            }
-            .onMove(perform: moveArcs)
-        }
-        .listStyle(.plain)
-        .refreshable {
-            // Trigger sync refresh
-            await refreshArcs()
-        }
-    }
 
     @ViewBuilder
     private var addButton: some View {
@@ -138,26 +88,6 @@ struct ArcsView: View {
         .accessibilityHint(canCreateNewArc
             ? "Creates a new arc"
             : "You can have up to \(maxActiveArcs) active arcs")
-    }
-
-    // MARK: - Actions
-
-    private func moveArcs(from source: IndexSet, to destination: Int) {
-        var reorderedArcs = arcs
-        reorderedArcs.move(fromOffsets: source, toOffset: destination)
-
-        Task {
-            do {
-                try await arcService?.updateSortOrders(reorderedArcs)
-            } catch {
-                ErrorReportingService.capture(error: error, context: ["action": "move_arcs"])
-            }
-        }
-    }
-
-    private func refreshArcs() async {
-        // Just wait a moment for any pending sync operations
-        try? await Task.sleep(for: .milliseconds(500))
     }
 }
 
