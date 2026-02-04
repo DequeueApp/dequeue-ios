@@ -25,7 +25,7 @@ struct ArcsView: View {
     @Query(
         filter: #Predicate<Arc> { arc in
             arc.isDeleted == false &&
-            arc.statusRawValue == ArcStatus.active.rawValue
+            arc.statusRawValue == "active"
         }
     ) private var activeArcs: [Arc]
 
