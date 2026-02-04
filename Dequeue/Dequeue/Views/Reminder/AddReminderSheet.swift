@@ -205,6 +205,7 @@ struct AddReminderSheet: View {
                     in: Date()...,
                     displayedComponents: [.date, .hourAndMinute]
                 )
+                .applyDatePickerStyle()
                 .accessibilityIdentifier("reminderDatePicker")
             } header: {
                 Text("When")
