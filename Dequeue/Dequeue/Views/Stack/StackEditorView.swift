@@ -5,8 +5,6 @@
 //  Unified view for creating and editing stacks (DEQ-99)
 //
 
-// swiftlint:disable file_length
-
 import SwiftUI
 import SwiftData
 import os
