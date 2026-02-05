@@ -25,6 +25,8 @@ final class TaskService {
     func createTask(
         title: String,
         description: String? = nil,
+        startTime: Date? = nil,
+        dueTime: Date? = nil,
         stack: Stack,
         sortOrder: Int? = nil
     ) async throws -> QueueTask {
@@ -33,6 +35,8 @@ final class TaskService {
         let task = QueueTask(
             title: title,
             taskDescription: description,
+            startTime: startTime,
+            dueTime: dueTime,
             status: .pending,
             sortOrder: order,
             stack: stack
@@ -53,6 +57,17 @@ final class TaskService {
     func updateTask(_ task: QueueTask, title: String, description: String?) async throws {
         task.title = title
         task.taskDescription = description
+        task.updatedAt = Date()
+        task.syncState = .pending
+
+        try await eventService.recordTaskUpdated(task)
+        try modelContext.save()
+        syncManager?.triggerImmediatePush()
+    }
+
+    func updateTaskDates(_ task: QueueTask, startTime: Date?, dueTime: Date?) async throws {
+        task.startTime = startTime
+        task.dueTime = dueTime
         task.updatedAt = Date()
         task.syncState = .pending
 

@@ -49,6 +49,8 @@ struct TaskDetailView: View {
 
             descriptionSection
 
+            datesSection
+
             remindersSection
 
             attachmentsSection
@@ -353,6 +355,50 @@ struct TaskDetailView: View {
         }
     }
 
+    private var datesSection: some View {
+        Section("Dates") {
+            DatePicker(
+                "Start Date",
+                selection: Binding(
+                    get: { task.startTime ?? Date() },
+                    set: { newDate in
+                        updateTaskStartDate(newDate)
+                    }
+                ),
+                displayedComponents: [.date, .hourAndMinute]
+            )
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                if task.startTime != nil {
+                    Button(role: .destructive) {
+                        clearTaskStartDate()
+                    } label: {
+                        Label("Clear", systemImage: "xmark")
+                    }
+                }
+            }
+
+            DatePicker(
+                "Due Date",
+                selection: Binding(
+                    get: { task.dueTime ?? Date() },
+                    set: { newDate in
+                        updateTaskDueDate(newDate)
+                    }
+                ),
+                displayedComponents: [.date, .hourAndMinute]
+            )
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                if task.dueTime != nil {
+                    Button(role: .destructive) {
+                        clearTaskDueDate()
+                    } label: {
+                        Label("Clear", systemImage: "xmark")
+                    }
+                }
+            }
+        }
+    }
+
     private var remindersSection: some View {
         Section {
             if task.activeReminders.isEmpty {
@@ -489,6 +535,66 @@ struct TaskDetailView: View {
                     description: editedDescription.isEmpty ? nil : editedDescription
                 )
                 isEditingDescription = false
+            } catch {
+                showError(error)
+            }
+        }
+    }
+
+    private func updateTaskStartDate(_ newDate: Date) {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+        Task {
+            do {
+                try await service.updateTaskDates(task, startTime: newDate, dueTime: task.dueTime)
+            } catch {
+                showError(error)
+            }
+        }
+    }
+
+    private func clearTaskStartDate() {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+        Task {
+            do {
+                try await service.updateTaskDates(task, startTime: nil, dueTime: task.dueTime)
+            } catch {
+                showError(error)
+            }
+        }
+    }
+
+    private func updateTaskDueDate(_ newDate: Date) {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+        Task {
+            do {
+                try await service.updateTaskDates(task, startTime: task.startTime, dueTime: newDate)
+            } catch {
+                showError(error)
+            }
+        }
+    }
+
+    private func clearTaskDueDate() {
+        guard let service = taskService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+        Task {
+            do {
+                try await service.updateTaskDates(task, startTime: task.startTime, dueTime: nil)
             } catch {
                 showError(error)
             }

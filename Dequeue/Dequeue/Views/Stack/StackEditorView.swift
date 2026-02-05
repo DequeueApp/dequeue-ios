@@ -69,6 +69,8 @@ struct StackEditorView: View {
     @State var title: String = ""
     @State var stackDescription: String = ""
     @State var setAsActive: Bool = false
+    @State var selectedStartDate: Date?
+    @State var selectedDueDate: Date?
     @State var pendingTasks: [PendingTask] = []
     @State var selectedTags: [Tag] = []
     @State var selectedArc: Arc?
@@ -88,6 +90,8 @@ struct StackEditorView: View {
         let id = UUID()
         var title: String
         var description: String?
+        var startTime: Date?
+        var dueTime: Date?
     }
 
     // Edit mode state
@@ -111,6 +115,8 @@ struct StackEditorView: View {
     @State var showAddTask = false
     @State var newTaskTitle = ""
     @State var newTaskDescription = ""
+    @State var newTaskStartTime: Date?
+    @State var newTaskDueTime: Date?
     @State var showAddReminder = false
     @State var showSnoozePicker = false
     @State var selectedReminderForSnooze: Reminder?
@@ -142,30 +148,6 @@ struct StackEditorView: View {
         case .edit(let stack):
             return stack
         }
-    }
-
-    private var navigationTitle: String {
-        switch mode {
-        case .create:
-            return draftStack != nil ? "Edit Draft" : "New Stack"
-        case .edit(let stack):
-            return stack.title
-        }
-    }
-
-    /// Whether to show a custom title view with edit button (for edit mode, non-read-only)
-    private var showsCustomTitle: Bool {
-        !isCreateMode && !isReadOnly
-    }
-
-    /// The title to display in the navigation bar (empty when using custom editable title)
-    private var displayedTitle: String {
-        showsCustomTitle ? "" : navigationTitle
-    }
-
-    /// Whether there's unsaved content that should prevent accidental dismissal
-    private var hasUnsavedContent: Bool {
-        isCreateMode && (!title.isEmpty || !stackDescription.isEmpty || draftStack != nil)
     }
 
     // MARK: - Body
@@ -341,6 +323,8 @@ extension StackEditorView {
             showAddTask: $showAddTask,
             newTaskTitle: $newTaskTitle,
             newTaskDescription: $newTaskDescription,
+            newTaskStartTime: $newTaskStartTime,
+            newTaskDueTime: $newTaskDueTime,
             showAddReminder: $showAddReminder,
             showArcSelection: $showArcSelection,
             showSnoozePicker: $showSnoozePicker,
@@ -367,6 +351,8 @@ private struct StackEditorSheetsModifier: ViewModifier {
     @Binding var showAddTask: Bool
     @Binding var newTaskTitle: String
     @Binding var newTaskDescription: String
+    @Binding var newTaskStartTime: Date?
+    @Binding var newTaskDueTime: Date?
     @Binding var showAddReminder: Bool
     @Binding var showArcSelection: Bool
     @Binding var showSnoozePicker: Bool
@@ -392,6 +378,8 @@ private struct StackEditorSheetsModifier: ViewModifier {
                 AddTaskSheet(
                     title: $newTaskTitle,
                     description: $newTaskDescription,
+                    startTime: $newTaskStartTime,
+                    dueTime: $newTaskDueTime,
                     onSave: onAddTask,
                     onCancel: onCancelAddTask
                 )
@@ -461,6 +449,34 @@ private struct StackEditorLifecycleModifier: ViewModifier {
             }
             #endif
             .onDisappear { onDisappear() }
+    }
+}
+
+// MARK: - Helper Computed Properties
+
+private extension StackEditorView {
+    var navigationTitle: String {
+        switch mode {
+        case .create:
+            return draftStack != nil ? "Edit Draft" : "New Stack"
+        case .edit(let stack):
+            return stack.title
+        }
+    }
+
+    /// Whether to show a custom title view with edit button (for edit mode, non-read-only)
+    var showsCustomTitle: Bool {
+        !isCreateMode && !isReadOnly
+    }
+
+    /// The title to display in the navigation bar (empty when using custom editable title)
+    var displayedTitle: String {
+        showsCustomTitle ? "" : navigationTitle
+    }
+
+    /// Whether there's unsaved content that should prevent accidental dismissal
+    var hasUnsavedContent: Bool {
+        isCreateMode && (!title.isEmpty || !stackDescription.isEmpty || draftStack != nil)
     }
 }
 

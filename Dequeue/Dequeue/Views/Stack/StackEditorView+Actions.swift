@@ -228,11 +228,15 @@ extension StackEditorView {
         if isCreateMode {
             let pendingTask = StackEditorView.PendingTask(
                 title: newTaskTitle,
-                description: newTaskDescription.isEmpty ? nil : newTaskDescription
+                description: newTaskDescription.isEmpty ? nil : newTaskDescription,
+                startTime: newTaskStartTime,
+                dueTime: newTaskDueTime
             )
             pendingTasks.append(pendingTask)
             newTaskTitle = ""
             newTaskDescription = ""
+            newTaskStartTime = nil
+            newTaskDueTime = nil
             showAddTask = false
             return
         }
@@ -250,10 +254,14 @@ extension StackEditorView {
                 _ = try await service.createTask(
                     title: newTaskTitle,
                     description: newTaskDescription.isEmpty ? nil : newTaskDescription,
+                    startTime: newTaskStartTime,
+                    dueTime: newTaskDueTime,
                     stack: stack
                 )
                 newTaskTitle = ""
                 newTaskDescription = ""
+                newTaskStartTime = nil
+                newTaskDueTime = nil
                 showAddTask = false
             } catch {
                 handleError(error)
