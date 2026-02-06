@@ -1525,7 +1525,7 @@ actor SyncManager {
     }
 
     @MainActor
-    private func processIncomingEvents(_ events: [[String: Any]]) async throws {
+    private func processIncomingEvents(_ events: @preconcurrency [[String: Any]]) async throws {
         os_log("[Sync] Processing \(events.count) incoming events")
         var stats = EventProcessingStats()
         // IMPORTANT: Use mainContext so SwiftUI @Query observers see changes immediately.
