@@ -1047,11 +1047,11 @@ enum ProjectorService {
                 id: payload.id,
                 title: payload.title,
                 taskDescription: payload.description,
+                tags: payload.tags ?? [],  // DEQ-31
                 status: payload.status,
                 priority: payload.priority,
                 sortOrder: payload.sortOrder,
                 lastActiveTime: payload.lastActiveTime,
-                tags: payload.tags ?? [],  // DEQ-31
                 delegatedToAI: payload.delegatedToAI ?? false,
                 aiAgentId: payload.aiAgentId,
                 aiDelegatedAt: payload.aiDelegatedAt,
