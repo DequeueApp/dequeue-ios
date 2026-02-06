@@ -1191,13 +1191,13 @@ actor SyncManager {
                         }
                     }
                     
-                    os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredEvents.count) after filtering")
-                    
-                    // Capture count, then send immediately without further access
+                    // Capture count BEFORE any logging or sending to avoid multiple accesses
                     let filteredCount = filteredEvents.count
                     
+                    os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredCount) after filtering")
+                    
                     // Process events - function handles empty array gracefully
-                    // Send immediately after capturing count to avoid any intermediate access
+                    // Send immediately without any further access to avoid data races
                     try await processIncomingEvents(filteredEvents)
                     
                     totalEventsReceived += filteredCount
