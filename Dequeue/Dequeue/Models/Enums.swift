@@ -46,7 +46,7 @@ enum ParentType: String, Codable, CaseIterable {
 }
 
 /// Distinguishes whether an event was created by a human user or an AI agent (DEQ-55)
-enum ActorType: String, Codable, CaseIterable {
+enum ActorType: String, Codable, CaseIterable, Sendable {
     /// Event created by a human user
     case human
     /// Event created by an AI agent
