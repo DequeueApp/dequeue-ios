@@ -266,6 +266,46 @@ struct StackServiceTests {
         #expect(stack.stackDescription == "New desc")
     }
 
+    @Test("updateStackDates updates startTime and dueTime")
+    func updateStackDatesUpdatesStartTimeAndDueTime() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+
+        let stack = try await stackService.createStack(title: "Stack with dates")
+        
+        // Set dates
+        let startDate = Date().addingTimeInterval(3600) // 1 hour from now
+        let dueDate = Date().addingTimeInterval(86400) // 1 day from now
+        try await stackService.updateStackDates(stack, startTime: startDate, dueTime: dueDate)
+
+        #expect(stack.startTime != nil)
+        #expect(stack.dueTime != nil)
+        #expect(abs(stack.startTime!.timeIntervalSince(startDate)) < 1) // Within 1 second
+        #expect(abs(stack.dueTime!.timeIntervalSince(dueDate)) < 1)
+    }
+
+    @Test("updateStackDates clears dates when nil")
+    func updateStackDatesClearsDatesWhenNil() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
+
+        let stack = try await stackService.createStack(title: "Stack with dates")
+        
+        // Set dates first
+        let startDate = Date().addingTimeInterval(3600)
+        let dueDate = Date().addingTimeInterval(86400)
+        try await stackService.updateStackDates(stack, startTime: startDate, dueTime: dueDate)
+        #expect(stack.startTime != nil)
+        #expect(stack.dueTime != nil)
+
+        // Clear dates
+        try await stackService.updateStackDates(stack, startTime: nil, dueTime: nil)
+        #expect(stack.startTime == nil)
+        #expect(stack.dueTime == nil)
+    }
+
     // MARK: - Activation Tests
 
     @Test("setAsActive activates stack and deactivates previous")
