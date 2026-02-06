@@ -41,8 +41,11 @@ struct StacksView: View {
         NavigationStack {
             Group {
                 if let syncStatus = syncStatusViewModel, syncStatus.isInitialSyncInProgress {
-                    // Show loading view during initial sync to prevent flickering
-                    InitialSyncLoadingView(eventsProcessed: syncStatus.initialSyncEventsProcessed)
+                    // Show loading view during initial sync to prevent flickering (DEQ-240)
+                    InitialSyncLoadingView(
+                        eventsProcessed: syncStatus.initialSyncEventsProcessed,
+                        totalEvents: syncStatus.initialSyncTotalEvents > 0 ? syncStatus.initialSyncTotalEvents : nil
+                    )
                 } else {
                     // Show normal stacks content after initial sync completes
                     stacksContent
