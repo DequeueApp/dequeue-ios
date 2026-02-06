@@ -116,7 +116,6 @@ struct MainTabView: View {
             }
             floatingBanners
         }
-    }
 
     /// iPad split view layout with sidebar navigation (DEQ-51)
     private var iPadSplitViewLayout: some View {
