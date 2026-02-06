@@ -1195,13 +1195,7 @@ actor SyncManager {
                     
                     // Process events through existing logic
                     if !filteredEvents.isEmpty {
-                        // Explicitly isolate the data at actor boundary
-                        // filteredEvents is a local [[String: Any]] created within this actor
-                        // and we're immediately consuming it on MainActor
-                        let eventsToProcess = filteredEvents
-                        try await Task { @MainActor in
-                            try await processIncomingEvents(eventsToProcess)
-                        }.value
+                        try await processIncomingEvents(filteredEvents)
                     }
                     
                     totalEventsReceived += filteredEvents.count
