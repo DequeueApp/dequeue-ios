@@ -38,36 +38,52 @@ struct MainTabView: View {
 
     /// Applies common modifiers for both iOS and macOS layouts
     private func applySharedModifiers<Content: View>(_ content: Content) -> some View {
-        content
-            .sheet(isPresented: $showStackPicker) {
-                StackPickerSheet()
-            }
-            .sheet(item: $activeStackForDetail) { stack in
-                StackEditorView(mode: .edit(stack))
-            }
-            .environment(\.undoCompletionManager, undoCompletionManager)
-            .environment(\.attachmentUploadCoordinator, attachmentUploadCoordinator)
-            .task {
-                if cachedDeviceId.isEmpty {
-                    cachedDeviceId = await DeviceService.shared.getDeviceId()
+        applyPlatformModifiers(
+            content
+                .sheet(isPresented: $showStackPicker) {
+                    StackPickerSheet()
                 }
-                undoCompletionManager.configure(
-                    modelContext: modelContext,
-                    syncManager: syncManager,
-                    userId: authService.currentUserId ?? "",
-                    deviceId: cachedDeviceId
-                )
-                if attachmentUploadCoordinator == nil {
-                    let uploadService = AttachmentUploadService(authService: authService)
-                    attachmentUploadCoordinator = AttachmentUploadCoordinator(
+                .sheet(item: $activeStackForDetail) { stack in
+                    StackEditorView(mode: .edit(stack))
+                }
+                .environment(\.undoCompletionManager, undoCompletionManager)
+                .environment(\.attachmentUploadCoordinator, attachmentUploadCoordinator)
+                .task {
+                    if cachedDeviceId.isEmpty {
+                        cachedDeviceId = await DeviceService.shared.getDeviceId()
+                    }
+                    undoCompletionManager.configure(
                         modelContext: modelContext,
-                        uploadService: uploadService
+                        syncManager: syncManager,
+                        userId: authService.currentUserId ?? "",
+                        deviceId: cachedDeviceId
                     )
+                    if attachmentUploadCoordinator == nil {
+                        let uploadService = AttachmentUploadService(authService: authService)
+                        attachmentUploadCoordinator = AttachmentUploadCoordinator(
+                            modelContext: modelContext,
+                            uploadService: uploadService
+                        )
+                    }
                 }
+                .onReceive(NotificationCenter.default.publisher(for: .reminderNotificationTapped)) { notification in
+                    handleDeepLink(from: notification)
+                }
+        )
+    }
+
+    /// Applies platform-specific modifiers (macOS keyboard shortcuts, etc.)
+    @ViewBuilder
+    private func applyPlatformModifiers<Content: View>(_ content: Content) -> some View {
+        #if os(macOS)
+        content
+            .focusedValue(\.openSettingsAction) {
+                // DEQ-50: Navigate to Settings tab with ⌘,
+                selectedTab = 3
             }
-            .onReceive(NotificationCenter.default.publisher(for: .reminderNotificationTapped)) { notification in
-                handleDeepLink(from: notification)
-            }
+        #else
+        content
+        #endif
     }
 
     // MARK: - iOS/iPadOS Layout
@@ -345,3 +361,5 @@ struct MainTabView: View {
     MainTabView()
         .modelContainer(for: [Stack.self, QueueTask.self, Reminder.self], inMemory: true)
 }
+
+

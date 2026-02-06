@@ -102,6 +102,7 @@ struct StackEditorView: View {
     @State var showCompletedTasks = false
     @State var showCompleteConfirmation = false
     @State var showCloseConfirmation = false
+    @State var showDeleteConfirmation = false
     @State var isTogglingActiveStatus = false
     // Task tracking for async operations that dismiss the view
     // Prevents race conditions when view is dismissed before task completes
@@ -160,6 +161,20 @@ struct StackEditorView: View {
                 .modifier(alertsModifier)
                 .modifier(sheetsModifier)
                 .modifier(lifecycleModifier)
+                #if os(macOS)
+                .focusedValue(\.newTaskAction) {
+                    // DEQ-50: ⌘T creates new task (when in stack editor)
+                    if case .edit = mode, !isReadOnly {
+                        showAddTask = true
+                    }
+                }
+                .focusedValue(\.deleteItemAction) {
+                    // DEQ-50: Delete key deletes stack (with confirmation)
+                    if case .edit(let stack) = mode, !isReadOnly {
+                        showDeleteConfirmation = true
+                    }
+                }
+                #endif
         }
     }
 }
@@ -240,6 +255,7 @@ extension StackEditorView {
             editedTitle: $editedTitle,
             showCompleteConfirmation: $showCompleteConfirmation,
             showCloseConfirmation: $showCloseConfirmation,
+            showDeleteConfirmation: $showDeleteConfirmation,
             showDeleteReminderConfirmation: $showDeleteReminderConfirmation,
             reminderToDelete: reminderToDelete,
             reminderActionHandler: reminderActionHandler,
@@ -249,7 +265,8 @@ extension StackEditorView {
             onCreateDraft: createDraftAndDismiss,
             onSaveTitle: saveStackTitle,
             onCompleteStack: completeStack,
-            onCloseStack: closeStack
+            onCloseStack: closeStack,
+            onDeleteStack: deleteStack
         )
     }
 }
@@ -263,6 +280,7 @@ private struct StackEditorAlertsModifier: ViewModifier {
     @Binding var editedTitle: String
     @Binding var showCompleteConfirmation: Bool
     @Binding var showCloseConfirmation: Bool
+    @Binding var showDeleteConfirmation: Bool
     @Binding var showDeleteReminderConfirmation: Bool
     let reminderToDelete: Reminder?
     let reminderActionHandler: ReminderActionHandler?
@@ -273,6 +291,7 @@ private struct StackEditorAlertsModifier: ViewModifier {
     let onSaveTitle: () -> Void
     let onCompleteStack: (Bool) -> Void
     let onCloseStack: () -> Void
+    let onDeleteStack: () -> Void
 
     func body(content: Content) -> some View {
         content
@@ -305,6 +324,12 @@ private struct StackEditorAlertsModifier: ViewModifier {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This will close the stack without completing it. You can find it in completed stacks later.")
+            }
+            .confirmationDialog("Delete Stack", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) { onDeleteStack() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Are you sure you want to delete this stack? This action cannot be undone.")
             }
             .confirmationDialog("Delete Reminder", isPresented: $showDeleteReminderConfirmation) {
                 Button("Delete", role: .destructive) {

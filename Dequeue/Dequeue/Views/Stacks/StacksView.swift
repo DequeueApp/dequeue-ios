@@ -97,6 +97,12 @@ struct StacksView: View {
         .sheet(isPresented: $showRemindersSheet) {
             RemindersListView()
         }
+        #if os(macOS)
+        .focusedValue(\.newStackAction) {
+            // DEQ-50: ⌘N creates new stack
+            showAddSheet = true
+        }
+        #endif
     }
 
     private var stacksContent: some View {

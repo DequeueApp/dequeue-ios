@@ -124,6 +124,11 @@ struct DequeueApp: App {
                 }
         }
         .modelContainer(sharedModelContainer)
+        #if os(macOS)
+        .commands {
+            AppCommands()  // DEQ-50: Add macOS keyboard shortcuts
+        }
+        #endif
     }
 }
 

@@ -164,6 +164,24 @@ extension StackEditorView {
             }
         }
     }
+
+    func deleteStack() {
+        guard case .edit(let stack) = mode else { return }
+        guard let service = stackService else {
+            errorMessage = "Initializing... please try again."
+            showError = true
+            return
+        }
+
+        Task {
+            do {
+                try await service.deleteStack(stack)
+                dismiss()
+            } catch {
+                handleError(error)
+            }
+        }
+    }
 }
 
 // MARK: - Task Actions
