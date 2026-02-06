@@ -1197,8 +1197,9 @@ actor SyncManager {
                     os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredCount) after filtering")
                     
                     // Process events - function handles empty array gracefully
-                    // Send immediately without any further access to avoid data races
-                    try await processIncomingEvents(filteredEvents)
+                    // Convert to Sendable JSON Data to safely cross actor boundary
+                    let eventsData = try JSONSerialization.data(withJSONObject: filteredEvents)
+                    try await processIncomingEvents(eventsData)
                     
                     totalEventsReceived += filteredCount
                     _initialSyncEventsProcessed = totalEventsReceived
@@ -1495,7 +1496,9 @@ actor SyncManager {
         let processedCount = filteredEvents.count
 
         if !filteredEvents.isEmpty {
-            try await processIncomingEvents(filteredEvents)
+            // Convert to Sendable JSON Data to safely cross actor boundary
+            let eventsData = try JSONSerialization.data(withJSONObject: filteredEvents)
+            try await processIncomingEvents(eventsData)
         }
 
         // Only save checkpoint AFTER successful processing
@@ -1527,7 +1530,12 @@ actor SyncManager {
     }
 
     @MainActor
-    private func processIncomingEvents(_ events: [[String: Any]]) async throws {
+    private func processIncomingEvents(_ eventsData: Data) async throws {
+        // Deserialize from Sendable Data back to [[String: Any]]
+        guard let events = try JSONSerialization.jsonObject(with: eventsData) as? [[String: Any]] else {
+            os_log("[Sync] Failed to deserialize events data")
+            return
+        }
         os_log("[Sync] Processing \(events.count) incoming events")
         var stats = EventProcessingStats()
         // IMPORTANT: Use mainContext so SwiftUI @Query observers see changes immediately.
@@ -1763,7 +1771,9 @@ actor SyncManager {
         }
 
         do {
-            try await processIncomingEvents([eventData])
+            // Convert to Sendable JSON Data to safely cross actor boundary
+            let eventsData = try JSONSerialization.data(withJSONObject: [eventData])
+            try await processIncomingEvents(eventsData)
         } catch {
             await ErrorReportingService.capture(error: error, context: ["source": "websocket_message"])
         }
