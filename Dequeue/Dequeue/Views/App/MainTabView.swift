@@ -100,21 +100,20 @@ struct MainTabView: View {
     private var iPhoneTabViewLayout: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
-                    ArcsView()
-                        .tabItem { Label("Arcs", systemImage: "rays") }
-                        .tag(0)
-                    StacksView()
-                        .tabItem { Label("Stacks", systemImage: "square.stack.3d.up") }
-                        .tag(1)
-                    ActivityFeedView()
-                        .tabItem { Label("Activity", systemImage: "clock.arrow.circlepath") }
-                        .tag(2)
-                    SettingsView()
-                        .tabItem { Label("Settings", systemImage: "gear") }
-                        .tag(3)
-                }
-                floatingBanners
+                ArcsView()
+                    .tabItem { Label("Arcs", systemImage: "rays") }
+                    .tag(0)
+                StacksView()
+                    .tabItem { Label("Stacks", systemImage: "square.stack.3d.up") }
+                    .tag(1)
+                ActivityFeedView()
+                    .tabItem { Label("Activity", systemImage: "clock.arrow.circlepath") }
+                    .tag(2)
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "gear") }
+                    .tag(3)
             }
+            floatingBanners
         }
     }
 
