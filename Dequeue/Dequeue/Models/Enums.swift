@@ -123,6 +123,7 @@ enum EventType: String, Codable, CaseIterable {
     case taskClosed = "task.closed"
     case taskReordered = "task.reordered"
     case taskDelegatedToAI = "task.delegatedToAI"  // DEQ-56
+    case taskAICompleted = "task.aiCompleted"      // DEQ-57
 
     // Reminder events
     case reminderCreated = "reminder.created"

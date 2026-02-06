@@ -189,6 +189,32 @@ final class EventService {
         try await recordEvent(type: .taskDelegatedToAI, payload: payload, entityId: task.id)
     }
 
+    /// Record when an AI agent completes a task (DEQ-57)
+    /// This creates a task.aiCompleted event with AI actor metadata
+    func recordTaskAICompleted(
+        _ task: QueueTask,
+        aiAgentId: String,
+        aiAgentName: String?,
+        resultSummary: String? = nil
+    ) async throws {
+        let payload = TaskAICompletedPayload(
+            taskId: task.id,
+            stackId: task.stack?.id ?? "",
+            aiAgentId: aiAgentId,
+            aiAgentName: aiAgentName,
+            resultSummary: resultSummary,
+            fullState: TaskState.from(task)
+        )
+        // Mark as AI actor since the AI agent is completing the task
+        let metadata = EventMetadata.ai(agentId: aiAgentId)
+        try await recordEvent(
+            type: .taskAICompleted,
+            payload: payload,
+            entityId: task.id,
+            metadata: metadata
+        )
+    }
+
     func recordTaskReordered(_ tasks: [QueueTask]) async throws {
         let payload = TaskReorderedPayload(
             taskIds: tasks.map { $0.id },
@@ -935,6 +961,18 @@ struct TaskDelegatedToAIPayload: Codable {
     let stackId: String
     let aiAgentId: String
     let aiAgentName: String?
+    let fullState: TaskState
+}
+
+/// Payload for task.aiCompleted event (DEQ-57)
+/// Records when an AI agent completes a task
+struct TaskAICompletedPayload: Codable {
+    let taskId: String
+    let stackId: String
+    let aiAgentId: String
+    let aiAgentName: String?
+    /// Summary of what the AI accomplished
+    let resultSummary: String?
     let fullState: TaskState
 }
 

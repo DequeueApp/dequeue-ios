@@ -567,3 +567,123 @@ struct EventServiceTaskHistoryTests {
         #expect(events.first?.id == "task-event")
     }
 }
+
+// MARK: - AI Task Completion Tests (DEQ-57)
+
+@Suite("EventService AI Task Completion Tests", .serialized)
+@MainActor
+struct EventServiceAICompletionTests {
+    @Test("recordTaskAICompleted creates task.aiCompleted event")
+    @MainActor
+    func recordTaskAICompletedCreatesEvent() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+
+        let stack = Stack(title: "Test Stack")
+        let task = QueueTask(title: "AI Task", stack: stack)
+        context.insert(stack)
+        context.insert(task)
+        try context.save()
+
+        let eventService = EventService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        try await eventService.recordTaskAICompleted(
+            task,
+            aiAgentId: "agent-007",
+            aiAgentName: "TestBot",
+            resultSummary: "Task completed successfully"
+        )
+        try context.save()
+
+        let events = try eventService.fetchHistory(for: task.id)
+        #expect(events.count == 1)
+
+        let event = try #require(events.first)
+        #expect(event.eventType == .taskAICompleted)
+        #expect(event.entityId == task.id)
+    }
+
+    @Test("recordTaskAICompleted includes AI actor metadata")
+    @MainActor
+    func recordTaskAICompletedIncludesAIMetadata() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+
+        let stack = Stack(title: "Test Stack")
+        let task = QueueTask(title: "AI Task", stack: stack)
+        context.insert(stack)
+        context.insert(task)
+        try context.save()
+
+        let eventService = EventService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let agentId = "agent-123"
+        try await eventService.recordTaskAICompleted(
+            task,
+            aiAgentId: agentId,
+            aiAgentName: "Ada",
+            resultSummary: "Completed via AI"
+        )
+        try context.save()
+
+        let events = try eventService.fetchHistory(for: task.id)
+        let event = try #require(events.first)
+
+        // Check actor metadata
+        let metadata = try event.actorMetadata()
+        #expect(metadata?.actorType == .ai)
+        #expect(metadata?.actorId == agentId)
+        #expect(event.isFromAI == true)
+        #expect(event.isFromHuman == false)
+    }
+
+    @Test("recordTaskAICompleted payload includes agent details and result")
+    @MainActor
+    func recordTaskAICompletedPayloadIncludesDetails() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+
+        let stack = Stack(title: "Test Stack")
+        let task = QueueTask(title: "AI Task", stack: stack)
+        context.insert(stack)
+        context.insert(task)
+        try context.save()
+
+        let eventService = EventService(
+            modelContext: context,
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+
+        let agentId = "agent-456"
+        let agentName = "CodeBot"
+        let summary = "Refactored code and added tests"
+
+        try await eventService.recordTaskAICompleted(
+            task,
+            aiAgentId: agentId,
+            aiAgentName: agentName,
+            resultSummary: summary
+        )
+        try context.save()
+
+        let events = try eventService.fetchHistory(for: task.id)
+        let event = try #require(events.first)
+
+        let payload = try event.decodePayload(TaskAICompletedPayload.self)
+        #expect(payload.taskId == task.id)
+        #expect(payload.stackId == stack.id)
+        #expect(payload.aiAgentId == agentId)
+        #expect(payload.aiAgentName == agentName)
+        #expect(payload.resultSummary == summary)
+        #expect(payload.fullState.id == task.id)
+    }
+}
