@@ -87,10 +87,12 @@ struct MainTabView: View {
     private var iOSLayout: some View {
         #if os(iOS)
         // DEQ-51: Use split view on large iPads
-        if isIPad && horizontalSizeClass == .regular {
-            applySharedModifiers(iPadSplitViewLayout)
-        } else {
-            applySharedModifiers(iPhoneTabViewLayout)
+        Group {
+            if isIPad && horizontalSizeClass == .regular {
+                applySharedModifiers(iPadSplitViewLayout)
+            } else {
+                applySharedModifiers(iPhoneTabViewLayout)
+            }
         }
         #else
         EmptyView()
