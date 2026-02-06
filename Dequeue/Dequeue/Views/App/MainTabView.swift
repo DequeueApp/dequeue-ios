@@ -127,18 +127,24 @@ struct MainTabView: View {
                 NavigationLink(value: 0) {
                     Label("Arcs", systemImage: "rays")
                 }
-                .navigationTitle("Dequeue")
-                .listStyle(.sidebar)
-            } detail: {
-                ZStack(alignment: .bottom) {
-                    detailContentForSelection
-                        .frame(maxHeight: .infinity, alignment: .top)
-                    floatingBanners
+                NavigationLink(value: 1) {
+                    Label("Stacks", systemImage: "square.stack.3d.up")
+                }
+                NavigationLink(value: 2) {
+                    Label("Activity", systemImage: "clock.arrow.circlepath")
+                }
+                NavigationLink(value: 3) {
+                    Label("Settings", systemImage: "gear")
                 }
             }
-        } else {
-            // Fallback for older iOS
-            iPhoneTabViewLayout
+            .navigationTitle("Dequeue")
+            .listStyle(.sidebar)
+        } detail: {
+            ZStack(alignment: .bottom) {
+                detailContentForSelection
+                    .frame(maxHeight: .infinity, alignment: .top)
+                floatingBanners
+            }
         }
         #else
         EmptyView()
