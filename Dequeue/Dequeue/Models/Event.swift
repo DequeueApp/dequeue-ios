@@ -153,7 +153,7 @@ extension Event {
 
 /// Metadata attached to events to track who/what created them.
 /// Includes actor type (human vs AI) and optional AI agent identification.
-struct EventMetadata: Codable {
+struct EventMetadata: Codable, Sendable {
     /// Type of actor that created this event (human or AI)
     var actorType: ActorType
 
