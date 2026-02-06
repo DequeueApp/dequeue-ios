@@ -157,8 +157,8 @@ struct MainTabView: View {
     }
     #endif
 
-    #if os(iOS)
     private var floatingBanners: some View {
+        #if os(iOS)
         GeometryReader { geometry in
             // Color.clear passes touches through to TabView beneath
             // The overlay content (banners) still receives touches normally
@@ -193,9 +193,10 @@ struct MainTabView: View {
                     .animation(.easeInOut(duration: 0.25), value: undoCompletionManager.hasPendingCompletion)
                 }
         }
+        #else
+        EmptyView()
+        #endif
     }
-
-    #endif
 
     // MARK: - macOS Layout
 
