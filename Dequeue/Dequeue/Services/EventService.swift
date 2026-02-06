@@ -670,6 +670,9 @@ struct TaskState: Codable {
     let delegatedToAI: Bool?
     let aiAgentId: String?
     let aiDelegatedAt: Int64?
+    
+    // Tags (DEQ-31)
+    let tags: [String]?
 
     static func from(_ task: QueueTask) -> TaskState {
         TaskState(
@@ -688,7 +691,8 @@ struct TaskState: Codable {
             deleted: task.isDeleted,
             delegatedToAI: task.delegatedToAI,
             aiAgentId: task.aiAgentId,
-            aiDelegatedAt: task.aiDelegatedAt.map { Int64($0.timeIntervalSince1970 * 1_000) }
+            aiDelegatedAt: task.aiDelegatedAt.map { Int64($0.timeIntervalSince1970 * 1_000) },
+            tags: task.tags.isEmpty ? nil : task.tags  // DEQ-31
         )
     }
 }
