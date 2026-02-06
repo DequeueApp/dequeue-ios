@@ -86,14 +86,9 @@ struct MainTabView: View {
     @ViewBuilder
     private var iOSLayout: some View {
         #if os(iOS)
-        // DEQ-51: Use split view on large iPads
-        Group {
-            if isIPad && horizontalSizeClass == .regular {
-                applySharedModifiers(iPadSplitViewLayout)
-            } else {
-                applySharedModifiers(iPhoneTabViewLayout)
-            }
-        }
+        // Use tab view for all iOS devices (iPhone + iPad)
+        // TODO DEQ-51: iPad split view needs iOS 16+ API compatibility fixes
+        applySharedModifiers(iPhoneTabViewLayout)
         #else
         EmptyView()
         #endif
@@ -124,6 +119,7 @@ struct MainTabView: View {
     }
 
     /// iPad split view layout with sidebar navigation (DEQ-51)
+    @ViewBuilder
     private var iPadSplitViewLayout: some View {
         #if os(iOS)
         NavigationSplitView {
@@ -131,24 +127,18 @@ struct MainTabView: View {
                 NavigationLink(value: 0) {
                     Label("Arcs", systemImage: "rays")
                 }
-                NavigationLink(value: 1) {
-                    Label("Stacks", systemImage: "square.stack.3d.up")
-                }
-                NavigationLink(value: 2) {
-                    Label("Activity", systemImage: "clock.arrow.circlepath")
-                }
-                NavigationLink(value: 3) {
-                    Label("Settings", systemImage: "gear")
+                .navigationTitle("Dequeue")
+                .listStyle(.sidebar)
+            } detail: {
+                ZStack(alignment: .bottom) {
+                    detailContentForSelection
+                        .frame(maxHeight: .infinity, alignment: .top)
+                    floatingBanners
                 }
             }
-            .navigationTitle("Dequeue")
-            .listStyle(.sidebar)
-        } detail: {
-            ZStack(alignment: .bottom) {
-                detailContentForSelection
-                    .frame(maxHeight: .infinity, alignment: .top)
-                floatingBanners
-            }
+        } else {
+            // Fallback for older iOS
+            iPhoneTabViewLayout
         }
         #else
         EmptyView()
