@@ -177,6 +177,18 @@ final class EventService {
         try await recordEvent(type: .taskActivated, payload: payload, entityId: task.id)
     }
 
+    /// Records a task.delegatedToAI event when a task is delegated to an AI agent (DEQ-56)
+    func recordTaskDelegatedToAI(_ task: QueueTask, aiAgentId: String, aiAgentName: String?) async throws {
+        let payload = TaskDelegatedToAIPayload(
+            taskId: task.id,
+            stackId: task.stack?.id ?? "",
+            aiAgentId: aiAgentId,
+            aiAgentName: aiAgentName,
+            fullState: TaskState.from(task)
+        )
+        try await recordEvent(type: .taskDelegatedToAI, payload: payload, entityId: task.id)
+    }
+
     func recordTaskReordered(_ tasks: [QueueTask]) async throws {
         let payload = TaskReorderedPayload(
             taskIds: tasks.map { $0.id },
@@ -653,6 +665,11 @@ struct TaskState: Codable {
     let createdAt: Int64
     let updatedAt: Int64
     let deleted: Bool
+    
+    // AI delegation fields (DEQ-56)
+    let delegatedToAI: Bool?
+    let aiAgentId: String?
+    let aiDelegatedAt: Int64?
 
     static func from(_ task: QueueTask) -> TaskState {
         TaskState(
@@ -668,7 +685,10 @@ struct TaskState: Codable {
             lastActiveTime: task.lastActiveTime.map { Int64($0.timeIntervalSince1970 * 1_000) },
             createdAt: Int64(task.createdAt.timeIntervalSince1970 * 1_000),
             updatedAt: Int64(task.updatedAt.timeIntervalSince1970 * 1_000),
-            deleted: task.isDeleted
+            deleted: task.isDeleted,
+            delegatedToAI: task.delegatedToAI,
+            aiAgentId: task.aiAgentId,
+            aiDelegatedAt: task.aiDelegatedAt.map { Int64($0.timeIntervalSince1970 * 1_000) }
         )
     }
 }
@@ -898,6 +918,15 @@ struct TaskStatusPayload: Codable {
 struct TaskReorderedPayload: Codable {
     let taskIds: [String]
     let sortOrders: [Int]
+}
+
+/// Payload for task.delegatedToAI event (DEQ-56)
+struct TaskDelegatedToAIPayload: Codable {
+    let taskId: String
+    let stackId: String
+    let aiAgentId: String
+    let aiAgentName: String?
+    let fullState: TaskState
 }
 
 // Reminder payloads

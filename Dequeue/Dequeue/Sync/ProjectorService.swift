@@ -136,7 +136,7 @@ struct EntityLookupCache {
                 collectStackEventIds(from: event, eventType: eventType)
 
             case .taskCreated, .taskUpdated, .taskDeleted, .taskCompleted,
-                 .taskActivated, .taskClosed, .taskReordered:
+                 .taskActivated, .taskClosed, .taskReordered, .taskDelegatedToAI:
                 collectTaskEventIds(from: event, eventType: eventType)
 
             case .reminderCreated, .reminderUpdated, .reminderSnoozed, .reminderDeleted:
@@ -522,7 +522,7 @@ enum ProjectorService {
 
         // Task events
         case .taskCreated, .taskUpdated, .taskDeleted, .taskCompleted,
-             .taskActivated, .taskClosed, .taskReordered:
+             .taskActivated, .taskClosed, .taskReordered, .taskDelegatedToAI:
             try applyTaskEvent(event: event, eventType: eventType, context: context, cache: &cache)
 
         // Reminder events
@@ -602,6 +602,8 @@ enum ProjectorService {
             try applyTaskClosed(event: event, context: context, cache: cache)
         case .taskReordered:
             try applyTaskReordered(event: event, context: context, cache: cache)
+        case .taskDelegatedToAI:
+            try applyTaskDelegatedToAI(event: event, context: context, cache: cache)
         default:
             break
         }
@@ -1210,6 +1212,37 @@ enum ProjectorService {
             task.syncState = .synced
             task.lastSyncedAt = Date()
         }
+    }
+
+    /// Applies a task.delegatedToAI event (DEQ-56)
+    private static func applyTaskDelegatedToAI(
+        event: Event,
+        context: ModelContext,
+        cache: EntityLookupCache
+    ) throws {
+        let payload = try event.decodePayload(TaskStatusPayload.self)
+        guard let task = try findTask(id: payload.taskId, context: context, cache: cache) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !task.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: task.updatedAt,
+            entityType: .task,
+            entityId: payload.taskId,
+            conflictType: .update,
+            context: context
+        ) else { return }
+
+        // Update AI delegation fields from full state
+        task.delegatedToAI = payload.fullState.delegatedToAI ?? false
+        task.aiAgentId = payload.fullState.aiAgentId
+        task.aiDelegatedAt = payload.fullState.aiDelegatedAt.map { Date(timeIntervalSince1970: TimeInterval($0) / 1_000) }
+        task.updatedAt = event.timestamp  // LWW: Use event timestamp
+        task.syncState = .synced
+        task.lastSyncedAt = Date()
     }
 
     // MARK: - Reminder Events
