@@ -160,6 +160,20 @@ struct StackEditorView: View {
                 .modifier(alertsModifier)
                 .modifier(sheetsModifier)
                 .modifier(lifecycleModifier)
+                #if os(macOS)
+                .focusedValue(\.newTaskAction) {
+                    // DEQ-50: ⌘T creates new task (when in stack editor)
+                    if case .edit = mode, !isReadOnly {
+                        showAddTask = true
+                    }
+                }
+                .focusedValue(\.deleteItemAction) {
+                    // DEQ-50: Delete key deletes stack (with confirmation)
+                    if case .edit(let stack) = mode, !isReadOnly {
+                        showDeleteConfirmation = true
+                    }
+                }
+                #endif
         }
     }
 }

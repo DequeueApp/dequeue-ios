@@ -47,6 +47,12 @@ struct MainTabView: View {
             }
             .environment(\.undoCompletionManager, undoCompletionManager)
             .environment(\.attachmentUploadCoordinator, attachmentUploadCoordinator)
+            #if os(macOS)
+            .focusedValue(\.openSettingsAction) {
+                // DEQ-50: Navigate to Settings tab with ⌘,
+                selectedTab = 3
+            }
+            #endif
             .task {
                 if cachedDeviceId.isEmpty {
                     cachedDeviceId = await DeviceService.shared.getDeviceId()
