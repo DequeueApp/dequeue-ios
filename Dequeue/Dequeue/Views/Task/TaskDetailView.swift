@@ -195,6 +195,18 @@ struct TaskDetailView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    
+                    if let delegatedAt = task.aiDelegatedAt {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .font(.caption2)
+                            Text("Delegated to AI")
+                            Text("•")
+                            Text(delegatedAt, style: .relative)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.purple)
+                    }
                 }
 
                 Spacer()

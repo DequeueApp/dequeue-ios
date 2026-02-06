@@ -55,6 +55,10 @@ struct TaskRowView: View {
                 if isActive {
                     ActiveBadge()
                 }
+                
+                if task.aiDelegatedAt != nil {
+                    AIDelegationBadge()
+                }
             }
 
             if let description = task.taskDescription, !description.isEmpty {
@@ -92,6 +96,25 @@ private struct ActiveBadge: View {
             .background(.blue.opacity(0.15))
             .foregroundStyle(.blue)
             .clipShape(Capsule())
+    }
+}
+
+// MARK: - AI Delegation Badge
+
+private struct AIDelegationBadge: View {
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "sparkles")
+                .font(.caption2)
+            Text("AI")
+                .font(.caption2)
+                .fontWeight(.medium)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(.purple.opacity(0.15))
+        .foregroundStyle(.purple)
+        .clipShape(Capsule())
     }
 }
 
