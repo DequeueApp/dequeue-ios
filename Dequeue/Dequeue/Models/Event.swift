@@ -135,7 +135,7 @@ extension Event {
         }
     }
 
-    func decodeMetadata<T: Decodable>(_ type: T.Type) throws -> T? {
+    nonisolated func decodeMetadata<T: Decodable>(_ type: T.Type) throws -> T? {
         guard let metadata else { return nil }
         return try JSONDecoder().decode(type, from: metadata)
     }
@@ -178,17 +178,17 @@ struct EventMetadata: Codable, Sendable {
 
 extension Event {
     /// Decode the event's metadata as EventMetadata (DEQ-55)
-    func actorMetadata() throws -> EventMetadata? {
+    nonisolated func actorMetadata() throws -> EventMetadata? {
         try decodeMetadata(EventMetadata.self)
     }
 
     /// Check if this event was created by an AI agent
-    var isFromAI: Bool {
+    nonisolated var isFromAI: Bool {
         (try? actorMetadata()?.actorType == .ai) ?? false
     }
 
     /// Check if this event was created by a human user
-    var isFromHuman: Bool {
+    nonisolated var isFromHuman: Bool {
         !isFromAI
     }
 }
