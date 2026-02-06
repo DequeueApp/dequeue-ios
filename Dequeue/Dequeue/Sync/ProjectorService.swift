@@ -136,7 +136,8 @@ struct EntityLookupCache {
                 collectStackEventIds(from: event, eventType: eventType)
 
             case .taskCreated, .taskUpdated, .taskDeleted, .taskCompleted,
-                 .taskActivated, .taskClosed, .taskReordered, .taskDelegatedToAI:
+                 .taskActivated, .taskClosed, .taskReordered, .taskDelegatedToAI,
+                 .taskAICompleted:
                 collectTaskEventIds(from: event, eventType: eventType)
 
             case .reminderCreated, .reminderUpdated, .reminderSnoozed, .reminderDeleted:
@@ -522,7 +523,8 @@ enum ProjectorService {
 
         // Task events
         case .taskCreated, .taskUpdated, .taskDeleted, .taskCompleted,
-             .taskActivated, .taskClosed, .taskReordered, .taskDelegatedToAI:
+             .taskActivated, .taskClosed, .taskReordered, .taskDelegatedToAI,
+             .taskAICompleted:
             try applyTaskEvent(event: event, eventType: eventType, context: context, cache: &cache)
 
         // Reminder events
