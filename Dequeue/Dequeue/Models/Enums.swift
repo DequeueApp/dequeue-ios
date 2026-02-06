@@ -62,7 +62,7 @@ struct EventMetadata: Codable, Sendable {
     /// AI agent identifier (required when actorType is .ai, nil otherwise)
     var actorId: String?
 
-    init(actorType: ActorType = .human, actorId: String? = nil) {
+    nonisolated init(actorType: ActorType = .human, actorId: String? = nil) {
         self.actorType = actorType
         self.actorId = actorId
     }
