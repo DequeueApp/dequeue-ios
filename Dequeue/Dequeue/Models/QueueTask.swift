@@ -28,6 +28,11 @@ final class QueueTask {
     var updatedAt: Date
     var isDeleted: Bool
 
+    // AI delegation fields (DEQ-54)
+    var delegatedToAI: Bool
+    var aiAgentId: String?
+    var aiDelegatedAt: Date?
+
     // Sync fields
     var userId: String?
     var deviceId: String?
@@ -60,6 +65,9 @@ final class QueueTask {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         isDeleted: Bool = false,
+        delegatedToAI: Bool = false,
+        aiAgentId: String? = nil,
+        aiDelegatedAt: Date? = nil,
         userId: String? = nil,
         deviceId: String? = nil,
         syncState: SyncState = .pending,
@@ -85,6 +93,9 @@ final class QueueTask {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isDeleted = isDeleted
+        self.delegatedToAI = delegatedToAI
+        self.aiAgentId = aiAgentId
+        self.aiDelegatedAt = aiDelegatedAt
         self.userId = userId
         self.deviceId = deviceId
         self.syncState = syncState
