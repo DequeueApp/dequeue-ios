@@ -137,6 +137,7 @@ extension Event {
 
     nonisolated func decodeMetadata<T: Decodable>(_ type: T.Type) throws -> T? {
         guard let metadata else { return nil }
+        // Decode directly - metadata is just Data, safe to access without synchronization
         return try JSONDecoder().decode(type, from: metadata)
     }
 }
@@ -150,31 +151,6 @@ extension Event {
 }
 
 // MARK: - Event Metadata (DEQ-55)
-
-/// Metadata attached to events to track who/what created them.
-/// Includes actor type (human vs AI) and optional AI agent identification.
-struct EventMetadata: Codable, Sendable {
-    /// Type of actor that created this event (human or AI)
-    var actorType: ActorType
-
-    /// AI agent identifier (required when actorType is .ai, nil otherwise)
-    var actorId: String?
-
-    init(actorType: ActorType = .human, actorId: String? = nil) {
-        self.actorType = actorType
-        self.actorId = actorId
-    }
-
-    /// Create metadata for a human actor
-    static func human() -> EventMetadata {
-        EventMetadata(actorType: .human, actorId: nil)
-    }
-
-    /// Create metadata for an AI actor
-    static func ai(agentId: String) -> EventMetadata {
-        EventMetadata(actorType: .ai, actorId: agentId)
-    }
-}
 
 extension Event {
     /// Decode the event's metadata as EventMetadata (DEQ-55)
