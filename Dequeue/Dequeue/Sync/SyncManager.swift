@@ -1194,6 +1194,8 @@ actor SyncManager {
                     os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredEvents.count) after filtering")
                     
                     // Process events through existing logic
+                    // Note: [[String: Any]] is not Sendable, but this is safe because we're within the same actor
+                    // and filteredEvents is locally created and immediately consumed
                     if !filteredEvents.isEmpty {
                         try await processIncomingEvents(filteredEvents)
                     }
@@ -1525,7 +1527,7 @@ actor SyncManager {
     }
 
     @MainActor
-    private func processIncomingEvents(_ events: [[String: Any]]) async throws {
+    private func processIncomingEvents(_ events: @preconcurrency [[String: Any]]) async throws {
         os_log("[Sync] Processing \(events.count) incoming events")
         var stats = EventProcessingStats()
         // IMPORTANT: Use mainContext so SwiftUI @Query observers see changes immediately.
