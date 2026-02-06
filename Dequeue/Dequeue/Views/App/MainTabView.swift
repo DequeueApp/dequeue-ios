@@ -79,13 +79,27 @@ struct MainTabView: View {
 
     /// Standard tab bar height on iOS
     private let tabBarHeight: CGFloat = 49
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
 
     private var iOSLayout: some View {
         #if os(iOS)
-        applySharedModifiers(
-            ZStack(alignment: .bottom) {
-                TabView(selection: $selectedTab) {
+        // DEQ-51: Use split view on large iPads
+        if isIPad && horizontalSizeClass == .regular {
+            applySharedModifiers(iPadSplitViewLayout)
+        } else {
+            applySharedModifiers(iPhoneTabViewLayout)
+        }
+        #else
+        EmptyView()
+        #endif
+    }
+
+    #if os(iOS)
+    private var iPhoneTabViewLayout: some View {
+        ZStack(alignment: .bottom) {
+            TabView(selection: $selectedTab) {
                     ArcsView()
                         .tabItem { Label("Arcs", systemImage: "rays") }
                         .tag(0)
@@ -101,11 +115,48 @@ struct MainTabView: View {
                 }
                 floatingBanners
             }
-        )
-        #else
-        EmptyView()
-        #endif
+        }
     }
+
+    /// iPad split view layout with sidebar navigation (DEQ-51)
+    private var iPadSplitViewLayout: some View {
+        NavigationSplitView {
+            List(selection: $selectedTab) {
+                NavigationLink(value: 0) {
+                    Label("Arcs", systemImage: "rays")
+                }
+                NavigationLink(value: 1) {
+                    Label("Stacks", systemImage: "square.stack.3d.up")
+                }
+                NavigationLink(value: 2) {
+                    Label("Activity", systemImage: "clock.arrow.circlepath")
+                }
+                NavigationLink(value: 3) {
+                    Label("Settings", systemImage: "gear")
+                }
+            }
+            .navigationTitle("Dequeue")
+            .listStyle(.sidebar)
+        } detail: {
+            ZStack(alignment: .bottom) {
+                detailContentForSelection
+                    .frame(maxHeight: .infinity, alignment: .top)
+                floatingBanners
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var detailContentForSelection: some View {
+        switch selectedTab {
+        case 0: ArcsView()
+        case 1: StacksView()
+        case 2: ActivityFeedView()
+        case 3: SettingsView()
+        default: ArcsView()
+        }
+    }
+    #endif
 
     #if os(iOS)
     private var floatingBanners: some View {
