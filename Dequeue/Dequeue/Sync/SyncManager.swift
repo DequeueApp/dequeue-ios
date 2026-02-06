@@ -1109,14 +1109,15 @@ actor SyncManager {
             wsTask.cancel(with: .goingAway, reason: nil)
         }
         
-        // Send stream request
+        // Send stream request (manual JSON to avoid actor isolation with Codable)
         let requestType = "sync.stream.request"
         let requestSince = currentCheckpoint
         
-        let requestData = try await Task.detached { @Sendable in
-            let request = SyncStreamRequest(type: requestType, since: requestSince)
-            return try JSONEncoder().encode(request)
-        }.value
+        let requestDict: [String: Any] = [
+            "type": requestType,
+            "since": requestSince as Any
+        ]
+        let requestData = try JSONSerialization.data(withJSONObject: requestDict)
         try await wsTask.send(.data(requestData))
         os_log("[Sync] Sent sync.stream.request")
         
