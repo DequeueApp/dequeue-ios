@@ -163,13 +163,21 @@ struct RootView: View {
         syncStatusViewModel?.initialSyncEventsProcessed ?? 0
     }
 
+    private var initialSyncTotalEvents: Int? {
+        guard let total = syncStatusViewModel?.initialSyncTotalEvents, total > 0 else { return nil }
+        return total
+    }
+
     var body: some View {
         Group {
             if authService.isLoading {
                 SplashView()
             } else if authService.isAuthenticated {
                 if shouldShowInitialSyncLoading {
-                    InitialSyncLoadingView(eventsProcessed: initialSyncEventsProcessed)
+                    InitialSyncLoadingView(
+                        eventsProcessed: initialSyncEventsProcessed,
+                        totalEvents: initialSyncTotalEvents
+                    )
                 } else {
                     MainTabView()
                 }

@@ -214,6 +214,11 @@ actor SyncManager {
         _initialSyncEventsProcessed
     }
 
+    /// Total number of events to sync during initial sync (DEQ-240)
+    var initialSyncTotalEvents: Int {
+        _initialSyncTotalEvents
+    }
+
     // Key for storing last sync checkpoint in UserDefaults
     private let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
 
