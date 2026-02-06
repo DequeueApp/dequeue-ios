@@ -154,19 +154,26 @@ extension Event {
 
 extension Event {
     /// Decode the event's metadata as EventMetadata (DEQ-55)
-    nonisolated func actorMetadata() throws -> EventMetadata? {
+    nonisolated func actorMetadata() async throws -> EventMetadata? {
         guard let metadata else { return nil }
-        // Decode directly without using the generic method to avoid actor isolation issues
-        return try JSONDecoder().decode(EventMetadata.self, from: metadata)
+        // Use Task.detached to decode in a fully nonisolated context
+        // This sidesteps actor isolation on Decodable conformance
+        return try await Task.detached {
+            try JSONDecoder().decode(EventMetadata.self, from: metadata)
+        }.value
     }
 
     /// Check if this event was created by an AI agent
     nonisolated var isFromAI: Bool {
-        (try? actorMetadata()?.actorType == .ai) ?? false
+        get async {
+            (try? await actorMetadata()?.actorType == .ai) ?? false
+        }
     }
 
     /// Check if this event was created by a human user
     nonisolated var isFromHuman: Bool {
-        !isFromAI
+        get async {
+            await !isFromAI
+        }
     }
 }
