@@ -812,7 +812,7 @@ private struct TaskHistoryRow: View {
         case "task.created": return "plus.circle.fill"
         case "task.updated": return "pencil.circle.fill"
         case "task.completed": return "checkmark.circle.fill"
-        case "task.aiCompleted": return "sparkle.magnifyingglass"
+        case "task.aiCompleted": return "wand.and.stars"
         case "task.activated": return "star.fill"
         case "task.deleted": return "trash.circle.fill"
         case "task.reordered": return "arrow.up.arrow.down"
