@@ -155,7 +155,9 @@ extension Event {
 extension Event {
     /// Decode the event's metadata as EventMetadata (DEQ-55)
     nonisolated func actorMetadata() throws -> EventMetadata? {
-        try decodeMetadata(EventMetadata.self)
+        guard let metadata else { return nil }
+        // Decode directly without using the generic method to avoid actor isolation issues
+        return try JSONDecoder().decode(EventMetadata.self, from: metadata)
     }
 
     /// Check if this event was created by an AI agent
