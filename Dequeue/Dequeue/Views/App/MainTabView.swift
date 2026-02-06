@@ -113,8 +113,8 @@ struct MainTabView: View {
         #endif
     }
 
-    #if os(iOS)
     private var iPhoneTabViewLayout: some View {
+        #if os(iOS)
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
                 ArcsView()
@@ -132,10 +132,14 @@ struct MainTabView: View {
             }
             floatingBanners
         }
+        #else
+        EmptyView()
+        #endif
     }
 
     /// iPad split view layout with sidebar navigation (DEQ-51)
     private var iPadSplitViewLayout: some View {
+        #if os(iOS)
         NavigationSplitView {
             List {
                 NavigationLink(value: 0) {
@@ -160,10 +164,14 @@ struct MainTabView: View {
                 floatingBanners
             }
         }
+        #else
+        EmptyView()
+        #endif
     }
 
     @ViewBuilder
     private var detailContentForSelection: some View {
+        #if os(iOS)
         switch selectedTab {
         case 0: ArcsView()
         case 1: StacksView()
@@ -171,8 +179,10 @@ struct MainTabView: View {
         case 3: SettingsView()
         default: ArcsView()
         }
+        #else
+        EmptyView()
+        #endif
     }
-    #endif
 
     #if os(iOS)
     private var floatingBanners: some View {
