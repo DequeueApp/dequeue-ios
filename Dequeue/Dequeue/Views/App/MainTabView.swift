@@ -83,6 +83,7 @@ struct MainTabView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     #endif
 
+    @ViewBuilder
     private var iOSLayout: some View {
         #if os(iOS)
         // DEQ-51: Use split view on large iPads
