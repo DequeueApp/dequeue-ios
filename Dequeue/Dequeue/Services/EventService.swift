@@ -587,16 +587,25 @@ final class EventService {
     ///
     /// JSON encoding is performed off the main thread to prevent UI blocking.
     /// The modelContext.insert() still happens on @MainActor as required by SwiftData.
-    private func recordEvent<T: Encodable>(type: EventType, payload: T, entityId: String? = nil) async throws {
+    private func recordEvent<T: Encodable>(
+        type: EventType,
+        payload: T,
+        entityId: String? = nil,
+        metadata: EventMetadata? = nil
+    ) async throws {
         // Encode JSON on main thread first (payload may not be Sendable due to [String: Any])
         // then the heavy work is already done. For truly large payloads, consider
         // converting to a Sendable representation first.
         let payloadData = try JSONEncoder().encode(payload)
 
+        // Encode metadata (DEQ-55: defaults to human actor if not specified)
+        let metadataData = try JSONEncoder().encode(metadata ?? EventMetadata.human())
+
         // Insert event on main thread (required by SwiftData @MainActor)
         let event = Event(
             eventType: type,
             payload: payloadData,
+            metadata: metadataData,
             entityId: entityId,
             userId: context.userId,
             deviceId: context.deviceId,

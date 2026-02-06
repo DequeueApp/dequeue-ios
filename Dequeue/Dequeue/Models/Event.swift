@@ -148,3 +148,47 @@ extension Event {
         try JSONEncoder().encode(value)
     }
 }
+
+// MARK: - Event Metadata (DEQ-55)
+
+/// Metadata attached to events to track who/what created them.
+/// Includes actor type (human vs AI) and optional AI agent identification.
+struct EventMetadata: Codable {
+    /// Type of actor that created this event (human or AI)
+    var actorType: ActorType
+
+    /// AI agent identifier (required when actorType is .ai, nil otherwise)
+    var actorId: String?
+
+    init(actorType: ActorType = .human, actorId: String? = nil) {
+        self.actorType = actorType
+        self.actorId = actorId
+    }
+
+    /// Create metadata for a human actor
+    static func human() -> EventMetadata {
+        EventMetadata(actorType: .human, actorId: nil)
+    }
+
+    /// Create metadata for an AI actor
+    static func ai(agentId: String) -> EventMetadata {
+        EventMetadata(actorType: .ai, actorId: agentId)
+    }
+}
+
+extension Event {
+    /// Decode the event's metadata as EventMetadata (DEQ-55)
+    func actorMetadata() throws -> EventMetadata? {
+        try decodeMetadata(EventMetadata.self)
+    }
+
+    /// Check if this event was created by an AI agent
+    var isFromAI: Bool {
+        (try? actorMetadata()?.actorType == .ai) ?? false
+    }
+
+    /// Check if this event was created by a human user
+    var isFromHuman: Bool {
+        !isFromAI
+    }
+}

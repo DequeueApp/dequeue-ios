@@ -45,6 +45,14 @@ enum ParentType: String, Codable, CaseIterable {
     case arc
 }
 
+/// Distinguishes whether an event was created by a human user or an AI agent (DEQ-55)
+enum ActorType: String, Codable, CaseIterable {
+    /// Event created by a human user
+    case human
+    /// Event created by an AI agent
+    case ai
+}
+
 enum SyncState: String, Codable, CaseIterable {
     case pending
     case synced
