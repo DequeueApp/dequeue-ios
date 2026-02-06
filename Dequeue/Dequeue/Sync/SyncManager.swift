@@ -106,6 +106,43 @@ private struct ReminderProjection: @preconcurrency Decodable, Sendable {
     let createdAt: String
 }
 
+// MARK: - WebSocket Stream Messages (DEQ-243)
+
+/// Client request to start streaming events
+private struct SyncStreamRequest: Codable, Sendable {
+    let type: String // "sync.stream.request"
+    let since: String? // RFC3339 timestamp, optional
+}
+
+/// Server response indicating stream start with total event count
+private struct SyncStreamStart: Codable, Sendable {
+    let type: String // "sync.stream.start"
+    let totalEvents: Int64
+}
+
+/// Server response containing a batch of events
+/// Note: events are parsed separately using JSONSerialization to match REST API handling
+private struct SyncStreamBatch: Codable, Sendable {
+    let type: String // "sync.stream.batch"
+    // events field handled separately via JSONSerialization
+    let batchIndex: Int
+    let isLast: Bool
+}
+
+/// Server response indicating stream completion
+private struct SyncStreamComplete: Codable, Sendable {
+    let type: String // "sync.stream.complete"
+    let processedEvents: Int64
+    let newCheckpoint: String
+}
+
+/// Server response indicating an error occurred during streaming
+private struct SyncStreamError: Codable, Sendable {
+    let type: String // "sync.stream.error"
+    let error: String
+    let code: String?
+}
+
 // swiftlint:disable:next type_body_length
 actor SyncManager {
     private var webSocketTask: URLSessionWebSocketTask?
@@ -1017,7 +1054,219 @@ actor SyncManager {
     /// Maximum events to request per pull (backend max is 1000)
     private static let pullBatchSize = 1_000
 
+    /// Stream events via WebSocket for fast initial sync (DEQ-243)
+    /// Returns true if streaming completed successfully, false if should fall back to REST
+    private func streamEventsViaWebSocket() async throws -> Bool {
+        let startTime = Date()
+        let syncId = Self.generateSyncId()
+        
+        os_log("[Sync] WebSocket stream starting: syncId=\(syncId)")
+        
+        guard let token = try await refreshToken() else {
+            os_log("[Sync] WebSocket stream failed: Not authenticated")
+            return false
+        }
+        
+        // Get last checkpoint
+        let currentCheckpoint = await getLastSyncTimestamp()
+        os_log("[Sync] WebSocket stream checkpoint: \(currentCheckpoint)")
+        
+        // Connect WebSocket to /v1/sync/stream endpoint
+        let baseURL = await MainActor.run { Configuration.syncAPIBaseURL }
+        guard var urlComponents = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else {
+            os_log("[Sync] WebSocket stream failed: Invalid base URL")
+            return false
+        }
+        
+        // Change http/https to ws/wss
+        if urlComponents.scheme == "https" {
+            urlComponents.scheme = "wss"
+        } else if urlComponents.scheme == "http" {
+            urlComponents.scheme = "ws"
+        }
+        
+        urlComponents.path = "/v1/sync/stream"
+        
+        guard let wsURL = urlComponents.url else {
+            os_log("[Sync] WebSocket stream failed: Invalid WebSocket URL")
+            return false
+        }
+        
+        var request = URLRequest(url: wsURL)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        let wsTask = session.webSocketTask(with: request)
+        wsTask.resume()
+        
+        os_log("[Sync] WebSocket stream connected to \(wsURL.absoluteString)")
+        
+        defer {
+            wsTask.cancel(with: .goingAway, reason: nil)
+        }
+        
+        // Send stream request
+        let streamRequest = SyncStreamRequest(
+            type: "sync.stream.request",
+            since: currentCheckpoint
+        )
+        
+        let requestData = try JSONEncoder().encode(streamRequest)
+        try await wsTask.send(.data(requestData))
+        os_log("[Sync] Sent sync.stream.request")
+        
+        var totalEventsReceived = 0
+        var latestCheckpoint = currentCheckpoint
+        var receivedStart = false
+        var receivedComplete = false
+        
+        // Receive messages in a loop
+        while !receivedComplete {
+            let message = try await wsTask.receive()
+            
+            switch message {
+            case .data(let data):
+                // Parse message type
+                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let messageType = json["type"] as? String else {
+                    os_log("[Sync] WebSocket stream: Invalid message format")
+                    return false
+                }
+                
+                switch messageType {
+                case "sync.stream.start":
+                    guard let totalEvents = json["totalEvents"] as? Int64 else {
+                        os_log("[Sync] WebSocket stream: Invalid sync.stream.start")
+                        return false
+                    }
+                    
+                    _isInitialSyncInProgress = true
+                    _initialSyncTotalEvents = Int(totalEvents)
+                    _initialSyncEventsProcessed = 0
+                    receivedStart = true
+                    
+                    os_log("[Sync] WebSocket stream started: \(totalEvents) total events")
+                    
+                case "sync.stream.batch":
+                    guard receivedStart else {
+                        os_log("[Sync] WebSocket stream: Received batch before start")
+                        return false
+                    }
+                    
+                    guard let events = json["events"] as? [[String: Any]],
+                          let batchIndex = json["batchIndex"] as? Int,
+                          let isLast = json["isLast"] as? Bool else {
+                        os_log("[Sync] WebSocket stream: Invalid sync.stream.batch")
+                        return false
+                    }
+                    
+                    os_log("[Sync] Processing batch \(batchIndex): \(events.count) events, isLast=\(isLast)")
+                    
+                    // Filter and validate events (similar to processPullResponse logic)
+                    let deviceId = await DeviceService.shared.getDeviceId()
+                    
+                    // During initial sync, include all events; during normal sync, exclude current device
+                    let fromOtherDevices: [[String: Any]]
+                    if _isInitialSyncInProgress {
+                        fromOtherDevices = events
+                    } else {
+                        fromOtherDevices = events.filter { event in
+                            guard let eventDeviceId = event["device_id"] as? String else { return true }
+                            return eventDeviceId != deviceId
+                        }
+                    }
+                    
+                    // Filter out legacy events (payloadVersion < 2)
+                    let filteredEvents = fromOtherDevices.filter { event in
+                        if let payloadVersion = event["payload_version"] as? Int {
+                            return payloadVersion >= Event.currentPayloadVersion
+                        } else {
+                            return false
+                        }
+                    }
+                    
+                    os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredEvents.count) after filtering")
+                    
+                    // Process events through existing logic
+                    if !filteredEvents.isEmpty {
+                        try await processIncomingEvents(filteredEvents)
+                    }
+                    
+                    totalEventsReceived += filteredEvents.count
+                    _initialSyncEventsProcessed = totalEventsReceived
+                    
+                    // Update checkpoint from last event in batch
+                    if let lastEvent = events.last,
+                       let tsString = lastEvent["ts"] as? String {
+                        latestCheckpoint = tsString
+                    }
+                    
+                    os_log("[Sync] Batch \(batchIndex) complete: \(totalEventsReceived) total events processed")
+                    
+                case "sync.stream.complete":
+                    guard let processedEvents = json["processedEvents"] as? Int64,
+                          let newCheckpoint = json["newCheckpoint"] as? String else {
+                        os_log("[Sync] WebSocket stream: Invalid sync.stream.complete")
+                        return false
+                    }
+                    
+                    receivedComplete = true
+                    latestCheckpoint = newCheckpoint
+                    
+                    // Save final checkpoint
+                    saveLastSyncCheckpoint(newCheckpoint)
+                    
+                    let duration = Date().timeIntervalSince(startTime)
+                    os_log(
+                        "[Sync] WebSocket stream complete: \(processedEvents) events in \(String(format: "%.2f", duration))s"
+                    )
+                    
+                    await ErrorReportingService.logSyncComplete(
+                        syncId: syncId,
+                        duration: duration,
+                        itemsUploaded: 0,
+                        itemsDownloaded: totalEventsReceived
+                    )
+                    
+                    _isInitialSyncInProgress = false
+                    
+                case "sync.stream.error":
+                    let errorMessage = json["error"] as? String ?? "Unknown error"
+                    let errorCode = json["code"] as? String ?? "UNKNOWN"
+                    os_log("[Sync] WebSocket stream error: \(errorMessage) (code: \(errorCode))")
+                    
+                    _isInitialSyncInProgress = false
+                    return false
+                    
+                default:
+                    os_log("[Sync] WebSocket stream: Unknown message type: \(messageType)")
+                }
+                
+            case .string(let text):
+                os_log("[Sync] WebSocket stream: Unexpected text message: \(text)")
+                
+            @unknown default:
+                os_log("[Sync] WebSocket stream: Unknown message type")
+            }
+        }
+        
+        return true
+    }
+
     func pullEvents() async throws {
+        // Try WebSocket streaming first (DEQ-243) - much faster for large event sets
+        do {
+            let success = try await streamEventsViaWebSocket()
+            if success {
+                os_log("[Sync] Pull completed via WebSocket streaming")
+                return
+            } else {
+                os_log("[Sync] WebSocket streaming returned false, falling back to REST")
+            }
+        } catch {
+            os_log("[Sync] WebSocket streaming failed, falling back to REST: \(error)")
+        }
+        
+        // Fallback to REST API polling
         let startTime = Date()
         let syncId = Self.generateSyncId()
         var totalEventsDownloaded = 0
