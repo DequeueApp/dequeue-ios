@@ -156,10 +156,10 @@ extension Event {
     /// Decode the event's metadata as EventMetadata (DEQ-55)
     nonisolated func actorMetadata() async throws -> EventMetadata? {
         guard let metadata else { return nil }
-        // Use Task.detached to decode in a fully nonisolated context
-        // This sidesteps actor isolation on Decodable conformance
+        // Capture metadata value before Task.detached to avoid actor boundary issues
+        let metadataData = metadata
         return try await Task.detached {
-            try JSONDecoder().decode(EventMetadata.self, from: metadata)
+            try JSONDecoder().decode(EventMetadata.self, from: metadataData)
         }.value
     }
 
