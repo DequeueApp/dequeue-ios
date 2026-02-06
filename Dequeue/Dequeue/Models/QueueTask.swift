@@ -19,6 +19,7 @@ final class QueueTask {
     var locationLatitude: Double?
     var locationLongitude: Double?
     var attachments: [String]
+    var tags: [String]  // DEQ-31: Tag support for tasks
     var status: TaskStatus
     var priority: Int?
     var blockedReason: String?
@@ -57,6 +58,7 @@ final class QueueTask {
         locationLatitude: Double? = nil,
         locationLongitude: Double? = nil,
         attachments: [String] = [],
+        tags: [String] = [],  // DEQ-31
         status: TaskStatus = .pending,
         priority: Int? = nil,
         blockedReason: String? = nil,
@@ -85,6 +87,7 @@ final class QueueTask {
         self.locationLatitude = locationLatitude
         self.locationLongitude = locationLongitude
         self.attachments = attachments
+        self.tags = tags  // DEQ-31
         self.status = status
         self.priority = priority
         self.blockedReason = blockedReason
