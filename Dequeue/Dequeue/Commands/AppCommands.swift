@@ -94,3 +94,4 @@ extension FocusedValues {
         set { self[OpenSettingsActionKey.self] = newValue }
     }
 }
+
