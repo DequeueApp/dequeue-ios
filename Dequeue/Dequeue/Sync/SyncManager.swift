@@ -1191,14 +1191,16 @@ actor SyncManager {
                         }
                     }
                     
-                    // Capture count BEFORE any logging or sending to avoid multiple accesses
-                    let filteredCount = filteredEvents.count
+                    // Capture BOTH count AND array before ANY usage (logging, sending)
+                    // This prevents Swift 6 data race warnings from multiple accesses
+                    let eventsToProcess = filteredEvents
+                    let filteredCount = eventsToProcess.count
                     
                     os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredCount) after filtering")
                     
                     // Process events - function handles empty array gracefully
-                    // Send immediately without any further access to avoid data races
-                    try await processIncomingEvents(filteredEvents)
+                    // Use captured value to avoid data race
+                    try await processIncomingEvents(eventsToProcess)
                     
                     totalEventsReceived += filteredCount
                     _initialSyncEventsProcessed = totalEventsReceived
