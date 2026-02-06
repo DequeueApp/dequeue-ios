@@ -1193,11 +1193,12 @@ actor SyncManager {
                     
                     os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredEvents.count) after filtering")
                     
-                    // Capture count before sending to @MainActor to avoid data race
+                    // Capture values before sending to @MainActor to avoid data race
                     let filteredCount = filteredEvents.count
+                    let hasEvents = !filteredEvents.isEmpty
                     
                     // Process events through existing logic
-                    if !filteredEvents.isEmpty {
+                    if hasEvents {
                         try await processIncomingEvents(filteredEvents)
                     }
                     
