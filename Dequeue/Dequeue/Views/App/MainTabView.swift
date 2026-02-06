@@ -120,7 +120,7 @@ struct MainTabView: View {
     /// iPad split view layout with sidebar navigation (DEQ-51)
     private var iPadSplitViewLayout: some View {
         NavigationSplitView {
-            List(selection: $selectedTab) {
+            List {
                 NavigationLink(value: 0) {
                     Label("Arcs", systemImage: "rays")
                 }
