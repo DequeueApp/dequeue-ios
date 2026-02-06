@@ -195,6 +195,7 @@ private struct EventDisplayConfig {
         "task.created": EventDisplayConfig(label: "Task Added", icon: "checklist", color: .teal),
         "task.updated": EventDisplayConfig(label: "Task Updated", icon: "pencil", color: .blue),
         "task.completed": EventDisplayConfig(label: "Task Completed", icon: "checkmark.square.fill", color: .purple),
+        "task.aiCompleted": EventDisplayConfig(label: "Task Completed by AI", icon: "wand.and.stars", color: .indigo),
         "task.activated": EventDisplayConfig(label: "Task Activated", icon: "star.fill", color: .cyan),
         "task.deleted": EventDisplayConfig(label: "Task Deleted", icon: "trash", color: .red),
         "task.reordered": EventDisplayConfig(label: "Tasks Reordered", icon: "arrow.up.arrow.down", color: .secondary),
