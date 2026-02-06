@@ -62,19 +62,19 @@ struct EventMetadata: Codable, Sendable {
     /// AI agent identifier (required when actorType is .ai, nil otherwise)
     var actorId: String?
 
-    nonisolated init(actorType: ActorType = .human, actorId: String? = nil) {
-        self.actorType = actorType
-        self.actorId = actorId
-    }
-
     /// Create metadata for a human actor
-    static func human() -> EventMetadata {
+    nonisolated static func human() -> EventMetadata {
         EventMetadata(actorType: .human, actorId: nil)
     }
 
     /// Create metadata for an AI actor
-    static func ai(agentId: String) -> EventMetadata {
+    nonisolated static func ai(agentId: String) -> EventMetadata {
         EventMetadata(actorType: .ai, actorId: agentId)
+    }
+    
+    /// Create metadata from deserialized values (Swift 6 safe)
+    nonisolated static func from(actorType: ActorType, actorId: String?) -> EventMetadata {
+        EventMetadata(actorType: actorType, actorId: actorId)
     }
 }
 

@@ -167,7 +167,7 @@ extension Event {
         }
         
         let actorId = json["actorId"] as? String
-        return EventMetadata(actorType: actorType, actorId: actorId)
+        return EventMetadata.from(actorType: actorType, actorId: actorId)
     }
 
     /// Check if this event was created by an AI agent
