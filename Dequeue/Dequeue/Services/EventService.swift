@@ -670,6 +670,9 @@ struct TaskState: Codable {
     let delegatedToAI: Bool?
     let aiAgentId: String?
     let aiDelegatedAt: Int64?
+    
+    // Tags (DEQ-31)
+    let tags: [String]?
 
     static func from(_ task: QueueTask) -> TaskState {
         TaskState(
@@ -688,7 +691,8 @@ struct TaskState: Codable {
             deleted: task.isDeleted,
             delegatedToAI: task.delegatedToAI,
             aiAgentId: task.aiAgentId,
-            aiDelegatedAt: task.aiDelegatedAt.map { Int64($0.timeIntervalSince1970 * 1_000) }
+            aiDelegatedAt: task.aiDelegatedAt.map { Int64($0.timeIntervalSince1970 * 1_000) },
+            tags: task.tags.isEmpty ? nil : task.tags  // DEQ-31
         )
     }
 }
@@ -1180,11 +1184,15 @@ struct TaskEventPayload: Codable {
     let delegatedToAI: Bool?
     let aiAgentId: String?
     let aiDelegatedAt: Date?
+    
+    // Tags (DEQ-31)
+    let tags: [String]?
 
     enum CodingKeys: String, CodingKey {
         case id, stackId, title, description, status, priority
         case sortOrder, startTime, dueTime, lastActiveTime, deleted, createdAt
         case delegatedToAI, aiAgentId, aiDelegatedAt
+        case tags
     }
 
     init(from decoder: Decoder) throws {
@@ -1245,6 +1253,9 @@ struct TaskEventPayload: Codable {
         } else {
             aiDelegatedAt = try container.decodeIfPresent(Date.self, forKey: .aiDelegatedAt)
         }
+        
+        // Decode tags (DEQ-31)
+        tags = try container.decodeIfPresent([String].self, forKey: .tags)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1276,6 +1287,9 @@ struct TaskEventPayload: Codable {
         if let aiDelegatedAt {
             try container.encode(Int64(aiDelegatedAt.timeIntervalSince1970 * 1_000), forKey: .aiDelegatedAt)
         }
+        
+        // Encode tags (DEQ-31)
+        try container.encodeIfPresent(tags, forKey: .tags)
     }
 }
 
