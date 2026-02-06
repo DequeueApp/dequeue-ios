@@ -793,6 +793,7 @@ private struct TaskHistoryRow: View {
         case "task.created": return "Task Created"
         case "task.updated": return "Task Updated"
         case "task.completed": return "Task Completed"
+        case "task.aiCompleted": return "Task Completed by AI"
         case "task.activated": return "Task Activated"
         case "task.deleted": return "Task Deleted"
         case "task.reordered": return "Tasks Reordered"
@@ -811,6 +812,7 @@ private struct TaskHistoryRow: View {
         case "task.created": return "plus.circle.fill"
         case "task.updated": return "pencil.circle.fill"
         case "task.completed": return "checkmark.circle.fill"
+        case "task.aiCompleted": return "sparkle.magnifyingglass"
         case "task.activated": return "star.fill"
         case "task.deleted": return "trash.circle.fill"
         case "task.reordered": return "arrow.up.arrow.down"
@@ -829,6 +831,7 @@ private struct TaskHistoryRow: View {
         case "task.created": return .green
         case "task.updated": return .blue
         case "task.completed": return .purple
+        case "task.aiCompleted": return .indigo
         case "task.activated": return .cyan
         case "task.deleted": return .red
         case "task.reordered": return .secondary
