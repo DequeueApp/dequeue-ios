@@ -1110,13 +1110,13 @@ actor SyncManager {
         }
         
         // Send stream request (encode in Task to avoid actor isolation issues)
-        let streamRequest = SyncStreamRequest(
-            type: "sync.stream.request",
-            since: currentCheckpoint
-        )
+        // Capture values before encoding to avoid actor isolation issues
+        let requestType = "sync.stream.request"
+        let requestSince = currentCheckpoint
         
         let requestData = try await Task.detached {
-            try JSONEncoder().encode(streamRequest)
+            let request = SyncStreamRequest(type: requestType, since: requestSince)
+            return try JSONEncoder().encode(request)
         }.value
         try await wsTask.send(.data(requestData))
         os_log("[Sync] Sent sync.stream.request")
