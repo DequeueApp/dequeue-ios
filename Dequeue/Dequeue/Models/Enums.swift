@@ -45,6 +45,39 @@ enum ParentType: String, Codable, CaseIterable {
     case arc
 }
 
+/// Distinguishes whether an event was created by a human user or an AI agent (DEQ-55)
+enum ActorType: String, Codable, CaseIterable, Sendable {
+    /// Event created by a human user
+    case human
+    /// Event created by an AI agent
+    case ai
+}
+
+/// Metadata attached to events to track who/what created them (DEQ-55)
+/// Includes actor type (human vs AI) and optional AI agent identification.
+struct EventMetadata: Codable, Sendable {
+    /// Type of actor that created this event (human or AI)
+    var actorType: ActorType
+
+    /// AI agent identifier (required when actorType is .ai, nil otherwise)
+    var actorId: String?
+
+    init(actorType: ActorType = .human, actorId: String? = nil) {
+        self.actorType = actorType
+        self.actorId = actorId
+    }
+
+    /// Create metadata for a human actor
+    static func human() -> EventMetadata {
+        EventMetadata(actorType: .human, actorId: nil)
+    }
+
+    /// Create metadata for an AI actor
+    static func ai(agentId: String) -> EventMetadata {
+        EventMetadata(actorType: .ai, actorId: agentId)
+    }
+}
+
 enum SyncState: String, Codable, CaseIterable {
     case pending
     case synced
@@ -90,6 +123,7 @@ enum EventType: String, Codable, CaseIterable {
     case taskClosed = "task.closed"
     case taskReordered = "task.reordered"
     case taskDelegatedToAI = "task.delegatedToAI"  // DEQ-56
+    case taskAICompleted = "task.aiCompleted"      // DEQ-57
 
     // Reminder events
     case reminderCreated = "reminder.created"

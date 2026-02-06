@@ -135,8 +135,9 @@ extension Event {
         }
     }
 
-    func decodeMetadata<T: Decodable>(_ type: T.Type) throws -> T? {
+    nonisolated func decodeMetadata<T: Decodable>(_ type: T.Type) throws -> T? {
         guard let metadata else { return nil }
+        // Decode directly - metadata is just Data, safe to access without synchronization
         return try JSONDecoder().decode(type, from: metadata)
     }
 }
@@ -146,5 +147,36 @@ extension Event {
 extension Event {
     static func encodePayload<T: Encodable>(_ value: T) throws -> Data {
         try JSONEncoder().encode(value)
+    }
+}
+
+// MARK: - Event Metadata (DEQ-55)
+
+extension Event {
+    /// Decode the event's metadata as EventMetadata (DEQ-55)
+    nonisolated func actorMetadata() throws -> EventMetadata? {
+        guard let metadata else { return nil }
+        // Use manual JSON deserialization to avoid actor-isolated Codable conformance
+        // This sidesteps Swift 6's conservative actor isolation on protocol conformances
+        let json = try JSONSerialization.jsonObject(with: metadata) as? [String: Any]
+        guard let json else { return nil }
+        
+        guard let actorTypeString = json["actorType"] as? String,
+              let actorType = ActorType(rawValue: actorTypeString) else {
+            return nil
+        }
+        
+        let actorId = json["actorId"] as? String
+        return EventMetadata(actorType: actorType, actorId: actorId)
+    }
+
+    /// Check if this event was created by an AI agent
+    nonisolated var isFromAI: Bool {
+        (try? actorMetadata()?.actorType == .ai) ?? false
+    }
+
+    /// Check if this event was created by a human user
+    nonisolated var isFromHuman: Bool {
+        !isFromAI
     }
 }

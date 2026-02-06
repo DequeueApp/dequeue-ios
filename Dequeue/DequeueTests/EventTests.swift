@@ -114,4 +114,83 @@ struct EventTests {
         let decoded = try JSONDecoder().decode(TestData.self, from: encoded)
         #expect(decoded.id == "test-id")
     }
+
+    // MARK: - ActorType Metadata Tests (DEQ-55)
+
+    @Test("EventMetadata human factory creates human actor")
+    func eventMetadataHumanFactory() throws {
+        let metadata = EventMetadata.human()
+
+        #expect(metadata.actorType == .human)
+        #expect(metadata.actorId == nil)
+    }
+
+    @Test("EventMetadata ai factory creates AI actor with agent ID")
+    func eventMetadataAIFactory() throws {
+        let metadata = EventMetadata.ai(agentId: "agent-123")
+
+        #expect(metadata.actorType == .ai)
+        #expect(metadata.actorId == "agent-123")
+    }
+
+    @Test("Event with human actor metadata")
+    func eventWithHumanActorMetadata() throws {
+        let payload = try JSONEncoder().encode(["test": "data"])
+        let metadata = try JSONEncoder().encode(EventMetadata.human())
+
+        let event = Event(
+            eventType: .stackCreated,
+            payload: payload,
+            metadata: metadata,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+
+        let decoded = try event.actorMetadata()
+        #expect(decoded?.actorType == .human)
+        #expect(decoded?.actorId == nil)
+        #expect(event.isFromHuman == true)
+        #expect(event.isFromAI == false)
+    }
+
+    @Test("Event with AI actor metadata")
+    func eventWithAIActorMetadata() throws {
+        let payload = try JSONEncoder().encode(["test": "data"])
+        let metadata = try JSONEncoder().encode(EventMetadata.ai(agentId: "ai-agent-007"))
+
+        let event = Event(
+            eventType: .taskCompleted,
+            payload: payload,
+            metadata: metadata,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+
+        let decoded = try event.actorMetadata()
+        #expect(decoded?.actorType == .ai)
+        #expect(decoded?.actorId == "ai-agent-007")
+        #expect(event.isFromHuman == false)
+        #expect(event.isFromAI == true)
+    }
+
+    @Test("Event with no metadata defaults to human")
+    func eventWithNoMetadataDefaultsToHuman() throws {
+        let payload = try JSONEncoder().encode(["test": "data"])
+
+        let event = Event(
+            eventType: .stackCreated,
+            payload: payload,
+            metadata: nil,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+
+        let decoded = try event.actorMetadata()
+        #expect(decoded == nil)
+        // Without metadata, isFromAI returns false (safe default)
+        #expect(event.isFromAI == false)
+    }
 }
