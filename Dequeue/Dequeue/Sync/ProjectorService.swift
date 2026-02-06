@@ -1047,6 +1047,9 @@ enum ProjectorService {
                 priority: payload.priority,
                 sortOrder: payload.sortOrder,
                 lastActiveTime: payload.lastActiveTime,
+                delegatedToAI: payload.delegatedToAI ?? false,
+                aiAgentId: payload.aiAgentId,
+                aiDelegatedAt: payload.aiDelegatedAt,
                 syncState: .synced,
                 lastSyncedAt: Date()
             )
@@ -2325,6 +2328,14 @@ enum ProjectorService {
         task.startTime = payload.startTime
         task.dueTime = payload.dueTime
         task.lastActiveTime = payload.lastActiveTime
+        
+        // Update AI delegation fields (DEQ-54)
+        if let delegatedToAI = payload.delegatedToAI {
+            task.delegatedToAI = delegatedToAI
+        }
+        task.aiAgentId = payload.aiAgentId
+        task.aiDelegatedAt = payload.aiDelegatedAt
+        
         task.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         task.syncState = .synced
         task.lastSyncedAt = Date()

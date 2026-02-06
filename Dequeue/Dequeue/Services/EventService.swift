@@ -1146,10 +1146,16 @@ struct TaskEventPayload: Codable {
     let lastActiveTime: Date?
     let deleted: Bool
     let createdAt: Date?  // Original creation timestamp from sync
+    
+    // AI delegation fields (DEQ-54)
+    let delegatedToAI: Bool?
+    let aiAgentId: String?
+    let aiDelegatedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, stackId, title, description, status, priority
         case sortOrder, startTime, dueTime, lastActiveTime, deleted, createdAt
+        case delegatedToAI, aiAgentId, aiDelegatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -1199,6 +1205,17 @@ struct TaskEventPayload: Codable {
         } else {
             createdAt = try? container.decode(Date.self, forKey: .createdAt)
         }
+        
+        // Decode AI delegation fields (DEQ-54)
+        delegatedToAI = try container.decodeIfPresent(Bool.self, forKey: .delegatedToAI)
+        aiAgentId = try container.decodeIfPresent(String.self, forKey: .aiAgentId)
+        
+        // Decode aiDelegatedAt - handle Int64 timestamp (milliseconds) or Date
+        if let timestamp = try? container.decode(Int64.self, forKey: .aiDelegatedAt) {
+            aiDelegatedAt = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
+        } else {
+            aiDelegatedAt = try container.decodeIfPresent(Date.self, forKey: .aiDelegatedAt)
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1222,6 +1239,13 @@ struct TaskEventPayload: Codable {
         try container.encode(deleted, forKey: .deleted)
         if let createdAt {
             try container.encode(Int64(createdAt.timeIntervalSince1970 * 1_000), forKey: .createdAt)
+        }
+        
+        // Encode AI delegation fields (DEQ-54)
+        try container.encodeIfPresent(delegatedToAI, forKey: .delegatedToAI)
+        try container.encodeIfPresent(aiAgentId, forKey: .aiAgentId)
+        if let aiDelegatedAt {
+            try container.encode(Int64(aiDelegatedAt.timeIntervalSince1970 * 1_000), forKey: .aiDelegatedAt)
         }
     }
 }
