@@ -1193,12 +1193,15 @@ actor SyncManager {
                     
                     os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredEvents.count) after filtering")
                     
+                    // Capture count before sending to @MainActor to avoid data race
+                    let filteredCount = filteredEvents.count
+                    
                     // Process events through existing logic
                     if !filteredEvents.isEmpty {
                         try await processIncomingEvents(filteredEvents)
                     }
                     
-                    totalEventsReceived += filteredEvents.count
+                    totalEventsReceived += filteredCount
                     _initialSyncEventsProcessed = totalEventsReceived
                     
                     // Update checkpoint from last event in batch
