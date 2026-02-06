@@ -1109,12 +1109,12 @@ actor SyncManager {
             wsTask.cancel(with: .goingAway, reason: nil)
         }
         
-        // Send stream request (encode in Task to avoid actor isolation issues)
-        // Capture values before encoding to avoid actor isolation issues
+        // Send stream request (encode in non-isolated context to avoid actor isolation)
+        // Capture primitive values to break actor isolation chain
         let requestType = "sync.stream.request"
         let requestSince = currentCheckpoint
         
-        let requestData = try await Task.detached {
+        let requestData = try await Task.detached { @Sendable in
             let request = SyncStreamRequest(type: requestType, since: requestSince)
             return try JSONEncoder().encode(request)
         }.value
