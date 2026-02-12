@@ -1,0 +1,106 @@
+name: TestFlight Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Dequeue/**'
+      - '.github/workflows/testflight.yml'
+  workflow_dispatch:
+    inputs:
+      changelog:
+        description: 'Changelog for this build'
+        required: false
+        default: 'Bug fixes and improvements'
+
+concurrency:
+  group: testflight-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and Deploy to TestFlight
+    runs-on: macos-26
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: Dequeue
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: Dequeue
+
+      - name: Install Fastlane
+        run: bundle install
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.2'
+
+      - name: Set up SSH for Match
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.MATCH_DEPLOY_KEY }}
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            Dequeue/Dequeue.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Build and Upload to TestFlight
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          ITC_TEAM_ID: ${{ secrets.ITC_TEAM_ID }}
+          CHANGELOG: ${{ github.event.inputs.changelog || 'Bug fixes and improvements' }}
+        run: bundle exec fastlane beta
+
+      - name: Upload IPA Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dequeue-ipa
+          path: Dequeue/build/Dequeue.ipa
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            Dequeue/build
+            Dequeue/fastlane/report.xml
+            Dequeue/fastlane/test_output
+          retention-days: 30
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `TestFlight Deploy Failed - ${new Date().toISOString().split('T')[0]}`,
+              body: `TestFlight deployment failed for commit ${context.sha}.\n\nSee workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              labels: ['ci', 'testflight', 'bug']
+            })
