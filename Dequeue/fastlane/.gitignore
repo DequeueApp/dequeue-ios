@@ -1,0 +1,27 @@
+# Fastlane specific
+report.xml
+test_output/
+Preview.html
+screenshots/
+fastlane/test_output
+
+# Build artifacts
+build/
+*.ipa
+*.dSYM.zip
+
+# Fastlane credentials
+*.keystore
+*.p12
+*.certSigningRequest
+*.cer
+*.mobileprovision
+*.provisionprofile
+
+# Fastlane metadata (if using deliver)
+fastlane/metadata/
+fastlane/screenshots/
+
+# App Store Connect API Key (should be in secrets, but just in case)
+fastlane/api_key.json
+AuthKey_*.p8
