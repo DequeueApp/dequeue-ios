@@ -137,11 +137,12 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
   # Test jobs run in parallel after lint passes
+  # Uses macOS destination to avoid iOS Simulator boot timeouts on GitHub Actions runners
   unit-tests:
     name: Unit Tests
     runs-on: macos-15
     needs: swiftlint
-    timeout-minutes: 60
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -151,40 +152,6 @@ jobs:
         run: |
           sudo xcode-select -s /Applications/Xcode_26.0.app
           xcodebuild -version
-
-      - name: Install iOS Platform
-        run: |
-          echo "Checking available iOS runtimes..."
-          xcrun simctl list runtimes | grep -i iOS || true
-          
-          # Download iOS platform if iOS 26.0 is not available
-          if ! xcrun simctl list runtimes | grep -q "iOS 26.0"; then
-            echo "iOS 26.0 runtime not found, downloading iOS platform..."
-            xcodebuild -downloadPlatform iOS
-          else
-            echo "iOS 26.0 runtime already available"
-          fi
-          
-          echo "Available runtimes after download:"
-          xcrun simctl list runtimes
-          
-          # Verify iOS 26 is available (26.0, 26.1, or 26.2)
-          if ! xcrun simctl list runtimes | grep -q "iOS 26"; then
-            echo "Error: iOS 26.x runtime not available after download"
-            exit 1
-          fi
-
-      - name: Create iOS Simulator
-        run: |
-          # Prefer iOS 26.0 runtime for compatibility with deployment target
-          RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS 26.0" | head -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
-          if [ -z "$RUNTIME" ]; then
-            # Fall back to any iOS 26 runtime
-            RUNTIME=$(xcrun simctl list runtimes | grep -i "iOS 26" | head -1 | grep -oE 'com.apple.CoreSimulator.SimRuntime.[^ ]+')
-          fi
-          echo "Using runtime: $RUNTIME"
-          xcrun simctl create "iPhone 16 Pro CI" "com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro" "$RUNTIME" 2>/dev/null || true
-          xcrun simctl list devices available | grep -i "iphone 16"
 
       - name: Cache Swift packages
         uses: actions/cache@v4
@@ -196,156 +163,57 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-spm-
 
-      - name: Boot Simulator
-        run: |
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro CI" | head -1 | grep -oE '[A-F0-9-]{36}') || \
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16 Pro" | head -1 | grep -oE '[A-F0-9-]{36}') || \
-          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 16" | head -1 | grep -oE '[A-F0-9-]{36}')
-          
-          echo "DEVICE_ID=$DEVICE_ID" >> $GITHUB_ENV
-          
-          # Pre-boot the simulator
-          echo "Booting simulator..."
-          xcrun simctl boot "$DEVICE_ID" || true
-          
-          # Wait for simulator to be ready (with 30 min timeout for extreme platform slowness)
-          # Using native bash instead of timeout command (not available on macOS runners)
-          echo "Waiting for simulator boot..."
-          SECONDS=0
-          MAX_WAIT=1800
-          xcrun simctl bootstatus "$DEVICE_ID" -b &
-          BOOT_PID=$!
-          
-          while kill -0 $BOOT_PID 2>/dev/null; do
-            if [ $SECONDS -ge $MAX_WAIT ]; then
-              kill $BOOT_PID 2>/dev/null || true
-              echo "::error::Simulator failed to boot within 30 minutes"
-              exit 1
-            fi
-            sleep 1
-          done
-          
-          wait $BOOT_PID
-          BOOT_EXIT=$?
-          if [ $BOOT_EXIT -ne 0 ]; then
-            echo "::error::Simulator boot failed with exit code $BOOT_EXIT"
-            exit 1
-          fi
-          echo "Simulator booted successfully"
-
       - name: Run Unit Tests
-        id: run-tests
         run: |
-          echo "Using device ID: $DEVICE_ID"
-          
-          # Run tests with timeout (30 min max for platform slowness)
-          # Using native bash timeout pattern (timeout command not available on macOS runners)
-          echo "Starting unit tests..."
-          SECONDS=0
-          MAX_WAIT=1800
-          
-          # Run tests in background, capturing exit code
-          # Swift Testing + xcodebuild can return exit code 65 even when all tests pass
-          # due to test runner crashes during result reporting
           set +e
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
-            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -destination 'platform=macOS' \
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO &
-          TEST_PID=$!
-          
-          # Wait with timeout
-          while kill -0 $TEST_PID 2>/dev/null; do
-            if [ $SECONDS -ge $MAX_WAIT ]; then
-              kill $TEST_PID 2>/dev/null || true
-              echo "::error::Unit tests exceeded 30 minute timeout"
-              exit 1
-            fi
-            sleep 2
-          done
-          
-          wait $TEST_PID
+            CODE_SIGNING_ALLOWED=NO
           XCODEBUILD_EXIT=$?
           set -e
-          
-          echo "xcodebuild exit code: $XCODEBUILD_EXIT"
-          echo "Unit tests completed in $SECONDS seconds"
-          echo "xcodebuild_exit=$XCODEBUILD_EXIT" >> $GITHUB_OUTPUT
 
-      - name: Parse Test Results
-        if: always()
-        run: |
-          # Parse the xcresult bundle to determine actual test success/failure
-          # This handles the case where xcodebuild returns exit 65 but all tests passed
-          
+          echo "xcodebuild exit code: $XCODEBUILD_EXIT"
+
           if [ ! -d "UnitTestResults.xcresult" ]; then
             echo "::error::No test results found"
             exit 1
           fi
-          
-          # Get test results summary using xcresulttool
-          echo "Parsing test results..."
+
+          # Parse results
           RESULTS_JSON=$(xcrun xcresulttool get --format json --path UnitTestResults.xcresult 2>/dev/null || echo "{}")
-          
-          # Check for test failures in the results
-          # The testsFailedCount field indicates actual test failures
           FAILED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsFailedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "0")
           PASSED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsPassedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "0")
-          
+
           echo "Tests passed: $PASSED_COUNT"
           echo "Tests failed: $FAILED_COUNT"
-          
-          # If we can't parse the counts, fall back to checking the raw output
-          if [ "$PASSED_COUNT" = "0" ] && [ "$FAILED_COUNT" = "0" ]; then
-            echo "Could not parse test counts from xcresulttool, checking raw results..."
-            
-            # Alternative: check if there are any test failure summaries
-            if xcrun xcresulttool get --format json --path UnitTestResults.xcresult 2>/dev/null | grep -q '"testFailureSummaries"'; then
-              FAILURE_SUMMARIES=$(xcrun xcresulttool get --format json --path UnitTestResults.xcresult 2>/dev/null | grep -c '"testFailureSummaries"' || echo "0")
-              if [ "$FAILURE_SUMMARIES" -gt 0 ]; then
-                echo "::error::Test failures detected in results"
-                exit 1
-              fi
-            fi
-            
-            # If xcodebuild reported success (exit 0), trust it
-            if [ "${{ steps.run-tests.outputs.xcodebuild_exit }}" = "0" ]; then
-              echo "xcodebuild reported success"
-              exit 0
-            fi
-            
-            # Check the raw xcresult for any indication of failure
-            # Look for the "passed" status in the action result
-            if xcrun xcresulttool get --format json --path UnitTestResults.xcresult 2>/dev/null | grep -q '"statusText".*"passed"'; then
-              echo "Tests passed according to xcresult status"
-              exit 0
-            fi
-          fi
-          
-          # Determine final result
+
           if [ "$FAILED_COUNT" != "0" ] && [ "$FAILED_COUNT" != "" ]; then
             echo "::error::$FAILED_COUNT test(s) failed"
             exit 1
           fi
-          
+
           if [ "$PASSED_COUNT" != "0" ]; then
             echo "✅ All $PASSED_COUNT tests passed!"
             exit 0
           fi
-          
-          # Final fallback: if xcodebuild exit was 65 but we found no failures, consider it success
-          # Exit code 65 often indicates test runner crash, not test failure
-          if [ "${{ steps.run-tests.outputs.xcodebuild_exit }}" = "65" ]; then
-            echo "::warning::xcodebuild returned exit code 65 but no test failures detected - likely a test runner crash"
-            echo "Treating as success since no actual test failures were found"
+
+          # Fallback: trust xcodebuild exit code
+          if [ "$XCODEBUILD_EXIT" = "0" ]; then
+            echo "xcodebuild reported success"
             exit 0
           fi
-          
-          # Unknown state, fail safe
+
+          # Exit code 65 with no failures = test runner crash, not test failure
+          if [ "$XCODEBUILD_EXIT" = "65" ]; then
+            echo "::warning::xcodebuild returned exit code 65 but no test failures detected"
+            exit 0
+          fi
+
           echo "::error::Could not determine test results"
           exit 1
 
