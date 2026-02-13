@@ -10,10 +10,17 @@ import SwiftUI
 /// Row view displaying a stack with title, active task, reminders, and tags.
 struct StackRowView: View {
     let stack: Stack
+    
+    @Environment(\.sizeCategory) private var sizeCategory
 
     /// Non-deleted tags to display
     private var visibleTags: [Tag] {
         stack.tagObjects.filter { !$0.isDeleted }
+    }
+    
+    /// Is this an accessibility size category?
+    private var isAccessibilitySize: Bool {
+        sizeCategory.isAccessibilityCategory
     }
 
     /// Returns the color for an arc, falling back to indigo
@@ -26,7 +33,7 @@ struct StackRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
+            HStack(alignment: .top) {
                 // Arc indicator
                 if let arc = stack.arc {
                     Circle()
@@ -37,6 +44,7 @@ struct StackRowView: View {
 
                 Text(stack.title)
                     .font(.headline)
+                    .lineLimit(isAccessibilitySize ? 2 : 1)
 
                 Spacer()
 
@@ -61,8 +69,10 @@ struct StackRowView: View {
                         .font(.caption2)
                     Text("\(stack.activeReminders.count)")
                         .font(.caption2)
+                        .monospacedDigit()
                 }
                 .foregroundStyle(.orange)
+                .frame(minHeight: 22) // Ensure minimum touch target
             }
 
             // Tags row - show up to 3 tags with "+N more" indicator
