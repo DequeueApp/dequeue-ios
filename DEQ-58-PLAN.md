@@ -1,8 +1,9 @@
 # DEQ-58: AI Delegation UI Implementation Plan
 
-**Status:** Planning (waiting for #249 to merge)  
-**Dependencies:** DEQ-54 ✅ merged, DEQ-56 ⏳ pending  
-**Estimated Time:** 1-2 hours
+**Status:** ✅ IMPLEMENTED  
+**Implementation:** PR #259 (merged February 11, 2026)  
+**Dependencies:** DEQ-54 ✅ merged, DEQ-56 ✅ merged  
+**Actual Time:** ~2 hours
 
 ## Goal
 

@@ -1,5 +1,11 @@
 # DEQ-243: iOS WebSocket Stream Consumer
 
+**Status:** ✅ IMPLEMENTED  
+**Documentation:** docs/websocket-streaming.md  
+**Related:** DEQ-240 (sync progress UI, PR #254)  
+**Note:** PR #247 closed, but feature implemented in SyncManager  
+**Completed:** February 2026
+
 ## Goal
 Implement WebSocket streaming for fast initial sync with real-time progress.
 
