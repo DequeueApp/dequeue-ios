@@ -26,7 +26,7 @@ extension EnvironmentValues {
 
 @main
 struct DequeueApp: App {
-    @State private var authService = ClerkAuthService()
+    @State private var authService: any AuthServiceProtocol
     @State private var attachmentSettings = AttachmentSettings()
     @State private var consecutiveSyncFailures = 0
     @State private var showSyncError = false
@@ -42,9 +42,23 @@ struct DequeueApp: App {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
+    /// Check if running UI tests (launched with --uitesting argument)
+    private static var isRunningUITests: Bool {
+        ProcessInfo.processInfo.arguments.contains("--uitesting")
+    }
+
     init() {
         // Note: ErrorReportingService.configure() is now called asynchronously
         // in the body to avoid blocking app launch (was causing 12+ second hangs)
+
+        // Use mock auth service for UI tests to bypass Clerk authentication
+        if Self.isRunningUITests {
+            let mockAuth = MockAuthService()
+            mockAuth.mockSignIn(userId: "ui-test-user")
+            authService = mockAuth
+        } else {
+            authService = ClerkAuthService()
+        }
 
         let schema = Schema([
             Stack.self,
@@ -58,11 +72,11 @@ struct DequeueApp: App {
             Arc.self
         ])
 
-        // Use in-memory store when running tests to avoid file system issues
+        // Use in-memory store when running tests or UI tests to avoid file system issues
         // and ensure test isolation
         let modelConfiguration = ModelConfiguration(
             schema: schema,
-            isStoredInMemoryOnly: Self.isRunningTests,
+            isStoredInMemoryOnly: Self.isRunningTests || Self.isRunningUITests,
             cloudKitDatabase: .none
         )
 

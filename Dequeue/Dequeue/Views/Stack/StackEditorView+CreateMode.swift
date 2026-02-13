@@ -18,9 +18,11 @@ extension StackEditorView {
             Section("Stack") {
                 TextField("Title", text: $title)
                     .focused($focusedField, equals: .title)
+                    .accessibilityIdentifier("stackTitleField")
                 TextField("Description (optional)", text: $stackDescription, axis: .vertical)
                     .lineLimit(3...6)
                     .focused($focusedField, equals: .description)
+                    .accessibilityIdentifier("stackDescriptionField")
                     .onChange(of: stackDescription) { oldValue, newValue in
                         handleDescriptionChange(oldValue: oldValue, newValue: newValue)
                     }
@@ -31,6 +33,7 @@ extension StackEditorView {
 
             Section {
                 Toggle("Set as Active Stack", isOn: $setAsActive)
+                    .accessibilityIdentifier("setAsActiveToggle")
             } footer: {
                 Text("If enabled, this stack will become your active stack immediately. " +
                      "Otherwise, it will be added to your backlog.")
@@ -62,6 +65,7 @@ extension StackEditorView {
                 ),
                 displayedComponents: [.date, .hourAndMinute]
             )
+            .accessibilityIdentifier("startDatePicker")
             .deleteDisabled(selectedStartDate == nil)
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 if selectedStartDate != nil {
@@ -81,6 +85,7 @@ extension StackEditorView {
                 ),
                 displayedComponents: [.date, .hourAndMinute]
             )
+            .accessibilityIdentifier("dueDatePicker")
             .deleteDisabled(selectedDueDate == nil)
             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                 if selectedDueDate != nil {
@@ -123,6 +128,7 @@ extension StackEditorView {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("arcSelectionButton")
         } header: {
             Text("Arc")
         } footer: {
@@ -164,6 +170,7 @@ extension StackEditorView {
                     return nil
                 }
             )
+            .accessibilityIdentifier("tagsInputView")
         }
     }
 
@@ -178,6 +185,7 @@ extension StackEditorView {
                         .accessibilityLabel("No tasks added yet")
                     Spacer()
                 }
+                .accessibilityIdentifier("noTasksLabel")
             } else {
                 ForEach(pendingTasks) { task in
                     HStack {
@@ -191,6 +199,7 @@ extension StackEditorView {
                         }
                         Spacer()
                     }
+                    .accessibilityIdentifier("pendingTask_\(task.id)")
                 }
                 .onDelete(perform: deleteCreateModeTasks)
             }
@@ -201,6 +210,7 @@ extension StackEditorView {
                 Text("\(pendingTasks.count)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("taskCountLabel")
                 Button {
                     showAddTask = true
                 } label: {
@@ -211,6 +221,7 @@ extension StackEditorView {
                 .accessibilityIdentifier("addTaskButton")
             }
         }
+        .accessibilityIdentifier("tasksSection")
     }
 
     func deleteCreateModeTasks(at offsets: IndexSet) {
