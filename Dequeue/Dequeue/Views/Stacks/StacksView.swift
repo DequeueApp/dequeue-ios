@@ -75,6 +75,7 @@ struct StacksView: View {
                         #if os(macOS)
                         .keyboardShortcut("n", modifiers: .command)
                         #endif
+                        .accessibilityIdentifier("addStackButton")
                         .accessibilityLabel("Add new stack")
                         .accessibilityHint("Creates a new stack")
                     }

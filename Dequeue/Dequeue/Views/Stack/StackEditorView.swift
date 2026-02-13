@@ -523,14 +523,17 @@ extension StackEditorView {
         if isCreateMode {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { handleCreateCancel() }
+                    .accessibilityIdentifier("cancelButton")
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Create") { publishAndCreate() }
                     .disabled(title.isEmpty)
+                    .accessibilityIdentifier("createButton")
             }
         } else {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Close") { dismiss() }
+                    .accessibilityIdentifier("closeButton")
             }
             // Custom title with inline edit button for editable stacks
             if showsCustomTitle {
@@ -542,6 +545,7 @@ extension StackEditorView {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Complete") { handleCompleteButtonTapped() }
                         .fontWeight(.semibold)
+                        .accessibilityIdentifier("completeButton")
                 }
             }
         }
