@@ -13,12 +13,14 @@ import SwiftUI
 /// - Capsule-shaped background
 /// - Optional color indicator dot
 /// - Optional remove button
-/// - Truncates long names with ellipsis
+/// - Truncates long names with ellipsis (except at accessibility sizes)
 /// - Cross-platform (iOS and macOS)
 struct TagChip: View {
     let tag: Tag
     var showRemoveButton: Bool = false
     var onRemove: (() -> Void)?
+    
+    @Environment(\.sizeCategory) private var sizeCategory
 
     var body: some View {
         HStack(spacing: 4) {
@@ -31,7 +33,7 @@ struct TagChip: View {
 
             Text(tag.name)
                 .font(.caption)
-                .lineLimit(1)
+                .lineLimit(sizeCategory.isAccessibilityCategory ? 2 : 1)
 
             if showRemoveButton {
                 Button {
@@ -62,6 +64,8 @@ struct TagChip: View {
 struct TagChipLabel: View {
     let name: String
     var colorHex: String?
+    
+    @Environment(\.sizeCategory) private var sizeCategory
 
     var body: some View {
         HStack(spacing: 4) {
@@ -73,7 +77,7 @@ struct TagChipLabel: View {
 
             Text(name)
                 .font(.caption)
-                .lineLimit(1)
+                .lineLimit(sizeCategory.isAccessibilityCategory ? 2 : 1)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
