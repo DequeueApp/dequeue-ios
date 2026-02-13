@@ -86,7 +86,7 @@ final class EnvironmentManagerTests: XCTestCase {
 
         // Verify persistence by checking UserDefaults directly
         if let data = UserDefaults.standard.data(forKey: "app.environment"),
-           let environment = try? JSONDecoder().decode(Environment.self, from: data) {
+           let environment = try? JSONDecoder().decode(DeploymentEnvironment.self, from: data) {
             XCTAssertEqual(
                 environment,
                 .staging,
@@ -134,17 +134,17 @@ final class EnvironmentManagerTests: XCTestCase {
 
     func testEnvironmentConfigurations() {
         // Test development config
-        let dev = Environment.development.configuration
+        let dev = DeploymentEnvironment.development.configuration
         XCTAssertEqual(dev.syncAppId, "dequeue-development")
         XCTAssertEqual(dev.environment, .development)
 
         // Test staging config
-        let staging = Environment.staging.configuration
+        let staging = DeploymentEnvironment.staging.configuration
         XCTAssertEqual(staging.syncAppId, "dequeue-staging")
         XCTAssertEqual(staging.environment, .staging)
 
         // Test production config
-        let prod = Environment.production.configuration
+        let prod = DeploymentEnvironment.production.configuration
         XCTAssertEqual(prod.syncAppId, "dequeue")
         XCTAssertEqual(prod.environment, .production)
     }

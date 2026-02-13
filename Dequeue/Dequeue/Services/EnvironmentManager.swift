@@ -18,7 +18,7 @@ final class EnvironmentManager {
     private static let environmentKey = "app.environment"
 
     /// Current active environment
-    private(set) var currentEnvironment: Environment {
+    private(set) var currentEnvironment: DeploymentEnvironment {
         didSet {
             // Persist environment selection in debug builds only
             #if DEBUG
@@ -47,7 +47,7 @@ final class EnvironmentManager {
         #if DEBUG
         // In debug builds, allow environment switching via UserDefaults
         if let data = UserDefaults.standard.data(forKey: Self.environmentKey),
-           let environment = try? JSONDecoder().decode(Environment.self, from: data) {
+           let environment = try? JSONDecoder().decode(DeploymentEnvironment.self, from: data) {
             self.currentEnvironment = environment
         } else {
             // Default to development in debug builds
@@ -63,7 +63,7 @@ final class EnvironmentManager {
     /// - Parameter environment: The environment to switch to
     /// - Returns: True if the switch was successful
     @discardableResult
-    func switchEnvironment(to environment: Environment) -> Bool {
+    func switchEnvironment(to environment: DeploymentEnvironment) -> Bool {
         #if DEBUG
         guard currentEnvironment != environment else {
             return false

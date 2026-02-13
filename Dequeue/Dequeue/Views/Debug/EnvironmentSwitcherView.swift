@@ -13,7 +13,7 @@ struct EnvironmentSwitcherView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var environmentManager = EnvironmentManager.shared
     @State private var showingRestartAlert = false
-    @State private var selectedEnvironment: Environment
+    @State private var selectedEnvironment: DeploymentEnvironment
 
     init() {
         _selectedEnvironment = State(initialValue: EnvironmentManager.shared.currentEnvironment)
@@ -23,7 +23,7 @@ struct EnvironmentSwitcherView: View {
         NavigationStack {
             Form {
                 Section {
-                    ForEach(Environment.allCases) { environment in
+                    ForEach(DeploymentEnvironment.allCases) { environment in
                         Button {
                             selectedEnvironment = environment
                         } label: {

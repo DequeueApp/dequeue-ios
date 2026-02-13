@@ -8,7 +8,7 @@
 import Foundation
 
 /// Deployment environment for the app
-enum Environment: String, CaseIterable, Identifiable, Codable {
+enum DeploymentEnvironment: String, CaseIterable, Identifiable, Codable {
     case development
     case staging
     case production
@@ -54,7 +54,7 @@ enum Environment: String, CaseIterable, Identifiable, Codable {
 
 /// Environment-specific configuration
 struct EnvironmentConfiguration {
-    let environment: Environment
+    let environment: DeploymentEnvironment
     let clerkPublishableKey: String
     let sentryDSN: String
     let dequeueAPIBaseURL: URL
