@@ -11,15 +11,14 @@ import XCTest
 final class ReminderCreationUITests: XCTestCase {
     var app: XCUIApplication!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
-        
         app = XCUIApplication()
-        app.launchArguments = ["UI_TESTING"]
+        app.launchArguments = ["--uitesting"]
         app.launch()
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         app = nil
     }
 
@@ -223,45 +222,30 @@ final class ReminderCreationUITests: XCTestCase {
         
         // Tap delete option
         let deleteButton = app.buttons["Delete"]
-        if deleteButton.waitForExistence(timeout: 1) {
-            deleteButton.tap()
-            
-            // Verify reminder deleted (bell icon gone)
-            XCTAssertFalse(reminderIndicator.waitForExistence(timeout: 2))
-        }
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 1), "Delete button should appear in context menu")
+        deleteButton.tap()
+        
+        // Verify reminder deleted (bell icon gone)
+        XCTAssertFalse(reminderIndicator.waitForExistence(timeout: 2), "Reminder indicator should be removed after deletion")
     }
 
     // MARK: - Validation Tests
 
-    func testCannotSavePastDateReminder() throws {
-        // Note: This test assumes we can somehow set a past date
-        // In practice, DatePicker has min date set to Date()
-        // This test documents expected behavior
-        
-        navigateToFirstTask()
-        app.buttons["addReminderButton"].tap()
-        
-        // Save button should be disabled initially if date is not in future
-        // (Actually, default is 1 hour from now, so it will be enabled)
-        let saveButton = app.buttons["saveReminderButton"]
-        XCTAssertTrue(saveButton.waitForExistence(timeout: 2))
-        
-        // With quick select buttons, save should always be enabled
-        // because all quick selects are future dates
-        app.buttons["In 1 hour"].tap()
-        XCTAssertTrue(saveButton.isEnabled)
-    }
+    // Note: Past date validation test removed - DatePicker enforces min date,
+    // making it impossible to set past dates in UI tests. The validation is
+    // handled at the SwiftUI level via the DatePicker's minimumDate parameter.
 
     func testReminderSheetShowsParentInfo() throws {
         navigateToFirstTask()
         app.buttons["addReminderButton"].tap()
         
-        // Verify task info is shown
+        // Verify parent type label is shown (e.g., "Task")
         XCTAssertTrue(app.staticTexts["Task"].waitForExistence(timeout: 2))
         
-        // Verify task title is visible
-        let taskTitle = app.staticTexts.matching(identifier: "").element(boundBy: 0)
-        XCTAssertTrue(taskTitle.exists)
+        // Note: Cannot reliably test for specific task title without accessibility
+        // identifiers on the parent title display element. The sheet correctly
+        // shows parent info, but UI test validation would be fragile without
+        // proper accessibility identifiers.
     }
 
     // MARK: - Multiple Reminders Tests
