@@ -417,4 +417,61 @@ final class MockAuthService: AuthServiceProtocol {
         currentUserId = userId
         sessionStateChangeContinuation?.yield(.sessionRestored(userId: userId))
     }
+
+    // MARK: - Auth Flow Methods (for UI testing)
+
+    /// Mock sign in - validates fields and signs in
+    @MainActor
+    func signIn(email: String, password: String) async throws {
+        // Simulate network delay
+        try await Task.sleep(for: .milliseconds(500))
+
+        // For testing error states, throw on specific test credentials
+        if email == "error@example.com" {
+            throw AuthError.invalidCredentials
+        }
+
+        // Otherwise succeed
+        mockSignIn(userId: "mock-user-\(email)")
+    }
+
+    /// Mock sign up - validates fields and creates account
+    @MainActor
+    func signUp(email: String, password: String) async throws {
+        // Simulate network delay
+        try await Task.sleep(for: .milliseconds(500))
+
+        // Mock sign up always succeeds (verification required next)
+        // Don't auto-sign in - verification needed first
+    }
+
+    /// Mock email verification - completes sign up
+    @MainActor
+    func verifyEmail(code: String) async throws {
+        // Simulate network delay
+        try await Task.sleep(for: .milliseconds(300))
+
+        // For testing error states
+        if code == "000000" {
+            throw AuthError.verificationFailed
+        }
+
+        // Verification succeeds - sign in
+        mockSignIn(userId: "mock-verified-user")
+    }
+
+    /// Mock 2FA verification
+    @MainActor
+    func verify2FACode(code: String) async throws {
+        // Simulate network delay
+        try await Task.sleep(for: .milliseconds(300))
+
+        // For testing error states
+        if code == "000000" {
+            throw AuthError.verificationFailed
+        }
+
+        // 2FA succeeds - complete sign in
+        mockSignIn(userId: "mock-2fa-user")
+    }
 }

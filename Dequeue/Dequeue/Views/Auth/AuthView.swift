@@ -249,19 +249,29 @@ struct AuthView: View {
         errorMessage = nil
 
         do {
-            guard let clerkService = authService as? ClerkAuthService else {
+            if let clerkService = authService as? ClerkAuthService {
+                if authMode == .signIn {
+                    try await clerkService.signIn(email: email, password: password)
+                } else {
+                    try await clerkService.signUp(email: email, password: password)
+                    withAnimation {
+                        showVerification = true
+                    }
+                }
+            } else if let mockService = authService as? MockAuthService {
+                // UI testing mode
+                if authMode == .signIn {
+                    try await mockService.signIn(email: email, password: password)
+                } else {
+                    try await mockService.signUp(email: email, password: password)
+                    withAnimation {
+                        showVerification = true
+                    }
+                }
+            } else {
                 errorMessage = "Authentication service not available"
                 isLoading = false
                 return
-            }
-
-            if authMode == .signIn {
-                try await clerkService.signIn(email: email, password: password)
-            } else {
-                try await clerkService.signUp(email: email, password: password)
-                withAnimation {
-                    showVerification = true
-                }
             }
         } catch let error as AuthError where error == .twoFactorRequired {
             // Show 2FA form
@@ -280,12 +290,15 @@ struct AuthView: View {
         errorMessage = nil
 
         do {
-            guard let clerkService = authService as? ClerkAuthService else {
+            if let clerkService = authService as? ClerkAuthService {
+                try await clerkService.verifyEmail(code: verificationCode)
+            } else if let mockService = authService as? MockAuthService {
+                try await mockService.verifyEmail(code: verificationCode)
+            } else {
                 errorMessage = "Authentication service not available"
                 isLoading = false
                 return
             }
-            try await clerkService.verifyEmail(code: verificationCode)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -298,12 +311,15 @@ struct AuthView: View {
         errorMessage = nil
 
         do {
-            guard let clerkService = authService as? ClerkAuthService else {
+            if let clerkService = authService as? ClerkAuthService {
+                try await clerkService.verify2FACode(code: twoFactorCode)
+            } else if let mockService = authService as? MockAuthService {
+                try await mockService.verify2FACode(code: twoFactorCode)
+            } else {
                 errorMessage = "Authentication service not available"
                 isLoading = false
                 return
             }
-            try await clerkService.verify2FACode(code: twoFactorCode)
         } catch {
             errorMessage = error.localizedDescription
         }

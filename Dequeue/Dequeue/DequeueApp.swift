@@ -54,7 +54,10 @@ struct DequeueApp: App {
         // Use mock auth service for UI tests to bypass Clerk authentication
         if Self.isRunningUITests {
             let mockAuth = MockAuthService()
-            mockAuth.mockSignIn(userId: "ui-test-user")
+            // Only auto-sign in if NOT explicitly testing unauthenticated flow
+            if !ProcessInfo.processInfo.arguments.contains("--unauthenticated") {
+                mockAuth.mockSignIn(userId: "ui-test-user")
+            }
             authService = mockAuth
         } else {
             authService = ClerkAuthService()
