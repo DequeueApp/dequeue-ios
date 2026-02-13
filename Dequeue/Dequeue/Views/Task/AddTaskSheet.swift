@@ -35,6 +35,7 @@ struct AddTaskSheet: View {
                         ),
                         displayedComponents: [.date, .hourAndMinute]
                     )
+                    .accessibilityIdentifier("taskStartDatePicker")
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         if startTime != nil {
                             Button(role: .destructive) {
@@ -53,6 +54,7 @@ struct AddTaskSheet: View {
                         ),
                         displayedComponents: [.date, .hourAndMinute]
                     )
+                    .accessibilityIdentifier("taskDueDatePicker")
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         if dueTime != nil {
                             Button(role: .destructive) {
@@ -73,6 +75,7 @@ struct AddTaskSheet: View {
                     Button("Cancel") {
                         onCancel()
                     }
+                    .accessibilityIdentifier("addTaskCancelButton")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
