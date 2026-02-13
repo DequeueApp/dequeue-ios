@@ -136,6 +136,19 @@ struct SettingsView: View {
         Section("Developer") {
             ConnectionStatusRow(status: connectionStatus)
 
+            #if DEBUG
+            NavigationLink {
+                EnvironmentSwitcherView()
+            } label: {
+                HStack {
+                    Label("Environment", systemImage: "globe")
+                    Spacer()
+                    Text(EnvironmentManager.shared.currentEnvironment.badge)
+                        .font(.title3)
+                }
+            }
+            #endif
+
             NavigationLink {
                 EventLogView()
             } label: {

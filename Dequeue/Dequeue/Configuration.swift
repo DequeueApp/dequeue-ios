@@ -8,29 +8,34 @@
 import Foundation
 
 enum Configuration {
+    // MARK: - Environment
+
+    /// Current environment manager
+    private static var environmentManager: EnvironmentManager {
+        EnvironmentManager.shared
+    }
+
+    /// Current environment configuration
+    private static var currentConfig: EnvironmentConfiguration {
+        environmentManager.configuration
+    }
+
     // MARK: - Clerk Authentication
 
     /// Clerk Publishable Key
     /// Get this from: Clerk Dashboard > API Keys
     /// Format: pk_test_xxx or pk_live_xxx
-    static let clerkPublishableKey: String = {
-        // swiftlint:disable:next todo
-        // FIXME: Replace with your actual Clerk publishable key
-        // For production, consider using environment variables or a secrets manager
-        #if DEBUG
-        return "pk_test_ZXhwZXJ0LWhhbGlidXQtODIuY2xlcmsuYWNjb3VudHMuZGV2JA"
-        #else
-        return "pk_test_ZXhwZXJ0LWhhbGlidXQtODIuY2xlcmsuYWNjb3VudHMuZGV2JA"
-        #endif
-    }()
+    static var clerkPublishableKey: String {
+        currentConfig.clerkPublishableKey
+    }
 
     // MARK: - Sentry Error Tracking
 
     /// Sentry DSN
     /// Get this from: Sentry Dashboard > Project Settings > Client Keys (DSN)
-    static let sentryDSN: String = {
-        return "https://ac1d2ecd30098c9cc51d2148c9013cd0@o287313.ingest.us.sentry.io/4510574643773440"
-    }()
+    static var sentryDSN: String {
+        currentConfig.sentryDSN
+    }
 
     /// Distributed tracing targets - only send trace headers to our own backend
     /// This enables connecting mobile traces to backend traces in Sentry
@@ -44,28 +49,21 @@ enum Configuration {
     // MARK: - Dequeue API
 
     /// Base URL for the Dequeue API (API key management, etc.)
-    static let dequeueAPIBaseURL: URL = {
-        // swiftlint:disable:next force_unwrapping
-        return URL(string: "https://api.dequeue.app/v1")!
-    }()
+    static var dequeueAPIBaseURL: URL {
+        currentConfig.dequeueAPIBaseURL
+    }
 
     // MARK: - Sync Backend
 
-    // App ID for the sync service
-    // swiftlint:disable:next todo
-    // FIXME: Use "dequeue-development" for DEBUG when backend supports it
-    static let syncAppId: String = "dequeue"
-
-    /// Base URL for the sync service (without app path)
-    private static let syncServiceBaseURL: URL = {
-        // swiftlint:disable:next force_unwrapping
-        return URL(string: "https://sync.ardonos.com")!
-    }()
+    /// App ID for the sync service
+    static var syncAppId: String {
+        currentConfig.syncAppId
+    }
 
     /// Base URL for the sync API (includes /apps/{appId} prefix)
-    static let syncAPIBaseURL: URL = {
-        return syncServiceBaseURL.appendingPathComponent("apps/\(syncAppId)")
-    }()
+    static var syncAPIBaseURL: URL {
+        currentConfig.syncAPIBaseURL
+    }
 
     // MARK: - Feature Flags
 
