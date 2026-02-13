@@ -1,11 +1,35 @@
 # PRD: iPad Split View
 
-**Status:** Draft  
+**Status:** ✅ IMPLEMENTED  
 **Priority:** 2  
-**Ticket:** DEQ-238  
-**Est. Implementation:** 3-4 days  
+**Ticket:** DEQ-51 (was DEQ-238)  
+**Implementation:** PR #256 (merged February 10, 2026)  
 **Author:** Ada  
 **Created:** 2026-02-04  
+**Completed:** 2026-02-10  
+
+---
+
+## ✅ Implementation Summary
+
+**What was implemented:**
+- NavigationSplitView for iPad with sidebar + detail layout
+- Responsive behavior: iPad landscape (always visible), iPad portrait (collapsible), iPhone (no split)
+- Sidebar shows list of stacks with selection highlighting
+- Detail pane shows selected stack's full editor
+- Conditional compilation guards for iOS vs macOS
+- State preservation across app launches
+- Smooth animations and transitions
+
+**Key changes:**
+- `MainTabView.swift`: Added `isPad` detection and conditional layouts
+- Separate `iPhoneTabViewLayout` and `iPadSplitViewLayout` computed properties
+- `#if os(iOS)` guards for iOS-specific modifiers
+- Navigation state management for selection
+
+**Result:** iPad users now have a native split-view experience matching iOS conventions.
+
+---
 
 ## Problem Statement
 
