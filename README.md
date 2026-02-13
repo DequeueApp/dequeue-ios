@@ -103,17 +103,24 @@ struct MyServiceTests {
 
 ### Coverage
 
-| Service | Tests | Coverage |
-|---------|-------|----------|
-| TaskService | ✅ | High |
-| StackService | ✅ | High |
-| TagService | ✅ | High |
-| EventService | ✅ | Medium |
-| SyncManager | ✅ | Medium |
-| ProjectorService | ⚠️ | Medium (some edge cases disabled) |
-| AttachmentService | ✅ | Medium |
-| ReminderService | ✅ | Medium |
-| Others | ❌ | Low/None |
+The project has **51 unit test files** and **6 UI test files** covering core functionality:
+
+**Unit Tests (DequeueTests/):**
+- ✅ **Core Services:** TaskService, StackService, TagService, EventService, ReminderService, DeviceService
+- ✅ **Sync Infrastructure:** SyncManager (performance, WebSocket, conflicts), ProjectorService
+- ✅ **Attachments:** AttachmentService, UploadService, DownloadManager, FileCache, ThumbnailGenerator
+- ✅ **API:** APIKeyService, AuthService
+- ✅ **ViewModels:** SyncStatusViewModel, AppTheme, UndoCompletionManager
+- ✅ **Models:** Stack, Task, Tag, Attachment filtering and relationships
+- ✅ **Features:** ActiveTaskTracking, ActiveStackConstraint, StartDueDates, ActivityFeed
+
+**UI Tests (DequeueUITests/):**
+- ✅ Authentication flow (2FA, device verification)
+- ✅ Stack creation and management
+- ✅ Task creation and completion
+- ✅ Reminder creation and scheduling
+
+**Note:** Some edge case tests are `.disabled` pending investigation (e.g., ProjectorService LWW timing issues).
 
 ## CI/CD
 
