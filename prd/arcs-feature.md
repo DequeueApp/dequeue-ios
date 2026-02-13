@@ -1,10 +1,26 @@
 # PRD: Arcs Feature
 
-**Status**: Draft
+**Status**: ✅ FULLY IMPLEMENTED
 **Author**: Claude (with Victor)
 **Created**: 2026-01-20
-**Last Updated**: 2026-01-20
+**Last Updated**: 2026-02-13
 **Issue**: TBD (Linear)
+
+## Implementation Summary
+
+Arcs feature fully implemented and shipped Jan 21-Feb 4, 2026:
+
+| Component | Status | PR | Notes |
+|-----------|--------|-----|-------|
+| **Core Infrastructure** | ✅ Complete | #176 | Phases 1-4: Model, Service, Events, Sync, UI |
+| **Arc Selection (Stack Creation)** | ✅ Complete | #184 | Optional arc assignment during stack creation |
+| **Drag-and-Drop Reordering** | ✅ Complete | #224 | Fixed reordering in ArcsView |
+| **Start/Due Dates** | ✅ Complete | #223 | Added date fields to Arc model |
+| **Status Tabs** | ✅ Complete | #242 | Active/Paused/Completed tabs (DEQ-239) |
+| **Performance Optimization** | ✅ Complete | #227 | Optimized event history queries (DEQ-145) |
+
+**Ship Date**: January 21, 2026 (PR #176)
+**Latest Update**: February 4, 2026 (PR #242)
 
 ---
 
