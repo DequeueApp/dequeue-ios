@@ -1,8 +1,9 @@
 # AI Delegation Implementation Notes
 
 **Created:** 2026-02-05  
-**Status:** Phase 1 Complete (Foundation)  
-**Related PRs:** #248 (DEQ-54), #249 (DEQ-56)
+**Last Updated:** 2026-02-13  
+**Status:** Phase 2 Complete (UI & Foundation)  
+**Related PRs:** #248 (DEQ-54), #249 (DEQ-56), #259 (DEQ-58), #260 (DEQ-57)
 
 ## Overview
 
@@ -134,12 +135,16 @@ func applyTaskDelegatedToAI(_ payload: TaskDelegatedToAIPayload) async throws {
 
 ## Future Phases
 
-### Phase 2: UI & Workflow (DEQ-58)
+### Phase 2: UI & Workflow ✅ COMPLETE (DEQ-58, PR #259)
 
-- Toggle switch on Task detail view: "Delegate to AI"
-- Visual indicator showing task is delegated (badge, icon)
-- Show AI agent name and delegation timestamp
-- "Cancel delegation" action
+**Implemented:** February 11, 2026
+
+- ✅ Toggle switch on Task detail view: "Delegate to AI"
+- ✅ Visual indicator showing task is delegated (badge, icon)
+- ✅ Show AI agent name and delegation timestamp
+- ✅ "Cancel delegation" action
+- ✅ `task.aiCompleted` event type added (DEQ-57, PR #252, #260)
+- ✅ UI display configuration for AI-completed tasks (PR #260)
 
 ### Phase 3: Backend Integration
 
