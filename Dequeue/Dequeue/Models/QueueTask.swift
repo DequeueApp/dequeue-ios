@@ -48,6 +48,9 @@ final class QueueTask {
     @Relationship(deleteRule: .cascade, inverse: \Reminder.task)
     var reminders: [Reminder] = []
 
+    // Parent-child task relationship (DEQ-29: Subtasks)
+    var parentTaskId: String?
+
     init(
         id: String = CUID.generate(),
         title: String,
@@ -76,7 +79,8 @@ final class QueueTask {
         lastSyncedAt: Date? = nil,
         serverId: String? = nil,
         revision: Int = 1,
-        stack: Stack? = nil
+        stack: Stack? = nil,
+        parentTaskId: String? = nil  // DEQ-29: Subtasks
     ) {
         self.id = id
         self.title = title
@@ -106,6 +110,7 @@ final class QueueTask {
         self.serverId = serverId
         self.revision = revision
         self.stack = stack
+        self.parentTaskId = parentTaskId  // DEQ-29
     }
 }
 
@@ -114,5 +119,12 @@ final class QueueTask {
 extension QueueTask {
     var activeReminders: [Reminder] {
         reminders.filter { !$0.isDeleted && $0.status == .active }
+    }
+
+    // DEQ-29: Parent task relationship
+    // Note: These computed properties require ModelContext access
+    // For querying parent/subtasks, use helper methods in TaskService or similar
+    var hasParent: Bool {
+        parentTaskId != nil
     }
 }

@@ -1056,7 +1056,8 @@ enum ProjectorService {
                 aiAgentId: payload.aiAgentId,
                 aiDelegatedAt: payload.aiDelegatedAt,
                 syncState: .synced,
-                lastSyncedAt: Date()
+                lastSyncedAt: Date(),
+                parentTaskId: payload.parentTaskId  // DEQ-29: Subtasks
             )
             // Use original createdAt from payload if available, otherwise fall back to event timestamp
             task.createdAt = payload.createdAt ?? event.timestamp
@@ -2376,6 +2377,9 @@ enum ProjectorService {
         if let tags = payload.tags {
             task.tags = tags
         }
+
+        // Update parent task relationship (DEQ-29: Subtasks)
+        task.parentTaskId = payload.parentTaskId
         
         task.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         task.syncState = .synced
