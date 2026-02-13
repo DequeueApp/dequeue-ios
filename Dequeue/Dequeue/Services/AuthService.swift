@@ -453,7 +453,7 @@ final class MockAuthService: AuthServiceProtocol {
 
         // For testing error states
         if code == "000000" {
-            throw AuthError.invalidVerificationCode
+            throw AuthError.verificationFailed
         }
 
         // Verification succeeds - sign in
@@ -468,7 +468,7 @@ final class MockAuthService: AuthServiceProtocol {
 
         // For testing error states
         if code == "000000" {
-            throw AuthError.invalidVerificationCode
+            throw AuthError.verificationFailed
         }
 
         // 2FA succeeds - complete sign in
