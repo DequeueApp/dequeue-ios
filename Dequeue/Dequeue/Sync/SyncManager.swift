@@ -1958,12 +1958,44 @@ actor SyncManager {
 
     // MARK: - Network Monitoring
 
-    /// Network monitoring will be enhanced when NetworkMonitor from DEQ-47 is available.
-    /// For now, we rely on the improved backoff and health monitoring.
+    /// Monitors network connectivity and triggers reconnection when network becomes available.
+    /// Uses NetworkMonitor (DEQ-47) to detect connectivity changes.
     private func startNetworkMonitoring() {
-        // TODO: Integrate with NetworkMonitor when DEQ-47 is merged
-        // This will enable immediate reconnect when network comes back online
-        networkMonitorTask = nil
+        networkMonitorTask?.cancel()
+        networkMonitorTask = Task { [weak self] in
+            guard let self = self else { return }
+            var wasConnected = await NetworkMonitor.shared.isConnected
+
+            // Poll for network changes (workaround for @Observable observation in actor)
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+
+                let isConnected = await NetworkMonitor.shared.isConnected
+                
+                // Network became available - attempt reconnection if we have credentials and aren't connected
+                if isConnected && !wasConnected {
+                    os_log("[Sync] Network became available - checking if reconnection needed")
+                    
+                    let shouldReconnect = await !self.isHealthyConnection
+                    
+                    if shouldReconnect,
+                       let userId = await self.userId,
+                       let token = await self.token,
+                       let getToken = await self.getTokenFunction {
+                        os_log("[Sync] Attempting reconnection after network recovery")
+                        try? await self.ensureConnected(
+                            userId: userId,
+                            token: token,
+                            getToken: getToken
+                        )
+                    }
+                }
+                
+                wasConnected = isConnected
+            }
+        }
+        
+        os_log("[Sync] Started network monitoring")
     }
 
     // MARK: - Status
