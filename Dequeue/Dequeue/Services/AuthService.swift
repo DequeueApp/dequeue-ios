@@ -134,6 +134,12 @@ final class ClerkAuthService: AuthServiceProtocol {
             return
         }
 
+        // Avoid spamming Clerk when we know there's no active session
+        // This prevents repeated 401s from /client/sessions/.../tokens
+        guard Clerk.shared.session != nil else {
+            return
+        }
+
         // Capture state before refresh to detect changes
         let wasAuthenticated = isAuthenticated
         let previousUserId = currentUserId
