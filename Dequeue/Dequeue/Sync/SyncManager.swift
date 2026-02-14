@@ -1964,13 +1964,13 @@ actor SyncManager {
         networkMonitorTask?.cancel()
         networkMonitorTask = Task { [weak self] in
             guard let self = self else { return }
-            var wasConnected = NetworkMonitor.shared.isConnected
+            var wasConnected = await NetworkMonitor.shared.isConnected
 
             // Poll for network changes (workaround for @Observable observation in actor)
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
 
-                let isConnected = NetworkMonitor.shared.isConnected
+                let isConnected = await NetworkMonitor.shared.isConnected
                 
                 // Network became available - attempt reconnection if we have credentials and aren't connected
                 if isConnected && !wasConnected {
