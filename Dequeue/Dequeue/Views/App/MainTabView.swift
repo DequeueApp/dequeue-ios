@@ -163,7 +163,7 @@ struct MainTabView: View {
             .navigationDestination(for: Int.self) { value in
                 // Keep tab selection in sync for shared app state
                 selectedTab = value
-                detailContentForSelection(value)
+                return detailContentForSelection(value)
             }
             .onAppear {
                 if sidebarSelection == nil { sidebarSelection = selectedTab }
@@ -285,7 +285,7 @@ struct MainTabView: View {
 
     @ViewBuilder
     private var detailContent: some View {
-        switch selection {
+        switch selectedTab {
         case 0: ArcsView()
         case 1: StacksView()
         case 2: ActivityFeedView()
