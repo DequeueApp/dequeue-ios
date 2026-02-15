@@ -20,6 +20,7 @@ struct MainTabView: View {
     // Now fetched lazily in handleDeepLink() to avoid 2 queries on every init
 
     @State private var selectedTab = 0
+    @State private var sidebarSelection: Int? = 0
     @State private var cachedDeviceId: String = ""
     @State private var showStackPicker = false
     @State private var activeStackForDetail: Stack?
@@ -143,7 +144,7 @@ struct MainTabView: View {
     private var iPadSplitViewLayout: some View {
         #if os(iOS)
         NavigationSplitView {
-            List {
+            List(selection: $sidebarSelection) {
                 NavigationLink(value: 0) {
                     Label("Arcs", systemImage: "rays")
                 }
@@ -159,9 +160,17 @@ struct MainTabView: View {
             }
             .navigationTitle("Dequeue")
             .listStyle(.sidebar)
+            .navigationDestination(for: Int.self) { value in
+                // Keep tab selection in sync for shared app state
+                selectedTab = value
+                detailContentForSelection(value)
+            }
+            .onAppear {
+                if sidebarSelection == nil { sidebarSelection = selectedTab }
+            }
         } detail: {
             ZStack(alignment: .bottom) {
-                detailContentForSelection
+                detailContentForSelection(sidebarSelection ?? selectedTab)
                     .frame(maxHeight: .infinity, alignment: .top)
                 floatingBanners
             }
@@ -172,9 +181,9 @@ struct MainTabView: View {
     }
 
     @ViewBuilder
-    private var detailContentForSelection: some View {
+    private func detailContentForSelection(_ selection: Int) -> some View {
         #if os(iOS)
-        switch selectedTab {
+        switch selection {
         case 0: ArcsView()
         case 1: StacksView()
         case 2: ActivityFeedView()
@@ -276,7 +285,7 @@ struct MainTabView: View {
 
     @ViewBuilder
     private var detailContent: some View {
-        switch selectedTab {
+        switch selection {
         case 0: ArcsView()
         case 1: StacksView()
         case 2: ActivityFeedView()
