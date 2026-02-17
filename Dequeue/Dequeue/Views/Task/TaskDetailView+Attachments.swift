@@ -78,7 +78,25 @@ extension TaskDetailView {
     }
 
     func handleDeleteAttachment(_ attachment: Attachment) {
-        // TODO: Delete attachment (will be implemented with AttachmentService integration)
+        guard let service = attachmentService else {
+            errorMessage = "Attachment service not available"
+            showError = true
+            return
+        }
+
+        Task {
+            do {
+                try await service.deleteAttachment(attachment)
+            } catch {
+                errorMessage = "Failed to delete attachment: \(error.localizedDescription)"
+                showError = true
+                ErrorReportingService.capture(error: error, context: [
+                    "view": "TaskDetailView",
+                    "action": "handleDeleteAttachment",
+                    "attachmentId": attachment.id
+                ])
+            }
+        }
     }
 }
 
