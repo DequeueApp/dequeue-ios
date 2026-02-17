@@ -72,7 +72,7 @@ extension TaskDetailView {
         Task {
             await previewCoordinator.preview(
                 attachment: attachment,
-                downloadHandler: nil  // TODO: Add download handler for remote-only attachments
+                downloadHandler: attachmentService?.downloadAttachment(_:)
             )
         }
     }
