@@ -723,16 +723,17 @@ actor SyncManager {
         // 4. Create Tasks (fetched separately via GET /v1/tasks)
         for taskData in tasks {
             // Look up the parent stack — it should exist from step 3
+            let taskStackId = taskData.stackId
             let stack: Stack?
-            if let cached = stackMap[taskData.stackId] {
+            if let cached = stackMap[taskStackId] {
                 stack = cached
             } else {
-                let fetchDescriptor = FetchDescriptor<Stack>(predicate: #Predicate<Stack> { $0.id == taskData.stackId })
+                let fetchDescriptor = FetchDescriptor<Stack>(predicate: #Predicate<Stack> { $0.id == taskStackId })
                 stack = try context.fetch(fetchDescriptor).first
             }
 
             guard let parentStack = stack else {
-                os_log("[Sync] Skipping task \(taskData.id) - parent stack \(taskData.stackId) not found")
+                os_log("[Sync] Skipping task \(taskData.id) - parent stack \(taskStackId) not found")
                 continue
             }
 
