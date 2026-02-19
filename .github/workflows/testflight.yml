@@ -98,10 +98,32 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.create({
+            // Check for existing open TestFlight issues before creating a new one
+            const { data: existingIssues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `TestFlight Deploy Failed - ${new Date().toISOString().split('T')[0]}`,
-              body: `TestFlight deployment failed for commit ${context.sha}.\n\nSee workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              labels: ['ci', 'testflight', 'bug']
-            })
+              state: 'open',
+              labels: 'ci,testflight,bug',
+              per_page: 5
+            });
+
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            if (existingIssues.length > 0) {
+              // Add a comment to the most recent existing issue instead of creating a duplicate
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssues[0].number,
+                body: `TestFlight deployment failed again for commit ${context.sha}.\n\nWorkflow run: ${runUrl}`
+              });
+            } else {
+              // No existing issue — create one
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `TestFlight Deploy Failed - ${new Date().toISOString().split('T')[0]}`,
+                body: `TestFlight deployment failed for commit ${context.sha}.\n\nSee workflow run: ${runUrl}`,
+                labels: ['ci', 'testflight', 'bug']
+              });
+            }
