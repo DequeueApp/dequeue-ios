@@ -57,11 +57,11 @@ private struct StackProjection: @preconcurrency Decodable, Sendable {
     let isDeleted: Bool
     let arcId: String?
     let tags: [String]?
-    let startTime: String?
-    let dueTime: String?
-    let createdAt: String
-    let updatedAt: String
-    let tasks: [TaskProjection]?
+    let startTime: Int64?
+    let dueTime: Int64?
+    let createdAt: Int64
+    let updatedAt: Int64
+    // Note: tasks are fetched separately via GET /v1/tasks (not nested in stacks response)
 }
 
 private struct TaskProjection: @preconcurrency Decodable, Sendable {
@@ -72,10 +72,10 @@ private struct TaskProjection: @preconcurrency Decodable, Sendable {
     let sortOrder: Int
     let status: String
     let isActive: Bool
-    let startTime: String?
-    let dueTime: String?
-    let createdAt: String
-    let updatedAt: String
+    let startTime: Int64?
+    let dueTime: Int64?
+    let createdAt: Int64
+    let updatedAt: Int64
 }
 
 private struct ArcProjection: @preconcurrency Decodable, Sendable {
@@ -84,15 +84,15 @@ private struct ArcProjection: @preconcurrency Decodable, Sendable {
     let description: String?
     let color: String?
     let isDeleted: Bool
-    let createdAt: String
-    let updatedAt: String
+    let createdAt: Int64
+    let updatedAt: Int64
 }
 
 private struct TagProjection: @preconcurrency Decodable, Sendable {
     let id: String
     let name: String
     let color: String?
-    let createdAt: String
+    let createdAt: Int64
 }
 
 private struct ReminderProjection: @preconcurrency Decodable, Sendable {
@@ -100,10 +100,10 @@ private struct ReminderProjection: @preconcurrency Decodable, Sendable {
     let stackId: String?
     let arcId: String?
     let taskId: String?
-    let triggerTime: String
+    let triggerTime: Int64
     let notificationSent: Bool
     let isDeleted: Bool
-    let createdAt: String
+    let createdAt: Int64
 }
 
 // MARK: - WebSocket Stream Messages (DEQ-243)
@@ -549,6 +549,7 @@ actor SyncManager {
         // Fetch all resource types in parallel
         // Note: Explicit type annotations help the type-checker avoid timeout on complex expressions
         async let stacksTask: [StackProjection] = fetchProjectionResource(StackProjection.self, url: "\(baseURL)/v1/stacks", token: token)
+        async let tasksTask: [TaskProjection] = fetchProjectionResource(TaskProjection.self, url: "\(baseURL)/v1/tasks", token: token)
         async let arcsTask: [ArcProjection] = fetchProjectionResource(ArcProjection.self, url: "\(baseURL)/v1/arcs", token: token)
         async let tagsTask: [TagProjection] = fetchProjectionResource(TagProjection.self, url: "\(baseURL)/v1/tags", token: token)
         async let remindersTask: [ReminderProjection] = fetchProjectionResource(ReminderProjection.self, url: "\(baseURL)/v1/reminders", token: token)
@@ -556,14 +557,15 @@ actor SyncManager {
         do {
             // Await each task individually to help the type-checker
             let stacks = try await stacksTask
+            let tasks = try await tasksTask
             let arcs = try await arcsTask
             let tags = try await tagsTask
             let reminders = try await remindersTask
 
-            os_log("[Sync] Fetched projections: \(stacks.count) stacks, \(arcs.count) arcs, \(tags.count) tags, \(reminders.count) reminders")
+            os_log("[Sync] Fetched projections: \(stacks.count) stacks, \(tasks.count) tasks, \(arcs.count) arcs, \(tags.count) tags, \(reminders.count) reminders")
 
             // Populate local models
-            try await populateFromProjections(stacks: stacks, arcs: arcs, tags: tags, reminders: reminders)
+            try await populateFromProjections(stacks: stacks, tasks: tasks, arcs: arcs, tags: tags, reminders: reminders)
 
             // Set checkpoint to now (all future events will be synced incrementally)
             let checkpoint = Self.iso8601Standard.string(from: Date())
@@ -577,7 +579,7 @@ actor SyncManager {
                 syncId: syncId,
                 duration: duration,
                 itemsUploaded: 0,  // Projection sync only downloads
-                itemsDownloaded: stacks.count + arcs.count + tags.count + reminders.count
+                itemsDownloaded: stacks.count + tasks.count + arcs.count + tags.count + reminders.count
             )
         } catch {
             os_log("[Sync] Projection sync failed: \(error.localizedDescription)")
@@ -622,11 +624,16 @@ actor SyncManager {
             let decoded = try JSONDecoder().decode(ProjectionResponse<T>.self, from: data)
             allResults.append(contentsOf: decoded.data)
 
-            // Handle pagination
+            // Handle pagination — use URLComponents to properly manage query parameters
             if let pagination = decoded.pagination,
                pagination.hasMore,
                let nextCursor = pagination.nextCursor {
-                currentURL = "\(url)?cursor=\(nextCursor)"
+                var components = URLComponents(url: url, resolvingAgainstBaseURL: true)
+                var queryItems = components?.queryItems ?? []
+                queryItems.removeAll { $0.name == "cursor" }
+                queryItems.append(URLQueryItem(name: "cursor", value: nextCursor))
+                components?.queryItems = queryItems
+                currentURL = components?.url?.absoluteString
             } else {
                 currentURL = nil
             }
@@ -641,6 +648,7 @@ actor SyncManager {
     @MainActor
     private func populateFromProjections(
         stacks: [StackProjection],
+        tasks: [TaskProjection],
         arcs: [ArcProjection],
         tags: [TagProjection],
         reminders: [ReminderProjection]
@@ -654,8 +662,8 @@ actor SyncManager {
                 title: arcData.title,
                 arcDescription: arcData.description,
                 colorHex: arcData.color,
-                createdAt: parseISO8601(arcData.createdAt) ?? Date(),
-                updatedAt: parseISO8601(arcData.updatedAt) ?? Date(),
+                createdAt: dateFromUnixMs(arcData.createdAt),
+                updatedAt: dateFromUnixMs(arcData.updatedAt),
                 isDeleted: arcData.isDeleted
             )
             context.insert(arc)
@@ -668,22 +676,23 @@ actor SyncManager {
                 id: tagData.id,
                 name: tagData.name,
                 colorHex: tagData.color,
-                createdAt: parseISO8601(tagData.createdAt) ?? Date()
+                createdAt: dateFromUnixMs(tagData.createdAt)
             )
             context.insert(tag)
             tagMap[tag.id] = tag
         }
 
-        // 3. Create Stacks
+        // 3. Create Stacks (without tasks — tasks are fetched separately)
+        var stackMap: [String: Stack] = [:]
         for stackData in stacks {
             let stack = Stack(
                 id: stackData.id,
                 title: stackData.title,
                 stackDescription: stackData.description,
-                startTime: parseISO8601(stackData.startTime),
-                dueTime: parseISO8601(stackData.dueTime),
-                createdAt: parseISO8601(stackData.createdAt) ?? Date(),
-                updatedAt: parseISO8601(stackData.updatedAt) ?? Date(),
+                startTime: dateFromUnixMs(stackData.startTime),
+                dueTime: dateFromUnixMs(stackData.dueTime),
+                createdAt: dateFromUnixMs(stackData.createdAt),
+                updatedAt: dateFromUnixMs(stackData.updatedAt),
                 isDeleted: stackData.isDeleted,
                 isActive: stackData.isActive
             )
@@ -708,27 +717,39 @@ actor SyncManager {
             }
 
             context.insert(stack)
+            stackMap[stack.id] = stack
+        }
 
-            // 4. Create Tasks for this Stack
-            // Note: task.stack relationship is set via initializer; QueueTask doesn't have
-            // separate stackId/isActive properties - it uses the stack relationship and status enum
-            if let tasks = stackData.tasks {
-                for taskData in tasks {
-                    let task = QueueTask(
-                        id: taskData.id,
-                        title: taskData.title,
-                        taskDescription: taskData.description,
-                        startTime: parseISO8601(taskData.startTime),
-                        dueTime: parseISO8601(taskData.dueTime),
-                        status: parseTaskStatus(taskData.status),
-                        sortOrder: taskData.sortOrder,
-                        createdAt: parseISO8601(taskData.createdAt) ?? Date(),
-                        updatedAt: parseISO8601(taskData.updatedAt) ?? Date(),
-                        stack: stack
-                    )
-                    context.insert(task)
-                }
+        // 4. Create Tasks (fetched separately via GET /v1/tasks)
+        for taskData in tasks {
+            // Look up the parent stack — it should exist from step 3
+            let taskStackId = taskData.stackId
+            let stack: Stack?
+            if let cached = stackMap[taskStackId] {
+                stack = cached
+            } else {
+                let fetchDescriptor = FetchDescriptor<Stack>(predicate: #Predicate<Stack> { $0.id == taskStackId })
+                stack = try context.fetch(fetchDescriptor).first
             }
+
+            guard let parentStack = stack else {
+                os_log("[Sync] Skipping task \(taskData.id) - parent stack \(taskStackId) not found")
+                continue
+            }
+
+            let task = QueueTask(
+                id: taskData.id,
+                title: taskData.title,
+                taskDescription: taskData.description,
+                startTime: dateFromUnixMs(taskData.startTime),
+                dueTime: dateFromUnixMs(taskData.dueTime),
+                status: parseTaskStatus(taskData.status),
+                sortOrder: taskData.sortOrder,
+                createdAt: dateFromUnixMs(taskData.createdAt),
+                updatedAt: dateFromUnixMs(taskData.updatedAt),
+                stack: parentStack
+            )
+            context.insert(task)
         }
 
         // 5. Create Reminders (must be after Stacks, Arcs, Tasks are created for foreign key refs)
@@ -754,8 +775,8 @@ actor SyncManager {
                 id: reminderData.id,
                 parentId: parentId,
                 parentType: parentType,
-                remindAt: parseISO8601(reminderData.triggerTime) ?? Date(),
-                createdAt: parseISO8601(reminderData.createdAt) ?? Date(),
+                remindAt: dateFromUnixMs(reminderData.triggerTime),
+                createdAt: dateFromUnixMs(reminderData.createdAt),
                 isDeleted: reminderData.isDeleted
             )
             
@@ -787,7 +808,7 @@ actor SyncManager {
         }
 
         try context.save()
-        os_log("[Sync] Successfully populated \(stacks.count) stacks, \(arcs.count) arcs, \(tags.count) tags, \(reminders.count) reminders")
+        os_log("[Sync] Successfully populated \(stacks.count) stacks, \(tasks.count) tasks, \(arcs.count) arcs, \(tags.count) tags, \(reminders.count) reminders")
     }
 
     // MARK: - Helpers
@@ -797,6 +818,17 @@ actor SyncManager {
     nonisolated private func parseISO8601(_ string: String?) -> Date? {
         guard let string = string else { return nil }
         return Self.iso8601Standard.date(from: string)
+    }
+
+    /// Converts a Unix millisecond timestamp to Date.
+    nonisolated private func dateFromUnixMs(_ ms: Int64) -> Date {
+        Date(timeIntervalSince1970: Double(ms) / 1000.0)
+    }
+
+    /// Converts an optional Unix millisecond timestamp to Date.
+    nonisolated private func dateFromUnixMs(_ ms: Int64?) -> Date? {
+        guard let ms = ms else { return nil }
+        return Date(timeIntervalSince1970: Double(ms) / 1000.0)
     }
 
     /// Parses stack status string to enum.
