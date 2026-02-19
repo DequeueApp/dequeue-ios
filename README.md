@@ -4,8 +4,8 @@ Native iOS, iPadOS, and macOS task management app built with SwiftUI and SwiftDa
 
 ## Requirements
 
-- Xcode 16.0+
-- iOS 18.0+ / iPadOS 18.0+ / macOS 15.0+
+- Xcode 26.0+
+- iOS 18.2+ / iPadOS 18.2+ / macOS 26.0+
 - Swift 6.0+
 
 ## Tech Stack
