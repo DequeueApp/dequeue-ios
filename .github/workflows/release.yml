@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout (latest after version bump)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: main
           fetch-depth: 0
@@ -95,7 +95,7 @@ jobs:
             --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
 
       - name: Upload dSYMs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dSYMs-iOS
           path: $RUNNER_TEMP/Dequeue-iOS.xcarchive/dSYMs
@@ -109,7 +109,7 @@ jobs:
 
     steps:
       - name: Checkout (latest after version bump)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: main
           fetch-depth: 0
@@ -172,7 +172,7 @@ jobs:
             --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
 
       - name: Upload dSYMs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dSYMs-macOS
           path: $RUNNER_TEMP/Dequeue-macOS.xcarchive/dSYMs
@@ -187,7 +187,7 @@ jobs:
 
     steps:
       - name: Checkout (latest after version bump)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: main
           fetch-depth: 0
@@ -241,7 +241,7 @@ jobs:
             --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
 
       - name: Upload dSYMs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dSYMs-visionOS
           path: $RUNNER_TEMP/Dequeue-visionOS.xcarchive/dSYMs
@@ -255,20 +255,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: main
           fetch-depth: 0
 
       - name: Download all dSYMs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: dSYMs-*
           path: ${{ runner.temp }}/dSYMs
           merge-multiple: true
 
       - name: Create Sentry Release
-        uses: getsentry/action-release@v1
+        uses: getsentry/action-release@a74facf8a080ecbdf1cb355f16743530d712abb7 # v1
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
