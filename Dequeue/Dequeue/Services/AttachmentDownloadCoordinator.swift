@@ -135,7 +135,7 @@ final class AttachmentDownloadCoordinator {
 
         let total = pendingDownloads.count
 
-        for (index, attachment) in pendingDownloads.enumerated() {
+        for attachment in pendingDownloads {
             // Check if we should continue downloading
             guard isAutoDownloading else {
                 logger.info("Auto-downloads stopped")

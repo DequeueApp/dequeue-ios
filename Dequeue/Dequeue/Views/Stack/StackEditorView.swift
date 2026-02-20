@@ -170,7 +170,7 @@ struct StackEditorView: View {
                 }
                 .focusedValue(\.deleteItemAction) {
                     // DEQ-50: Delete key deletes stack (with confirmation)
-                    if case .edit(let stack) = mode, !isReadOnly {
+                    if case .edit = mode, !isReadOnly {
                         showDeleteConfirmation = true
                     }
                 }

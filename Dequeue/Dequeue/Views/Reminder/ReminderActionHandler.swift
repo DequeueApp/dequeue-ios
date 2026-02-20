@@ -37,7 +37,7 @@ struct ReminderActionHandler {
         Task {
             do {
                 // Cancel existing notification
-                await notificationService.cancelNotification(for: reminder)
+                notificationService.cancelNotification(for: reminder)
 
                 // Snooze the reminder
                 try await reminderService.snoozeReminder(reminder, until: date)
@@ -56,7 +56,7 @@ struct ReminderActionHandler {
         Task {
             do {
                 // Cancel notification
-                await notificationService.cancelNotification(for: reminder)
+                notificationService.cancelNotification(for: reminder)
 
                 try await reminderService.deleteReminder(reminder)
 
@@ -74,7 +74,7 @@ struct ReminderActionHandler {
         Task {
             do {
                 // Cancel notification (if any)
-                await notificationService.cancelNotification(for: reminder)
+                notificationService.cancelNotification(for: reminder)
 
                 try await reminderService.dismissReminder(reminder)
 

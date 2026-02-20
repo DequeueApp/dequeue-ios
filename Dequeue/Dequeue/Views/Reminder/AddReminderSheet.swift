@@ -325,7 +325,7 @@ struct AddReminderSheet: View {
             do {
                 if let existingReminder {
                     // Edit mode: update existing reminder
-                    await notificationService.cancelNotification(for: existingReminder)
+                    notificationService.cancelNotification(for: existingReminder)
                     try await service.updateReminder(existingReminder, remindAt: selectedDate)
                     try await notificationService.scheduleNotification(for: existingReminder)
                 } else {

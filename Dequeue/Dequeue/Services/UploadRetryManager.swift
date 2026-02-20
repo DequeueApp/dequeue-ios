@@ -111,7 +111,7 @@ final class UploadRetryManager {
                 let isConnected = NetworkMonitor.shared.isConnected
                 if isConnected && !wasConnected {
                     // Network became available - trigger pending retries
-                    await self?.triggerPendingRetries()
+                    self?.triggerPendingRetries()
                 }
                 wasConnected = isConnected
             }
@@ -210,7 +210,7 @@ final class UploadRetryManager {
 
             // Only retry if network is available
             if NetworkMonitor.shared.isConnected {
-                await self?.triggerRetry(attachmentId: attachmentId)
+                self?.triggerRetry(attachmentId: attachmentId)
             } else {
                 os_log("[UploadRetryManager] Skipping retry for \(attachmentId) - no network")
             }

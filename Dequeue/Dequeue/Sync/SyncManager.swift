@@ -1005,22 +1005,14 @@ actor SyncManager {
             let duration = Date().timeIntervalSince(startTime)
             let capturedError = error
             Task.detached(priority: .utility) {
-                do {
-                    let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
-                    await ErrorReportingService.logSyncFailure(
-                        syncId: syncId,
-                        duration: duration,
-                        error: capturedError,
-                        failureReason: failureReason.description,
-                        internetReachable: failureReason.isServerProblem
-                    )
-                } catch {
-                    // Fallback to os_log if Sentry logging fails - ensures observability is never lost
-                    os_log(
-                        .error,
-                        "[Sync] Failed to log push failure to Sentry: \(error). Original: \(capturedError)"
-                    )
-                }
+                let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
+                await ErrorReportingService.logSyncFailure(
+                    syncId: syncId,
+                    duration: duration,
+                    error: capturedError,
+                    failureReason: failureReason.description,
+                    internetReachable: failureReason.isServerProblem
+                )
             }
             throw error
         }
@@ -1154,7 +1146,6 @@ actor SyncManager {
         os_log("[Sync] Sent sync.stream.request")
         
         var totalEventsReceived = 0
-        var latestCheckpoint = currentCheckpoint
         var receivedStart = false
         var receivedComplete = false
         
@@ -1236,11 +1227,8 @@ actor SyncManager {
                     totalEventsReceived += filteredCount
                     _initialSyncEventsProcessed = totalEventsReceived
                     
-                    // Update checkpoint from last event in batch
-                    if let lastEvent = events.last,
-                       let tsString = lastEvent["ts"] as? String {
-                        latestCheckpoint = tsString
-                    }
+                    // Batch checkpoint tracking: final checkpoint saved when sync.stream.complete received
+                    // (per-batch checkpoint intentionally unused — server provides authoritative checkpoint)
                     
                     os_log("[Sync] Batch \(batchIndex) complete: \(totalEventsReceived) total events processed")
                     
@@ -1252,8 +1240,7 @@ actor SyncManager {
                     }
                     
                     receivedComplete = true
-                    latestCheckpoint = newCheckpoint
-                    
+
                     // Save final checkpoint
                     saveLastSyncCheckpoint(newCheckpoint)
                     
@@ -1408,22 +1395,14 @@ actor SyncManager {
                 let duration = Date().timeIntervalSince(startTime)
                 let capturedError = error
                 Task.detached(priority: .utility) {
-                    do {
-                        let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
-                        await ErrorReportingService.logSyncFailure(
-                            syncId: syncId,
-                            duration: duration,
-                            error: capturedError,
-                            failureReason: failureReason.description,
-                            internetReachable: failureReason.isServerProblem
-                        )
-                    } catch {
-                        // Fallback to os_log if Sentry logging fails - ensures observability is never lost
-                        os_log(
-                            .error,
-                            "[Sync] Failed to log pull failure to Sentry: \(error). Original: \(capturedError)"
-                        )
-                    }
+                    let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
+                    await ErrorReportingService.logSyncFailure(
+                        syncId: syncId,
+                        duration: duration,
+                        error: capturedError,
+                        failureReason: failureReason.description,
+                        internetReachable: failureReason.isServerProblem
+                    )
                 }
                 throw error
             }

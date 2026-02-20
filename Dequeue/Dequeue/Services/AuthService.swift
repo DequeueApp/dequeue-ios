@@ -101,7 +101,7 @@ final class ClerkAuthService: AuthServiceProtocol {
     @MainActor
     func configure() async {
         // Step 1: Configure SDK (no network call)
-        await Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
+        Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
 
         // Step 2: Check cached session immediately (no network call)
         // Clerk SDK may have persisted session from previous app launch
@@ -269,7 +269,7 @@ final class ClerkAuthService: AuthServiceProtocol {
                 for factor in factors {
                     if let safeIdentifier = factor.safeIdentifier, safeIdentifier.contains("@"),
                        let emailId = factor.emailAddressId {
-                        try? await signIn.prepareSecondFactor(strategy: .emailCode(emailAddressId: emailId))
+                        _ = try? await signIn.prepareSecondFactor(strategy: .emailCode(emailAddressId: emailId))
                         break
                     }
                 }
@@ -357,7 +357,6 @@ final class MockAuthService: AuthServiceProtocol {
     var isLoading: Bool = false
     var currentUserId: String?
 
-    // Note: continuation is nonisolated(unsafe) to allow access from deinit
     private let sessionStateChangesStream: AsyncStream<SessionStateChange>
     nonisolated(unsafe) private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
 

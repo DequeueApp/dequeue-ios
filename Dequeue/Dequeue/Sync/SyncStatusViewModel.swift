@@ -50,10 +50,7 @@ internal final class SyncStatusViewModel {
     private let eventService: EventService
     private var syncManager: SyncManager?
     // nonisolated(unsafe) allows access from deinit for cleanup with @Observable.
-    // This is safe because:
-    // - The class is @MainActor isolated, so all mutations happen on the same thread
-    // - stopMonitoring() is only called from onDisappear, which runs on MainActor
-    // - deinit only reads/cancels the task, doesn't modify it
+    // nonisolated(unsafe) needed for mutable property accessed in deinit
     nonisolated(unsafe) private var updateTask: Task<Void, Never>?
     private var previousPendingCount: Int = 0
 

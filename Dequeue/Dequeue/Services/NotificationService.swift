@@ -12,28 +12,30 @@ import Clerk
 
 // MARK: - Notification Constants
 
-/// Action and category identifiers for notification actions
-enum NotificationConstants {
-    nonisolated(unsafe) static let categoryIdentifier = "REMINDER_CATEGORY"
+// Action and category identifiers for notification actions.
+// nonisolated required: these constants are accessed from UNUserNotificationCenterDelegate
+// methods which run on non-main-actor contexts.
+enum NotificationConstants: Sendable {
+    nonisolated static let categoryIdentifier = "REMINDER_CATEGORY"
 
-    enum Action {
-        nonisolated(unsafe) static let complete = "COMPLETE_ACTION"
-        nonisolated(unsafe) static let snooze5Min = "SNOOZE_5_MIN_ACTION"
-        nonisolated(unsafe) static let snooze15Min = "SNOOZE_15_MIN_ACTION"
-        nonisolated(unsafe) static let snooze1Hour = "SNOOZE_1_HOUR_ACTION"
+    enum Action: Sendable {
+        nonisolated static let complete = "COMPLETE_ACTION"
+        nonisolated static let snooze5Min = "SNOOZE_5_MIN_ACTION"
+        nonisolated static let snooze15Min = "SNOOZE_15_MIN_ACTION"
+        nonisolated static let snooze1Hour = "SNOOZE_1_HOUR_ACTION"
     }
 
-    enum UserInfoKey {
-        nonisolated(unsafe) static let reminderId = "reminderId"
-        nonisolated(unsafe) static let parentType = "parentType"
-        nonisolated(unsafe) static let parentId = "parentId"
+    enum UserInfoKey: Sendable {
+        nonisolated static let reminderId = "reminderId"
+        nonisolated static let parentType = "parentType"
+        nonisolated static let parentId = "parentId"
     }
 
     /// Snooze durations in seconds
-    enum SnoozeDuration {
-        nonisolated(unsafe) static let fiveMinutes: TimeInterval = 5 * 60
-        nonisolated(unsafe) static let fifteenMinutes: TimeInterval = 15 * 60
-        nonisolated(unsafe) static let oneHour: TimeInterval = 60 * 60
+    enum SnoozeDuration: Sendable {
+        nonisolated static let fiveMinutes: TimeInterval = 5 * 60
+        nonisolated static let fifteenMinutes: TimeInterval = 15 * 60
+        nonisolated static let oneHour: TimeInterval = 60 * 60
     }
 }
 

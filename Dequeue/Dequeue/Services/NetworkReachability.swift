@@ -23,20 +23,14 @@ enum NetworkReachability {
     // MARK: - Constants
 
     // Timeout for reachability check (reduced from 5s to minimize delay on sync failures)
-    // nonisolated(unsafe) required: accessed from OSAllocatedUnfairLock Sendable closure.
-    // Safe because this is an immutable constant of a Sendable type (TimeInterval/Double).
-    nonisolated(unsafe) private static let reachabilityTimeout: TimeInterval = 2.0
+    nonisolated static let reachabilityTimeout: TimeInterval = 2.0
 
     // How long to consider a cached "online" result valid (longer since network rarely drops suddenly)
-    // nonisolated(unsafe) required: accessed from OSAllocatedUnfairLock Sendable closure.
-    // Safe because this is an immutable constant of a Sendable type (TimeInterval/Double).
-    nonisolated(unsafe) private static let onlineCacheDuration: TimeInterval = 30.0
+    nonisolated static let onlineCacheDuration: TimeInterval = 30.0
 
     // How long to consider a cached "offline" result valid (shorter to detect network recovery quickly).
     // This prevents stale offline cache from blocking reconnection when network comes back.
-    // nonisolated(unsafe) required: accessed from OSAllocatedUnfairLock Sendable closure.
-    // Safe because this is an immutable constant of a Sendable type (TimeInterval/Double).
-    nonisolated(unsafe) private static let offlineCacheDuration: TimeInterval = 3.0
+    nonisolated static let offlineCacheDuration: TimeInterval = 3.0
 
     // MARK: - Cached State
 
