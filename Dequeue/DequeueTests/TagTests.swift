@@ -103,9 +103,9 @@ struct TagModelTests {
 
 // MARK: - Tag Service Tests
 
-@Suite("Tag Service Tests", .serialized)
+@Suite("Tag Service Integration Tests", .serialized)
 @MainActor
-struct TagServiceTests {
+struct TagServiceIntegrationTests {
     @Test("createTag creates tag with valid name")
     func createTagWithValidName() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)

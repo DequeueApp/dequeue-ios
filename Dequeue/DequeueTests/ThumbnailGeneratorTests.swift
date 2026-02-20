@@ -81,7 +81,7 @@ struct ThumbnailGeneratorTests {
         #elseif canImport(AppKit)
         let tiffData = testImage.tiffRepresentation!
         let bitmapRep = NSBitmapImageRep(data: tiffData)!
-        let imageData = bitmapRep.representation(using: .png)!
+        let imageData = bitmapRep.representation(using: .png, properties: [:])!
         #endif
 
         let thumbnailData = try await generator.generateThumbnail(

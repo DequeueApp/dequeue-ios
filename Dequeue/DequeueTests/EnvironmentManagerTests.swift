@@ -8,6 +8,7 @@
 import XCTest
 @testable import Dequeue
 
+@MainActor
 final class EnvironmentManagerTests: XCTestCase {
     var sut: EnvironmentManager!
 
