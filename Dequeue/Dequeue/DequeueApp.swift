@@ -131,6 +131,9 @@ struct DequeueApp: App {
                 .environment(\.clerk, Clerk.shared)
                 .environment(\.syncManager, syncManager)
                 .environment(\.attachmentSettings, attachmentSettings)
+                .environment(\.searchService, SearchService(authService: authService))
+                .environment(\.statsService, StatsService(authService: authService))
+                .environment(\.exportService, ExportService(authService: authService))
                 .applyAppTheme()
                 .task {
                     // Configure error reporting first (runs on background thread)

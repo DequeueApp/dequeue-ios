@@ -109,20 +109,20 @@ private struct ReminderProjection: @preconcurrency Decodable, Sendable {
 // MARK: - WebSocket Stream Messages (DEQ-243)
 
 /// Client request to start streaming events
-private struct SyncStreamRequest: Codable, Sendable {
+struct SyncStreamRequest: Codable, Sendable {
     let type: String // "sync.stream.request"
     let since: String? // RFC3339 timestamp, optional
 }
 
 /// Server response indicating stream start with total event count
-private struct SyncStreamStart: Codable, Sendable {
+struct SyncStreamStart: Codable, Sendable {
     let type: String // "sync.stream.start"
     let totalEvents: Int64
 }
 
 /// Server response containing a batch of events
 /// Note: events are parsed separately using JSONSerialization to match REST API handling
-private struct SyncStreamBatch: Codable, Sendable {
+struct SyncStreamBatch: Codable, Sendable {
     let type: String // "sync.stream.batch"
     // events field handled separately via JSONSerialization
     let batchIndex: Int
@@ -130,14 +130,14 @@ private struct SyncStreamBatch: Codable, Sendable {
 }
 
 /// Server response indicating stream completion
-private struct SyncStreamComplete: Codable, Sendable {
+struct SyncStreamComplete: Codable, Sendable {
     let type: String // "sync.stream.complete"
     let processedEvents: Int64
     let newCheckpoint: String
 }
 
 /// Server response indicating an error occurred during streaming
-private struct SyncStreamError: Codable, Sendable {
+struct SyncStreamError: Codable, Sendable {
     let type: String // "sync.stream.error"
     let error: String
     let code: String?

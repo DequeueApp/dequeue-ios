@@ -80,7 +80,7 @@ struct MainTabView: View {
         content
             .focusedValue(\.openSettingsAction) {
                 // DEQ-50: Navigate to Settings tab with ⌘,
-                selectedTab = 3
+                selectedTab = 4
             }
         #else
         content
@@ -126,12 +126,15 @@ struct MainTabView: View {
                 StacksView()
                     .tabItem { Label("Stacks", systemImage: "square.stack.3d.up") }
                     .tag(1)
+                SearchView()
+                    .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                    .tag(2)
                 ActivityFeedView()
                     .tabItem { Label("Activity", systemImage: "clock.arrow.circlepath") }
-                    .tag(2)
+                    .tag(3)
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gear") }
-                    .tag(3)
+                    .tag(4)
             }
             floatingBanners
         }
@@ -152,9 +155,12 @@ struct MainTabView: View {
                     Label("Stacks", systemImage: "square.stack.3d.up")
                 }
                 NavigationLink(value: 2) {
-                    Label("Activity", systemImage: "clock.arrow.circlepath")
+                    Label("Search", systemImage: "magnifyingglass")
                 }
                 NavigationLink(value: 3) {
+                    Label("Activity", systemImage: "clock.arrow.circlepath")
+                }
+                NavigationLink(value: 4) {
                     Label("Settings", systemImage: "gear")
                 }
             }
@@ -186,8 +192,9 @@ struct MainTabView: View {
         switch selection {
         case 0: ArcsView()
         case 1: StacksView()
-        case 2: ActivityFeedView()
-        case 3: SettingsView()
+        case 2: SearchView()
+        case 3: ActivityFeedView()
+        case 4: SettingsView()
         default: ArcsView()
         }
         #else
@@ -245,8 +252,9 @@ struct MainTabView: View {
                 List(selection: $selectedTab) {
                     NavigationLink(value: 0) { Label("Arcs", systemImage: "rays") }
                     NavigationLink(value: 1) { Label("Stacks", systemImage: "square.stack.3d.up") }
-                    NavigationLink(value: 2) { Label("Activity", systemImage: "clock.arrow.circlepath") }
-                    NavigationLink(value: 3) { Label("Settings", systemImage: "gear") }
+                    NavigationLink(value: 2) { Label("Search", systemImage: "magnifyingglass") }
+                    NavigationLink(value: 3) { Label("Activity", systemImage: "clock.arrow.circlepath") }
+                    NavigationLink(value: 4) { Label("Settings", systemImage: "gear") }
                 }
                 .navigationSplitViewColumnWidth(min: 180, ideal: 200)
             } detail: {
@@ -288,8 +296,9 @@ struct MainTabView: View {
         switch selectedTab {
         case 0: ArcsView()
         case 1: StacksView()
-        case 2: ActivityFeedView()
-        case 3: SettingsView()
+        case 2: SearchView()
+        case 3: ActivityFeedView()
+        case 4: SettingsView()
         default: ArcsView()
         }
     }

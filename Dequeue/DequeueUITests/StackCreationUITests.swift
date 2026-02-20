@@ -87,9 +87,9 @@ final class StackCreationUITests: XCTestCase {
         // Enable "Set as Active Stack" toggle
         let activeToggle = app.switches["setAsActiveToggle"]
         XCTAssertTrue(activeToggle.exists)
-        XCTAssertFalse(activeToggle.isOn)
+        XCTAssertEqual(activeToggle.value as? String, "0")
         activeToggle.tap()
-        XCTAssertTrue(activeToggle.isOn)
+        XCTAssertEqual(activeToggle.value as? String, "1")
 
         app.buttons["createButton"].tap()
 

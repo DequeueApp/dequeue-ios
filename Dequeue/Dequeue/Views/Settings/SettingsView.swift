@@ -28,6 +28,7 @@ struct SettingsView: View {
             List {
                 accountSection
                 preferencesSection
+                dataSection
                 aboutSection
                 advancedSection
                 if developerModeEnabled {
@@ -111,6 +112,21 @@ struct SettingsView: View {
                 AppearanceSettingsView()
             } label: {
                 Label("Appearance", systemImage: "paintbrush")
+            }
+        }
+    }
+
+    private var dataSection: some View {
+        Section("Data") {
+            NavigationLink {
+                StatsView()
+            } label: {
+                Label("Statistics", systemImage: "chart.bar")
+            }
+            NavigationLink {
+                ExportView()
+            } label: {
+                Label("Export Data", systemImage: "square.and.arrow.up")
             }
         }
     }
