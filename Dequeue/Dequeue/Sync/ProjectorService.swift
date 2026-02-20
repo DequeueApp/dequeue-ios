@@ -1243,7 +1243,8 @@ enum ProjectorService {
         // Update AI delegation fields from full state
         task.delegatedToAI = payload.fullState.delegatedToAI ?? false
         task.aiAgentId = payload.fullState.aiAgentId
-        task.aiDelegatedAt = payload.fullState.aiDelegatedAt.map { Date(timeIntervalSince1970: TimeInterval($0) / 1_000) }
+        task.aiDelegatedAt = payload.fullState.aiDelegatedAt
+            .map { Date(timeIntervalSince1970: TimeInterval($0) / 1_000) }
         task.updatedAt = event.timestamp  // LWW: Use event timestamp
         task.syncState = .synced
         task.lastSyncedAt = Date()
@@ -2365,14 +2366,14 @@ enum ProjectorService {
         task.startTime = payload.startTime
         task.dueTime = payload.dueTime
         task.lastActiveTime = payload.lastActiveTime
-        
+
         // Update AI delegation fields (DEQ-54)
         if let delegatedToAI = payload.delegatedToAI {
             task.delegatedToAI = delegatedToAI
         }
         task.aiAgentId = payload.aiAgentId
         task.aiDelegatedAt = payload.aiDelegatedAt
-        
+
         // Update tags (DEQ-31)
         if let tags = payload.tags {
             task.tags = tags
@@ -2380,7 +2381,7 @@ enum ProjectorService {
 
         // Update parent task relationship (DEQ-29: Subtasks)
         task.parentTaskId = payload.parentTaskId
-        
+
         task.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         task.syncState = .synced
         task.lastSyncedAt = Date()

@@ -10,14 +10,14 @@ import SwiftUI
 /// Row view displaying a stack with title, active task, reminders, and tags.
 struct StackRowView: View {
     let stack: Stack
-    
+
     @Environment(\.sizeCategory) private var sizeCategory
 
     /// Non-deleted tags to display
     private var visibleTags: [Tag] {
         stack.tagObjects.filter { !$0.isDeleted }
     }
-    
+
     /// Is this an accessibility size category?
     private var isAccessibilitySize: Bool {
         sizeCategory.isAccessibilityCategory

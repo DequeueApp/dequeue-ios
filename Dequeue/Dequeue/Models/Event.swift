@@ -160,12 +160,12 @@ extension Event {
         // This sidesteps Swift 6's conservative actor isolation on protocol conformances
         let json = try JSONSerialization.jsonObject(with: metadata) as? [String: Any]
         guard let json else { return nil }
-        
+
         guard let actorTypeString = json["actorType"] as? String,
               let actorType = ActorType(rawValue: actorTypeString) else {
             return nil
         }
-        
+
         let actorId = json["actorId"] as? String
         return EventMetadata(actorType: actorType, actorId: actorId)
     }
