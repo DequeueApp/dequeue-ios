@@ -10,6 +10,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("SyncManager WebSocket Stream Tests")
+@MainActor
 struct SyncManagerWebSocketStreamTests {
     
     // MARK: - Message Serialization Tests
