@@ -35,7 +35,6 @@ struct EventContext {
     }
 }
 
-// swiftlint:disable type_body_length
 @MainActor
 final class EventService {
     private let modelContext: ModelContext
@@ -642,7 +641,6 @@ final class EventService {
         // This allows batching multiple events into a single disk write.
     }
 }
-// swiftlint:enable type_body_length
 
 // MARK: - State Objects (match React Native StackState, TaskState, etc.)
 
@@ -700,12 +698,12 @@ struct TaskState: Codable {
     let createdAt: Int64
     let updatedAt: Int64
     let deleted: Bool
-    
+
     // AI delegation fields (DEQ-56)
     let delegatedToAI: Bool?
     let aiAgentId: String?
     let aiDelegatedAt: Int64?
-    
+
     // Tags (DEQ-31)
     let tags: [String]?
 
@@ -1230,12 +1228,12 @@ struct TaskEventPayload: Codable {
     let lastActiveTime: Date?
     let deleted: Bool
     let createdAt: Date?  // Original creation timestamp from sync
-    
+
     // AI delegation fields (DEQ-54)
     let delegatedToAI: Bool?
     let aiAgentId: String?
     let aiDelegatedAt: Date?
-    
+
     // Tags (DEQ-31)
     let tags: [String]?
 
@@ -1296,18 +1294,18 @@ struct TaskEventPayload: Codable {
         } else {
             createdAt = try? container.decode(Date.self, forKey: .createdAt)
         }
-        
+
         // Decode AI delegation fields (DEQ-54)
         delegatedToAI = try container.decodeIfPresent(Bool.self, forKey: .delegatedToAI)
         aiAgentId = try container.decodeIfPresent(String.self, forKey: .aiAgentId)
-        
+
         // Decode aiDelegatedAt - handle Int64 timestamp (milliseconds) or Date
         if let timestamp = try? container.decode(Int64.self, forKey: .aiDelegatedAt) {
             aiDelegatedAt = Date(timeIntervalSince1970: Double(timestamp) / 1_000.0)
         } else {
             aiDelegatedAt = try container.decodeIfPresent(Date.self, forKey: .aiDelegatedAt)
         }
-        
+
         // Decode tags (DEQ-31)
         tags = try container.decodeIfPresent([String].self, forKey: .tags)
 
@@ -1337,14 +1335,14 @@ struct TaskEventPayload: Codable {
         if let createdAt {
             try container.encode(Int64(createdAt.timeIntervalSince1970 * 1_000), forKey: .createdAt)
         }
-        
+
         // Encode AI delegation fields (DEQ-54)
         try container.encodeIfPresent(delegatedToAI, forKey: .delegatedToAI)
         try container.encodeIfPresent(aiAgentId, forKey: .aiAgentId)
         if let aiDelegatedAt {
             try container.encode(Int64(aiDelegatedAt.timeIntervalSince1970 * 1_000), forKey: .aiDelegatedAt)
         }
-        
+
         // Encode tags (DEQ-31)
         try container.encodeIfPresent(tags, forKey: .tags)
 

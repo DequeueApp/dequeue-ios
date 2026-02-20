@@ -19,7 +19,7 @@ struct TagChip: View {
     let tag: Tag
     var showRemoveButton: Bool = false
     var onRemove: (() -> Void)?
-    
+
     @Environment(\.sizeCategory) private var sizeCategory
 
     var body: some View {
@@ -64,7 +64,7 @@ struct TagChip: View {
 struct TagChipLabel: View {
     let name: String
     var colorHex: String?
-    
+
     @Environment(\.sizeCategory) private var sizeCategory
 
     var body: some View {

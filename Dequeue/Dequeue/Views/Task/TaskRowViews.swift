@@ -55,7 +55,7 @@ struct TaskRowView: View {
                 if isActive {
                     ActiveBadge()
                 }
-                
+
                 if task.aiDelegatedAt != nil {
                     AIDelegationBadge()
                 }

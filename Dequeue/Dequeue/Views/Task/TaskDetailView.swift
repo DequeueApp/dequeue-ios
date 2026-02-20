@@ -195,7 +195,7 @@ struct TaskDetailView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     if let delegatedAt = task.aiDelegatedAt {
                         HStack(spacing: 4) {
                             Image(systemName: "sparkles")

@@ -141,8 +141,10 @@ internal enum TimePickerStylePreference: String, CaseIterable, Identifiable {
 
 internal struct AppearanceSettingsView: View {
     @AppStorage(UserDefaultsKey.appTheme) private var selectedTheme: String = AppTheme.system.rawValue
-    @AppStorage(UserDefaultsKey.datePickerStyle) private var selectedDatePickerStyle: String = DatePickerStylePreference.automatic.rawValue
-    @AppStorage(UserDefaultsKey.timePickerStyle) private var selectedTimePickerStyle: String = TimePickerStylePreference.automatic.rawValue
+    @AppStorage(UserDefaultsKey.datePickerStyle)
+    private var selectedDatePickerStyle: String = DatePickerStylePreference.automatic.rawValue
+    @AppStorage(UserDefaultsKey.timePickerStyle)
+    private var selectedTimePickerStyle: String = TimePickerStylePreference.automatic.rawValue
 
     private var theme: AppTheme {
         AppTheme(rawValue: selectedTheme) ?? .system
@@ -370,7 +372,8 @@ extension View {
 }
 
 private struct DatePickerStyleModifier: ViewModifier {
-    @AppStorage(UserDefaultsKey.datePickerStyle) private var selectedStyle: String = DatePickerStylePreference.automatic.rawValue
+    @AppStorage(UserDefaultsKey.datePickerStyle)
+    private var selectedStyle: String = DatePickerStylePreference.automatic.rawValue
 
     private var preference: DatePickerStylePreference {
         DatePickerStylePreference(rawValue: selectedStyle) ?? .automatic
@@ -398,7 +401,8 @@ private struct DatePickerStyleModifier: ViewModifier {
 }
 
 private struct TimePickerStyleModifier: ViewModifier {
-    @AppStorage(UserDefaultsKey.timePickerStyle) private var selectedStyle: String = TimePickerStylePreference.automatic.rawValue
+    @AppStorage(UserDefaultsKey.timePickerStyle)
+    private var selectedStyle: String = TimePickerStylePreference.automatic.rawValue
 
     private var preference: TimePickerStylePreference {
         TimePickerStylePreference(rawValue: selectedStyle) ?? .automatic

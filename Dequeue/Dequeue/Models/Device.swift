@@ -157,6 +157,7 @@ extension Device {
         var model = [CChar](repeating: 0, count: size)
         sysctlbyname("hw.model", &model, &size, nil, 0)
         let bytes = model.prefix(while: { $0 != 0 }).map { UInt8($0) }
+        // swiftlint:disable:next optional_data_string_conversion
         return String(decoding: bytes, as: UTF8.self)
     }
     #endif

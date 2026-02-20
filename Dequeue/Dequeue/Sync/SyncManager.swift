@@ -779,7 +779,7 @@ actor SyncManager {
                 createdAt: dateFromUnixMs(reminderData.createdAt),
                 isDeleted: reminderData.isDeleted
             )
-            
+
             // Link to Stack if present
             if let stackId = reminderData.stackId {
                 let fetchDescriptor = FetchDescriptor<Stack>(predicate: #Predicate<Stack> { $0.id == stackId })
@@ -822,13 +822,13 @@ actor SyncManager {
 
     /// Converts a Unix millisecond timestamp to Date.
     nonisolated private func dateFromUnixMs(_ ms: Int64) -> Date {
-        Date(timeIntervalSince1970: Double(ms) / 1000.0)
+        Date(timeIntervalSince1970: Double(ms) / 1_000.0)
     }
 
     /// Converts an optional Unix millisecond timestamp to Date.
     nonisolated private func dateFromUnixMs(_ ms: Int64?) -> Date? {
         guard let ms = ms else { return nil }
-        return Date(timeIntervalSince1970: Double(ms) / 1000.0)
+        return Date(timeIntervalSince1970: Double(ms) / 1_000.0)
     }
 
     /// Parses stack status string to enum.
@@ -1088,55 +1088,55 @@ actor SyncManager {
     private func streamEventsViaWebSocket() async throws -> Bool {
         let startTime = Date()
         let syncId = Self.generateSyncId()
-        
+
         os_log("[Sync] WebSocket stream starting: syncId=\(syncId)")
-        
+
         guard let token = try await refreshToken() else {
             os_log("[Sync] WebSocket stream failed: Not authenticated")
             return false
         }
-        
+
         // Get last checkpoint
         let currentCheckpoint = await getLastSyncTimestamp()
         os_log("[Sync] WebSocket stream checkpoint: \(currentCheckpoint)")
-        
+
         // Connect WebSocket to /v1/sync/stream endpoint
         let baseURL = await MainActor.run { Configuration.syncAPIBaseURL }
         guard var urlComponents = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else {
             os_log("[Sync] WebSocket stream failed: Invalid base URL")
             return false
         }
-        
+
         // Change http/https to ws/wss
         if urlComponents.scheme == "https" {
             urlComponents.scheme = "wss"
         } else if urlComponents.scheme == "http" {
             urlComponents.scheme = "ws"
         }
-        
+
         urlComponents.path = "/v1/sync/stream"
-        
+
         guard let wsURL = urlComponents.url else {
             os_log("[Sync] WebSocket stream failed: Invalid WebSocket URL")
             return false
         }
-        
+
         var request = URLRequest(url: wsURL)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
+
         let wsTask = session.webSocketTask(with: request)
         wsTask.resume()
-        
+
         os_log("[Sync] WebSocket stream connected to \(wsURL.absoluteString)")
-        
+
         defer {
             wsTask.cancel(with: .goingAway, reason: nil)
         }
-        
+
         // Send stream request (manual JSON to avoid actor isolation with Codable)
         let requestType = "sync.stream.request"
         let requestSince = currentCheckpoint
-        
+
         let requestDict: [String: Any] = [
             "type": requestType,
             "since": requestSince as Any
@@ -1144,15 +1144,15 @@ actor SyncManager {
         let requestData = try JSONSerialization.data(withJSONObject: requestDict)
         try await wsTask.send(.data(requestData))
         os_log("[Sync] Sent sync.stream.request")
-        
+
         var totalEventsReceived = 0
         var receivedStart = false
         var receivedComplete = false
-        
+
         // Receive messages in a loop
         while !receivedComplete {
             let message = try await wsTask.receive()
-            
+
             switch message {
             case .data(let data):
                 // Parse message type
@@ -1161,39 +1161,39 @@ actor SyncManager {
                     os_log("[Sync] WebSocket stream: Invalid message format")
                     return false
                 }
-                
+
                 switch messageType {
                 case "sync.stream.start":
                     guard let totalEvents = json["totalEvents"] as? Int64 else {
                         os_log("[Sync] WebSocket stream: Invalid sync.stream.start")
                         return false
                     }
-                    
+
                     _isInitialSyncInProgress = true
                     _initialSyncTotalEvents = Int(totalEvents)
                     _initialSyncEventsProcessed = 0
                     receivedStart = true
-                    
+
                     os_log("[Sync] WebSocket stream started: \(totalEvents) total events")
-                    
+
                 case "sync.stream.batch":
                     guard receivedStart else {
                         os_log("[Sync] WebSocket stream: Received batch before start")
                         return false
                     }
-                    
+
                     guard let events = json["events"] as? [[String: Any]],
                           let batchIndex = json["batchIndex"] as? Int,
                           let isLast = json["isLast"] as? Bool else {
                         os_log("[Sync] WebSocket stream: Invalid sync.stream.batch")
                         return false
                     }
-                    
+
                     os_log("[Sync] Processing batch \(batchIndex): \(events.count) events, isLast=\(isLast)")
-                    
+
                     // Filter and validate events (similar to processPullResponse logic)
                     let deviceId = await DeviceService.shared.getDeviceId()
-                    
+
                     // During initial sync, include all events; during normal sync, exclude current device
                     let fromOtherDevices: [[String: Any]]
                     if _isInitialSyncInProgress {
@@ -1204,7 +1204,7 @@ actor SyncManager {
                             return eventDeviceId != deviceId
                         }
                     }
-                    
+
                     // Filter out legacy events (payloadVersion < 2)
                     let filteredEvents = fromOtherDevices.filter { event in
                         if let payloadVersion = event["payload_version"] as? Int {
@@ -1213,71 +1213,71 @@ actor SyncManager {
                             return false
                         }
                     }
-                    
+
                     // Capture count BEFORE any logging or sending to avoid multiple accesses
                     let filteredCount = filteredEvents.count
-                    
+
                     os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredCount) after filtering")
-                    
+
                     // Process events - function handles empty array gracefully
                     // Convert to Sendable JSON Data to safely cross actor boundary
                     let eventsData = try JSONSerialization.data(withJSONObject: filteredEvents)
                     try await processIncomingEvents(eventsData)
-                    
+
                     totalEventsReceived += filteredCount
                     _initialSyncEventsProcessed = totalEventsReceived
-                    
+
                     // Batch checkpoint tracking: final checkpoint saved when sync.stream.complete received
                     // (per-batch checkpoint intentionally unused — server provides authoritative checkpoint)
-                    
+
                     os_log("[Sync] Batch \(batchIndex) complete: \(totalEventsReceived) total events processed")
-                    
+
                 case "sync.stream.complete":
                     guard let processedEvents = json["processedEvents"] as? Int64,
                           let newCheckpoint = json["newCheckpoint"] as? String else {
                         os_log("[Sync] WebSocket stream: Invalid sync.stream.complete")
                         return false
                     }
-                    
+
                     receivedComplete = true
 
                     // Save final checkpoint
                     saveLastSyncCheckpoint(newCheckpoint)
-                    
+
                     let duration = Date().timeIntervalSince(startTime)
                     os_log(
                         "[Sync] WebSocket stream complete: \(processedEvents) events in \(String(format: "%.2f", duration))s"
                     )
-                    
+
                     await ErrorReportingService.logSyncComplete(
                         syncId: syncId,
                         duration: duration,
                         itemsUploaded: 0,
                         itemsDownloaded: totalEventsReceived
                     )
-                    
+
                     _isInitialSyncInProgress = false
-                    
+
                 case "sync.stream.error":
                     let errorMessage = json["error"] as? String ?? "Unknown error"
                     let errorCode = json["code"] as? String ?? "UNKNOWN"
                     os_log("[Sync] WebSocket stream error: \(errorMessage) (code: \(errorCode))")
-                    
+
                     _isInitialSyncInProgress = false
                     return false
-                    
+
                 default:
                     os_log("[Sync] WebSocket stream: Unknown message type: \(messageType)")
                 }
-                
+
             case .string(let text):
                 os_log("[Sync] WebSocket stream: Unexpected text message: \(text)")
-                
+
             @unknown default:
                 os_log("[Sync] WebSocket stream: Unknown message type")
             }
         }
-        
+
         return true
     }
 
@@ -1294,7 +1294,7 @@ actor SyncManager {
         } catch {
             os_log("[Sync] WebSocket streaming failed, falling back to REST: \(error)")
         }
-        
+
         // Fallback to REST API polling
         let startTime = Date()
         let syncId = Self.generateSyncId()
@@ -1982,13 +1982,13 @@ actor SyncManager {
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
 
                 let isConnected = await NetworkMonitor.shared.isConnected
-                
+
                 // Network became available - attempt reconnection if we have credentials and aren't connected
                 if isConnected && !wasConnected {
                     os_log("[Sync] Network became available - checking if reconnection needed")
-                    
+
                     let shouldReconnect = await !self.isHealthyConnection
-                    
+
                     if shouldReconnect,
                        let userId = await self.userId,
                        let token = await self.token,
@@ -2001,11 +2001,11 @@ actor SyncManager {
                         )
                     }
                 }
-                
+
                 wasConnected = isConnected
             }
         }
-        
+
         os_log("[Sync] Started network monitoring")
     }
 

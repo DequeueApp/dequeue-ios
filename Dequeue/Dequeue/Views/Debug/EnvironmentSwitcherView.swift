@@ -52,7 +52,10 @@ struct EnvironmentSwitcherView: View {
                 } header: {
                     Text("Select Environment")
                 } footer: {
-                    Text("Switching environments will sign you out and clear local data. This feature is only available in debug builds.")
+                    Text(
+                        "Switching environments will sign you out and clear local data." +
+                        " This feature is only available in debug builds."
+                    )
                 }
 
                 if selectedEnvironment != environmentManager.currentEnvironment {
@@ -72,9 +75,15 @@ struct EnvironmentSwitcherView: View {
                 }
 
                 Section {
-                    LabeledContent("Current Environment", value: environmentManager.currentEnvironment.displayName)
+                    LabeledContent(
+                        "Current Environment",
+                        value: environmentManager.currentEnvironment.displayName
+                    )
                     LabeledContent("App ID", value: environmentManager.configuration.syncAppId)
-                    LabeledContent("Sync URL", value: environmentManager.configuration.syncServiceBaseURL.absoluteString)
+                    LabeledContent(
+                        "Sync URL",
+                        value: environmentManager.configuration.syncServiceBaseURL.absoluteString
+                    )
                     LabeledContent("API URL", value: environmentManager.configuration.dequeueAPIBaseURL.absoluteString)
                 } header: {
                     Text("Current Configuration")
@@ -99,7 +108,10 @@ struct EnvironmentSwitcherView: View {
                     switchEnvironment()
                 }
             } message: {
-                Text("Switching to \(selectedEnvironment.displayName) will sign you out, clear all local data, and restart the app.")
+                Text(
+                    "Switching to \(selectedEnvironment.displayName)" +
+                    " will sign you out, clear all local data, and restart the app."
+                )
             }
         }
     }
