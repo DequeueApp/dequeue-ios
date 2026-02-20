@@ -71,7 +71,7 @@ struct TagServiceTests {
         let tagService = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         await #expect(throws: TagServiceError.emptyTagName) {
-            try await tagService.createTag(name: "")
+            _ = try await tagService.createTag(name: "")
         }
     }
 
@@ -83,7 +83,7 @@ struct TagServiceTests {
         let tagService = TagService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         await #expect(throws: TagServiceError.emptyTagName) {
-            try await tagService.createTag(name: "   ")
+            _ = try await tagService.createTag(name: "   ")
         }
     }
 
@@ -96,7 +96,7 @@ struct TagServiceTests {
         let longName = String(repeating: "a", count: TagService.maxTagNameLength + 1)
 
         await #expect(throws: TagServiceError.tagNameTooLong(maxLength: TagService.maxTagNameLength)) {
-            try await tagService.createTag(name: longName)
+            _ = try await tagService.createTag(name: longName)
         }
     }
 
@@ -109,7 +109,7 @@ struct TagServiceTests {
         _ = try await tagService.createTag(name: "Work")
 
         await #expect(throws: TagServiceError.duplicateTagName(existingName: "Work")) {
-            try await tagService.createTag(name: "WORK")
+            _ = try await tagService.createTag(name: "WORK")
         }
     }
 

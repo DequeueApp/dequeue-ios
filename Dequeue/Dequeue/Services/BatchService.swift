@@ -17,7 +17,7 @@ private let logger = Logger(subsystem: "com.dequeue", category: "BatchService")
 // MARK: - Batch Models
 
 /// Result for a single item in a batch operation
-struct BatchResultItem: Codable, Sendable, Identifiable {
+nonisolated struct BatchResultItem: Codable, Sendable, Identifiable {
     let taskId: String
     let success: Bool
     let error: String?
@@ -26,7 +26,7 @@ struct BatchResultItem: Codable, Sendable, Identifiable {
 }
 
 /// Response from a batch operation
-struct BatchResponse: Codable, Sendable {
+nonisolated struct BatchResponse: Codable, Sendable {
     let results: [BatchResultItem]
     let succeeded: Int
     let failed: Int
