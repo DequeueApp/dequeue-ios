@@ -9,144 +9,11 @@ import Foundation
 import SwiftData
 import os.log
 
-/// Sendable representation of Event data for cross-actor communication
-private struct EventData: Sendable {
-    let id: String
-    let timestamp: Date
-    let type: String
-    let payload: Data
-    let userId: String
-    let deviceId: String
-    let appId: String
-    let payloadVersion: Int
-}
-
-/// Result of processing a pull response, used for pagination
-private struct PullResult {
-    let eventsProcessed: Int
-    let nextCheckpoint: String?
-    let hasMore: Bool
-}
-
-// MARK: - Projection Sync Types (DEQ-230)
-
-/// Generic response wrapper for projection API endpoints
-/// Requires Sendable to safely cross actor boundaries during concurrent fetch.
-/// Uses @preconcurrency Decodable to allow decoding in actor-isolated contexts (Swift 6 concurrency).
-private struct ProjectionResponse<T: Decodable & Sendable>: @preconcurrency Decodable, Sendable {
-    let data: [T]
-    let pagination: PaginationMeta?
-
-    struct PaginationMeta: @preconcurrency Decodable, Sendable {
-        let nextCursor: String?
-        let hasMore: Bool
-        let limit: Int
-    }
-}
-
-/// Projection data structures matching dequeue-api responses
-/// All projection types are Sendable (simple value types with only Sendable properties)
-/// to allow safe transfer across actor isolation boundaries during concurrent fetch.
-/// Uses @preconcurrency Decodable for Swift 6 actor isolation compatibility.
-private struct StackProjection: @preconcurrency Decodable, Sendable {
-    let id: String
-    let title: String
-    let description: String?
-    let status: String
-    let isActive: Bool
-    let isDeleted: Bool
-    let arcId: String?
-    let tags: [String]?
-    let startTime: Int64?
-    let dueTime: Int64?
-    let createdAt: Int64
-    let updatedAt: Int64
-    // Note: tasks are fetched separately via GET /v1/tasks (not nested in stacks response)
-}
-
-private struct TaskProjection: @preconcurrency Decodable, Sendable {
-    let id: String
-    let stackId: String
-    let title: String
-    let description: String?
-    let sortOrder: Int
-    let status: String
-    let isActive: Bool
-    let startTime: Int64?
-    let dueTime: Int64?
-    let createdAt: Int64
-    let updatedAt: Int64
-}
-
-private struct ArcProjection: @preconcurrency Decodable, Sendable {
-    let id: String
-    let title: String
-    let description: String?
-    let color: String?
-    let isDeleted: Bool
-    let createdAt: Int64
-    let updatedAt: Int64
-}
-
-private struct TagProjection: @preconcurrency Decodable, Sendable {
-    let id: String
-    let name: String
-    let color: String?
-    let createdAt: Int64
-}
-
-private struct ReminderProjection: @preconcurrency Decodable, Sendable {
-    let id: String
-    let stackId: String?
-    let arcId: String?
-    let taskId: String?
-    let triggerTime: Int64
-    let notificationSent: Bool
-    let isDeleted: Bool
-    let createdAt: Int64
-}
-
-// MARK: - WebSocket Stream Messages (DEQ-243)
-
-/// Client request to start streaming events
-struct SyncStreamRequest: Codable, Sendable {
-    let type: String // "sync.stream.request"
-    let since: String? // RFC3339 timestamp, optional
-}
-
-/// Server response indicating stream start with total event count
-struct SyncStreamStart: Codable, Sendable {
-    let type: String // "sync.stream.start"
-    let totalEvents: Int64
-}
-
-/// Server response containing a batch of events
-/// Note: events are parsed separately using JSONSerialization to match REST API handling
-struct SyncStreamBatch: Codable, Sendable {
-    let type: String // "sync.stream.batch"
-    // events field handled separately via JSONSerialization
-    let batchIndex: Int
-    let isLast: Bool
-}
-
-/// Server response indicating stream completion
-struct SyncStreamComplete: Codable, Sendable {
-    let type: String // "sync.stream.complete"
-    let processedEvents: Int64
-    let newCheckpoint: String
-}
-
-/// Server response indicating an error occurred during streaming
-struct SyncStreamError: Codable, Sendable {
-    let type: String // "sync.stream.error"
-    let error: String
-    let code: String?
-}
-
 // swiftlint:disable:next type_body_length
 actor SyncManager {
     private var webSocketTask: URLSessionWebSocketTask?
-    private let session: URLSession
+    // Internal access for SyncManager+ProjectionSync.swift extension
+    let syncSession: URLSession
     private var token: String?
     private var userId: String?
     private var deviceId: String?  // Cached at connection time to avoid actor hops
@@ -168,7 +35,8 @@ actor SyncManager {
     /// Heartbeat interval for WebSocket keep-alive
     private let heartbeatIntervalSeconds: UInt64 = 30
 
-    private let modelContainer: ModelContainer
+    // Internal access for SyncManager+ProjectionSync.swift extension
+    let syncModelContainer: ModelContainer
 
     /// Closure for refreshing authentication tokens when they expire.
     /// Must be @Sendable to allow safe capture across actor boundaries.
@@ -193,30 +61,30 @@ actor SyncManager {
     private let maxConsecutiveHeartbeatFailures = 3
     private var lastSuccessfulHeartbeat: Date?
 
-    // Initial sync tracking
-    private var _isInitialSyncInProgress = false
-    private var _initialSyncEventsProcessed = 0
-    private var _initialSyncTotalEvents = 0
+    // Initial sync tracking (internal for SyncManager+ProjectionSync.swift extension access)
+    var isInitialSyncActive = false
+    var syncEventsProcessed = 0
+    var syncTotalEvents = 0
 
     /// Whether an initial sync is currently in progress (fresh device downloading events)
     var isInitialSyncInProgress: Bool {
-        _isInitialSyncInProgress
+        isInitialSyncActive
     }
 
     /// Progress of initial sync (0.0 to 1.0), or nil if total is unknown
     var initialSyncProgress: Double? {
-        guard _isInitialSyncInProgress, _initialSyncTotalEvents > 0 else { return nil }
-        return Double(_initialSyncEventsProcessed) / Double(_initialSyncTotalEvents)
+        guard isInitialSyncActive, syncTotalEvents > 0 else { return nil }
+        return Double(syncEventsProcessed) / Double(syncTotalEvents)
     }
 
     /// Number of events processed during initial sync
     var initialSyncEventsProcessed: Int {
-        _initialSyncEventsProcessed
+        syncEventsProcessed
     }
 
     /// Total number of events to sync during initial sync (DEQ-240)
     var initialSyncTotalEvents: Int {
-        _initialSyncTotalEvents
+        syncTotalEvents
     }
 
     // Key for storing last sync checkpoint in UserDefaults
@@ -224,7 +92,7 @@ actor SyncManager {
 
     // ISO8601 formatter that supports fractional seconds (Go's RFC3339Nano format)
     // Note: ISO8601DateFormatter is thread-safe but not marked Sendable in current SDK
-    nonisolated(unsafe) private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
@@ -232,7 +100,7 @@ actor SyncManager {
 
     // Standard ISO8601 formatter without fractional seconds
     // Note: ISO8601DateFormatter is thread-safe but not marked Sendable in current SDK
-    nonisolated(unsafe) private static let iso8601Standard: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let iso8601Standard: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
@@ -257,7 +125,7 @@ actor SyncManager {
 
     /// Generates a short sync ID for tracking sync operations in logs.
     /// Uses first 8 characters of a UUID for brevity while maintaining uniqueness.
-    private static func generateSyncId() -> String {
+    static func generateSyncId() -> String {
         String(UUID().uuidString.prefix(8))
     }
 
@@ -344,13 +212,14 @@ actor SyncManager {
     }
 
     init(modelContainer: ModelContainer) {
-        self.modelContainer = modelContainer
-        self.session = URLSession(configuration: .default)
+        self.syncModelContainer = modelContainer
+        self.syncSession = URLSession(configuration: .default)
     }
 
     // MARK: - Checkpoint Persistence
 
-    private func saveLastSyncCheckpoint(_ checkpoint: String) {
+    // Internal for SyncManager+ProjectionSync.swift extension access
+    func saveLastSyncCheckpoint(_ checkpoint: String) {
         UserDefaults.standard.set(checkpoint, forKey: lastSyncCheckpointKey)
     }
 
@@ -490,7 +359,7 @@ actor SyncManager {
             throw SyncError.invalidURL
         }
 
-        webSocketTask = session.webSocketTask(with: url)
+        webSocketTask = syncSession.webSocketTask(with: url)
         webSocketTask?.resume()
 
         isConnected = true
@@ -510,354 +379,14 @@ actor SyncManager {
         }
     }
 
-    private func refreshToken() async throws -> String? {
+    // Internal for SyncManager+ProjectionSync.swift extension access
+    func refreshToken() async throws -> String? {
         if let getToken = getTokenFunction {
             let newToken = try await getToken()
             self.token = newToken
             return newToken
         }
         return token
-    }
-
-    // MARK: - Projection Sync (DEQ-230)
-
-    /// Performs initial sync using REST API projections instead of event replay.
-    /// This is significantly faster for new devices with no local state.
-    ///
-    /// Flow:
-    /// 1. Fetch current state from /v1/stacks, /v1/arcs, /v1/tags endpoints
-    /// 2. Populate local SwiftData models directly
-    /// 3. Set checkpoint to current time
-    /// 4. Continue with real-time WebSocket sync
-    ///
-    /// Falls back to event replay if projection fetch fails.
-    func syncViaProjections() async throws {
-        let startTime = Date()
-        let syncId = Self.generateSyncId()
-        os_log("[Sync] Projection sync started: syncId=\(syncId)")
-
-        _isInitialSyncInProgress = true
-        defer { _isInitialSyncInProgress = false }
-
-        guard let token = try await refreshToken() else {
-            os_log("[Sync] Projection sync failed: Not authenticated")
-            throw SyncError.notAuthenticated
-        }
-
-        let baseURL = await MainActor.run { Configuration.syncAPIBaseURL }
-
-        // Fetch all resource types in parallel
-        // Note: Explicit type annotations help the type-checker avoid timeout on complex expressions
-        async let stacksTask: [StackProjection] = fetchProjectionResource(StackProjection.self, url: "\(baseURL)/v1/stacks", token: token)
-        async let tasksTask: [TaskProjection] = fetchProjectionResource(TaskProjection.self, url: "\(baseURL)/v1/tasks", token: token)
-        async let arcsTask: [ArcProjection] = fetchProjectionResource(ArcProjection.self, url: "\(baseURL)/v1/arcs", token: token)
-        async let tagsTask: [TagProjection] = fetchProjectionResource(TagProjection.self, url: "\(baseURL)/v1/tags", token: token)
-        async let remindersTask: [ReminderProjection] = fetchProjectionResource(ReminderProjection.self, url: "\(baseURL)/v1/reminders", token: token)
-
-        do {
-            // Await each task individually to help the type-checker
-            let stacks = try await stacksTask
-            let tasks = try await tasksTask
-            let arcs = try await arcsTask
-            let tags = try await tagsTask
-            let reminders = try await remindersTask
-
-            os_log("[Sync] Fetched projections: \(stacks.count) stacks, \(tasks.count) tasks, \(arcs.count) arcs, \(tags.count) tags, \(reminders.count) reminders")
-
-            // Populate local models
-            try await populateFromProjections(stacks: stacks, tasks: tasks, arcs: arcs, tags: tags, reminders: reminders)
-
-            // Set checkpoint to now (all future events will be synced incrementally)
-            let checkpoint = Self.iso8601Standard.string(from: Date())
-            saveLastSyncCheckpoint(checkpoint)
-
-            let duration = Date().timeIntervalSince(startTime)
-            let durationFormatted = String(format: "%.2f", duration)
-            os_log("[Sync] Projection sync complete: syncId=\(syncId), duration=\(durationFormatted)s")
-
-            await ErrorReportingService.logSyncComplete(
-                syncId: syncId,
-                duration: duration,
-                itemsUploaded: 0,  // Projection sync only downloads
-                itemsDownloaded: stacks.count + tasks.count + arcs.count + tags.count + reminders.count
-            )
-        } catch {
-            os_log("[Sync] Projection sync failed: \(error.localizedDescription)")
-            throw error
-        }
-    }
-
-    /// Fetches a paginated projection resource, handling pagination automatically.
-    /// Requires Sendable to allow safe transfer of results across actor boundaries.
-    private func fetchProjectionResource<T: Decodable & Sendable>(
-        _ type: T.Type,
-        url: String,
-        token: String
-    ) async throws -> [T] {
-        var allResults: [T] = []
-        var currentURL: String? = url
-
-        while let urlString = currentURL {
-            guard let url = URL(string: urlString) else {
-                os_log("[Sync] Invalid URL string: \(urlString)")
-                throw SyncError.pullFailed
-            }
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-            let (data, response) = try await session.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                os_log("[Sync] Invalid response type for \(urlString)")
-                throw SyncError.pullFailed
-            }
-
-            guard httpResponse.statusCode == 200 else {
-                if let responseBody = String(data: data, encoding: .utf8) {
-                    os_log("[Sync] Projection fetch failed (\(httpResponse.statusCode)): \(responseBody)")
-                }
-                throw SyncError.pullFailed
-            }
-
-            let decoded = try JSONDecoder().decode(ProjectionResponse<T>.self, from: data)
-            allResults.append(contentsOf: decoded.data)
-
-            // Handle pagination — use URLComponents to properly manage query parameters
-            if let pagination = decoded.pagination,
-               pagination.hasMore,
-               let nextCursor = pagination.nextCursor {
-                var components = URLComponents(url: url, resolvingAgainstBaseURL: true)
-                var queryItems = components?.queryItems ?? []
-                queryItems.removeAll { $0.name == "cursor" }
-                queryItems.append(URLQueryItem(name: "cursor", value: nextCursor))
-                components?.queryItems = queryItems
-                currentURL = components?.url?.absoluteString
-            } else {
-                currentURL = nil
-            }
-        }
-
-        return allResults
-    }
-
-    /// Populates local SwiftData models from projection data.
-    /// Order matters: Arcs before Stacks (foreign key), Tags before Stack-Tag associations, Reminders last.
-    /// Runs on MainActor as required for SwiftData ModelContext operations.
-    @MainActor
-    private func populateFromProjections(
-        stacks: [StackProjection],
-        tasks: [TaskProjection],
-        arcs: [ArcProjection],
-        tags: [TagProjection],
-        reminders: [ReminderProjection]
-    ) async throws {
-        let context = ModelContext(modelContainer)
-
-        // 1. Create Arcs first (Stacks reference arcId)
-        for arcData in arcs {
-            let arc = Arc(
-                id: arcData.id,
-                title: arcData.title,
-                arcDescription: arcData.description,
-                colorHex: arcData.color,
-                createdAt: dateFromUnixMs(arcData.createdAt),
-                updatedAt: dateFromUnixMs(arcData.updatedAt),
-                isDeleted: arcData.isDeleted
-            )
-            context.insert(arc)
-        }
-
-        // 2. Create Tags (Stacks reference tags by ID)
-        var tagMap: [String: Tag] = [:]
-        for tagData in tags {
-            let tag = Tag(
-                id: tagData.id,
-                name: tagData.name,
-                colorHex: tagData.color,
-                createdAt: dateFromUnixMs(tagData.createdAt)
-            )
-            context.insert(tag)
-            tagMap[tag.id] = tag
-        }
-
-        // 3. Create Stacks (without tasks — tasks are fetched separately)
-        var stackMap: [String: Stack] = [:]
-        for stackData in stacks {
-            let stack = Stack(
-                id: stackData.id,
-                title: stackData.title,
-                stackDescription: stackData.description,
-                startTime: dateFromUnixMs(stackData.startTime),
-                dueTime: dateFromUnixMs(stackData.dueTime),
-                createdAt: dateFromUnixMs(stackData.createdAt),
-                updatedAt: dateFromUnixMs(stackData.updatedAt),
-                isDeleted: stackData.isDeleted,
-                isActive: stackData.isActive
-            )
-            stack.status = parseStackStatus(stackData.status)
-
-            // Link to Arc if present
-            if let arcId = stackData.arcId {
-                let fetchDescriptor = FetchDescriptor<Arc>(predicate: #Predicate<Arc> { $0.id == arcId })
-                if let arc = try context.fetch(fetchDescriptor).first {
-                    stack.arc = arc
-                }
-            }
-
-            // Populate tags: both the string array (tag IDs) and tagObjects relationship
-            if let tagIds = stackData.tags {
-                stack.tags = tagIds  // String array of tag IDs
-                for tagId in tagIds {
-                    if let tag = tagMap[tagId] {
-                        stack.tagObjects.append(tag)  // Relationship to Tag objects
-                    }
-                }
-            }
-
-            context.insert(stack)
-            stackMap[stack.id] = stack
-        }
-
-        // 4. Create Tasks (fetched separately via GET /v1/tasks)
-        for taskData in tasks {
-            // Look up the parent stack — it should exist from step 3
-            let taskStackId = taskData.stackId
-            let stack: Stack?
-            if let cached = stackMap[taskStackId] {
-                stack = cached
-            } else {
-                let fetchDescriptor = FetchDescriptor<Stack>(predicate: #Predicate<Stack> { $0.id == taskStackId })
-                stack = try context.fetch(fetchDescriptor).first
-            }
-
-            guard let parentStack = stack else {
-                os_log("[Sync] Skipping task \(taskData.id) - parent stack \(taskStackId) not found")
-                continue
-            }
-
-            let task = QueueTask(
-                id: taskData.id,
-                title: taskData.title,
-                taskDescription: taskData.description,
-                startTime: dateFromUnixMs(taskData.startTime),
-                dueTime: dateFromUnixMs(taskData.dueTime),
-                status: parseTaskStatus(taskData.status),
-                sortOrder: taskData.sortOrder,
-                createdAt: dateFromUnixMs(taskData.createdAt),
-                updatedAt: dateFromUnixMs(taskData.updatedAt),
-                stack: parentStack
-            )
-            context.insert(task)
-        }
-
-        // 5. Create Reminders (must be after Stacks, Arcs, Tasks are created for foreign key refs)
-        for reminderData in reminders {
-            // Determine parent type and ID
-            let (parentType, parentId): (ParentType, String)
-            if let stackId = reminderData.stackId {
-                parentType = .stack
-                parentId = stackId
-            } else if let taskId = reminderData.taskId {
-                parentType = .task
-                parentId = taskId
-            } else if let arcId = reminderData.arcId {
-                parentType = .arc
-                parentId = arcId
-            } else {
-                // Skip reminders with no parent (data inconsistency)
-                os_log("[Sync] Skipping reminder \(reminderData.id) - no parent ID")
-                continue
-            }
-
-            let reminder = Reminder(
-                id: reminderData.id,
-                parentId: parentId,
-                parentType: parentType,
-                remindAt: dateFromUnixMs(reminderData.triggerTime),
-                createdAt: dateFromUnixMs(reminderData.createdAt),
-                isDeleted: reminderData.isDeleted
-            )
-
-            // Link to Stack if present
-            if let stackId = reminderData.stackId {
-                let fetchDescriptor = FetchDescriptor<Stack>(predicate: #Predicate<Stack> { $0.id == stackId })
-                if let stack = try context.fetch(fetchDescriptor).first {
-                    reminder.stack = stack
-                }
-            }
-
-            // Link to Arc if present
-            if let arcId = reminderData.arcId {
-                let fetchDescriptor = FetchDescriptor<Arc>(predicate: #Predicate<Arc> { $0.id == arcId })
-                if let arc = try context.fetch(fetchDescriptor).first {
-                    reminder.arc = arc
-                }
-            }
-
-            // Link to Task if present
-            if let taskId = reminderData.taskId {
-                let fetchDescriptor = FetchDescriptor<QueueTask>(predicate: #Predicate<QueueTask> { $0.id == taskId })
-                if let task = try context.fetch(fetchDescriptor).first {
-                    reminder.task = task
-                }
-            }
-
-            context.insert(reminder)
-        }
-
-        try context.save()
-        os_log("[Sync] Successfully populated \(stacks.count) stacks, \(tasks.count) tasks, \(arcs.count) arcs, \(tags.count) tags, \(reminders.count) reminders")
-    }
-
-    // MARK: - Helpers
-
-    /// Parses ISO8601 date string, returns nil if invalid.
-    /// Marked nonisolated because it only does pure string parsing with no actor state access.
-    nonisolated private func parseISO8601(_ string: String?) -> Date? {
-        guard let string = string else { return nil }
-        return Self.iso8601Standard.date(from: string)
-    }
-
-    /// Converts a Unix millisecond timestamp to Date.
-    nonisolated private func dateFromUnixMs(_ ms: Int64) -> Date {
-        Date(timeIntervalSince1970: Double(ms) / 1_000.0)
-    }
-
-    /// Converts an optional Unix millisecond timestamp to Date.
-    nonisolated private func dateFromUnixMs(_ ms: Int64?) -> Date? {
-        guard let ms = ms else { return nil }
-        return Date(timeIntervalSince1970: Double(ms) / 1_000.0)
-    }
-
-    /// Parses stack status string to enum.
-    /// Marked nonisolated because it only does pure string parsing with no actor state access.
-    nonisolated private func parseStackStatus(_ status: String) -> StackStatus {
-        switch status.lowercased() {
-        case "active": return .active
-        case "completed": return .completed
-        case "closed": return .closed
-        case "archived": return .archived
-        // Map legacy/API values to current model
-        case "draft": return .active  // Draft stacks are active
-        case "in_progress": return .active
-        default: return .active
-        }
-    }
-
-    /// Parses task status string to enum.
-    /// Marked nonisolated because it only does pure string parsing with no actor state access.
-    nonisolated private func parseTaskStatus(_ status: String) -> TaskStatus {
-        switch status.lowercased() {
-        case "pending": return .pending
-        case "completed": return .completed
-        case "blocked": return .blocked
-        case "closed": return .closed
-        // Map legacy/API values to current model
-        case "in_progress": return .pending  // In-progress tasks are pending
-        default: return .pending
-        }
     }
 
     // MARK: - Push Events
@@ -872,7 +401,7 @@ actor SyncManager {
 
         let pendingEventData = try await MainActor.run {
             // Use mainContext for consistency with SwiftUI observation
-            let context = modelContainer.mainContext
+            let context = syncModelContainer.mainContext
             let eventService = EventService.readOnly(modelContext: context)
             let events = try eventService.fetchPendingEvents()
             return events.map { event in
@@ -956,7 +485,7 @@ actor SyncManager {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["events": syncEvents])
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await syncSession.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SyncError.pushFailed
@@ -969,7 +498,7 @@ actor SyncManager {
                     throw SyncError.notAuthenticated
                 }
                 request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-                let (retryData, retryResponse) = try await session.data(for: request)
+                let (retryData, retryResponse) = try await syncSession.data(for: request)
 
                 guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
                       retryHttpResponse.statusCode == 200 else {
@@ -1030,7 +559,7 @@ actor SyncManager {
 
         try await MainActor.run {
             // Use mainContext for consistency with SwiftUI observation
-            let context = modelContainer.mainContext
+            let context = syncModelContainer.mainContext
             let eventService = EventService.readOnly(modelContext: context)
             let syncedEvents = try eventService.fetchEventsByIds(syncedEventIds)
             try eventService.markEventsSynced(syncedEvents)
@@ -1091,20 +620,83 @@ actor SyncManager {
 
         os_log("[Sync] WebSocket stream starting: syncId=\(syncId)")
 
-        guard let token = try await refreshToken() else {
-            os_log("[Sync] WebSocket stream failed: Not authenticated")
+        guard let wsTask = try await connectStreamWebSocket() else {
             return false
         }
 
-        // Get last checkpoint
-        let currentCheckpoint = await getLastSyncTimestamp()
-        os_log("[Sync] WebSocket stream checkpoint: \(currentCheckpoint)")
+        defer { wsTask.cancel(with: .goingAway, reason: nil) }
 
-        // Connect WebSocket to /v1/sync/stream endpoint
+        // Send stream request
+        let currentCheckpoint = await getLastSyncTimestamp()
+        try await sendStreamRequest(wsTask, since: currentCheckpoint)
+
+        var totalEventsReceived = 0
+        var receivedStart = false
+
+        // Receive messages in a loop
+        while true {
+            let message = try await wsTask.receive()
+
+            guard case .data(let data) = message else {
+                if case .string(let text) = message {
+                    os_log("[Sync] WebSocket stream: Unexpected text: \(text)")
+                }
+                continue
+            }
+
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let messageType = json["type"] as? String else {
+                os_log("[Sync] WebSocket stream: Invalid message format")
+                return false
+            }
+
+            switch messageType {
+            case "sync.stream.start":
+                let result = handleStreamStart(json)
+                guard result else { return false }
+                receivedStart = true
+
+            case "sync.stream.batch":
+                guard receivedStart else {
+                    os_log("[Sync] WebSocket stream: Received batch before start")
+                    return false
+                }
+                let count = try await handleStreamBatch(json)
+                guard count >= 0 else { return false }
+                totalEventsReceived += count
+
+            case "sync.stream.complete":
+                return handleStreamComplete(
+                    json,
+                    startTime: startTime,
+                    syncId: syncId,
+                    totalEventsReceived: totalEventsReceived
+                )
+
+            case "sync.stream.error":
+                handleStreamError(json)
+                return false
+
+            default:
+                os_log("[Sync] WebSocket stream: Unknown type: \(messageType)")
+            }
+        }
+    }
+
+    /// Connect a WebSocket to the /v1/sync/stream endpoint.
+    /// Returns nil if connection setup fails.
+    private func connectStreamWebSocket() async throws -> URLSessionWebSocketTask? {
+        guard let token = try await refreshToken() else {
+            os_log("[Sync] WebSocket stream failed: Not authenticated")
+            return nil
+        }
+
         let baseURL = await MainActor.run { Configuration.syncAPIBaseURL }
-        guard var urlComponents = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else {
+        guard var urlComponents = URLComponents(
+            url: baseURL, resolvingAgainstBaseURL: true
+        ) else {
             os_log("[Sync] WebSocket stream failed: Invalid base URL")
-            return false
+            return nil
         }
 
         // Change http/https to ws/wss
@@ -1113,172 +705,131 @@ actor SyncManager {
         } else if urlComponents.scheme == "http" {
             urlComponents.scheme = "ws"
         }
-
         urlComponents.path = "/v1/sync/stream"
 
         guard let wsURL = urlComponents.url else {
             os_log("[Sync] WebSocket stream failed: Invalid WebSocket URL")
-            return false
+            return nil
         }
 
         var request = URLRequest(url: wsURL)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let wsTask = session.webSocketTask(with: request)
+        let wsTask = syncSession.webSocketTask(with: request)
         wsTask.resume()
-
         os_log("[Sync] WebSocket stream connected to \(wsURL.absoluteString)")
+        return wsTask
+    }
 
-        defer {
-            wsTask.cancel(with: .goingAway, reason: nil)
+    /// Send the initial stream request message.
+    private func sendStreamRequest(
+        _ wsTask: URLSessionWebSocketTask, since checkpoint: String
+    ) async throws {
+        let requestDict: [String: Any] = [
+            "type": "sync.stream.request",
+            "since": checkpoint as Any
+        ]
+        let data = try JSONSerialization.data(withJSONObject: requestDict)
+        try await wsTask.send(.data(data))
+        os_log("[Sync] Sent sync.stream.request since: \(checkpoint)")
+    }
+
+    /// Handle sync.stream.start message. Returns false on invalid format.
+    private func handleStreamStart(_ json: [String: Any]) -> Bool {
+        guard let totalEvents = json["totalEvents"] as? Int64 else {
+            os_log("[Sync] WebSocket stream: Invalid sync.stream.start")
+            return false
+        }
+        isInitialSyncActive = true
+        syncTotalEvents = Int(totalEvents)
+        syncEventsProcessed = 0
+        os_log("[Sync] WebSocket stream started: \(totalEvents) total events")
+        return true
+    }
+
+    /// Handle sync.stream.batch message. Returns count of filtered events, or -1 on error.
+    private func handleStreamBatch(_ json: [String: Any]) async throws -> Int {
+        guard let events = json["events"] as? [[String: Any]],
+              let batchIndex = json["batchIndex"] as? Int,
+              let isLast = json["isLast"] as? Bool else {
+            os_log("[Sync] WebSocket stream: Invalid sync.stream.batch")
+            return -1
         }
 
-        // Send stream request (manual JSON to avoid actor isolation with Codable)
-        let requestType = "sync.stream.request"
-        let requestSince = currentCheckpoint
+        os_log("[Sync] Processing batch \(batchIndex): \(events.count) events, isLast=\(isLast)")
 
-        let requestDict: [String: Any] = [
-            "type": requestType,
-            "since": requestSince as Any
-        ]
-        let requestData = try JSONSerialization.data(withJSONObject: requestDict)
-        try await wsTask.send(.data(requestData))
-        os_log("[Sync] Sent sync.stream.request")
+        let deviceId = await DeviceService.shared.getDeviceId()
 
-        var totalEventsReceived = 0
-        var receivedStart = false
-        var receivedComplete = false
-
-        // Receive messages in a loop
-        while !receivedComplete {
-            let message = try await wsTask.receive()
-
-            switch message {
-            case .data(let data):
-                // Parse message type
-                guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let messageType = json["type"] as? String else {
-                    os_log("[Sync] WebSocket stream: Invalid message format")
-                    return false
-                }
-
-                switch messageType {
-                case "sync.stream.start":
-                    guard let totalEvents = json["totalEvents"] as? Int64 else {
-                        os_log("[Sync] WebSocket stream: Invalid sync.stream.start")
-                        return false
-                    }
-
-                    _isInitialSyncInProgress = true
-                    _initialSyncTotalEvents = Int(totalEvents)
-                    _initialSyncEventsProcessed = 0
-                    receivedStart = true
-
-                    os_log("[Sync] WebSocket stream started: \(totalEvents) total events")
-
-                case "sync.stream.batch":
-                    guard receivedStart else {
-                        os_log("[Sync] WebSocket stream: Received batch before start")
-                        return false
-                    }
-
-                    guard let events = json["events"] as? [[String: Any]],
-                          let batchIndex = json["batchIndex"] as? Int,
-                          let isLast = json["isLast"] as? Bool else {
-                        os_log("[Sync] WebSocket stream: Invalid sync.stream.batch")
-                        return false
-                    }
-
-                    os_log("[Sync] Processing batch \(batchIndex): \(events.count) events, isLast=\(isLast)")
-
-                    // Filter and validate events (similar to processPullResponse logic)
-                    let deviceId = await DeviceService.shared.getDeviceId()
-
-                    // During initial sync, include all events; during normal sync, exclude current device
-                    let fromOtherDevices: [[String: Any]]
-                    if _isInitialSyncInProgress {
-                        fromOtherDevices = events
-                    } else {
-                        fromOtherDevices = events.filter { event in
-                            guard let eventDeviceId = event["device_id"] as? String else { return true }
-                            return eventDeviceId != deviceId
-                        }
-                    }
-
-                    // Filter out legacy events (payloadVersion < 2)
-                    let filteredEvents = fromOtherDevices.filter { event in
-                        if let payloadVersion = event["payload_version"] as? Int {
-                            return payloadVersion >= Event.currentPayloadVersion
-                        } else {
-                            return false
-                        }
-                    }
-
-                    // Capture count BEFORE any logging or sending to avoid multiple accesses
-                    let filteredCount = filteredEvents.count
-
-                    os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredCount) after filtering")
-
-                    // Process events - function handles empty array gracefully
-                    // Convert to Sendable JSON Data to safely cross actor boundary
-                    let eventsData = try JSONSerialization.data(withJSONObject: filteredEvents)
-                    try await processIncomingEvents(eventsData)
-
-                    totalEventsReceived += filteredCount
-                    _initialSyncEventsProcessed = totalEventsReceived
-
-                    // Batch checkpoint tracking: final checkpoint saved when sync.stream.complete received
-                    // (per-batch checkpoint intentionally unused — server provides authoritative checkpoint)
-
-                    os_log("[Sync] Batch \(batchIndex) complete: \(totalEventsReceived) total events processed")
-
-                case "sync.stream.complete":
-                    guard let processedEvents = json["processedEvents"] as? Int64,
-                          let newCheckpoint = json["newCheckpoint"] as? String else {
-                        os_log("[Sync] WebSocket stream: Invalid sync.stream.complete")
-                        return false
-                    }
-
-                    receivedComplete = true
-
-                    // Save final checkpoint
-                    saveLastSyncCheckpoint(newCheckpoint)
-
-                    let duration = Date().timeIntervalSince(startTime)
-                    os_log(
-                        "[Sync] WebSocket stream complete: \(processedEvents) events in \(String(format: "%.2f", duration))s"
-                    )
-
-                    await ErrorReportingService.logSyncComplete(
-                        syncId: syncId,
-                        duration: duration,
-                        itemsUploaded: 0,
-                        itemsDownloaded: totalEventsReceived
-                    )
-
-                    _isInitialSyncInProgress = false
-
-                case "sync.stream.error":
-                    let errorMessage = json["error"] as? String ?? "Unknown error"
-                    let errorCode = json["code"] as? String ?? "UNKNOWN"
-                    os_log("[Sync] WebSocket stream error: \(errorMessage) (code: \(errorCode))")
-
-                    _isInitialSyncInProgress = false
-                    return false
-
-                default:
-                    os_log("[Sync] WebSocket stream: Unknown message type: \(messageType)")
-                }
-
-            case .string(let text):
-                os_log("[Sync] WebSocket stream: Unexpected text message: \(text)")
-
-            @unknown default:
-                os_log("[Sync] WebSocket stream: Unknown message type")
+        // During initial sync, include all events; otherwise exclude current device
+        let fromOtherDevices: [[String: Any]]
+        if isInitialSyncActive {
+            fromOtherDevices = events
+        } else {
+            fromOtherDevices = events.filter { event in
+                guard let eid = event["device_id"] as? String else { return true }
+                return eid != deviceId
             }
         }
 
+        // Filter out legacy events (payloadVersion < 2)
+        let filteredEvents = fromOtherDevices.filter { event in
+            (event["payload_version"] as? Int).map { $0 >= Event.currentPayloadVersion } ?? false
+        }
+
+        let filteredCount = filteredEvents.count
+        os_log("[Sync] Batch \(batchIndex): \(events.count) total, \(filteredCount) after filtering")
+
+        let eventsData = try JSONSerialization.data(withJSONObject: filteredEvents)
+        try await processIncomingEvents(eventsData)
+
+        syncEventsProcessed += filteredCount
+        let totalProcessed = syncEventsProcessed
+        os_log("[Sync] Batch \(batchIndex) complete: \(totalProcessed) total processed")
+        return filteredCount
+    }
+
+    /// Handle sync.stream.complete message. Returns true on success.
+    private func handleStreamComplete(
+        _ json: [String: Any],
+        startTime: Date,
+        syncId: String,
+        totalEventsReceived: Int
+    ) -> Bool {
+        guard let processedEvents = json["processedEvents"] as? Int64,
+              let newCheckpoint = json["newCheckpoint"] as? String else {
+            os_log("[Sync] WebSocket stream: Invalid sync.stream.complete")
+            return false
+        }
+
+        saveLastSyncCheckpoint(newCheckpoint)
+
+        let duration = Date().timeIntervalSince(startTime)
+        let durationFormatted = String(format: "%.2f", duration)
+        os_log("[Sync] WebSocket stream complete: \(processedEvents) events in \(durationFormatted)s")
+
+        // Fire-and-forget sync reporting (can't use await in sync context)
+        let sid = syncId
+        let downloaded = totalEventsReceived
+        let dur = duration
+        Task {
+            await ErrorReportingService.logSyncComplete(
+                syncId: sid,
+                duration: dur,
+                itemsUploaded: 0,
+                itemsDownloaded: downloaded
+            )
+        }
+
+        isInitialSyncActive = false
         return true
+    }
+
+    /// Handle sync.stream.error message.
+    private func handleStreamError(_ json: [String: Any]) {
+        let errorMessage = json["error"] as? String ?? "Unknown error"
+        let errorCode = json["code"] as? String ?? "UNKNOWN"
+        os_log("[Sync] WebSocket stream error: \(errorMessage) (code: \(errorCode))")
+        isInitialSyncActive = false
     }
 
     func pullEvents() async throws {
@@ -1327,7 +878,7 @@ actor SyncManager {
                 "limit": Self.pullBatchSize
             ])
 
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await syncSession.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 os_log("[Sync] Pull failed: Invalid response type")
@@ -1345,7 +896,7 @@ actor SyncManager {
                 }
                 currentToken = newToken
                 request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-                let (retryData, retryResponse) = try await session.data(for: request)
+                let (retryData, retryResponse) = try await syncSession.data(for: request)
 
                 guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
                       retryHttpResponse.statusCode == 200 else {
@@ -1453,7 +1004,7 @@ actor SyncManager {
         os_log("[Sync] Next checkpoint from server: \(nextCheckpoint ?? "nil"), hasMore: \(hasMore)")
 
         let deviceId = await DeviceService.shared.getDeviceId()
-        let isInitialSync = _isInitialSyncInProgress
+        let isInitialSync = isInitialSyncActive
         os_log("[Sync] Current device ID: \(deviceId), isInitialSync: \(isInitialSync)")
 
         // Filter 1: Exclude events from current device (already applied locally)
@@ -1552,7 +1103,7 @@ actor SyncManager {
         // IMPORTANT: Use mainContext so SwiftUI @Query observers see changes immediately.
         // Creating a new ModelContext would persist changes to the store, but SwiftUI views
         // using @Query observe mainContext specifically and wouldn't see the updates.
-        let context = modelContainer.mainContext
+        let context = syncModelContainer.mainContext
 
         // Capture initial sync state once to avoid actor hop on every iteration
         // This is safe because initial sync state only changes on connect/disconnect,
@@ -1631,7 +1182,7 @@ actor SyncManager {
 
     /// Increments the initial sync progress counter (actor-isolated)
     private func incrementInitialSyncProgress() {
-        _initialSyncEventsProcessed += 1
+        syncEventsProcessed += 1
     }
 
     @MainActor
@@ -1890,9 +1441,9 @@ actor SyncManager {
         do {
             if needsInitialSync {
                 os_log("[Sync] Fresh device detected - starting initial sync...")
-                _isInitialSyncInProgress = true
-                _initialSyncEventsProcessed = 0
-                _initialSyncTotalEvents = 0
+                isInitialSyncActive = true
+                syncEventsProcessed = 0
+                syncTotalEvents = 0
             } else {
                 os_log("[Sync] Starting incremental sync pull...")
             }
@@ -1901,14 +1452,14 @@ actor SyncManager {
 
             if needsInitialSync {
                 os_log("[Sync] Initial sync completed successfully")
-                _isInitialSyncInProgress = false
+                isInitialSyncActive = false
             } else {
                 os_log("[Sync] Incremental pull completed successfully")
             }
         } catch {
             os_log("[Sync] Initial pull FAILED: \(error.localizedDescription)")
             if needsInitialSync {
-                _isInitialSyncInProgress = false
+                isInitialSyncActive = false
             }
             await ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
         }
@@ -2065,35 +1616,4 @@ actor SyncManager {
             }
         }
     }
-}
-
-// MARK: - Errors
-
-enum SyncError: LocalizedError {
-    case notAuthenticated
-    case invalidURL
-    case pushFailed
-    case pullFailed
-    case connectionLost
-
-    var errorDescription: String? {
-        switch self {
-        case .notAuthenticated:
-            return "Not authenticated for sync"
-        case .invalidURL:
-            return "Invalid sync URL"
-        case .pushFailed:
-            return "Failed to push events to server"
-        case .pullFailed:
-            return "Failed to pull events from server"
-        case .connectionLost:
-            return "Sync connection lost"
-        }
-    }
-}
-
-enum ConnectionStatus {
-    case connected
-    case connecting
-    case disconnected
 }
