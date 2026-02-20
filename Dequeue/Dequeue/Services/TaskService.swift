@@ -132,6 +132,25 @@ final class TaskService {
         syncManager?.triggerImmediatePush()
     }
 
+    // MARK: - Move
+
+    /// Moves a task to a different stack
+    func moveTask(_ task: QueueTask, to targetStack: Stack) async throws {
+        let fromStackId = task.stack?.id ?? ""
+
+        task.stack = targetStack
+        task.sortOrder = targetStack.pendingTasks.count
+        task.updatedAt = Date()
+        task.syncState = .pending
+
+        try await eventService.recordTaskUpdated(task, changes: [
+            "stackId": targetStack.id,
+            "movedFrom": fromStackId
+        ])
+        try modelContext.save()
+        syncManager?.triggerImmediatePush()
+    }
+
     // MARK: - Delete
 
     func deleteTask(_ task: QueueTask) async throws {

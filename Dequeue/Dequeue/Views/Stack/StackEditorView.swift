@@ -118,6 +118,14 @@ struct StackEditorView: View {
     @State var newTaskDescription = ""
     @State var newTaskStartTime: Date?
     @State var newTaskDueTime: Date?
+
+    // Batch selection state
+    @State var isSelectingTasks = false
+    @State var selectedTaskIds: Set<String> = []
+    @State var showBatchMoveSheet = false
+    @State var showBatchDeleteConfirmation = false
+    @State var batchOperationInProgress = false
+    @State var batchOperationResult: String?
     @State var showAddReminder = false
     @State var showSnoozePicker = false
     @State var selectedReminderForSnooze: Reminder?
