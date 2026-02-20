@@ -134,6 +134,7 @@ struct DequeueApp: App {
                 .environment(\.searchService, SearchService(authService: authService))
                 .environment(\.statsService, StatsService(authService: authService))
                 .environment(\.exportService, ExportService(authService: authService))
+                .environment(\.webhookService, WebhookService(authService: authService))
                 .applyAppTheme()
                 .task {
                     // Configure error reporting first (runs on background thread)
