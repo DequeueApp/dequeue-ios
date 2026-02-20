@@ -68,11 +68,19 @@ Dequeue/
 
 ## Features
 
-- **Hierarchical Tasks** - Stacks contain Tasks, drag-to-reorder
-- **Multi-Device Sync** - Real-time sync via WebSocket
-- **Offline-First** - Full local database, sync when online
-- **Reminders** - Push notifications with snooze
-- **Cross-Platform** - iPhone, iPad, and Mac
+- **Hierarchical Tasks** — Stacks contain Tasks, drag-to-reorder
+- **Arcs** — Group stacks into themes/epics for higher-level planning
+- **Multi-Device Sync** — Real-time sync via WebSocket, offline-first
+- **Search** — Unified search across tasks and stacks
+- **Statistics** — Dashboard with completion rates, streaks, and priority breakdown
+- **Batch Operations** — Multi-select tasks to complete, move, or delete in bulk
+- **Reminders** — Push notifications with snooze and due date tracking
+- **Tags** — Organize and filter stacks with color-coded tags
+- **Attachments** — File attachments with upload/download management
+- **Data Export** — Export your data to JSON
+- **Webhooks** — Manage webhook integrations with delivery logs
+- **Cross-Platform** — iPhone, iPad (split view), and Mac (sidebar navigation)
+- **Keyboard Shortcuts** — ⌘N (new stack), ⌘T (new task), ⌘, (settings) on macOS
 
 ## Testing
 
@@ -103,13 +111,13 @@ struct MyServiceTests {
 
 ### Coverage
 
-The project has **51 unit test files** and **6 UI test files** covering core functionality:
+The project has **50+ unit test files** and **6 UI test files** covering core functionality:
 
 **Unit Tests (DequeueTests/):**
-- ✅ **Core Services:** TaskService, StackService, TagService, EventService, ReminderService, DeviceService
+- ✅ **Core Services:** TaskService (30 tests), StackService (31 tests), TagService, EventService, ReminderService, DeviceService
 - ✅ **Sync Infrastructure:** SyncManager (performance, WebSocket, conflicts), ProjectorService
 - ✅ **Attachments:** AttachmentService, UploadService, DownloadManager, FileCache, ThumbnailGenerator
-- ✅ **API:** APIKeyService, AuthService
+- ✅ **API Clients:** APIKeyService, AuthService, SearchService, StatsService, ExportService, WebhookService, BatchService
 - ✅ **ViewModels:** SyncStatusViewModel, AppTheme, UndoCompletionManager
 - ✅ **Models:** Stack, Task, Tag, Attachment filtering and relationships
 - ✅ **Features:** ActiveTaskTracking, ActiveStackConstraint, StartDueDates, ActivityFeed
