@@ -29,6 +29,7 @@ struct SettingsView: View {
                 accountSection
                 preferencesSection
                 dataSection
+                integrationsSection
                 aboutSection
                 advancedSection
                 if developerModeEnabled {
@@ -127,6 +128,16 @@ struct SettingsView: View {
                 ExportView()
             } label: {
                 Label("Export Data", systemImage: "square.and.arrow.up")
+            }
+        }
+    }
+
+    private var integrationsSection: some View {
+        Section("Integrations") {
+            NavigationLink {
+                WebhooksView()
+            } label: {
+                Label("Webhooks", systemImage: "antenna.radiowaves.left.and.right")
             }
         }
     }
