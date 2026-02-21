@@ -37,7 +37,7 @@ struct StackEditorView: View {
         case description
     }
 
-    @Environment(\.modelContext) private var modelContext
+    @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
     @Environment(\.syncManager) var syncManager
     @Environment(\.authService) var authService
@@ -92,6 +92,7 @@ struct StackEditorView: View {
         var description: String?
         var startTime: Date?
         var dueTime: Date?
+        var recurrenceRule: RecurrenceRule?
     }
 
     // Edit mode state
@@ -118,6 +119,7 @@ struct StackEditorView: View {
     @State var newTaskDescription = ""
     @State var newTaskStartTime: Date?
     @State var newTaskDueTime: Date?
+    @State var newTaskRecurrenceRule: RecurrenceRule?
 
     // Batch selection state
     @State var isSelectingTasks = false
@@ -358,6 +360,7 @@ extension StackEditorView {
             newTaskDescription: $newTaskDescription,
             newTaskStartTime: $newTaskStartTime,
             newTaskDueTime: $newTaskDueTime,
+            newTaskRecurrenceRule: $newTaskRecurrenceRule,
             showAddReminder: $showAddReminder,
             showArcSelection: $showArcSelection,
             showSnoozePicker: $showSnoozePicker,
@@ -386,6 +389,7 @@ private struct StackEditorSheetsModifier: ViewModifier {
     @Binding var newTaskDescription: String
     @Binding var newTaskStartTime: Date?
     @Binding var newTaskDueTime: Date?
+    @Binding var newTaskRecurrenceRule: RecurrenceRule?
     @Binding var showAddReminder: Bool
     @Binding var showArcSelection: Bool
     @Binding var showSnoozePicker: Bool
@@ -413,6 +417,7 @@ private struct StackEditorSheetsModifier: ViewModifier {
                     description: $newTaskDescription,
                     startTime: $newTaskStartTime,
                     dueTime: $newTaskDueTime,
+                    recurrenceRule: $newTaskRecurrenceRule,
                     onSave: onAddTask,
                     onCancel: onCancelAddTask
                 )

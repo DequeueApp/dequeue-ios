@@ -1057,7 +1057,10 @@ enum ProjectorService {
                 aiDelegatedAt: payload.aiDelegatedAt,
                 syncState: .synced,
                 lastSyncedAt: Date(),
-                parentTaskId: payload.parentTaskId  // DEQ-29: Subtasks
+                parentTaskId: payload.parentTaskId,  // DEQ-29: Subtasks
+                recurrenceParentId: payload.recurrenceParentId,
+                isRecurrenceTemplate: payload.isRecurrenceTemplate ?? false,
+                completedOccurrences: payload.completedOccurrences ?? 0
             )
             // Use original createdAt from payload if available, otherwise fall back to event timestamp
             task.createdAt = payload.createdAt ?? event.timestamp
@@ -2381,6 +2384,17 @@ enum ProjectorService {
 
         // Update parent task relationship (DEQ-29: Subtasks)
         task.parentTaskId = payload.parentTaskId
+
+        // Update recurring task fields
+        if let recurrenceParentId = payload.recurrenceParentId {
+            task.recurrenceParentId = recurrenceParentId
+        }
+        if let isRecurrenceTemplate = payload.isRecurrenceTemplate {
+            task.isRecurrenceTemplate = isRecurrenceTemplate
+        }
+        if let completedOccurrences = payload.completedOccurrences {
+            task.completedOccurrences = completedOccurrences
+        }
 
         task.updatedAt = eventTimestamp  // LWW: Use event timestamp for determinism
         task.syncState = .synced

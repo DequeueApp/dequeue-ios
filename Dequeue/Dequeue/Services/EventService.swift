@@ -710,6 +710,11 @@ struct TaskState: Codable {
     // Parent task relationship (DEQ-29: Subtasks)
     let parentTaskId: String?
 
+    // Recurring task fields
+    let recurrenceParentId: String?
+    let isRecurrenceTemplate: Bool?
+    let completedOccurrences: Int?
+
     static func from(_ task: QueueTask) -> TaskState {
         TaskState(
             id: task.id,
@@ -729,7 +734,10 @@ struct TaskState: Codable {
             aiAgentId: task.aiAgentId,
             aiDelegatedAt: task.aiDelegatedAt.map { Int64($0.timeIntervalSince1970 * 1_000) },
             tags: task.tags.isEmpty ? nil : task.tags,  // DEQ-31
-            parentTaskId: task.parentTaskId  // DEQ-29: Subtasks
+            parentTaskId: task.parentTaskId,  // DEQ-29: Subtasks
+            recurrenceParentId: task.recurrenceParentId,
+            isRecurrenceTemplate: task.isRecurrenceTemplate ? true : nil,
+            completedOccurrences: task.completedOccurrences > 0 ? task.completedOccurrences : nil
         )
     }
 }
@@ -1240,11 +1248,17 @@ struct TaskEventPayload: Codable {
     // Parent task relationship (DEQ-29: Subtasks)
     let parentTaskId: String?
 
+    // Recurring task fields
+    let recurrenceParentId: String?
+    let isRecurrenceTemplate: Bool?
+    let completedOccurrences: Int?
+
     enum CodingKeys: String, CodingKey {
         case id, stackId, title, description, status, priority
         case sortOrder, startTime, dueTime, lastActiveTime, deleted, createdAt
         case delegatedToAI, aiAgentId, aiDelegatedAt
         case tags, parentTaskId
+        case recurrenceParentId, isRecurrenceTemplate, completedOccurrences
     }
 
     init(from decoder: Decoder) throws {
@@ -1311,6 +1325,11 @@ struct TaskEventPayload: Codable {
 
         // Decode parentTaskId (DEQ-29: Subtasks)
         parentTaskId = try container.decodeIfPresent(String.self, forKey: .parentTaskId)
+
+        // Decode recurring task fields
+        recurrenceParentId = try container.decodeIfPresent(String.self, forKey: .recurrenceParentId)
+        isRecurrenceTemplate = try container.decodeIfPresent(Bool.self, forKey: .isRecurrenceTemplate)
+        completedOccurrences = try container.decodeIfPresent(Int.self, forKey: .completedOccurrences)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1348,6 +1367,11 @@ struct TaskEventPayload: Codable {
 
         // Encode parentTaskId (DEQ-29: Subtasks)
         try container.encodeIfPresent(parentTaskId, forKey: .parentTaskId)
+
+        // Encode recurring task fields
+        try container.encodeIfPresent(recurrenceParentId, forKey: .recurrenceParentId)
+        try container.encodeIfPresent(isRecurrenceTemplate, forKey: .isRecurrenceTemplate)
+        try container.encodeIfPresent(completedOccurrences, forKey: .completedOccurrences)
     }
 }
 
