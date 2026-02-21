@@ -334,12 +334,18 @@ struct BatchDueDateSheet: View {
                             Calendar.current.startOfDay(for: Date()).addingTimeInterval(17 * 3600)
                         }
                         quickDateButton("Tomorrow") {
-                            Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: Date()))!
-                                .addingTimeInterval(17 * 3600)
+                            let tomorrow = Calendar.current.date(
+                                byAdding: .day, value: 1,
+                                to: Calendar.current.startOfDay(for: Date())
+                            ) ?? Date().addingTimeInterval(86400)
+                            return tomorrow.addingTimeInterval(17 * 3600)
                         }
                         quickDateButton("Next Week") {
-                            Calendar.current.date(byAdding: .weekOfYear, value: 1, to: Calendar.current.startOfDay(for: Date()))!
-                                .addingTimeInterval(17 * 3600)
+                            let nextWeek = Calendar.current.date(
+                                byAdding: .weekOfYear, value: 1,
+                                to: Calendar.current.startOfDay(for: Date())
+                            ) ?? Date().addingTimeInterval(7 * 86400)
+                            return nextWeek.addingTimeInterval(17 * 3600)
                         }
                     }
                 }
