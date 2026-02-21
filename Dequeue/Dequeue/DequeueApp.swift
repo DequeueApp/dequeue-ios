@@ -9,6 +9,7 @@ import SwiftUI
 import SwiftData
 import Clerk
 import UserNotifications
+import WidgetKit
 import os.log
 
 // MARK: - Environment Key for SyncManager
@@ -255,6 +256,10 @@ struct RootView: View {
                     }
                 }
             case .background:
+                // Update widget data before going to background (DEQ-120)
+                // This ensures widgets show the latest state when the user leaves the app
+                WidgetDataService.updateAllWidgets(context: modelContext)
+
                 // Use detached task with utility priority to avoid blocking the background transition.
                 // This is fire-and-forget logging that shouldn't delay the app's transition to background.
                 Task.detached(priority: .utility) { [self] in

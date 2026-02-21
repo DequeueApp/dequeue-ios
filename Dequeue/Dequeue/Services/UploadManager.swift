@@ -188,7 +188,7 @@ actor UploadManager {
 /// This class bridges the delegate-based URLSession API to the async/await world.
 /// It tracks progress for multiple concurrent uploads and routes callbacks to
 /// the appropriate handlers.
-final class UploadDelegateHandler: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+final class UploadDelegateHandler: NSObject, URLSessionTaskDelegate, URLSessionDelegate, @unchecked Sendable {
     private struct TaskInfo: Sendable {
         let attachmentId: String
         let totalBytes: Int64
@@ -221,6 +221,19 @@ final class UploadDelegateHandler: NSObject, URLSessionTaskDelegate, @unchecked 
         taskInfoLock.lock()
         defer { taskInfoLock.unlock() }
         taskInfo = taskInfo.filter { $0.value.attachmentId != attachmentId }
+    }
+
+    // MARK: - URLSessionDelegate (Certificate Pinning)
+
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        // Delegate pinning to the shared validator; fall through if not a pinned domain
+        if !CertificatePinningValidator.handle(challenge: challenge, completionHandler: completionHandler) {
+            completionHandler(.performDefaultHandling, nil)
+        }
     }
 
     // MARK: - URLSessionTaskDelegate
