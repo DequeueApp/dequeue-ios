@@ -76,7 +76,11 @@ struct CalendarView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
+        #if os(iOS)
         .background(Color(.systemGroupedBackground))
+        #else
+        .background(Color(.windowBackgroundColor))
+        #endif
     }
 
     // MARK: - Authorized Content
