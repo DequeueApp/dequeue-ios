@@ -260,7 +260,8 @@
 		57916A292EF84B3300A9AF45 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = ();
+			files = (
+				5C6C426B9E10BC3678DE5C7B /* WidgetModels.swift in Sources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		57916A382EF84B3400A9AF45 /* Sources */ = {
