@@ -40,6 +40,7 @@ struct TaskDetailView: View {
     @State private var showDeleteReminderConfirmation = false
     @State private var reminderToDelete: Reminder?
     @State var previewCoordinator = AttachmentPreviewCoordinator()
+    @State private var showRecurrencePicker = false
 
     var body: some View {
         List {
@@ -50,6 +51,8 @@ struct TaskDetailView: View {
             descriptionSection
 
             datesSection
+
+            recurrenceSection
 
             remindersSection
 
@@ -413,6 +416,66 @@ struct TaskDetailView: View {
         }
     }
 
+    private var recurrenceSection: some View {
+        Section("Repeat") {
+            Button {
+                showRecurrencePicker = true
+            } label: {
+                HStack {
+                    Label("Repeat", systemImage: "repeat")
+                    Spacer()
+                    if let rule = task.recurrenceRule {
+                        Text(rule.shortText)
+                            .foregroundStyle(.blue)
+                    } else {
+                        Text("Never")
+                            .foregroundStyle(.secondary)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .foregroundStyle(.primary)
+
+            if task.isRecurring {
+                if task.completedOccurrences > 0 {
+                    HStack {
+                        Label("Completed", systemImage: "checkmark.circle")
+                        Spacer()
+                        Text("\(task.completedOccurrences) occurrence\(task.completedOccurrences == 1 ? "" : "s")")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.subheadline)
+                }
+
+                if task.recurrenceParentId != nil {
+                    HStack {
+                        Label("Series", systemImage: "link")
+                        Spacer()
+                        Text("Part of recurring series")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.subheadline)
+                }
+
+                Button(role: .destructive) {
+                    stopRecurrence()
+                } label: {
+                    Label("Stop Repeating", systemImage: "xmark.circle")
+                }
+            }
+        }
+        .sheet(isPresented: $showRecurrencePicker) {
+            RecurrencePickerSheet(recurrenceRule: Binding(
+                get: { task.recurrenceRule },
+                set: { newRule in
+                    updateRecurrence(newRule)
+                }
+            ))
+        }
+    }
+
     private var remindersSection: some View {
         Section {
             if task.activeReminders.isEmpty {
@@ -712,6 +775,24 @@ struct TaskDetailView: View {
         errorMessage = error.localizedDescription
         showError = true
         ErrorReportingService.capture(error: error, context: ["view": "TaskDetailView"])
+    }
+
+    // MARK: - Recurrence Actions
+
+    private func updateRecurrence(_ newRule: RecurrenceRule?) {
+        task.recurrenceRule = newRule
+        task.updatedAt = Date()
+        task.syncState = .pending
+        try? modelContext.save()
+        syncManager?.triggerImmediatePush()
+    }
+
+    private func stopRecurrence() {
+        task.recurrenceRuleData = nil
+        task.updatedAt = Date()
+        task.syncState = .pending
+        try? modelContext.save()
+        syncManager?.triggerImmediatePush()
     }
 }
 

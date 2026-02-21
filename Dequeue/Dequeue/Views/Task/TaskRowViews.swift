@@ -24,6 +24,7 @@ struct TaskRowView: View {
         }
         .padding(.vertical, 4)
         .listRowBackground(isActive ? Color.blue.opacity(0.08) : nil)
+        .taskAccessibility(task: task, isActive: isActive)
     }
 
     @ViewBuilder
@@ -62,6 +63,10 @@ struct TaskRowView: View {
 
                 if task.hasDependencies {
                     DependencyBadge(count: task.dependencyCount)
+                }
+
+                if let rule = task.recurrenceRule {
+                    RecurrenceBadge(rule: rule)
                 }
             }
 

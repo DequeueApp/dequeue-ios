@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 import os
 
 private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView+Actions")
@@ -248,13 +249,15 @@ extension StackEditorView {
                 title: newTaskTitle,
                 description: newTaskDescription.isEmpty ? nil : newTaskDescription,
                 startTime: newTaskStartTime,
-                dueTime: newTaskDueTime
+                dueTime: newTaskDueTime,
+                recurrenceRule: newTaskRecurrenceRule
             )
             pendingTasks.append(pendingTask)
             newTaskTitle = ""
             newTaskDescription = ""
             newTaskStartTime = nil
             newTaskDueTime = nil
+            newTaskRecurrenceRule = nil
             showAddTask = false
             return
         }
@@ -267,19 +270,28 @@ extension StackEditorView {
             return
         }
 
+        let recurrenceRule = newTaskRecurrenceRule
         Task {
             do {
-                _ = try await service.createTask(
+                let task = try await service.createTask(
                     title: newTaskTitle,
                     description: newTaskDescription.isEmpty ? nil : newTaskDescription,
                     startTime: newTaskStartTime,
                     dueTime: newTaskDueTime,
                     stack: stack
                 )
+                // Set recurrence rule if specified
+                if let rule = recurrenceRule {
+                    task.recurrenceRule = rule
+                    task.updatedAt = Date()
+                    task.syncState = .pending
+                    try modelContext.save()
+                }
                 newTaskTitle = ""
                 newTaskDescription = ""
                 newTaskStartTime = nil
                 newTaskDueTime = nil
+                newTaskRecurrenceRule = nil
                 showAddTask = false
             } catch {
                 handleError(error)
