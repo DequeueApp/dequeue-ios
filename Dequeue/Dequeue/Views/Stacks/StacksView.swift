@@ -40,17 +40,21 @@ struct StacksView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            VStack(spacing: 0) {
                 if let syncStatus = syncStatusViewModel, syncStatus.isInitialSyncInProgress {
-                    // Show loading view during initial sync to prevent flickering (DEQ-240)
-                    InitialSyncLoadingView(
-                        eventsProcessed: syncStatus.initialSyncEventsProcessed,
-                        totalEvents: syncStatus.initialSyncTotalEvents > 0 ? syncStatus.initialSyncTotalEvents : nil
-                    )
-                } else {
-                    // Show normal stacks content after initial sync completes
-                    stacksContent
+                    // Show a subtle banner during initial sync instead of blocking the UI
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Syncing your data...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial)
                 }
+                stacksContent
             }
             .navigationTitle("Stacks")
             .toolbar {
