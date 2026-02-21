@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import Clerk
+import CoreSpotlight
 import UserNotifications
 import WidgetKit
 import os.log
@@ -284,6 +285,14 @@ struct RootView: View {
             // This handles cases where session is invalidated or restored asynchronously
             await observeSessionStateChanges()
         }
+        .onOpenURL { url in
+            // Handle dequeue:// deep links from widgets, Spotlight, and Shortcuts
+            DeepLinkManager.handleURL(url)
+        }
+        .onContinueUserActivity(CSSearchableItemActionType) { userActivity in
+            // Handle Spotlight search result taps
+            DeepLinkManager.handleSpotlight(userActivity)
+        }
     }
 
     /// Observes session state changes and handles multi-device session scenarios
@@ -327,6 +336,10 @@ struct RootView: View {
                     context: ["source": "device_discovery"]
                 )
             }
+
+            // Store user context in App Group for widgets and App Intents
+            let deviceId = await DeviceService.shared.getDeviceId()
+            AppGroupConfig.storeUserContext(userId: userId, deviceId: deviceId)
 
             // Run one-time data migrations (e.g., attachment path format)
             await runMigrationsIfNeeded()
