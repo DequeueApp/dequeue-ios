@@ -1179,10 +1179,11 @@ actor SyncManager {
             await rescheduleNotifications(context: context)
         }
 
-        // Update widget data after sync processes new events (DEQ-120)
+        // Update widget data and Spotlight index after sync processes new events (DEQ-120)
         if stats.processed > 0 {
             Task { @MainActor in
                 WidgetDataService.updateAllWidgets(context: syncModelContainer.mainContext)
+                SpotlightIndexer.shared.indexAll(context: syncModelContainer.mainContext)
             }
         }
     }

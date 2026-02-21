@@ -29,9 +29,34 @@ enum AppGroupConfig {
     /// UserDefaults key for the last update timestamp
     static let lastUpdateKey = "widget.lastUpdate"
 
+    /// UserDefaults key for the authenticated user's ID (for App Intents/Spotlight)
+    static let userIdKey = "context.userId"
+
+    /// UserDefaults key for the current device ID (for App Intents/Spotlight)
+    static let deviceIdKey = "context.deviceId"
+
     /// Shared UserDefaults instance for the App Group
     static var sharedDefaults: UserDefaults? {
         UserDefaults(suiteName: suiteName)
+    }
+
+    /// Stores the current user context for use by extensions (widgets, intents).
+    /// Call this when the user authenticates or when context changes.
+    static func storeUserContext(userId: String, deviceId: String) {
+        guard let defaults = sharedDefaults else { return }
+        defaults.set(userId, forKey: userIdKey)
+        defaults.set(deviceId, forKey: deviceIdKey)
+    }
+
+    /// Retrieves the stored user context for use by extensions.
+    static func storedUserContext() -> (userId: String, deviceId: String)? {
+        guard let defaults = sharedDefaults,
+              let userId = defaults.string(forKey: userIdKey),
+              let deviceId = defaults.string(forKey: deviceIdKey),
+              !userId.isEmpty, !deviceId.isEmpty else {
+            return nil
+        }
+        return (userId, deviceId)
     }
 }
 
