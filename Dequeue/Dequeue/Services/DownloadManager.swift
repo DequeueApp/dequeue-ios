@@ -273,6 +273,19 @@ final class DownloadDelegateHandler: NSObject, URLSessionDownloadDelegate, @unch
         taskInfo = taskInfo.filter { $0.value.attachmentId != attachmentId }
     }
 
+    // MARK: - URLSessionDelegate (Certificate Pinning)
+
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        // Delegate pinning to the shared validator; fall through if not a pinned domain
+        if !CertificatePinningValidator.handle(challenge: challenge, completionHandler: completionHandler) {
+            completionHandler(.performDefaultHandling, nil)
+        }
+    }
+
     // MARK: - URLSessionDownloadDelegate
 
     func urlSession(

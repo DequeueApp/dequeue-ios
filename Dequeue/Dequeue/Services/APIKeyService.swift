@@ -97,7 +97,7 @@ final class APIKeyService: @unchecked Sendable {
     /// Minimum length for key names
     nonisolated static let minKeyNameLength = 1
 
-    init(authService: any AuthServiceProtocol, urlSession: URLSession = .shared) {
+    init(authService: any AuthServiceProtocol, urlSession: URLSession = PinnedURLSession.shared) {
         self.authService = authService
         self.urlSession = urlSession
     }

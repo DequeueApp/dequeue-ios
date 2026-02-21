@@ -199,7 +199,7 @@ final class AttachmentUploadService: AttachmentUploadServiceProtocol {
     private let maxRetryAttempts = 3
     private let retryDelayBase: TimeInterval = 1.0
 
-    init(authService: AuthServiceProtocol, session: URLSession = .shared) {
+    init(authService: AuthServiceProtocol, session: URLSession = PinnedURLSession.shared) {
         self.authService = authService
         self.session = session
     }

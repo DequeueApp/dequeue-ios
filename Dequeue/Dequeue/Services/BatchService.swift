@@ -89,7 +89,7 @@ final class BatchService: @unchecked Sendable {
     private let authService: any AuthServiceProtocol
     private let urlSession: URLSession
 
-    init(authService: any AuthServiceProtocol, urlSession: URLSession = .shared) {
+    init(authService: any AuthServiceProtocol, urlSession: URLSession = PinnedURLSession.shared) {
         self.authService = authService
         self.urlSession = urlSession
     }
