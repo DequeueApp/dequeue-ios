@@ -29,13 +29,13 @@ final class Tag {
     // MARK: - Metadata
 
     /// Timestamp when the tag was created
-    var createdAt: Date
+    var createdAt: Date = Date()
 
     /// Timestamp when the tag was last modified
-    var updatedAt: Date
+    var updatedAt: Date = Date()
 
     /// Soft deletion flag for sync-compatible deletion
-    var isDeleted: Bool
+    var isDeleted: Bool = false
 
     // MARK: - Sync Fields
 
@@ -46,7 +46,7 @@ final class Tag {
     var deviceId: String?
 
     /// Current sync state with backend
-    var syncState: SyncState
+    var syncState: SyncState = .pending
 
     /// Timestamp of last successful sync with backend
     var lastSyncedAt: Date?
@@ -55,7 +55,7 @@ final class Tag {
     var serverId: String?
 
     /// Revision counter for conflict resolution (incremented on each update)
-    var revision: Int
+    var revision: Int = 1
 
     // MARK: - Relationships
 

@@ -18,19 +18,19 @@ final class Stack {
     var locationAddress: String?
     var locationLatitude: Double?
     var locationLongitude: Double?
-    var tags: [String]
-    var attachments: [String]
+    var tags: [String] = []
+    var attachments: [String] = []
     /// Stored as raw value string for SwiftData predicate compatibility
-    var statusRawValue: String
+    var statusRawValue: String = StackStatus.active.rawValue
     var priority: Int?
-    var sortOrder: Int
-    var createdAt: Date
-    var updatedAt: Date
-    var isDeleted: Bool
-    var isDraft: Bool
+    var sortOrder: Int = 0
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+    var isDeleted: Bool = false
+    var isDraft: Bool = false
     /// Explicit tracking for the single active stack constraint.
     /// Only one stack should have isActive = true at any time.
-    var isActive: Bool
+    var isActive: Bool = false
 
     /// Explicit tracking for the active task within this stack.
     /// When set, this task ID takes precedence over sort order.
@@ -40,10 +40,10 @@ final class Stack {
     // Sync fields
     var userId: String?
     var deviceId: String?
-    var syncState: SyncState
+    var syncState: SyncState = .pending
     var lastSyncedAt: Date?
     var serverId: String?
-    var revision: Int
+    var revision: Int = 1
 
     // Relationships
     @Relationship(deleteRule: .cascade, inverse: \QueueTask.stack)

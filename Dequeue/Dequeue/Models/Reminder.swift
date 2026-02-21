@@ -13,20 +13,20 @@ final class Reminder {
     @Attribute(.unique) var id: String
     var parentId: String
     var parentType: ParentType
-    var status: ReminderStatus
+    var status: ReminderStatus = .active
     var snoozedFrom: Date?
-    var remindAt: Date
-    var createdAt: Date
-    var updatedAt: Date
-    var isDeleted: Bool
+    var remindAt: Date = Date()
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+    var isDeleted: Bool = false
 
     // Sync fields
     var userId: String?
     var deviceId: String?
-    var syncState: SyncState
+    var syncState: SyncState = .pending
     var lastSyncedAt: Date?
     var serverId: String?
-    var revision: Int
+    var revision: Int = 1
 
     // Inverse relationships (only one should be set based on parentType)
     var stack: Stack?

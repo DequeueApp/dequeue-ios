@@ -15,13 +15,13 @@ final class Arc {
     var title: String
     var arcDescription: String?
     /// Stored as raw value string for SwiftData predicate compatibility
-    var statusRawValue: String
-    var sortOrder: Int
+    var statusRawValue: String = ArcStatus.active.rawValue
+    var sortOrder: Int = 0
     /// Optional color hex for visual accent (e.g., "FF6B6B")
     var colorHex: String?
-    var createdAt: Date
-    var updatedAt: Date
-    var isDeleted: Bool
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+    var isDeleted: Bool = false
 
     // Sync fields (standard pattern)
     /// Optional start date for the arc
@@ -32,10 +32,10 @@ final class Arc {
     // Sync fields (standard pattern)
     var userId: String?
     var deviceId: String?
-    var syncStateRawValue: String
+    var syncStateRawValue: String = SyncState.pending.rawValue
     var lastSyncedAt: Date?
     var serverId: String?
-    var revision: Int
+    var revision: Int = 1
 
     // Relationship to Stacks (one Arc has many Stacks)
     @Relationship(deleteRule: .nullify, inverse: \Stack.arc)
