@@ -131,10 +131,10 @@ final class AnalyticsService {
         let calendar = Calendar.current
         let allTasks = fetchAllTasks()
 
-        return (0..<days).reversed().map { daysAgo in
-            let date = calendar.date(byAdding: .day, value: -daysAgo, to: Date())!
+        return (0..<days).reversed().compactMap { daysAgo in
+            guard let date = calendar.date(byAdding: .day, value: -daysAgo, to: Date()) else { return nil }
             let startOfDay = calendar.startOfDay(for: date)
-            let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+            guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else { return nil }
 
             let completed = allTasks.filter { task in
                 task.status == .completed &&
@@ -177,14 +177,22 @@ final class AnalyticsService {
 
     // MARK: - Stack Analytics
 
+    /// Accumulator for stack metric computation
+    private struct StackAccumulator {
+        var title: String
+        var total: Int = 0
+        var completed: Int = 0
+        var completionDays: [Double] = []
+    }
+
     /// Gets completion metrics broken down by stack
     func getStackAnalytics() -> [StackAnalytics] {
         let allTasks = fetchAllTasks()
-        var stackMap: [String: (title: String, total: Int, completed: Int, completionDays: [Double])] = [:]
+        var stackMap: [String: StackAccumulator] = [:]
 
         for task in allTasks {
             guard let stack = task.stack else { continue }
-            var entry = stackMap[stack.id, default: (title: stack.title, total: 0, completed: 0, completionDays: [])]
+            var entry = stackMap[stack.id, default: StackAccumulator(title: stack.title)]
             entry.total += 1
             if task.status == .completed {
                 entry.completed += 1
@@ -215,7 +223,9 @@ final class AnalyticsService {
     func getHourlyProductivity() -> [HourlyProductivity] {
         let calendar = Calendar.current
         let allTasks = fetchAllTasks()
-        let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: Date())!
+        guard let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: Date()) else {
+            return (0..<24).map { HourlyProductivity(hour: $0, completions: 0) }
+        }
 
         var hourCounts = [Int](repeating: 0, count: 24)
 
@@ -269,10 +279,12 @@ final class AnalyticsService {
             let dateStr = formatter.string(from: date)
             if completionDates.contains(dateStr) {
                 streak += 1
-                date = calendar.date(byAdding: .day, value: -1, to: date)!
+                guard let prev = calendar.date(byAdding: .day, value: -1, to: date) else { break }
+                date = prev
             } else if streak == 0 {
                 // Check yesterday if today hasn't had completions yet
-                date = calendar.date(byAdding: .day, value: -1, to: date)!
+                guard let prev = calendar.date(byAdding: .day, value: -1, to: date) else { break }
+                date = prev
                 continue
             } else {
                 break
