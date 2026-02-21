@@ -5,6 +5,7 @@
 //  EventKit integration: sync tasks with system calendar, show upcoming events
 //
 
+import Combine
 import EventKit
 import Foundation
 import os
