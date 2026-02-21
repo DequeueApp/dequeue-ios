@@ -130,7 +130,9 @@ struct TaskFilterSheet: View {
                 additionalSection
             }
             .navigationTitle("Filter Tasks")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Reset") {
