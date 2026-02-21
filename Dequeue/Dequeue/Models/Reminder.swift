@@ -13,7 +13,7 @@ final class Reminder {
     @Attribute(.unique) var id: String
     var parentId: String
     var parentType: ParentType
-    var status: ReminderStatus = .active
+    var status: ReminderStatus = ReminderStatus.active
     var snoozedFrom: Date?
     var remindAt: Date = Date()
     var createdAt: Date = Date()
@@ -23,7 +23,7 @@ final class Reminder {
     // Sync fields
     var userId: String?
     var deviceId: String?
-    var syncState: SyncState = .pending
+    var syncState: SyncState = SyncState.pending
     var lastSyncedAt: Date?
     var serverId: String?
     var revision: Int = 1
