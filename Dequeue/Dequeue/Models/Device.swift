@@ -17,20 +17,20 @@ final class Device {
     var model: String?
     var osName: String
     var osVersion: String?
-    var isDevice: Bool
-    var isCurrentDevice: Bool
-    var lastSeenAt: Date
-    var firstSeenAt: Date
-    var createdAt: Date
-    var updatedAt: Date
-    var isDeleted: Bool
+    var isDevice: Bool = true
+    var isCurrentDevice: Bool = false
+    var lastSeenAt: Date = Date()
+    var firstSeenAt: Date = Date()
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+    var isDeleted: Bool = false
 
     // Sync fields
     var userId: String?
-    var syncState: SyncState
+    var syncState: SyncState = .pending
     var lastSyncedAt: Date?
     var serverId: String?
-    var revision: Int
+    var revision: Int = 1
 
     init(
         id: String = CUID.generate(),

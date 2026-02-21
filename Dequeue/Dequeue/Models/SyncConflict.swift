@@ -53,7 +53,7 @@ final class SyncConflict {
     /// Raw string value for resolution enum (needed for SwiftData predicates)
     private(set) var resolutionRaw: String
     private(set) var detectedAt: Date
-    var isResolved: Bool
+    var isResolved: Bool = false
 
     // MARK: - Type-Safe Accessors
 

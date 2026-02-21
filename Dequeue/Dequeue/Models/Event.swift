@@ -37,10 +37,10 @@ final class Event {
     /// Version 2: Current format with userId/deviceId (DEQ-137+)
     /// Events with payloadVersion < 2 are ignored during sync pull.
     static let currentPayloadVersion: Int = 2
-    var payloadVersion: Int
+    var payloadVersion: Int = Event.currentPayloadVersion
 
     // Sync tracking
-    var isSynced: Bool
+    var isSynced: Bool = false
     var syncedAt: Date?
 
     init(

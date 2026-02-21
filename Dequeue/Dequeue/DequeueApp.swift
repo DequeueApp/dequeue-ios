@@ -111,20 +111,27 @@ struct DequeueApp: App {
         notificationService.configureNotificationCategories()
     }
 
-    /// Deletes SwiftData store files when schema migration fails
+    /// Deletes SwiftData store files when schema migration fails.
+    /// Checks both the default app container and the App Group container
+    /// since the store location can vary depending on entitlements.
     private static func deleteSwiftDataStore() {
         let fileManager = FileManager.default
-        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return
+        let storeFileNames = ["default.store", "default.store-shm", "default.store-wal"]
+
+        // 1. Delete from default app Application Support directory
+        if let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            for fileName in storeFileNames {
+                try? fileManager.removeItem(at: appSupport.appendingPathComponent(fileName))
+            }
         }
 
-        let storeURL = appSupport.appendingPathComponent("default.store")
-        let storeShmURL = appSupport.appendingPathComponent("default.store-shm")
-        let storeWalURL = appSupport.appendingPathComponent("default.store-wal")
-
-        try? fileManager.removeItem(at: storeURL)
-        try? fileManager.removeItem(at: storeShmURL)
-        try? fileManager.removeItem(at: storeWalURL)
+        // 2. Delete from App Group container (widgets share data via group container)
+        if let groupURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.com.ardonos.Dequeue") {
+            let groupAppSupport = groupURL.appendingPathComponent("Library/Application Support")
+            for fileName in storeFileNames {
+                try? fileManager.removeItem(at: groupAppSupport.appendingPathComponent(fileName))
+            }
+        }
 
         // Also clear sync checkpoint so we get fresh data from server
         UserDefaults.standard.removeObject(forKey: "com.dequeue.lastSyncCheckpoint")

@@ -49,18 +49,18 @@ final class Attachment {
     var previewUrl: String?
 
     // Timestamps
-    var createdAt: Date
-    var updatedAt: Date
-    var isDeleted: Bool
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+    var isDeleted: Bool = false
 
     // Sync fields
     var userId: String?
     var deviceId: String?
-    var syncState: SyncState
-    var uploadState: UploadState
+    var syncState: SyncState = .pending
+    var uploadState: UploadState = .pending
     var lastSyncedAt: Date?
     var serverId: String?
-    var revision: Int
+    var revision: Int = 1
 
     init(
         id: String = CUID.generate(),

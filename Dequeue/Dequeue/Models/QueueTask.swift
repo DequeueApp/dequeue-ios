@@ -18,29 +18,29 @@ final class QueueTask {
     var locationAddress: String?
     var locationLatitude: Double?
     var locationLongitude: Double?
-    var attachments: [String]
-    var tags: [String]  // DEQ-31: Tag support for tasks
-    var status: TaskStatus
+    var attachments: [String] = []
+    var tags: [String] = []  // DEQ-31: Tag support for tasks
+    var status: TaskStatus = .pending
     var priority: Int?
     var blockedReason: String?
-    var sortOrder: Int
+    var sortOrder: Int = 0
     var lastActiveTime: Date?
-    var createdAt: Date
-    var updatedAt: Date
-    var isDeleted: Bool
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+    var isDeleted: Bool = false
 
     // AI delegation fields (DEQ-54)
-    var delegatedToAI: Bool
+    var delegatedToAI: Bool = false
     var aiAgentId: String?
     var aiDelegatedAt: Date?
 
     // Sync fields
     var userId: String?
     var deviceId: String?
-    var syncState: SyncState
+    var syncState: SyncState = .pending
     var lastSyncedAt: Date?
     var serverId: String?
-    var revision: Int
+    var revision: Int = 1
 
     // Relationships
     var stack: Stack?
@@ -57,8 +57,8 @@ final class QueueTask {
     // Recurring task fields
     var recurrenceRuleData: Data?
     var recurrenceParentId: String?
-    var isRecurrenceTemplate: Bool
-    var completedOccurrences: Int
+    var isRecurrenceTemplate: Bool = false
+    var completedOccurrences: Int = 0
 
     init(
         id: String = CUID.generate(),
