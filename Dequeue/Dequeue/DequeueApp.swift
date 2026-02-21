@@ -189,41 +189,15 @@ struct RootView: View {
         NotificationService(modelContext: modelContext)
     }
 
-    /// Show loading on fresh devices until initial sync completes.
-    /// Uses view model as primary source of truth with synchronous UserDefaults fallback
-    /// when view model hasn't initialized yet (first render).
-    private var shouldShowInitialSyncLoading: Bool {
-        guard authService.isAuthenticated else { return false }
-        // Use view model if available; fall back to checking checkpoint directly
-        if let viewModel = syncStatusViewModel {
-            return viewModel.isInitialSyncInProgress
-        }
-        // Fallback for first render before view model initializes
-        return UserDefaults.standard.string(forKey: "com.dequeue.lastSyncCheckpoint") == nil
-    }
-
-    private var initialSyncEventsProcessed: Int {
-        syncStatusViewModel?.initialSyncEventsProcessed ?? 0
-    }
-
-    private var initialSyncTotalEvents: Int? {
-        guard let total = syncStatusViewModel?.initialSyncTotalEvents, total > 0 else { return nil }
-        return total
-    }
+    // Initial sync loading removed — sync happens in the background.
+    // Users should never be blocked from using the app while syncing.
 
     var body: some View {
         Group {
             if authService.isLoading {
                 SplashView()
             } else if authService.isAuthenticated {
-                if shouldShowInitialSyncLoading {
-                    InitialSyncLoadingView(
-                        eventsProcessed: initialSyncEventsProcessed,
-                        totalEvents: initialSyncTotalEvents
-                    )
-                } else {
-                    MainTabView()
-                }
+                MainTabView()
             } else {
                 AuthView()
             }
@@ -239,7 +213,6 @@ struct RootView: View {
         }
         .animation(.easeInOut, value: authService.isLoading)
         .animation(.easeInOut, value: authService.isAuthenticated)
-        .animation(.easeInOut, value: shouldShowInitialSyncLoading)
         .alert("Sync Connection Issue", isPresented: $showSyncError) {
             Button("OK") {
                 showSyncError = false
