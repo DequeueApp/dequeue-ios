@@ -14,9 +14,9 @@ import UniformTypeIdentifiers
 
 extension UTType {
     /// Custom UTType for Dequeue task references (task ID)
-    static let dequeueTask = UTType(exportedAs: "app.dequeue.task")
+    nonisolated(unsafe) static let dequeueTask = UTType(exportedAs: "app.dequeue.task")
     /// Custom UTType for Dequeue stack references (stack ID)
-    static let dequeueStack = UTType(exportedAs: "app.dequeue.stack")
+    nonisolated(unsafe) static let dequeueStack = UTType(exportedAs: "app.dequeue.stack")
 }
 
 // MARK: - Task Transferable
@@ -102,16 +102,8 @@ class TaskListDropDelegate: DropDelegate {
     }
 
     func dropEntered(info: DropInfo) {
-        guard let sourceIndex = tasks.firstIndex(where: { info.hasItemsConforming(to: [.dequeueTask]) && true }),
-              let targetIndex = tasks.firstIndex(where: { $0.id == targetTask.id }),
-              sourceIndex != targetIndex else {
-            return
-        }
-
-        var reordered = tasks
-        let moved = reordered.remove(at: sourceIndex)
-        reordered.insert(moved, at: targetIndex)
-        onReorder(reordered)
+        // TaskListDropDelegate is a basic implementation — actual reordering
+        // is handled by TaskReorderDropDelegate below
     }
 }
 
