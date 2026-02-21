@@ -7,8 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		447446C2A4518A48E7E09010 /* WidgetDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10C44498BBEAD07FF44EB39D /* WidgetDataService.swift */; };
 		57916B252EF87D1000A9AF45 /* Clerk in Frameworks */ = {isa = PBXBuildFile; productRef = 57916B242EF87D1000A9AF45 /* Clerk */; };
 		57916B2C2EF8855F00A9AF45 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 57916B2B2EF8855F00A9AF45 /* Sentry */; };
+		5C6C426B9E10BC3678DE5C7B /* WidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC954C37A675A1A3F5102CBD /* WidgetModels.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,27 +31,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		10C44498BBEAD07FF44EB39D /* WidgetDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetDataService.swift; path = Dequeue/Services/WidgetDataService.swift; sourceTree = SOURCE_ROOT; };
 		57916A2D2EF84B3300A9AF45 /* Dequeue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dequeue.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		57916A3C2EF84B3400A9AF45 /* DequeueTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DequeueTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		57916A462EF84B3400A9AF45 /* DequeueUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DequeueUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC954C37A675A1A3F5102CBD /* WidgetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetModels.swift; path = Shared/WidgetModels.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		57916A2F2EF84B3300A9AF45 /* Dequeue */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Dequeue;
-			sourceTree = "<group>";
-		};
-		57916A3F2EF84B3400A9AF45 /* DequeueTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = DequeueTests;
-			sourceTree = "<group>";
-		};
-		57916A492EF84B3400A9AF45 /* DequeueUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = DequeueUITests;
-			sourceTree = "<group>";
-		};
+		57916A2F2EF84B3300A9AF45 /* Dequeue */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Dequeue; sourceTree = "<group>"; };
+		57916A3F2EF84B3400A9AF45 /* DequeueTests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = DequeueTests; sourceTree = "<group>"; };
+		57916A492EF84B3400A9AF45 /* DequeueUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = DequeueUITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,6 +79,8 @@
 				57916A492EF84B3400A9AF45 /* DequeueUITests */,
 				57916B232EF87D0800A9AF45 /* Frameworks */,
 				57916A2E2EF84B3300A9AF45 /* Products */,
+				AC954C37A675A1A3F5102CBD /* WidgetModels.swift */,
+				10C44498BBEAD07FF44EB39D /* WidgetDataService.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -257,6 +251,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5C6C426B9E10BC3678DE5C7B /* WidgetModels.swift in Sources */,
+				447446C2A4518A48E7E09010 /* WidgetDataService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -434,6 +430,10 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/Shared",
+					"$(SRCROOT)/Dequeue/Services",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ardonos.Dequeue;
@@ -481,6 +481,10 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/Shared",
+					"$(SRCROOT)/Dequeue/Services",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ardonos.Dequeue;
@@ -509,6 +513,10 @@
 				DEVELOPMENT_TEAM = 9HE7YP99YB;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/Shared",
+					"$(SRCROOT)/Dequeue/Services",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ardonos.DequeueTests;
@@ -536,6 +544,10 @@
 				DEVELOPMENT_TEAM = 9HE7YP99YB;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/Shared",
+					"$(SRCROOT)/Dequeue/Services",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ardonos.DequeueTests;
@@ -562,6 +574,10 @@
 				DEVELOPMENT_TEAM = 9HE7YP99YB;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/Shared",
+					"$(SRCROOT)/Dequeue/Services",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ardonos.DequeueUITests;
@@ -588,6 +604,10 @@
 				DEVELOPMENT_TEAM = 9HE7YP99YB;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LIBRARY_SEARCH_PATHS = (
+					"$(SRCROOT)/Shared",
+					"$(SRCROOT)/Dequeue/Services",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ardonos.DequeueUITests;

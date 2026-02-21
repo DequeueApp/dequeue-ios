@@ -213,7 +213,7 @@ actor SyncManager {
 
     init(modelContainer: ModelContainer) {
         self.syncModelContainer = modelContainer
-        self.syncSession = URLSession(configuration: .default)
+        self.syncSession = PinnedURLSession.session(configuration: .default)
     }
 
     // MARK: - Checkpoint Persistence
@@ -1177,6 +1177,13 @@ actor SyncManager {
 
         if stats.hasReminderEvents {
             await rescheduleNotifications(context: context)
+        }
+
+        // Update widget data after sync processes new events (DEQ-120)
+        if stats.processed > 0 {
+            Task { @MainActor in
+                WidgetDataService.updateAllWidgets(context: syncModelContainer.mainContext)
+            }
         }
     }
 
