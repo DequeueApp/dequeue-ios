@@ -44,6 +44,7 @@ platform :ios do
       project: "Dequeue.xcodeproj",
       scheme: "Dequeue",
       configuration: "Release",
+      destination: "generic/platform=iOS",
       export_method: "app-store",
       output_directory: "./build",
       output_name: "Dequeue.ipa"
