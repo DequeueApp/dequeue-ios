@@ -156,12 +156,14 @@ enum ErrorReportingService {
                     ]
 
                     // ============================================
-                    // PROFILING (CPU profiling for performance issues)
+                    // PROFILING (CPU profiling for performance issues, iOS only)
                     // ============================================
+                    #if os(iOS)
                     options.configureProfiling = { profiling in
                         profiling.lifecycle = .trace            // Profile during traces
                         profiling.sessionSampleRate = 1.0       // 100% of sessions
                     }
+                    #endif
 
                     // ============================================
                     // SESSION REPLAY (video-like playback of sessions, iOS only)
