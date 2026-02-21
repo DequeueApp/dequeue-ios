@@ -59,6 +59,10 @@ struct TaskRowView: View {
                 if task.aiDelegatedAt != nil {
                     AIDelegationBadge()
                 }
+
+                if task.hasDependencies {
+                    DependencyBadge(count: task.dependencyCount)
+                }
             }
 
             if let description = task.taskDescription, !description.isEmpty {

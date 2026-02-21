@@ -51,6 +51,9 @@ final class QueueTask {
     // Parent-child task relationship (DEQ-29: Subtasks)
     var parentTaskId: String?
 
+    // Task dependencies (blocked by)
+    var dependencyData: Data?
+
     init(
         id: String = CUID.generate(),
         title: String,
@@ -80,7 +83,8 @@ final class QueueTask {
         serverId: String? = nil,
         revision: Int = 1,
         stack: Stack? = nil,
-        parentTaskId: String? = nil  // DEQ-29: Subtasks
+        parentTaskId: String? = nil,  // DEQ-29: Subtasks
+        dependencyData: Data? = nil
     ) {
         self.id = id
         self.title = title
@@ -111,6 +115,7 @@ final class QueueTask {
         self.revision = revision
         self.stack = stack
         self.parentTaskId = parentTaskId  // DEQ-29
+        self.dependencyData = dependencyData
     }
 }
 
