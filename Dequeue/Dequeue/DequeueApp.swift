@@ -28,6 +28,10 @@ extension EnvironmentValues {
 
 @main
 struct DequeueApp: App {
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(DequeueAppDelegate.self) var appDelegate
+    #endif
+
     @State private var authService: any AuthServiceProtocol
     @State private var attachmentSettings = AttachmentSettings()
     @State private var consecutiveSyncFailures = 0
@@ -170,6 +174,9 @@ struct RootView: View {
     private let syncFailureThreshold = 3
 
     @State private var syncStatusViewModel: SyncStatusViewModel?
+    @State private var showAddTaskSheet = false
+    @State private var showNewStackSheet = false
+    @State private var showSearchView = false
 
     private var notificationService: NotificationService {
         NotificationService(modelContext: modelContext)
@@ -242,6 +249,8 @@ struct RootView: View {
             switch newPhase {
             case .active:
                 ErrorReportingService.logAppForeground()
+                // Handle pending quick actions (home screen 3D Touch shortcuts)
+                handlePendingQuickAction()
                 Task {
                     // Refresh auth session when app becomes active
                     // This validates the session if we're back online after being offline
@@ -254,6 +263,12 @@ struct RootView: View {
                         await ensureSyncConnected()
                         await handleAppBecameActive()
                         await notificationService.updateAppBadge()
+
+                        // Update home screen quick action shortcuts with current context
+                        #if os(iOS)
+                        let activeStackName = QuickActionService.fetchActiveStackName(modelContext: modelContext)
+                        QuickActionService.shared.updateShortcutItems(activeStackName: activeStackName)
+                        #endif
                     }
                 }
             case .background:
@@ -488,6 +503,33 @@ struct RootView: View {
         guard let result = try? TagService.mergeDuplicateTags(modelContext: modelContext),
               result.duplicateGroupsFound > 0 else { return }
         os_log("[Migration] Merged \(result.tagsMerged) tags in \(result.duplicateGroupsFound) groups")
+    }
+
+    // MARK: - Quick Actions
+
+    /// Processes a pending quick action triggered from the home screen.
+    /// Called when the scene becomes active after a quick action launch.
+    private func handlePendingQuickAction() {
+        #if os(iOS)
+        guard let action = QuickActionService.shared.pendingAction else { return }
+        QuickActionService.shared.clearPendingAction()
+
+        os_log("[QuickActions] Processing pending action: \(action.rawValue)")
+
+        switch action {
+        case .addTask:
+            showAddTaskSheet = true
+        case .viewActiveStack:
+            // Navigate to active stack via deep link
+            if let url = URL(string: "dequeue://action/active-stack") {
+                DeepLinkManager.handleURL(url)
+            }
+        case .search:
+            showSearchView = true
+        case .newStack:
+            showNewStackSheet = true
+        }
+        #endif
     }
 }
 

@@ -33,6 +33,7 @@ struct DeepLinkDestination: Equatable {
     ///   - dequeue://arc/{id}
     ///   - dequeue://stats
     ///   - dequeue://home
+    ///   - dequeue://action/{action-name} (Quick Actions)
     init?(url: URL) {
         guard url.scheme == "dequeue" else { return nil }
         let host = url.host() ?? url.host
@@ -49,7 +50,7 @@ struct DeepLinkDestination: Equatable {
             self.parentId = id
             self.parentType = .arc
         } else {
-            // Unknown or generic routes (home, stats) — no specific destination
+            // Unknown or generic routes (home, stats, actions) — no specific destination
             return nil
         }
     }
@@ -63,6 +64,21 @@ struct DeepLinkDestination: Equatable {
         }
         self.init(url: url)
     }
+}
+
+// MARK: - Quick Action Deep Link
+
+/// Represents an action-based deep link (no specific item navigation)
+enum DeepLinkAction: String {
+    case addTask = "add-task"
+    case activeStack = "active-stack"
+    case search = "search"
+    case newStack = "new-stack"
+}
+
+extension Notification.Name {
+    /// Posted when an action deep link is triggered (Quick Actions, etc.)
+    static let deepLinkActionTriggered = Notification.Name("com.dequeue.deepLinkActionTriggered")
 }
 
 // MARK: - Notification for Deep Links
@@ -83,8 +99,22 @@ enum DeepLinkManager {
     static let destinationKey = "destination"
 
     /// Process a dequeue:// URL and post a navigation notification if it resolves to a destination.
+    /// Also handles action-based URLs (dequeue://action/{action}).
     /// Call from `.onOpenURL` in the root view.
     static func handleURL(_ url: URL) {
+        // Check for action-based deep links first (dequeue://action/{action})
+        let host = url.host() ?? url.host
+        let pathComponents = url.pathComponents.filter { $0 != "/" }
+        if host == "action", let actionName = pathComponents.first,
+           let action = DeepLinkAction(rawValue: actionName) {
+            NotificationCenter.default.post(
+                name: .deepLinkActionTriggered,
+                object: nil,
+                userInfo: ["action": action]
+            )
+            return
+        }
+
         guard let destination = DeepLinkDestination(url: url) else { return }
         NotificationCenter.default.post(
             name: .deepLinkOpened,
