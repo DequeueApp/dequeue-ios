@@ -37,7 +37,7 @@ struct StackEditorView: View {
         case description
     }
 
-    @Environment(\.modelContext) private var modelContext
+    @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
     @Environment(\.syncManager) var syncManager
     @Environment(\.authService) var authService

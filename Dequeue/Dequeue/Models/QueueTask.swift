@@ -143,9 +143,15 @@ extension QueueTask {
     }
 
     /// Computed property for the recurrence rule (JSON-encoded in recurrenceRuleData)
+    @MainActor
     var recurrenceRule: RecurrenceRule? {
-        get { RecurrenceRule.fromData(recurrenceRuleData) }
-        set { recurrenceRuleData = newValue?.toData() }
+        get {
+            guard let data = recurrenceRuleData else { return nil }
+            return try? JSONDecoder().decode(RecurrenceRule.self, from: data)
+        }
+        set {
+            recurrenceRuleData = newValue.flatMap { try? JSONEncoder().encode($0) }
+        }
     }
 
     /// Whether this task has a recurrence pattern
