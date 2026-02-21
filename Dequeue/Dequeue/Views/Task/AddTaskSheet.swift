@@ -12,8 +12,29 @@ struct AddTaskSheet: View {
     @Binding var description: String
     @Binding var startTime: Date?
     @Binding var dueTime: Date?
+    @Binding var recurrenceRule: RecurrenceRule?
     let onSave: () -> Void
     let onCancel: () -> Void
+
+    @State private var showRecurrencePicker = false
+
+    init(
+        title: Binding<String>,
+        description: Binding<String>,
+        startTime: Binding<Date?>,
+        dueTime: Binding<Date?>,
+        recurrenceRule: Binding<RecurrenceRule?> = .constant(nil),
+        onSave: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self._title = title
+        self._description = description
+        self._startTime = startTime
+        self._dueTime = dueTime
+        self._recurrenceRule = recurrenceRule
+        self.onSave = onSave
+        self.onCancel = onCancel
+    }
 
     var body: some View {
         NavigationStack {
@@ -65,6 +86,29 @@ struct AddTaskSheet: View {
                         }
                     }
                 }
+
+                Section("Repeat") {
+                    Button {
+                        showRecurrencePicker = true
+                    } label: {
+                        HStack {
+                            Label("Repeat", systemImage: "repeat")
+                            Spacer()
+                            if let rule = recurrenceRule {
+                                Text(rule.shortText)
+                                    .foregroundStyle(.blue)
+                            } else {
+                                Text("Never")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                    .accessibilityIdentifier("recurrenceButton")
+                }
             }
             .navigationTitle("New Task")
             #if os(iOS)
@@ -85,9 +129,12 @@ struct AddTaskSheet: View {
                     .accessibilityIdentifier("addTaskSaveButton")
                 }
             }
+            .sheet(isPresented: $showRecurrencePicker) {
+                RecurrencePickerSheet(recurrenceRule: $recurrenceRule)
+            }
         }
         #if os(iOS)
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         #else
         .frame(minWidth: 400, minHeight: 200)
         #endif
@@ -100,6 +147,7 @@ struct AddTaskSheet: View {
         description: .constant(""),
         startTime: .constant(nil),
         dueTime: .constant(nil),
+        recurrenceRule: .constant(nil),
         onSave: {},
         onCancel: {}
     )

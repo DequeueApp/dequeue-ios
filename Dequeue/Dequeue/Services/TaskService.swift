@@ -98,6 +98,19 @@ final class TaskService {
         try await eventService.recordTaskCompleted(task)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
+
+        // Create next occurrence for recurring tasks
+        if task.isRecurring {
+            let userId = task.userId ?? ""
+            let deviceId = task.deviceId ?? ""
+            let recurringService = RecurringTaskService(
+                modelContext: modelContext,
+                userId: userId,
+                deviceId: deviceId,
+                syncManager: syncManager
+            )
+            try await recurringService.createNextOccurrence(for: task)
+        }
     }
 
     func markAsBlocked(_ task: QueueTask, reason: String?) async throws {

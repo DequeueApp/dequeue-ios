@@ -59,6 +59,10 @@ struct TaskRowView: View {
                 if task.aiDelegatedAt != nil {
                     AIDelegationBadge()
                 }
+
+                if let rule = task.recurrenceRule {
+                    RecurrenceBadge(rule: rule)
+                }
             }
 
             if let description = task.taskDescription, !description.isEmpty {

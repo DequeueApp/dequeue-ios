@@ -51,6 +51,12 @@ final class QueueTask {
     // Parent-child task relationship (DEQ-29: Subtasks)
     var parentTaskId: String?
 
+    // Recurring task fields
+    var recurrenceRuleData: Data?
+    var recurrenceParentId: String?
+    var isRecurrenceTemplate: Bool
+    var completedOccurrences: Int
+
     init(
         id: String = CUID.generate(),
         title: String,
@@ -80,7 +86,11 @@ final class QueueTask {
         serverId: String? = nil,
         revision: Int = 1,
         stack: Stack? = nil,
-        parentTaskId: String? = nil  // DEQ-29: Subtasks
+        parentTaskId: String? = nil,  // DEQ-29: Subtasks
+        recurrenceRuleData: Data? = nil,
+        recurrenceParentId: String? = nil,
+        isRecurrenceTemplate: Bool = false,
+        completedOccurrences: Int = 0
     ) {
         self.id = id
         self.title = title
@@ -111,6 +121,10 @@ final class QueueTask {
         self.revision = revision
         self.stack = stack
         self.parentTaskId = parentTaskId  // DEQ-29
+        self.recurrenceRuleData = recurrenceRuleData
+        self.recurrenceParentId = recurrenceParentId
+        self.isRecurrenceTemplate = isRecurrenceTemplate
+        self.completedOccurrences = completedOccurrences
     }
 }
 
@@ -126,5 +140,16 @@ extension QueueTask {
     // For querying parent/subtasks, use helper methods in TaskService or similar
     var hasParent: Bool {
         parentTaskId != nil
+    }
+
+    /// Computed property for the recurrence rule (JSON-encoded in recurrenceRuleData)
+    var recurrenceRule: RecurrenceRule? {
+        get { RecurrenceRule.fromData(recurrenceRuleData) }
+        set { recurrenceRuleData = newValue?.toData() }
+    }
+
+    /// Whether this task has a recurrence pattern
+    var isRecurring: Bool {
+        recurrenceRuleData != nil
     }
 }
