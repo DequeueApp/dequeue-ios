@@ -120,10 +120,10 @@ struct NLTaskParser: Sendable {
         (working, extractedStartDate) = extractStartDate(from: working, time: nil)
 
         // 6. If we got a time but no date, assume today
-        if extractedTime != nil && extractedDueDate == nil {
+        if let time = extractedTime, extractedDueDate == nil {
             var components = calendar.dateComponents([.year, .month, .day], from: referenceDate)
-            components.hour = extractedTime!.hour
-            components.minute = extractedTime!.minute
+            components.hour = time.hour
+            components.minute = time.minute
             components.second = 0
             extractedDueDate = calendar.date(from: components)
 
@@ -303,10 +303,35 @@ struct NLTaskParser: Sendable {
 
     // MARK: - Due Date Extraction
 
-    /// Extracts date expressions and returns the remaining text + parsed date
+    /// Extracts date expressions and returns the remaining text + parsed date.
+    /// Split into sub-methods to keep cyclomatic complexity manageable.
     private func extractDueDate(from text: String, time: (hour: Int, minute: Int)?) -> (String, Date?) {
-        var result = text
         let resolvedTime = time ?? defaultTime
+
+        // Try each date pattern in order of specificity
+        let extractors: [(String, (hour: Int, minute: Int)) -> (String, Date?)?] = [
+            extractKeywordDate,
+            extractRelativeDate,
+            extractNamedDayDate,
+            extractCalendarDate
+        ]
+
+        for extractor in extractors {
+            if let extracted = extractor(text, resolvedTime) {
+                return extracted
+            }
+        }
+
+        return (text, nil)
+    }
+
+    /// Extracts keyword dates: today, tonight, tomorrow, day after tomorrow,
+    /// next week, this weekend, eod, eow
+    private func extractKeywordDate(
+        from text: String,
+        time resolvedTime: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
 
         // "today"
         if let match = result.range(of: #"\b(?:by\s+)?today\b"#, options: [.regularExpression, .caseInsensitive]) {
@@ -366,99 +391,167 @@ struct NLTaskParser: Sendable {
             }
         }
 
-        // "in X hours/minutes/days/weeks"
+        return nil
+    }
+
+    /// Extracts relative date expressions: "in X hours/minutes/days/weeks"
+    private func extractRelativeDate(
+        from text: String,
+        time: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
+
         let inPattern = #"\bin\s+(\d+)\s+(minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks)\b"#
-        if let regex = try? NSRegularExpression(pattern: inPattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)) {
-            if let numRange = Range(match.range(at: 1), in: result),
-               let unitRange = Range(match.range(at: 2), in: result) {
-                let num = Int(result[numRange]) ?? 0
-                let unit = String(result[unitRange]).lowercased()
-                let component: Calendar.Component
-                switch unit {
-                case "minute", "minutes", "min", "mins": component = .minute
-                case "hour", "hours", "hr", "hrs": component = .hour
-                case "day", "days": component = .day
-                case "week", "weeks": component = .weekOfYear
-                default: component = .hour
-                }
-                if let date = calendar.date(byAdding: component, value: num, to: referenceDate),
-                   let fullRange = Range(match.range, in: result) {
-                    result = result.replacingCharacters(in: fullRange, with: "")
-                    return (result, date)
-                }
-            }
+        guard let regex = try? NSRegularExpression(pattern: inPattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+              let numRange = Range(match.range(at: 1), in: result),
+              let unitRange = Range(match.range(at: 2), in: result) else {
+            return nil
         }
 
+        let num = Int(result[numRange]) ?? 0
+        let unit = String(result[unitRange]).lowercased()
+        let component = calendarComponentForUnit(unit)
+
+        guard let date = calendar.date(byAdding: component, value: num, to: referenceDate),
+              let fullRange = Range(match.range, in: result) else {
+            return nil
+        }
+
+        result = result.replacingCharacters(in: fullRange, with: "")
+        return (result, date)
+    }
+
+    private func calendarComponentForUnit(_ unit: String) -> Calendar.Component {
+        switch unit {
+        case "minute", "minutes", "min", "mins": return .minute
+        case "hour", "hours", "hr", "hrs": return .hour
+        case "day", "days": return .day
+        case "week", "weeks": return .weekOfYear
+        default: return .hour
+        }
+    }
+
+    /// Extracts named day expressions: "next Monday", "on Friday", bare "Saturday" at end
+    private func extractNamedDayDate(
+        from text: String,
+        time resolvedTime: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
+        let dayNamePattern = allDayNames.joined(separator: "|")
+
         // "next Monday/Tuesday/..." or "on Monday/Tuesday/..."
-        let dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-                        "mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"]
-        let dayNamePattern = dayNames.joined(separator: "|")
         let nextDayPattern = #"\b(?:next|on|by)\s+("# + dayNamePattern + #")\b"#
-        if let regex = try? NSRegularExpression(pattern: nextDayPattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)) {
-            if let dayRange = Range(match.range(at: 1), in: result) {
-                let dayName = String(result[dayRange]).lowercased()
-                if let weekday = weekdayFromName(dayName),
-                   let date = nextWeekday(weekday),
-                   let fullRange = Range(match.range, in: result) {
-                    result = result.replacingCharacters(in: fullRange, with: "")
-                    return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
-                }
-            }
+        if let found = extractDayNameMatch(from: result, pattern: nextDayPattern, time: resolvedTime) {
+            return found
         }
 
         // Bare day name at end: "Buy milk Monday"
         let bareDayPattern = #"\b("# + dayNamePattern + #")\s*$"#
         if let regex = try? NSRegularExpression(pattern: bareDayPattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)) {
-            if let dayRange = Range(match.range(at: 1), in: result) {
-                let dayName = String(result[dayRange]).lowercased()
-                if let weekday = weekdayFromName(dayName),
-                   let date = nextWeekday(weekday),
-                   let fullRange = Range(match.range, in: result) {
-                    result = result.replacingCharacters(in: fullRange, with: "")
-                    return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
-                }
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let dayRange = Range(match.range(at: 1), in: result) {
+            let dayName = String(result[dayRange]).lowercased()
+            if let weekday = weekdayFromName(dayName),
+               let date = nextWeekday(weekday),
+               let fullRange = Range(match.range, in: result) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
             }
         }
 
-        // "Jan 15" / "January 15" / "Feb 3" etc.
+        return nil
+    }
+
+    private func extractDayNameMatch(
+        from text: String,
+        pattern: String,
+        time resolvedTime: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+              let dayRange = Range(match.range(at: 1), in: result) else {
+            return nil
+        }
+
+        let dayName = String(result[dayRange]).lowercased()
+        guard let weekday = weekdayFromName(dayName),
+              let date = nextWeekday(weekday),
+              let fullRange = Range(match.range, in: result) else {
+            return nil
+        }
+
+        result = result.replacingCharacters(in: fullRange, with: "")
+        return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
+    }
+
+    private var allDayNames: [String] {
+        ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+         "mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"]
+    }
+
+    /// Extracts calendar dates: "Jan 15", "March 3rd", "3/15", "12-25"
+    private func extractCalendarDate(
+        from text: String,
+        time resolvedTime: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        if let found = extractMonthNameDate(from: text, time: resolvedTime) {
+            return found
+        }
+        return extractSlashDate(from: text, time: resolvedTime)
+    }
+
+    private func extractMonthNameDate(
+        from text: String,
+        time resolvedTime: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
+        // swiftlint:disable:next line_length
         let monthNames = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
         let monthDayPattern = #"\b(?:by\s+|on\s+)?("# + monthNames + #")\s+(\d{1,2})(?:st|nd|rd|th)?\b"#
-        if let regex = try? NSRegularExpression(pattern: monthDayPattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)) {
-            if let monthRange = Range(match.range(at: 1), in: result),
-               let dayRange = Range(match.range(at: 2), in: result) {
-                let monthStr = String(result[monthRange]).lowercased()
-                let day = Int(result[dayRange]) ?? 1
-                if let month = monthFromName(monthStr),
-                   let date = resolveMonthDay(month: month, day: day, time: resolvedTime),
-                   let fullRange = Range(match.range, in: result) {
-                    result = result.replacingCharacters(in: fullRange, with: "")
-                    return (result, date)
-                }
-            }
+        guard let regex = try? NSRegularExpression(pattern: monthDayPattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+              let monthRange = Range(match.range(at: 1), in: result),
+              let dayRange = Range(match.range(at: 2), in: result) else {
+            return nil
         }
 
-        // "M/D" or "M-D" format (e.g., "1/15", "12-25")
+        let monthStr = String(result[monthRange]).lowercased()
+        let day = Int(result[dayRange]) ?? 1
+        guard let month = monthFromName(monthStr),
+              let date = resolveMonthDay(month: month, day: day, time: resolvedTime),
+              let fullRange = Range(match.range, in: result) else {
+            return nil
+        }
+
+        result = result.replacingCharacters(in: fullRange, with: "")
+        return (result, date)
+    }
+
+    private func extractSlashDate(
+        from text: String,
+        time resolvedTime: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
         let slashDatePattern = #"\b(?:by\s+|on\s+)?(\d{1,2})[/-](\d{1,2})\b"#
-        if let regex = try? NSRegularExpression(pattern: slashDatePattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)) {
-            if let monthRange = Range(match.range(at: 1), in: result),
-               let dayRange = Range(match.range(at: 2), in: result) {
-                let month = Int(result[monthRange]) ?? 1
-                let day = Int(result[dayRange]) ?? 1
-                if month >= 1 && month <= 12 && day >= 1 && day <= 31,
-                   let date = resolveMonthDay(month: month, day: day, time: resolvedTime),
-                   let fullRange = Range(match.range, in: result) {
-                    result = result.replacingCharacters(in: fullRange, with: "")
-                    return (result, date)
-                }
-            }
+        guard let regex = try? NSRegularExpression(pattern: slashDatePattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+              let monthRange = Range(match.range(at: 1), in: result),
+              let dayRange = Range(match.range(at: 2), in: result) else {
+            return nil
         }
 
-        return (result, nil)
+        let month = Int(result[monthRange]) ?? 1
+        let day = Int(result[dayRange]) ?? 1
+        guard month >= 1, month <= 12, day >= 1, day <= 31,
+              let date = resolveMonthDay(month: month, day: day, time: resolvedTime),
+              let fullRange = Range(match.range, in: result) else {
+            return nil
+        }
+
+        result = result.replacingCharacters(in: fullRange, with: "")
+        return (result, date)
     }
 
     // MARK: - Start Date Extraction
