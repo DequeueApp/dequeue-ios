@@ -128,7 +128,11 @@ struct MarkdownNoteEditor: View {
                 }
             }
         }
+        #if os(iOS)
         .background(Color(.systemBackground))
+        #else
+        .background(Color(.windowBackgroundColor))
+        #endif
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
