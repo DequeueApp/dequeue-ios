@@ -25,6 +25,7 @@ struct StacksView: View {
     @State private var selectedFilter: StackFilter = .inProgress
     @State private var showAddSheet = false
     @State private var showRemindersSheet = false
+    @State private var showCalendarSheet = false
     @State private var syncStatusViewModel: SyncStatusViewModel?
 
     /// Count of reminders needing attention (overdue or due today)
@@ -55,6 +56,14 @@ struct StacksView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     HStack(spacing: 16) {
+                        // Calendar button
+                        Button {
+                            showCalendarSheet = true
+                        } label: {
+                            Label("Calendar", systemImage: "calendar")
+                        }
+                        .accessibilityLabel("Calendar")
+
                         // Reminders button with badge
                         Button {
                             showRemindersSheet = true
@@ -97,6 +106,16 @@ struct StacksView: View {
         }
         .sheet(isPresented: $showRemindersSheet) {
             RemindersListView()
+        }
+        .sheet(isPresented: $showCalendarSheet) {
+            NavigationStack {
+                CalendarView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { showCalendarSheet = false }
+                        }
+                    }
+            }
         }
         #if os(macOS)
         .focusedValue(\.newStackAction) {

@@ -135,6 +135,11 @@ struct SettingsView: View {
     private var integrationsSection: some View {
         Section("Integrations") {
             NavigationLink {
+                CalendarSettingsView()
+            } label: {
+                Label("Calendar", systemImage: "calendar")
+            }
+            NavigationLink {
                 WebhooksView()
             } label: {
                 Label("Webhooks", systemImage: "antenna.radiowaves.left.and.right")
