@@ -222,14 +222,14 @@ struct DependencyPickerSheet: View {
 
     @Query(
         filter: #Predicate<QueueTask> { task in
-            !task.isDeleted && task.status != .closed
+            !task.isDeleted
         },
         sort: [SortDescriptor(\QueueTask.updatedAt, order: .reverse)]
     )
     private var allTasks: [QueueTask]
 
     private var filteredTasks: [QueueTask] {
-        let available = allTasks.filter { $0.id != task.id && !task.dependencyIds.contains($0.id) }
+        let available = allTasks.filter { $0.id != task.id && $0.status != .closed && !task.dependencyIds.contains($0.id) }
         if searchText.isEmpty { return Array(available.prefix(20)) }
         return available.filter {
             $0.title.localizedCaseInsensitiveContains(searchText)
