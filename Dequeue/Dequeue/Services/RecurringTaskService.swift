@@ -191,26 +191,31 @@ final class RecurringTaskService {
 
     /// Fetches all tasks in a recurrence series (sharing the same parent ID)
     func seriesTasks(parentId: String) -> [QueueTask] {
+        // Fetch all non-deleted tasks and filter in-memory to avoid Predicate macro limitations
         let descriptor = FetchDescriptor<QueueTask>(
             predicate: #Predicate<QueueTask> { task in
-                (task.recurrenceParentId == parentId || task.id == parentId) && !task.isDeleted
+                !task.isDeleted
             },
             sortBy: [SortDescriptor(\.createdAt)]
         )
-        return (try? modelContext.fetch(descriptor)) ?? []
+        let allTasks = (try? modelContext.fetch(descriptor)) ?? []
+        return allTasks.filter { $0.recurrenceParentId == parentId || $0.id == parentId }
     }
 
     /// Fetches the latest pending occurrence of a recurring task series
     func latestPendingOccurrence(parentId: String) -> QueueTask? {
+        // Fetch non-deleted tasks and filter in-memory for Predicate compatibility
         let descriptor = FetchDescriptor<QueueTask>(
             predicate: #Predicate<QueueTask> { task in
-                (task.recurrenceParentId == parentId || task.id == parentId)
-                    && task.status == .pending
-                    && !task.isDeleted
+                !task.isDeleted
             },
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
-        return try? modelContext.fetch(descriptor).first
+        let allTasks = (try? modelContext.fetch(descriptor)) ?? []
+        return allTasks.first { task in
+            task.status == .pending
+                && (task.recurrenceParentId == parentId || task.id == parentId)
+        }
     }
 
     // MARK: - Modify Recurrence
