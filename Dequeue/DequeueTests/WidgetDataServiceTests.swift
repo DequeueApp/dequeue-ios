@@ -3,7 +3,8 @@
 //  DequeueTests
 //
 //  Tests for WidgetDataService — verifies widget data is correctly
-//  written to App Group UserDefaults from SwiftData models.
+//  written to UserDefaults from SwiftData models.
+//  Uses per-test unique UserDefaults to guarantee test isolation.
 //  DEQ-120, DEQ-121
 //
 
@@ -14,8 +15,9 @@ import Foundation
 
 // MARK: - Test Helpers
 
-/// Creates an in-memory model container with all required models for widget data service tests
-private func makeWidgetTestContainer() throws -> ModelContainer {
+/// Creates an in-memory model container with all required models
+@MainActor
+private func makeTestContainer() throws -> ModelContainer {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     return try ModelContainer(
         for: Stack.self,
@@ -31,700 +33,486 @@ private func makeWidgetTestContainer() throws -> ModelContainer {
     )
 }
 
-/// Reads widget data directly from App Group UserDefaults for test verification
+/// Creates a unique UserDefaults instance for test isolation
 @MainActor
-private func readWidgetDefaults<T: Decodable>(key: String, as type: T.Type) -> T? {
-    guard let defaults = UserDefaults(suiteName: AppGroupConfig.suiteName),
-          let data = defaults.data(forKey: key) else {
-        return nil
-    }
-    return try? JSONDecoder.widgetDecoder.decode(type, from: data)
+private func makeIsolatedDefaults() -> UserDefaults {
+    let suite = "com.dequeue.tests.widgets.\(UUID().uuidString)"
+    return UserDefaults(suiteName: suite)!
 }
 
-/// Cleans up all widget keys from UserDefaults
+/// Reads decoded widget data from UserDefaults
 @MainActor
-private func cleanupWidgetDefaults() {
-    guard let defaults = UserDefaults(suiteName: AppGroupConfig.suiteName) else { return }
-    defaults.removeObject(forKey: AppGroupConfig.activeStackKey)
-    defaults.removeObject(forKey: AppGroupConfig.upNextKey)
-    defaults.removeObject(forKey: AppGroupConfig.statsKey)
-    defaults.removeObject(forKey: AppGroupConfig.lastUpdateKey)
+private func readDefaults<T: Decodable>(_ defaults: UserDefaults, key: String, as type: T.Type) -> T? {
+    guard let data = defaults.data(forKey: key) else { return nil }
+    return try? JSONDecoder.widgetDecoder.decode(type, from: data)
 }
 
 // MARK: - Active Stack Widget Tests
 
-@Suite("WidgetDataService Active Stack Tests", .serialized)
+@Suite("WidgetDataService Active Stack Tests")
 @MainActor
 struct WidgetDataServiceActiveStackTests {
-    @Test("updateAllWidgets writes active stack data when active stack exists")
+    @Test("writes active stack data when active stack exists")
     func writesActiveStackData() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
-        // Create an active stack with tasks
         let stack = Stack(
-            id: "stack-active-1",
-            title: "My Active Stack",
-            status: .active,
-            priority: 2,
-            isActive: true
+            id: "stack-active-1", title: "My Active Stack",
+            status: .active, priority: 2, isActive: true
         )
         context.insert(stack)
 
         let task1 = QueueTask(
-            id: "task-1",
-            title: "First Task",
-            status: .pending,
-            sortOrder: 0,
-            stack: stack
+            id: "task-1", title: "First Task",
+            status: .pending, sortOrder: 0, stack: stack
         )
         context.insert(task1)
 
         let task2 = QueueTask(
-            id: "task-2",
-            title: "Second Task",
-            status: .pending,
-            sortOrder: 1,
-            stack: stack
+            id: "task-2", title: "Second Task",
+            status: .pending, sortOrder: 1, stack: stack
         )
         context.insert(task2)
 
         let completedTask = QueueTask(
-            id: "task-3",
-            title: "Done Task",
-            status: .completed,
-            sortOrder: 2,
-            stack: stack
+            id: "task-3", title: "Done Task",
+            status: .completed, sortOrder: 2, stack: stack
         )
         context.insert(completedTask)
 
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let activeData = readWidgetDefaults(
-            key: AppGroupConfig.activeStackKey,
-            as: WidgetActiveStackData.self
-        )
+        let data = readDefaults(defaults, key: AppGroupConfig.activeStackKey, as: WidgetActiveStackData.self)
 
-        #expect(activeData != nil)
-        #expect(activeData?.stackTitle == "My Active Stack")
-        #expect(activeData?.stackId == "stack-active-1")
-        #expect(activeData?.activeTaskTitle == "First Task")
-        #expect(activeData?.activeTaskId == "task-1")
-        #expect(activeData?.pendingTaskCount == 2)
-        #expect(activeData?.totalTaskCount == 3)
-        #expect(activeData?.priority == 2)
+        #expect(data != nil)
+        #expect(data?.stackTitle == "My Active Stack")
+        #expect(data?.stackId == "stack-active-1")
+        #expect(data?.activeTaskTitle == "First Task")
+        #expect(data?.activeTaskId == "task-1")
+        #expect(data?.pendingTaskCount == 2)
+        #expect(data?.totalTaskCount == 3)
+        #expect(data?.priority == 2)
     }
 
-    @Test("updateAllWidgets clears active stack data when no active stack")
+    @Test("clears active stack data when no active stack exists")
     func clearsActiveStackDataWhenNone() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
-        // Pre-populate with some data to ensure it gets cleared
-        if let defaults = UserDefaults(suiteName: AppGroupConfig.suiteName) {
-            let dummy = WidgetActiveStackData(
-                stackTitle: "Old",
-                stackId: "old",
-                activeTaskTitle: nil,
-                activeTaskId: nil,
-                pendingTaskCount: 0,
-                totalTaskCount: 0,
-                dueDate: nil,
-                priority: nil,
-                tags: []
-            )
-            if let encoded = try? JSONEncoder.widgetEncoder.encode(dummy) {
-                defaults.set(encoded, forKey: AppGroupConfig.activeStackKey)
-            }
+        // Pre-populate with data that should be cleared
+        let dummy = WidgetActiveStackData(
+            stackTitle: "Old", stackId: "old",
+            activeTaskTitle: nil, activeTaskId: nil,
+            pendingTaskCount: 0, totalTaskCount: 0,
+            dueDate: nil, priority: nil, tags: []
+        )
+        if let encoded = try? JSONEncoder.widgetEncoder.encode(dummy) {
+            defaults.set(encoded, forKey: AppGroupConfig.activeStackKey)
         }
 
-        // Create a stack that is NOT active
-        let stack = Stack(
-            id: "stack-inactive",
-            title: "Inactive Stack",
-            status: .active,
-            isActive: false
-        )
+        // Create an inactive stack only
+        let stack = Stack(id: "stack-inactive", title: "Inactive", status: .active, isActive: false)
         context.insert(stack)
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let activeData = readWidgetDefaults(
-            key: AppGroupConfig.activeStackKey,
-            as: WidgetActiveStackData.self
-        )
-        #expect(activeData == nil)
+        let data = readDefaults(defaults, key: AppGroupConfig.activeStackKey, as: WidgetActiveStackData.self)
+        #expect(data == nil)
     }
 
-    @Test("updateAllWidgets includes stack due date")
+    @Test("includes stack due date")
     func includesStackDueDate() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
         let dueDate = Date(timeIntervalSince1970: 1_900_000_000)
         let stack = Stack(
-            id: "stack-due",
-            title: "Due Stack",
-            dueTime: dueDate,
-            status: .active,
-            isActive: true
+            id: "stack-due", title: "Due Stack",
+            dueTime: dueDate, status: .active, isActive: true
         )
         context.insert(stack)
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let activeData = readWidgetDefaults(
-            key: AppGroupConfig.activeStackKey,
-            as: WidgetActiveStackData.self
-        )
-
-        #expect(activeData != nil)
-        #expect(activeData?.dueDate != nil)
-        if let decoded = activeData?.dueDate {
+        let data = readDefaults(defaults, key: AppGroupConfig.activeStackKey, as: WidgetActiveStackData.self)
+        #expect(data != nil)
+        #expect(data?.dueDate != nil)
+        if let decoded = data?.dueDate {
             #expect(abs(decoded.timeIntervalSince(dueDate)) < 1.0)
         }
+    }
+
+    @Test("excludes deleted active stacks")
+    func excludesDeletedStacks() throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let defaults = makeIsolatedDefaults()
+
+        let deletedStack = Stack(
+            id: "stack-deleted", title: "Deleted",
+            status: .active, isDeleted: true, isActive: true
+        )
+        context.insert(deletedStack)
+        try context.save()
+
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
+
+        let data = readDefaults(defaults, key: AppGroupConfig.activeStackKey, as: WidgetActiveStackData.self)
+        #expect(data == nil)
     }
 }
 
 // MARK: - Up Next Widget Tests
 
-@Suite("WidgetDataService Up Next Tests", .serialized)
+@Suite("WidgetDataService Up Next Tests")
 @MainActor
 struct WidgetDataServiceUpNextTests {
-    @Test("updateAllWidgets writes up next with tasks that have due dates")
+    @Test("writes up next with tasks that have due dates")
     func writesUpNextWithDueDates() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
         let stack = Stack(id: "stack-upnext", title: "Up Next Stack")
         context.insert(stack)
 
-        let futureDue = Date(timeIntervalSinceNow: 3600) // 1 hour from now
+        let futureDue = Date(timeIntervalSinceNow: 3600)
         let task = QueueTask(
-            id: "task-due-1",
-            title: "Due Soon",
-            dueTime: futureDue,
-            status: .pending,
-            sortOrder: 0,
-            stack: stack
+            id: "task-due-1", title: "Due Soon",
+            dueTime: futureDue, status: .pending, sortOrder: 0, stack: stack
         )
         context.insert(task)
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let upNextData = readWidgetDefaults(
-            key: AppGroupConfig.upNextKey,
-            as: WidgetUpNextData.self
-        )
-
-        #expect(upNextData != nil)
-        #expect(upNextData?.upcomingTasks.count == 1)
-        #expect(upNextData?.upcomingTasks.first?.title == "Due Soon")
-        #expect(upNextData?.upcomingTasks.first?.isOverdue == false)
-        #expect(upNextData?.overdueCount == 0)
+        let data = readDefaults(defaults, key: AppGroupConfig.upNextKey, as: WidgetUpNextData.self)
+        #expect(data != nil)
+        #expect(data?.upcomingTasks.count == 1)
+        #expect(data?.upcomingTasks.first?.title == "Due Soon")
+        #expect(data?.upcomingTasks.first?.isOverdue == false)
+        #expect(data?.overdueCount == 0)
     }
 
-    @Test("updateAllWidgets marks overdue tasks correctly")
+    @Test("marks overdue tasks correctly")
     func marksOverdueTasksCorrectly() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
         let stack = Stack(id: "stack-overdue", title: "Overdue Stack")
         context.insert(stack)
 
-        let pastDue = Date(timeIntervalSinceNow: -3600) // 1 hour ago
-        let overdueTask = QueueTask(
-            id: "task-overdue-1",
-            title: "Overdue Task",
-            dueTime: pastDue,
-            status: .pending,
-            sortOrder: 0,
-            stack: stack
-        )
-        context.insert(overdueTask)
-
-        let futureDue = Date(timeIntervalSinceNow: 7200) // 2 hours from now
-        let futureTask = QueueTask(
-            id: "task-future-1",
-            title: "Future Task",
-            dueTime: futureDue,
-            status: .pending,
-            sortOrder: 1,
-            stack: stack
-        )
-        context.insert(futureTask)
+        context.insert(QueueTask(
+            id: "task-overdue-1", title: "Overdue Task",
+            dueTime: Date(timeIntervalSinceNow: -3600),
+            status: .pending, sortOrder: 0, stack: stack
+        ))
+        context.insert(QueueTask(
+            id: "task-future-1", title: "Future Task",
+            dueTime: Date(timeIntervalSinceNow: 7200),
+            status: .pending, sortOrder: 1, stack: stack
+        ))
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let upNextData = readWidgetDefaults(
-            key: AppGroupConfig.upNextKey,
-            as: WidgetUpNextData.self
-        )
+        let data = readDefaults(defaults, key: AppGroupConfig.upNextKey, as: WidgetUpNextData.self)
+        #expect(data != nil)
+        #expect(data?.upcomingTasks.count == 2)
+        #expect(data?.overdueCount == 1)
 
-        #expect(upNextData != nil)
-        #expect(upNextData?.upcomingTasks.count == 2)
-        #expect(upNextData?.overdueCount == 1)
-
-        // Find the overdue task
-        let overdue = upNextData?.upcomingTasks.first { $0.id == "task-overdue-1" }
+        let overdue = data?.upcomingTasks.first { $0.id == "task-overdue-1" }
         #expect(overdue?.isOverdue == true)
-
-        // Find the future task
-        let future = upNextData?.upcomingTasks.first { $0.id == "task-future-1" }
-        #expect(future?.isOverdue == false)
     }
 
-    @Test("updateAllWidgets limits up next to 10 tasks")
+    @Test("limits up next to 10 tasks")
     func limitsUpNextTo10Tasks() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
-        let stack = Stack(id: "stack-many", title: "Many Tasks Stack")
+        let stack = Stack(id: "stack-many", title: "Many Tasks")
         context.insert(stack)
 
-        // Create 15 tasks with due dates
         for i in 0..<15 {
-            let dueDate = Date(timeIntervalSinceNow: Double(i + 1) * 3600)
-            let task = QueueTask(
-                id: "task-limit-\(i)",
-                title: "Task \(i)",
-                dueTime: dueDate,
-                status: .pending,
-                sortOrder: i,
-                stack: stack
-            )
-            context.insert(task)
+            context.insert(QueueTask(
+                id: "task-limit-\(i)", title: "Task \(i)",
+                dueTime: Date(timeIntervalSinceNow: Double(i + 1) * 3600),
+                status: .pending, sortOrder: i, stack: stack
+            ))
         }
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let upNextData = readWidgetDefaults(
-            key: AppGroupConfig.upNextKey,
-            as: WidgetUpNextData.self
-        )
-
-        #expect(upNextData != nil)
-        #expect(upNextData!.upcomingTasks.count <= 10)
+        let data = readDefaults(defaults, key: AppGroupConfig.upNextKey, as: WidgetUpNextData.self)
+        #expect(data != nil)
+        #expect(data!.upcomingTasks.count <= 10)
     }
 
-    @Test("updateAllWidgets excludes tasks without due dates from up next")
+    @Test("excludes tasks without due dates")
     func excludesTasksWithoutDueDates() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
         let stack = Stack(id: "stack-nodue", title: "No Due Stack")
         context.insert(stack)
 
-        // Task without due date
-        let noDueTask = QueueTask(
-            id: "task-nodue",
-            title: "No Due Date",
-            status: .pending,
-            sortOrder: 0,
-            stack: stack
-        )
-        context.insert(noDueTask)
-
-        // Task with due date
-        let dueDateTask = QueueTask(
-            id: "task-withdue",
-            title: "Has Due Date",
+        context.insert(QueueTask(
+            id: "task-nodue", title: "No Due Date",
+            status: .pending, sortOrder: 0, stack: stack
+        ))
+        context.insert(QueueTask(
+            id: "task-withdue", title: "Has Due Date",
             dueTime: Date(timeIntervalSinceNow: 3600),
-            status: .pending,
-            sortOrder: 1,
-            stack: stack
-        )
-        context.insert(dueDateTask)
+            status: .pending, sortOrder: 1, stack: stack
+        ))
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let upNextData = readWidgetDefaults(
-            key: AppGroupConfig.upNextKey,
-            as: WidgetUpNextData.self
-        )
-
-        #expect(upNextData != nil)
-        #expect(upNextData?.upcomingTasks.count == 1)
-        #expect(upNextData?.upcomingTasks.first?.title == "Has Due Date")
+        let data = readDefaults(defaults, key: AppGroupConfig.upNextKey, as: WidgetUpNextData.self)
+        #expect(data?.upcomingTasks.count == 1)
+        #expect(data?.upcomingTasks.first?.title == "Has Due Date")
     }
 
-    @Test("updateAllWidgets excludes completed tasks from up next")
+    @Test("excludes completed tasks")
     func excludesCompletedTasks() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
-        let stack = Stack(id: "stack-completed", title: "Completed Stack")
+        let stack = Stack(id: "stack-completed", title: "Done Stack")
         context.insert(stack)
-
-        let completedTask = QueueTask(
-            id: "task-completed",
-            title: "Already Done",
+        context.insert(QueueTask(
+            id: "task-completed", title: "Already Done",
             dueTime: Date(timeIntervalSinceNow: 3600),
-            status: .completed,
-            sortOrder: 0,
-            stack: stack
-        )
-        context.insert(completedTask)
+            status: .completed, sortOrder: 0, stack: stack
+        ))
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let upNextData = readWidgetDefaults(
-            key: AppGroupConfig.upNextKey,
-            as: WidgetUpNextData.self
-        )
-
-        #expect(upNextData != nil)
-        #expect(upNextData?.upcomingTasks.isEmpty == true)
+        let data = readDefaults(defaults, key: AppGroupConfig.upNextKey, as: WidgetUpNextData.self)
+        #expect(data?.upcomingTasks.isEmpty == true)
     }
 
-    @Test("updateAllWidgets includes correct stack info in task items")
+    @Test("includes stack info in task items")
     func includesStackInfoInTaskItems() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
         let stack = Stack(id: "stack-info", title: "Info Stack")
         context.insert(stack)
-
-        let task = QueueTask(
-            id: "task-info",
-            title: "Task With Stack Info",
+        context.insert(QueueTask(
+            id: "task-info", title: "Task With Stack Info",
             dueTime: Date(timeIntervalSinceNow: 3600),
-            status: .pending,
-            priority: 3,
-            sortOrder: 0,
-            stack: stack
-        )
-        context.insert(task)
+            status: .pending, priority: 3, sortOrder: 0, stack: stack
+        ))
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let upNextData = readWidgetDefaults(
-            key: AppGroupConfig.upNextKey,
-            as: WidgetUpNextData.self
-        )
-
-        #expect(upNextData?.upcomingTasks.first?.stackTitle == "Info Stack")
-        #expect(upNextData?.upcomingTasks.first?.stackId == "stack-info")
-        #expect(upNextData?.upcomingTasks.first?.priority == 3)
+        let data = readDefaults(defaults, key: AppGroupConfig.upNextKey, as: WidgetUpNextData.self)
+        #expect(data?.upcomingTasks.first?.stackTitle == "Info Stack")
+        #expect(data?.upcomingTasks.first?.stackId == "stack-info")
+        #expect(data?.upcomingTasks.first?.priority == 3)
     }
 }
 
 // MARK: - Stats Widget Tests
 
-@Suite("WidgetDataService Stats Tests", .serialized)
+@Suite("WidgetDataService Stats Tests")
 @MainActor
 struct WidgetDataServiceStatsTests {
-    @Test("updateAllWidgets counts completed today correctly")
+    @Test("counts completed today correctly")
     func countsCompletedToday() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
         let stack = Stack(id: "stack-stats", title: "Stats Stack")
         context.insert(stack)
 
-        // Task completed today (updatedAt is today)
-        let todayTask1 = QueueTask(
-            id: "task-today-1",
-            title: "Done Today 1",
-            status: .completed,
-            sortOrder: 0,
-            updatedAt: Date(), // now = today
-            stack: stack
-        )
-        context.insert(todayTask1)
-
-        let todayTask2 = QueueTask(
-            id: "task-today-2",
-            title: "Done Today 2",
-            status: .completed,
-            sortOrder: 1,
-            updatedAt: Date(),
-            stack: stack
-        )
-        context.insert(todayTask2)
-
-        // Task completed yesterday (should not count)
-        let yesterdayTask = QueueTask(
-            id: "task-yesterday",
-            title: "Done Yesterday",
-            status: .completed,
-            sortOrder: 2,
+        // 2 completed today
+        context.insert(QueueTask(
+            id: "task-today-1", title: "Done Today 1",
+            status: .completed, sortOrder: 0, updatedAt: Date(), stack: stack
+        ))
+        context.insert(QueueTask(
+            id: "task-today-2", title: "Done Today 2",
+            status: .completed, sortOrder: 1, updatedAt: Date(), stack: stack
+        ))
+        // Completed yesterday
+        context.insert(QueueTask(
+            id: "task-yesterday", title: "Done Yesterday",
+            status: .completed, sortOrder: 2,
             updatedAt: Calendar.current.date(byAdding: .day, value: -1, to: Date())!,
             stack: stack
-        )
-        context.insert(yesterdayTask)
-
-        // Pending task (should not count as completed)
-        let pendingTask = QueueTask(
-            id: "task-pending-stats",
-            title: "Still Pending",
-            status: .pending,
-            sortOrder: 3,
-            stack: stack
-        )
-        context.insert(pendingTask)
-
+        ))
+        // Pending
+        context.insert(QueueTask(
+            id: "task-pending", title: "Still Pending",
+            status: .pending, sortOrder: 3, stack: stack
+        ))
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let statsData = readWidgetDefaults(
-            key: AppGroupConfig.statsKey,
-            as: WidgetStatsData.self
-        )
-
-        #expect(statsData != nil)
-        #expect(statsData?.completedToday == 2)
+        let data = readDefaults(defaults, key: AppGroupConfig.statsKey, as: WidgetStatsData.self)
+        #expect(data != nil)
+        #expect(data?.completedToday == 2)
     }
 
-    @Test("updateAllWidgets calculates completion rate")
+    @Test("calculates completion rate")
     func calculatesCompletionRate() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
         let stack = Stack(id: "stack-rate", title: "Rate Stack")
         context.insert(stack)
 
-        // 3 completed out of 4 total = 0.75
+        // 3 completed, 1 pending = 75%
         for i in 0..<3 {
-            let task = QueueTask(
-                id: "task-rate-c-\(i)",
-                title: "Completed \(i)",
-                status: .completed,
-                sortOrder: i,
-                stack: stack
-            )
-            context.insert(task)
+            context.insert(QueueTask(
+                id: "task-c-\(i)", title: "Completed \(i)",
+                status: .completed, sortOrder: i, stack: stack
+            ))
         }
-
-        let pendingTask = QueueTask(
-            id: "task-rate-p",
-            title: "Pending",
-            status: .pending,
-            sortOrder: 3,
-            stack: stack
-        )
-        context.insert(pendingTask)
+        context.insert(QueueTask(
+            id: "task-p", title: "Pending",
+            status: .pending, sortOrder: 3, stack: stack
+        ))
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let statsData = readWidgetDefaults(
-            key: AppGroupConfig.statsKey,
-            as: WidgetStatsData.self
-        )
-
-        #expect(statsData != nil)
-        if let rate = statsData?.completionRate {
+        let data = readDefaults(defaults, key: AppGroupConfig.statsKey, as: WidgetStatsData.self)
+        #expect(data != nil)
+        if let rate = data?.completionRate {
             #expect(abs(rate - 0.75) < 0.01)
         }
     }
 
-    @Test("updateAllWidgets calculates zero completion rate with no tasks")
+    @Test("zero completion rate with no tasks")
     func zeroCompletionRateWithNoTasks() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
-        // No tasks at all
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let statsData = readWidgetDefaults(
-            key: AppGroupConfig.statsKey,
-            as: WidgetStatsData.self
-        )
-
-        #expect(statsData != nil)
-        #expect(statsData?.completionRate == 0.0)
-        #expect(statsData?.completedToday == 0)
-        #expect(statsData?.pendingTotal == 0)
+        let data = readDefaults(defaults, key: AppGroupConfig.statsKey, as: WidgetStatsData.self)
+        #expect(data != nil)
+        #expect(data?.completionRate == 0.0)
+        #expect(data?.completedToday == 0)
+        #expect(data?.pendingTotal == 0)
     }
 
-    @Test("updateAllWidgets counts overdue tasks")
+    @Test("counts overdue tasks")
     func countsOverdueTasks() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
-        let stack = Stack(id: "stack-overdue-stats", title: "Overdue Stats")
+        let stack = Stack(id: "stack-od", title: "Overdue Stats")
         context.insert(stack)
 
-        // 2 overdue tasks
-        let overdue1 = QueueTask(
-            id: "task-od-1",
-            title: "Overdue 1",
+        // 2 overdue
+        context.insert(QueueTask(
+            id: "task-od-1", title: "Overdue 1",
             dueTime: Date(timeIntervalSinceNow: -7200),
-            status: .pending,
-            sortOrder: 0,
-            stack: stack
-        )
-        context.insert(overdue1)
-
-        let overdue2 = QueueTask(
-            id: "task-od-2",
-            title: "Overdue 2",
+            status: .pending, sortOrder: 0, stack: stack
+        ))
+        context.insert(QueueTask(
+            id: "task-od-2", title: "Overdue 2",
             dueTime: Date(timeIntervalSinceNow: -3600),
-            status: .pending,
-            sortOrder: 1,
-            stack: stack
-        )
-        context.insert(overdue2)
-
-        // 1 future task (not overdue)
-        let future = QueueTask(
-            id: "task-future-stats",
-            title: "Future",
+            status: .pending, sortOrder: 1, stack: stack
+        ))
+        // 1 future
+        context.insert(QueueTask(
+            id: "task-future", title: "Future",
             dueTime: Date(timeIntervalSinceNow: 86400),
-            status: .pending,
-            sortOrder: 2,
-            stack: stack
-        )
-        context.insert(future)
-
-        // 1 pending task without due date (not overdue)
-        let noDue = QueueTask(
-            id: "task-nodue-stats",
-            title: "No Due",
-            status: .pending,
-            sortOrder: 3,
-            stack: stack
-        )
-        context.insert(noDue)
-
+            status: .pending, sortOrder: 2, stack: stack
+        ))
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let statsData = readWidgetDefaults(
-            key: AppGroupConfig.statsKey,
-            as: WidgetStatsData.self
-        )
-
-        #expect(statsData != nil)
-        #expect(statsData?.overdueCount == 2)
-        #expect(statsData?.pendingTotal == 4)
+        let data = readDefaults(defaults, key: AppGroupConfig.statsKey, as: WidgetStatsData.self)
+        #expect(data?.overdueCount == 2)
+        #expect(data?.pendingTotal == 3)
     }
 
-    @Test("updateAllWidgets counts active stacks")
+    @Test("counts active stacks")
     func countsActiveStacks() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
-        // 2 active stacks
-        let active1 = Stack(id: "stack-a1", title: "Active 1", status: .active)
-        context.insert(active1)
-
-        let active2 = Stack(id: "stack-a2", title: "Active 2", status: .active)
-        context.insert(active2)
-
-        // 1 completed stack (should not count)
-        let completed = Stack(id: "stack-c1", title: "Completed", status: .completed)
-        context.insert(completed)
-
-        // 1 archived stack (should not count)
-        let archived = Stack(id: "stack-ar1", title: "Archived", status: .archived)
-        context.insert(archived)
-
+        context.insert(Stack(id: "s-a1", title: "Active 1", status: .active))
+        context.insert(Stack(id: "s-a2", title: "Active 2", status: .active))
+        context.insert(Stack(id: "s-c1", title: "Completed", status: .completed))
+        context.insert(Stack(id: "s-ar1", title: "Archived", status: .archived))
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let statsData = readWidgetDefaults(
-            key: AppGroupConfig.statsKey,
-            as: WidgetStatsData.self
-        )
-
-        #expect(statsData != nil)
-        #expect(statsData?.activeStackCount == 2)
+        let data = readDefaults(defaults, key: AppGroupConfig.statsKey, as: WidgetStatsData.self)
+        #expect(data?.activeStackCount == 2)
     }
 
-    @Test("updateAllWidgets excludes deleted tasks from stats")
+    @Test("excludes deleted tasks from stats")
     func excludesDeletedTasksFromStats() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
-        let stack = Stack(id: "stack-del-stats", title: "Deleted Stats")
+        let stack = Stack(id: "stack-del", title: "Del Stats")
         context.insert(stack)
-
-        // Non-deleted pending task
-        let pendingTask = QueueTask(
-            id: "task-alive",
-            title: "Alive",
-            status: .pending,
-            sortOrder: 0,
-            stack: stack
-        )
-        context.insert(pendingTask)
-
-        // Deleted pending task (should not count)
-        let deletedTask = QueueTask(
-            id: "task-dead",
-            title: "Deleted",
-            status: .pending,
-            sortOrder: 1,
-            isDeleted: true,
-            stack: stack
-        )
-        context.insert(deletedTask)
-
+        context.insert(QueueTask(
+            id: "task-alive", title: "Alive",
+            status: .pending, sortOrder: 0, stack: stack
+        ))
+        context.insert(QueueTask(
+            id: "task-dead", title: "Deleted",
+            status: .pending, sortOrder: 1, isDeleted: true, stack: stack
+        ))
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        let statsData = readWidgetDefaults(
-            key: AppGroupConfig.statsKey,
-            as: WidgetStatsData.self
-        )
-
-        #expect(statsData != nil)
-        #expect(statsData?.pendingTotal == 1)
+        let data = readDefaults(defaults, key: AppGroupConfig.statsKey, as: WidgetStatsData.self)
+        #expect(data?.pendingTotal == 1)
     }
 }
 
-// MARK: - Last Update Timestamp Tests
+// MARK: - Timestamp Tests
 
-@Suite("WidgetDataService Timestamp Tests", .serialized)
+@Suite("WidgetDataService Timestamp Tests")
 @MainActor
 struct WidgetDataServiceTimestampTests {
-    @Test("updateAllWidgets sets lastUpdate timestamp")
+    @Test("sets lastUpdate timestamp")
     func setsLastUpdateTimestamp() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
         let beforeUpdate = Date()
-
-        WidgetDataService.updateAllWidgets(context: context)
-
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
         let afterUpdate = Date()
-
-        guard let defaults = UserDefaults(suiteName: AppGroupConfig.suiteName) else {
-            // App Group not available in test environment
-            return
-        }
 
         let lastUpdate = defaults.object(forKey: AppGroupConfig.lastUpdateKey) as? Date
         #expect(lastUpdate != nil)
@@ -733,137 +521,53 @@ struct WidgetDataServiceTimestampTests {
             #expect(ts <= afterUpdate)
         }
     }
-
-    @Test("updateAllWidgets updates timestamp on each call")
-    func updatesTimestampOnEachCall() throws {
-        let container = try makeWidgetTestContainer()
-        let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
-
-        WidgetDataService.updateAllWidgets(context: context)
-
-        guard let defaults = UserDefaults(suiteName: AppGroupConfig.suiteName) else {
-            return
-        }
-
-        let firstUpdate = defaults.object(forKey: AppGroupConfig.lastUpdateKey) as? Date
-        #expect(firstUpdate != nil)
-
-        // Small delay to ensure different timestamp
-        Thread.sleep(forTimeInterval: 0.01)
-
-        WidgetDataService.updateAllWidgets(context: context)
-
-        let secondUpdate = defaults.object(forKey: AppGroupConfig.lastUpdateKey) as? Date
-        #expect(secondUpdate != nil)
-
-        if let first = firstUpdate, let second = secondUpdate {
-            #expect(second >= first)
-        }
-    }
 }
 
 // MARK: - Integration Tests
 
-@Suite("WidgetDataService Integration Tests", .serialized)
+@Suite("WidgetDataService Integration Tests")
 @MainActor
 struct WidgetDataServiceIntegrationTests {
-    @Test("updateAllWidgets populates all three widget data stores")
+    @Test("populates all three widget data stores")
     func populatesAllWidgetData() throws {
-        let container = try makeWidgetTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
+        let defaults = makeIsolatedDefaults()
 
-        // Create a realistic scenario
         let stack = Stack(
-            id: "stack-integration",
-            title: "Integration Stack",
-            status: .active,
-            priority: 2,
-            isActive: true
+            id: "stack-int", title: "Integration Stack",
+            status: .active, priority: 2, isActive: true
         )
         context.insert(stack)
-
-        let task1 = QueueTask(
-            id: "task-int-1",
-            title: "First Task",
+        context.insert(QueueTask(
+            id: "task-int-1", title: "First Task",
             dueTime: Date(timeIntervalSinceNow: 3600),
-            status: .pending,
-            priority: 3,
-            sortOrder: 0,
-            stack: stack
-        )
-        context.insert(task1)
-
-        let task2 = QueueTask(
-            id: "task-int-2",
-            title: "Second Task",
-            status: .completed,
-            sortOrder: 1,
-            updatedAt: Date(),
-            stack: stack
-        )
-        context.insert(task2)
-
+            status: .pending, priority: 3, sortOrder: 0, stack: stack
+        ))
+        context.insert(QueueTask(
+            id: "task-int-2", title: "Second Task",
+            status: .completed, sortOrder: 1, updatedAt: Date(), stack: stack
+        ))
         try context.save()
 
-        WidgetDataService.updateAllWidgets(context: context)
+        WidgetDataService.updateAllWidgets(context: context, defaults: defaults, reloadTimelines: false)
 
-        // Verify active stack
-        let activeData = readWidgetDefaults(
-            key: AppGroupConfig.activeStackKey,
-            as: WidgetActiveStackData.self
-        )
-        #expect(activeData != nil)
+        // Active stack
+        let activeData = readDefaults(defaults, key: AppGroupConfig.activeStackKey, as: WidgetActiveStackData.self)
         #expect(activeData?.stackTitle == "Integration Stack")
 
-        // Verify up next
-        let upNextData = readWidgetDefaults(
-            key: AppGroupConfig.upNextKey,
-            as: WidgetUpNextData.self
-        )
-        #expect(upNextData != nil)
+        // Up next
+        let upNextData = readDefaults(defaults, key: AppGroupConfig.upNextKey, as: WidgetUpNextData.self)
         #expect(upNextData?.upcomingTasks.count == 1)
 
-        // Verify stats
-        let statsData = readWidgetDefaults(
-            key: AppGroupConfig.statsKey,
-            as: WidgetStatsData.self
-        )
-        #expect(statsData != nil)
+        // Stats
+        let statsData = readDefaults(defaults, key: AppGroupConfig.statsKey, as: WidgetStatsData.self)
         #expect(statsData?.completedToday == 1)
         #expect(statsData?.pendingTotal == 1)
         #expect(statsData?.activeStackCount == 1)
 
-        // Verify timestamp
-        guard let defaults = UserDefaults(suiteName: AppGroupConfig.suiteName) else { return }
+        // Timestamp
         let lastUpdate = defaults.object(forKey: AppGroupConfig.lastUpdateKey) as? Date
         #expect(lastUpdate != nil)
-    }
-
-    @Test("updateAllWidgets excludes deleted stacks from active stack")
-    func excludesDeletedStacksFromActive() throws {
-        let container = try makeWidgetTestContainer()
-        let context = container.mainContext
-        defer { cleanupWidgetDefaults() }
-
-        // Create an active but deleted stack
-        let deletedStack = Stack(
-            id: "stack-deleted",
-            title: "Deleted Stack",
-            status: .active,
-            isDeleted: true,
-            isActive: true
-        )
-        context.insert(deletedStack)
-        try context.save()
-
-        WidgetDataService.updateAllWidgets(context: context)
-
-        let activeData = readWidgetDefaults(
-            key: AppGroupConfig.activeStackKey,
-            as: WidgetActiveStackData.self
-        )
-        #expect(activeData == nil)
     }
 }

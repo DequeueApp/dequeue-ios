@@ -23,19 +23,30 @@ enum WidgetDataService {
 
     /// Updates all widget data and triggers a timeline reload.
     /// Call this after any data change that could affect widgets.
-    static func updateAllWidgets(context: ModelContext) {
-        guard let defaults = AppGroupConfig.sharedDefaults else {
+    ///
+    /// - Parameters:
+    ///   - context: SwiftData model context to query
+    ///   - defaults: UserDefaults to write to (defaults to App Group shared defaults; pass custom for testing)
+    ///   - reloadTimelines: Whether to tell WidgetKit to reload timelines (false in tests)
+    static func updateAllWidgets(
+        context: ModelContext,
+        defaults: UserDefaults? = nil,
+        reloadTimelines: Bool = true
+    ) {
+        guard let store = defaults ?? AppGroupConfig.sharedDefaults else {
             logger.warning("App Group UserDefaults not available — widgets cannot be updated")
             return
         }
 
-        updateActiveStack(context: context, defaults: defaults)
-        updateUpNext(context: context, defaults: defaults)
-        updateStats(context: context, defaults: defaults)
-        defaults.set(Date(), forKey: AppGroupConfig.lastUpdateKey)
+        updateActiveStack(context: context, defaults: store)
+        updateUpNext(context: context, defaults: store)
+        updateStats(context: context, defaults: store)
+        store.set(Date(), forKey: AppGroupConfig.lastUpdateKey)
 
-        // Tell WidgetKit to refresh all timelines
-        WidgetCenter.shared.reloadAllTimelines()
+        // Tell WidgetKit to refresh all timelines (skip in test environment)
+        if reloadTimelines {
+            WidgetCenter.shared.reloadAllTimelines()
+        }
         logger.debug("Widget data updated and timelines reloaded")
     }
 
