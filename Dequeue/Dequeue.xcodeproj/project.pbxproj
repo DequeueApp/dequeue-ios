@@ -16,10 +16,6 @@
 		A16A168EFAD14A9659BD3CFD /* SmartNotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64103FACCD3A914D9C7497E0 /* SmartNotificationSettingsView.swift */; };
 		903BF6096F5526D0B7D37FC2 /* SmartNotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20966C437B3E9E63901E2E7B /* SmartNotificationServiceTests.swift */; };
 		F053C85899D27D0B2A522E0B /* TodayViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2224DA9E396D9E4DEB630432 /* TodayViewModelTests.swift */; };
-		DA75B17432297E20F945FC0E /* TaskFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB1093A92DFD9E945E9C5C46 /* TaskFilter.swift */; };
-		E79DF943EC04A909F20A7F7B /* TaskFilterService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983C00CC8E9B6E5184F6B892 /* TaskFilterService.swift */; };
-		D03C0B11B2E11499188FAC46 /* TaskFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68D7DE6C8056D55A496D8AE5 /* TaskFilterView.swift */; };
-		960F1737BA52188530B446A2 /* TaskFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7AC14BFDBD6F2A61C23A6EE /* TaskFilterTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,10 +46,6 @@
 		64103FACCD3A914D9C7497E0 /* SmartNotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartNotificationSettingsView.swift; sourceTree = "<group>"; };
 		20966C437B3E9E63901E2E7B /* SmartNotificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartNotificationServiceTests.swift; sourceTree = "<group>"; };
 		2224DA9E396D9E4DEB630432 /* TodayViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewModelTests.swift; sourceTree = "<group>"; };
-		CB1093A92DFD9E945E9C5C46 /* TaskFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskFilter.swift; sourceTree = "<group>"; };
-		983C00CC8E9B6E5184F6B892 /* TaskFilterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskFilterService.swift; sourceTree = "<group>"; };
-		68D7DE6C8056D55A496D8AE5 /* TaskFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskFilterView.swift; sourceTree = "<group>"; };
-		A7AC14BFDBD6F2A61C23A6EE /* TaskFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskFilterTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -269,18 +261,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5C6C426B9E10BC3678DE5C7B /* WidgetModels.swift in Sources */,
-				447446C2A4518A48E7E09010 /* WidgetDataService.swift in Sources */,
-				DA75B17432297E20F945FC0E /* TaskFilter.swift in Sources */,
-				E79DF943EC04A909F20A7F7B /* TaskFilterService.swift in Sources */,
-				D03C0B11B2E11499188FAC46 /* TaskFilterView.swift in Sources */,);
+				5C6C426B9E10BC3678DE5C7B /* WidgetModels.swift in Sources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		57916A382EF84B3400A9AF45 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				960F1737BA52188530B446A2 /* TaskFilterTests.swift in Sources */,);
+			files = ();
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		57916A422EF84B3400A9AF45 /* Sources */ = {
