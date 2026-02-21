@@ -136,7 +136,7 @@ struct BatchSelectableTaskRow: View {
             HStack(spacing: 12) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(isSelected ? .accent : .secondary)
+                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                     .animation(.easeInOut(duration: 0.15), value: isSelected)
 
                 VStack(alignment: .leading, spacing: 2) {
