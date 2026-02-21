@@ -24,6 +24,7 @@ struct TaskRowView: View {
         }
         .padding(.vertical, 4)
         .listRowBackground(isActive ? Color.blue.opacity(0.08) : nil)
+        .taskAccessibility(task: task, isActive: isActive)
     }
 
     @ViewBuilder

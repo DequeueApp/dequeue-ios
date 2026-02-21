@@ -91,6 +91,7 @@ struct StackRowView: View {
             }
         }
         .padding(.vertical, 4)
+        .stackAccessibility(stack: stack, isActive: stack.isActive)
     }
 }
 
