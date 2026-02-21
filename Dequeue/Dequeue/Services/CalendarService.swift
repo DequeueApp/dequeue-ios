@@ -109,14 +109,22 @@ final class CalendarService: ObservableObject {
 
     // MARK: - Create Task from Event
 
+    /// Data extracted from a calendar event for task creation
+    struct ImportedTaskData {
+        let title: String
+        let description: String?
+        let startTime: Date?
+        let dueTime: Date?
+    }
+
     /// Creates task data from a calendar event (for import into Dequeue)
-    func taskDataFromEvent(_ event: CalendarEvent) -> (title: String, description: String?, startTime: Date?, dueTime: Date?) {
+    func taskDataFromEvent(_ event: CalendarEvent) -> ImportedTaskData {
         let description = [event.location, event.notes]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
 
-        return (
+        return ImportedTaskData(
             title: event.title,
             description: description.isEmpty ? nil : description,
             startTime: event.startDate,
