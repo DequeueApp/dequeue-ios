@@ -61,6 +61,10 @@ struct TaskRowView: View {
                     AIDelegationBadge()
                 }
 
+                if task.hasDependencies {
+                    DependencyBadge(count: task.dependencyCount)
+                }
+
                 if let rule = task.recurrenceRule {
                     RecurrenceBadge(rule: rule)
                 }

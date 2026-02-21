@@ -51,6 +51,9 @@ final class QueueTask {
     // Parent-child task relationship (DEQ-29: Subtasks)
     var parentTaskId: String?
 
+    // Task dependencies (blocked by)
+    var dependencyData: Data?
+
     // Recurring task fields
     var recurrenceRuleData: Data?
     var recurrenceParentId: String?
@@ -87,6 +90,7 @@ final class QueueTask {
         revision: Int = 1,
         stack: Stack? = nil,
         parentTaskId: String? = nil,  // DEQ-29: Subtasks
+        dependencyData: Data? = nil,
         recurrenceRuleData: Data? = nil,
         recurrenceParentId: String? = nil,
         isRecurrenceTemplate: Bool = false,
@@ -121,6 +125,7 @@ final class QueueTask {
         self.revision = revision
         self.stack = stack
         self.parentTaskId = parentTaskId  // DEQ-29
+        self.dependencyData = dependencyData
         self.recurrenceRuleData = recurrenceRuleData
         self.recurrenceParentId = recurrenceParentId
         self.isRecurrenceTemplate = isRecurrenceTemplate

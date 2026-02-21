@@ -56,6 +56,8 @@ struct TaskDetailView: View {
 
             remindersSection
 
+            TaskDependenciesSection(task: task)
+
             attachmentsSection
 
             actionsSection
