@@ -5,6 +5,7 @@
 //  Settings for calendar integration
 //
 
+import EventKit
 import SwiftUI
 
 struct CalendarSettingsView: View {
