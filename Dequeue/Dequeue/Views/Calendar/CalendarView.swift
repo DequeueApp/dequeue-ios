@@ -18,11 +18,16 @@ struct CalendarView: View {
 
     @Query(
         filter: #Predicate<QueueTask> { task in
-            !task.isDeleted && task.status != .completed && task.status != .closed
+            task.isDeleted == false
         },
         sort: [SortDescriptor(\QueueTask.dueTime)]
     )
-    private var allTasks: [QueueTask]
+    private var allTasksRaw: [QueueTask]
+
+    /// Filtered to exclude completed/closed tasks (predicate can't compare enums)
+    private var allTasks: [QueueTask] {
+        allTasksRaw.filter { $0.status != .completed && $0.status != .closed }
+    }
 
     var body: some View {
         NavigationStack {
@@ -374,11 +379,16 @@ struct ImportEventSheet: View {
 
     @Query(
         filter: #Predicate<Stack> { stack in
-            stack.status == .active && !stack.isDeleted
+            stack.isDeleted == false
         },
         sort: [SortDescriptor(\Stack.sortOrder)]
     )
-    private var activeStacks: [Stack]
+    private var allStacks: [Stack]
+
+    /// Filtered to active stacks only (predicate can't compare enums directly)
+    private var activeStacks: [Stack] {
+        allStacks.filter { $0.status == .active }
+    }
 
     init(event: CalendarEvent) {
         self.event = event
