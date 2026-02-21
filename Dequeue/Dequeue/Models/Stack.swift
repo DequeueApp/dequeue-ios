@@ -40,7 +40,7 @@ final class Stack {
     // Sync fields
     var userId: String?
     var deviceId: String?
-    var syncState: SyncState = .pending
+    var syncState: SyncState = SyncState.pending
     var lastSyncedAt: Date?
     var serverId: String?
     var revision: Int = 1

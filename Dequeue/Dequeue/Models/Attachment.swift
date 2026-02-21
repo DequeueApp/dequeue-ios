@@ -56,8 +56,8 @@ final class Attachment {
     // Sync fields
     var userId: String?
     var deviceId: String?
-    var syncState: SyncState = .pending
-    var uploadState: UploadState = .pending
+    var syncState: SyncState = SyncState.pending
+    var uploadState: UploadState = UploadState.pending
     var lastSyncedAt: Date?
     var serverId: String?
     var revision: Int = 1

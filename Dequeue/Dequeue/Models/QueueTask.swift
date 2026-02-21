@@ -20,7 +20,7 @@ final class QueueTask {
     var locationLongitude: Double?
     var attachments: [String] = []
     var tags: [String] = []  // DEQ-31: Tag support for tasks
-    var status: TaskStatus = .pending
+    var status: TaskStatus = TaskStatus.pending
     var priority: Int?
     var blockedReason: String?
     var sortOrder: Int = 0
@@ -37,7 +37,7 @@ final class QueueTask {
     // Sync fields
     var userId: String?
     var deviceId: String?
-    var syncState: SyncState = .pending
+    var syncState: SyncState = SyncState.pending
     var lastSyncedAt: Date?
     var serverId: String?
     var revision: Int = 1

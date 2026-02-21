@@ -46,7 +46,7 @@ final class Tag {
     var deviceId: String?
 
     /// Current sync state with backend
-    var syncState: SyncState = .pending
+    var syncState: SyncState = SyncState.pending
 
     /// Timestamp of last successful sync with backend
     var lastSyncedAt: Date?
