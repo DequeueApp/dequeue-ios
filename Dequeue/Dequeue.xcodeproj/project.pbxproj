@@ -11,6 +11,11 @@
 		57916B252EF87D1000A9AF45 /* Clerk in Frameworks */ = {isa = PBXBuildFile; productRef = 57916B242EF87D1000A9AF45 /* Clerk */; };
 		57916B2C2EF8855F00A9AF45 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 57916B2B2EF8855F00A9AF45 /* Sentry */; };
 		5C6C426B9E10BC3678DE5C7B /* WidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC954C37A675A1A3F5102CBD /* WidgetModels.swift */; };
+		A7C4ED9BD9AEAFCE8C4F6F6C /* SmartNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BF5794EE4C310F08AEB623 /* SmartNotificationService.swift */; };
+		80C217AE0D3BA8C5462BBC84 /* TodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5326DAF05CE194D1214E83 /* TodayView.swift */; };
+		A16A168EFAD14A9659BD3CFD /* SmartNotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64103FACCD3A914D9C7497E0 /* SmartNotificationSettingsView.swift */; };
+		903BF6096F5526D0B7D37FC2 /* SmartNotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20966C437B3E9E63901E2E7B /* SmartNotificationServiceTests.swift */; };
+		F053C85899D27D0B2A522E0B /* TodayViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2224DA9E396D9E4DEB630432 /* TodayViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,6 +41,11 @@
 		57916A3C2EF84B3400A9AF45 /* DequeueTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DequeueTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		57916A462EF84B3400A9AF45 /* DequeueUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DequeueUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC954C37A675A1A3F5102CBD /* WidgetModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = WidgetModels.swift; path = Shared/WidgetModels.swift; sourceTree = SOURCE_ROOT; };
+		A9BF5794EE4C310F08AEB623 /* SmartNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartNotificationService.swift; sourceTree = "<group>"; };
+		2C5326DAF05CE194D1214E83 /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+		64103FACCD3A914D9C7497E0 /* SmartNotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartNotificationSettingsView.swift; sourceTree = "<group>"; };
+		20966C437B3E9E63901E2E7B /* SmartNotificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartNotificationServiceTests.swift; sourceTree = "<group>"; };
+		2224DA9E396D9E4DEB630432 /* TodayViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -253,14 +263,19 @@
 			files = (
 				5C6C426B9E10BC3678DE5C7B /* WidgetModels.swift in Sources */,
 				447446C2A4518A48E7E09010 /* WidgetDataService.swift in Sources */,
-			);
+			
+				A7C4ED9BD9AEAFCE8C4F6F6C /* SmartNotificationService.swift in Sources */,
+				80C217AE0D3BA8C5462BBC84 /* TodayView.swift in Sources */,
+				A16A168EFAD14A9659BD3CFD /* SmartNotificationSettingsView.swift in Sources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		57916A382EF84B3400A9AF45 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
+			
+				903BF6096F5526D0B7D37FC2 /* SmartNotificationServiceTests.swift in Sources */,
+				F053C85899D27D0B2A522E0B /* TodayViewModelTests.swift in Sources */,);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		57916A422EF84B3400A9AF45 /* Sources */ = {
