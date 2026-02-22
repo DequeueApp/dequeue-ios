@@ -84,7 +84,6 @@ struct TemplateApplicationResult: Equatable, Sendable {
 /// Manages task templates: CRUD operations, built-in templates, and persistence.
 @MainActor
 final class TaskTemplateService: ObservableObject {
-
     @Published private(set) var templates: [TaskTemplate] = []
 
     private let userDefaults: UserDefaults
@@ -212,7 +211,7 @@ final class TaskTemplateService: ObservableObject {
             taskDescription: "What I did yesterday, what I'm doing today, blockers",
             priority: 1,
             tags: ["meetings"],
-            dueDateOffset: 3600, // 1 hour from now
+            dueDateOffset: 3_600, // 1 hour from now
             isBuiltIn: true
         ),
         TaskTemplate(
@@ -223,7 +222,7 @@ final class TaskTemplateService: ObservableObject {
             taskDescription: "Check: correctness, tests, style, performance",
             priority: 2,
             tags: ["code-review"],
-            dueDateOffset: 86400, // 1 day
+            dueDateOffset: 86_400, // 1 day
             isBuiltIn: true
         ),
         TaskTemplate(
@@ -258,7 +257,7 @@ final class TaskTemplateService: ObservableObject {
             """,
             priority: 1,
             tags: ["review"],
-            dueDateOffset: 604800, // 1 week
+            dueDateOffset: 604_800, // 1 week
             isBuiltIn: true
         ),
         TaskTemplate(
@@ -268,7 +267,7 @@ final class TaskTemplateService: ObservableObject {
             title: "Follow up: ",
             priority: 1,
             tags: ["follow-up"],
-            dueDateOffset: 259200, // 3 days
+            dueDateOffset: 259_200, // 3 days
             isBuiltIn: true
         ),
         TaskTemplate(

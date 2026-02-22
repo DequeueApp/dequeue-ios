@@ -260,11 +260,9 @@ enum PlainTextParser {
                 // Strip common list prefixes
                 var title = line
                 let prefixes = ["- ", "* ", "• ", "□ ", "☐ ", "[ ] ", "[x] ", "[X] "]
-                for prefix in prefixes {
-                    if title.hasPrefix(prefix) {
-                        title = String(title.dropFirst(prefix.count))
-                        break
-                    }
+                for prefix in prefixes where title.hasPrefix(prefix) {
+                    title = String(title.dropFirst(prefix.count))
+                    break
                 }
                 // Strip number prefix (1. 2. 3.)
                 if let dotIndex = title.firstIndex(of: "."),

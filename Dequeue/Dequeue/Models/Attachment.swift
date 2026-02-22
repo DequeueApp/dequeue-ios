@@ -49,14 +49,18 @@ final class Attachment {
     var previewUrl: String?
 
     // Timestamps
+    // swiftlint:disable:next redundant_type_annotation
     var createdAt: Date = Date()
+    // swiftlint:disable:next redundant_type_annotation
     var updatedAt: Date = Date()
     var isDeleted: Bool = false
 
     // Sync fields
     var userId: String?
     var deviceId: String?
+    // swiftlint:disable:next redundant_type_annotation
     var syncState: SyncState = SyncState.pending
+    // swiftlint:disable:next redundant_type_annotation
     var uploadState: UploadState = UploadState.pending
     var lastSyncedAt: Date?
     var serverId: String?

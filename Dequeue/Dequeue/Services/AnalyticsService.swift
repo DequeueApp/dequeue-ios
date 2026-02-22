@@ -85,9 +85,9 @@ struct HourlyProductivity: Identifiable, Sendable {
     var id: Int { hour }
 
     var label: String {
-        let h = hour % 12 == 0 ? 12 : hour % 12
+        let displayHour = hour.isMultiple(of: 12) ? 12 : hour % 12
         let ampm = hour < 12 ? "AM" : "PM"
-        return "\(h)\(ampm)"
+        return "\(displayHour)\(ampm)"
     }
 }
 
@@ -196,7 +196,7 @@ final class AnalyticsService {
             entry.total += 1
             if task.status == .completed {
                 entry.completed += 1
-                let days = task.updatedAt.timeIntervalSince(task.createdAt) / 86400
+                let days = task.updatedAt.timeIntervalSince(task.createdAt) / 86_400
                 entry.completionDays.append(max(0, days))
             }
             stackMap[stack.id] = entry
@@ -249,7 +249,7 @@ final class AnalyticsService {
         guard !completed.isEmpty else { return nil }
 
         let totalDays = completed.reduce(0.0) { sum, task in
-            sum + max(0, task.updatedAt.timeIntervalSince(task.createdAt) / 86400)
+            sum + max(0, task.updatedAt.timeIntervalSince(task.createdAt) / 86_400)
         }
 
         return totalDays / Double(completed.count)

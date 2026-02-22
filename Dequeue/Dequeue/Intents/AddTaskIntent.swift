@@ -12,6 +12,7 @@ import os.log
 /// Add a new task to a stack via Siri or Shortcuts
 struct AddTaskIntent: AppIntent {
     static let title: LocalizedStringResource = "Add Task"
+    // swiftlint:disable:next redundant_type_annotation
     static let description: IntentDescription = IntentDescription(
         "Add a new task to a stack in Dequeue",
         categoryName: "Tasks"

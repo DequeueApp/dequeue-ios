@@ -205,7 +205,7 @@ struct BatchSelectableTaskRow: View {
 
     @ViewBuilder
     private func dueDateLabel(_ date: Date) -> some View {
-        let isOverdue = date < Date() 
+        let isOverdue = date < Date()
         HStack(spacing: 2) {
             Image(systemName: "calendar")
             Text(date, style: .date)
@@ -267,6 +267,7 @@ struct BatchPrioritySheet: View {
     let onSelect: (Int?) -> Void
     @Environment(\.dismiss) private var dismiss
 
+    // swiftlint:disable:next large_tuple
     private let priorities: [(label: String, value: Int?, color: Color)] = [
         ("None", nil, .gray),
         ("Low", 1, .blue),
@@ -331,21 +332,23 @@ struct BatchDueDateSheet: View {
 
                     HStack(spacing: 8) {
                         quickDateButton("Today") {
-                            Calendar.current.startOfDay(for: Date()).addingTimeInterval(17 * 3600)
+                            Calendar.current.startOfDay(for: Date()).addingTimeInterval(17 * 3_600)
                         }
                         quickDateButton("Tomorrow") {
                             let tomorrow = Calendar.current.date(
-                                byAdding: .day, value: 1,
+                                byAdding: .day,
+                                value: 1,
                                 to: Calendar.current.startOfDay(for: Date())
-                            ) ?? Date().addingTimeInterval(86400)
-                            return tomorrow.addingTimeInterval(17 * 3600)
+                            ) ?? Date().addingTimeInterval(86_400)
+                            return tomorrow.addingTimeInterval(17 * 3_600)
                         }
                         quickDateButton("Next Week") {
                             let nextWeek = Calendar.current.date(
-                                byAdding: .weekOfYear, value: 1,
+                                byAdding: .weekOfYear,
+                                value: 1,
                                 to: Calendar.current.startOfDay(for: Date())
-                            ) ?? Date().addingTimeInterval(7 * 86400)
-                            return nextWeek.addingTimeInterval(17 * 3600)
+                            ) ?? Date().addingTimeInterval(7 * 86_400)
+                            return nextWeek.addingTimeInterval(17 * 3_600)
                         }
                     }
                 }

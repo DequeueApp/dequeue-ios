@@ -19,14 +19,19 @@ final class Device {
     var osVersion: String?
     var isDevice: Bool = true
     var isCurrentDevice: Bool = false
+    // swiftlint:disable:next redundant_type_annotation
     var lastSeenAt: Date = Date()
+    // swiftlint:disable:next redundant_type_annotation
     var firstSeenAt: Date = Date()
+    // swiftlint:disable:next redundant_type_annotation
     var createdAt: Date = Date()
+    // swiftlint:disable:next redundant_type_annotation
     var updatedAt: Date = Date()
     var isDeleted: Bool = false
 
     // Sync fields
     var userId: String?
+    // swiftlint:disable:next redundant_type_annotation
     var syncState: SyncState = SyncState.pending
     var lastSyncedAt: Date?
     var serverId: String?

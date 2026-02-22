@@ -12,7 +12,7 @@ import Combine
 import UserNotifications
 import os.log
 
-private nonisolated let logger = Logger(subsystem: "com.dequeue", category: "FocusTimer")
+nonisolated private let logger = Logger(subsystem: "com.dequeue", category: "FocusTimer")
 
 // MARK: - Timer Phase
 
@@ -142,7 +142,6 @@ struct FocusSessionRecord: Codable, Identifiable, Sendable {
 /// ```
 @MainActor
 final class FocusTimerService: ObservableObject {
-
     // MARK: - Published State
 
     /// Current timer state

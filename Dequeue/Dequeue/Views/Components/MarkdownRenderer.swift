@@ -16,8 +16,7 @@ private let logger = Logger(subsystem: "com.dequeue", category: "MarkdownRendere
 
 /// Converts markdown text to AttributedString with custom styling
 @MainActor
-struct MarkdownRenderer {
-
+enum MarkdownRenderer {
     /// Renders markdown string to AttributedString
     /// Falls back to plain text on parse failure
     static func render(_ markdown: String, baseFont: Font = .body, baseColor: Color = .primary) -> AttributedString {
@@ -275,6 +274,7 @@ struct MarkdownCheatSheet: View {
 // MARK: - Preview
 
 #Preview("Markdown Editor") {
+    // swiftlint:disable:next line_length
     @Previewable @State var text = "# Task Notes\n\nThis is **bold** and _italic_ text.\n\n- [ ] First item\n- [x] Done item\n- [ ] Third item\n\n> Important note here"
 
     MarkdownNoteEditor(text: $text)

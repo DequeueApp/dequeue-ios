@@ -22,7 +22,11 @@ struct TaskFilterBar: View {
                 showFilterSheet = true
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: filter.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    Image(
+                        systemName: filter.isActive
+                            ? "line.3.horizontal.decrease.circle.fill"
+                            : "line.3.horizontal.decrease.circle"
+                    )
                     Text("Filter")
                     if filter.isActive {
                         Text("\(filter.activeFilterCount)")
@@ -250,15 +254,23 @@ struct TaskFilterSheet: View {
             }
 
             if filter.dateRangeFilter == .custom {
-                DatePicker("From", selection: Binding(
-                    get: { filter.customStartDate ?? Date() },
-                    set: { filter.customStartDate = $0 }
-                ), displayedComponents: .date)
+                DatePicker(
+                    "From",
+                    selection: Binding(
+                        get: { filter.customStartDate ?? Date() },
+                        set: { filter.customStartDate = $0 }
+                    ),
+                    displayedComponents: .date
+                )
 
-                DatePicker("To", selection: Binding(
-                    get: { filter.customEndDate ?? Date() },
-                    set: { filter.customEndDate = $0 }
-                ), displayedComponents: .date)
+                DatePicker(
+                    "To",
+                    selection: Binding(
+                        get: { filter.customEndDate ?? Date() },
+                        set: { filter.customEndDate = $0 }
+                    ),
+                    displayedComponents: .date
+                )
             }
         }
     }
