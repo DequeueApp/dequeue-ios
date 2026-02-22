@@ -10,6 +10,7 @@ import SwiftUI
 @testable import Dequeue
 
 @Suite("AppTheme Tests")
+@MainActor
 struct AppThemeTests {
     // MARK: - Raw Value Tests
 

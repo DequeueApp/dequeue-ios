@@ -96,6 +96,7 @@ private func makeHTTPResponse(statusCode: Int = 200) -> HTTPURLResponse {
 // MARK: - Batch Complete Tests
 
 @Suite("BatchService - Batch Complete")
+@MainActor
 struct BatchCompleteTests {
     @Test("Successfully completes multiple tasks")
     @MainActor
@@ -198,6 +199,7 @@ struct BatchCompleteTests {
 // MARK: - Batch Move Tests
 
 @Suite("BatchService - Batch Move")
+@MainActor
 struct BatchMoveTests {
     @Test("Successfully moves tasks to target stack")
     @MainActor
@@ -253,6 +255,7 @@ struct BatchMoveTests {
 // MARK: - Batch Delete Tests
 
 @Suite("BatchService - Batch Delete")
+@MainActor
 struct BatchDeleteTests {
     @Test("Successfully deletes multiple tasks")
     @MainActor
@@ -286,6 +289,7 @@ struct BatchDeleteTests {
 // MARK: - Validation Tests
 
 @Suite("BatchService - Validation")
+@MainActor
 struct BatchValidationTests {
     @Test("Rejects empty task IDs")
     @MainActor
@@ -363,6 +367,7 @@ struct BatchValidationTests {
 // MARK: - Error Handling Tests
 
 @Suite("BatchService - Error Handling")
+@MainActor
 struct BatchErrorHandlingTests {
     @Test("Handles server error responses")
     @MainActor
@@ -443,6 +448,7 @@ struct BatchErrorHandlingTests {
 // MARK: - Model Tests
 
 @Suite("BatchService - Models")
+@MainActor
 struct BatchModelTests {
     @Test("BatchResponse correctly identifies full success")
     func testFullSuccess() {

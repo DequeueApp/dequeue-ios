@@ -12,6 +12,7 @@ import Foundation
 // MARK: - ImportFormat Tests
 
 @Suite("ImportFormat")
+@MainActor
 struct ImportFormatTests {
 
     @Test("All formats have extensions")
@@ -37,6 +38,7 @@ struct ImportFormatTests {
 // MARK: - CSV Parser Tests
 
 @Suite("CSV Parser")
+@MainActor
 struct CSVParserTests {
 
     @Test("Basic CSV with title column")
@@ -166,6 +168,7 @@ struct CSVParserTests {
 // MARK: - JSON Parser Tests
 
 @Suite("JSON Parser")
+@MainActor
 struct JSONParserTests {
 
     @Test("Parse JSON array of tasks")
@@ -252,6 +255,7 @@ struct JSONParserTests {
 // MARK: - Plain Text Parser Tests
 
 @Suite("Plain Text Parser")
+@MainActor
 struct PlainTextParserTests {
 
     @Test("Parse simple lines")
@@ -342,6 +346,7 @@ struct PlainTextParserTests {
 // MARK: - Helper Function Tests
 
 @Suite("Import Helpers")
+@MainActor
 struct ImportHelperTests {
 
     @Test("Parse priority strings")
@@ -377,6 +382,7 @@ struct ImportHelperTests {
 // MARK: - ImportResult Tests
 
 @Suite("ImportResult")
+@MainActor
 struct ImportResultTests {
 
     @Test("Success result")
@@ -434,6 +440,7 @@ struct ImportResultTests {
 // MARK: - ImportError Tests
 
 @Suite("ImportError")
+@MainActor
 struct ImportErrorTests {
 
     @Test("All errors have descriptions")

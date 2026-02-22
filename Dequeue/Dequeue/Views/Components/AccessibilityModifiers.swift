@@ -82,9 +82,10 @@ struct TaskAccessibilityModifier: ViewModifier {
     }
 
     private var accessibilityTraits: AccessibilityTraits {
-        var traits: AccessibilityTraits = .isButton
-        if isActive { traits.insert(.isSelected) }
-        return traits
+        if isActive {
+            return [.isButton, .isSelected]
+        }
+        return .isButton
     }
 }
 

@@ -108,7 +108,7 @@ nonisolated enum CertificatePinningError: LocalizedError, Sendable {
 /// than leaf certificates, because Let's Encrypt leaf certificates rotate every 90 days.
 final class CertificatePinningDelegate: NSObject, URLSessionDelegate, Sendable {
     // nonisolated(unsafe) because Logger is thread-safe but not marked Sendable in current SDK
-    nonisolated(unsafe) private static let pinLogger = Logger(
+    nonisolated private static let pinLogger = Logger(
         subsystem: "com.dequeue", category: "CertificatePinning"
     )
 
@@ -227,7 +227,7 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate, Sendable {
 /// for any connections to Dequeue API servers.
 nonisolated enum PinnedURLSession {
     // nonisolated(unsafe) to allow lazy init from any context
-    nonisolated(unsafe) private static let _shared: URLSession = makeSession()
+    nonisolated private static let _shared: URLSession = makeSession()
 
     /// Shared URLSession with certificate pinning enabled for production domains.
     nonisolated static var shared: URLSession { _shared }
@@ -289,7 +289,7 @@ nonisolated enum PinnedURLSession {
 /// All methods are nonisolated and safe to call from any URLSession delegate callback thread.
 nonisolated enum CertificatePinningValidator {
     // nonisolated(unsafe) to avoid MainActor inference on static stored property
-    nonisolated(unsafe) private static let config: CertificatePinningConfiguration = {
+    nonisolated private static let config: CertificatePinningConfiguration = {
         #if DEBUG
         return .debug
         #else
@@ -297,7 +297,7 @@ nonisolated enum CertificatePinningValidator {
         #endif
     }()
 
-    nonisolated(unsafe) private static let validatorLogger = Logger(
+    nonisolated private static let validatorLogger = Logger(
         subsystem: "com.dequeue", category: "CertificatePinning"
     )
 

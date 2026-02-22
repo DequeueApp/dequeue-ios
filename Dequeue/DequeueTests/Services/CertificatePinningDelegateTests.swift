@@ -14,6 +14,7 @@ import Security
 // MARK: - CertificatePinningConfiguration Tests
 
 @Suite("CertificatePinningConfiguration")
+@MainActor
 struct CertificatePinningConfigurationTests {
 
     @Test("Production configuration has expected domains")
@@ -91,6 +92,7 @@ struct CertificatePinningConfigurationTests {
 // MARK: - PinningFailureInfo Tests
 
 @Suite("PinningFailureInfo")
+@MainActor
 struct PinningFailureInfoTests {
 
     @Test("Failure info stores all properties")
@@ -128,6 +130,7 @@ struct PinningFailureInfoTests {
 // MARK: - CertificatePinningError Tests
 
 @Suite("CertificatePinningError")
+@MainActor
 struct CertificatePinningErrorTests {
 
     @Test("Pin validation failed error description includes domain")
@@ -156,6 +159,7 @@ struct CertificatePinningErrorTests {
 // MARK: - CertificatePinningDelegate Tests
 
 @Suite("CertificatePinningDelegate")
+@MainActor
 struct CertificatePinningDelegateTests {
 
     @Test("Delegate initializes with configuration")
@@ -260,6 +264,7 @@ struct CertificatePinningDelegateTests {
 // MARK: - CertificatePinningValidator Tests
 
 @Suite("CertificatePinningValidator")
+@MainActor
 struct CertificatePinningValidatorTests {
 
     @Test("Non-server-trust challenges return false")
@@ -318,6 +323,7 @@ struct CertificatePinningValidatorTests {
 // MARK: - PinnedURLSession Tests
 
 @Suite("PinnedURLSession")
+@MainActor
 struct PinnedURLSessionTests {
 
     @Test("Shared session is not nil")
@@ -362,6 +368,7 @@ struct PinnedURLSessionTests {
 // MARK: - Integration Tests
 
 @Suite("Certificate Pinning Integration")
+@MainActor
 struct CertificatePinningIntegrationTests {
 
     @Test("Real connection to api.dequeue.app succeeds with pinning")

@@ -8,6 +8,7 @@
 import XCTest
 @testable import Dequeue
 
+@MainActor
 final class RecurrenceRuleTests: XCTestCase {
 
     // MARK: - RecurrenceRule Model Tests

@@ -6,6 +6,7 @@
 //
 
 import XCTest
+import SwiftUI
 import SwiftData
 @testable import Dequeue
 

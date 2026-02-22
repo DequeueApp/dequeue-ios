@@ -21,11 +21,14 @@ enum ErrorReportingService {
         var cachedDeviceIdentifier: String?
     }
 
-    /// Thread-safe lock for configuration state
-    private static let configurationLock = OSAllocatedUnfairLock(initialState: ConfigurationState())
+    /// Thread-safe lock for configuration state.
+    /// Explicitly nonisolated: accessed from both main actor and background contexts.
+    nonisolated private static let configurationLock = OSAllocatedUnfairLock(initialState: ConfigurationState())
 
-    /// Thread-safe check for whether Sentry is already configured
-    private static var isConfigured: Bool {
+    /// Thread-safe check for whether Sentry is already configured.
+    /// nonisolated(unsafe) because access is protected by configurationLock (OSAllocatedUnfairLock)
+    /// and this property is used from both main actor and background contexts.
+    nonisolated(unsafe) private static var isConfigured: Bool {
         get { configurationLock.withLock { $0.isConfigured } }
         set { configurationLock.withLock { $0.isConfigured = newValue } }
     }
@@ -101,6 +104,14 @@ enum ErrorReportingService {
             cachedDeviceId = buildDeviceIdentifier()
         }
 
+        // Capture configuration values on the calling actor before dispatching to background.
+        // This avoids accessing main-actor-isolated properties from a nonisolated context.
+        let sentryDSN = Configuration.sentryDSN
+        let bundleId = Configuration.bundleIdentifier
+        let appVersion = Configuration.appVersion
+        let buildNumber = Configuration.buildNumber
+        let traceTargets = Configuration.tracePropagationTargets
+
         // Run Sentry initialization on a background thread to avoid blocking the main thread
         // Sentry SDK init can take 10+ seconds on first launch or when processing crash reports
         await withCheckedContinuation { continuation in
@@ -112,7 +123,7 @@ enum ErrorReportingService {
                 }
 
                 SentrySDK.start { options in
-                    options.dsn = Configuration.sentryDSN
+                    options.dsn = sentryDSN
 
                     // ============================================
                     // DEBUG & ENVIRONMENT
@@ -126,8 +137,8 @@ enum ErrorReportingService {
                     #endif
 
                     // Set release version explicitly
-                    let release = "\(Configuration.bundleIdentifier)@\(Configuration.appVersion)"
-                    options.releaseName = "\(release)+\(Configuration.buildNumber)"
+                    let release = "\(bundleId)@\(appVersion)"
+                    options.releaseName = "\(release)+\(buildNumber)"
 
                     // ============================================
                     // TRACING & PERFORMANCE (capture everything)
@@ -193,7 +204,7 @@ enum ErrorReportingService {
                     // DISTRIBUTED TRACING (connect to backend)
                     // ============================================
                     // Only send trace headers to our own backend, not third parties
-                    options.tracePropagationTargets = Configuration.tracePropagationTargets
+                    options.tracePropagationTargets = traceTargets
 
                     // ============================================
                     // ATTACHMENTS & SCREENSHOTS

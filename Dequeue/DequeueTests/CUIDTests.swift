@@ -10,6 +10,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("CUID Tests")
+@MainActor
 struct CUIDTests {
     // MARK: - Generation Tests
 

@@ -13,6 +13,7 @@ import Foundation
 // MARK: - Tag Model Tests
 
 @Suite("Tag Model Tests")
+@MainActor
 struct TagModelTests {
     @Test("Tag initializes with default values")
     func tagInitializesWithDefaults() {

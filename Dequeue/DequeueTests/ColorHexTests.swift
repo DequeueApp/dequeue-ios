@@ -10,6 +10,7 @@ import SwiftUI
 @testable import Dequeue
 
 @Suite("Color+Hex Tests")
+@MainActor
 struct ColorHexTests {
     // MARK: - Successful Parsing
 

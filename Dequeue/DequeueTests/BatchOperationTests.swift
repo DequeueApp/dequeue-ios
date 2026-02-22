@@ -12,6 +12,7 @@ import Foundation
 // MARK: - BatchOperation Tests
 
 @Suite("BatchOperation Model")
+@MainActor
 struct BatchOperationModelTests {
 
     @Test("All operations have system images")
@@ -57,6 +58,7 @@ struct BatchOperationModelTests {
 // MARK: - BatchOperationResult Tests
 
 @Suite("BatchOperationResult")
+@MainActor
 struct BatchOperationResultTests {
 
     @Test("Full success result")
@@ -256,6 +258,7 @@ struct BatchSelectionManagerTests {
 // MARK: - Available Operations Tests
 
 @Suite("Available Operations Logic")
+@MainActor
 struct AvailableOperationsTests {
 
     @Test("Pending tasks have complete option")

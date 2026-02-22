@@ -9,6 +9,7 @@ import XCTest
 import UniformTypeIdentifiers
 @testable import Dequeue
 
+@MainActor
 final class DragDropTests: XCTestCase {
 
     // MARK: - TaskTransferItem Tests

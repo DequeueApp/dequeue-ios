@@ -13,6 +13,7 @@ import Foundation
 // MARK: - TaskActivityType Tests
 
 @Suite("TaskActivityType")
+@MainActor
 struct TaskActivityTypeTests {
     @Test("All types have icons")
     func allHaveIcons() {
@@ -64,6 +65,7 @@ struct TaskActivityTypeTests {
 // MARK: - TaskActivity Model Tests
 
 @Suite("TaskActivity Model")
+@MainActor
 struct TaskActivityModelTests {
     @Test("Creates with default values")
     func defaultInit() {
@@ -152,6 +154,7 @@ struct TaskActivityModelTests {
 // MARK: - TaskActivityService Tests
 
 @Suite("TaskActivityService")
+@MainActor
 struct TaskActivityServiceTests {
     @Test("Records and retrieves activities")
     @MainActor func recordAndRetrieve() {

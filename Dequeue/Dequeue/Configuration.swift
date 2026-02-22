@@ -39,7 +39,8 @@ enum Configuration {
 
     /// Distributed tracing targets - only send trace headers to our own backend
     /// This enables connecting mobile traces to backend traces in Sentry
-    static let tracePropagationTargets: [String] = [
+    /// Explicitly nonisolated: accessed from background threads during Sentry configuration
+    nonisolated static let tracePropagationTargets: [String] = [
         "api.dequeue.app",
         "sync.ardonos.com",
         "localhost",
@@ -77,15 +78,18 @@ enum Configuration {
 
     // MARK: - App Info
 
-    static let appVersion: String = {
+    /// Explicitly nonisolated: accessed from background threads during Sentry configuration
+    nonisolated static let appVersion: String = {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }()
 
-    static let buildNumber: String = {
+    /// Explicitly nonisolated: accessed from background threads during Sentry configuration
+    nonisolated static let buildNumber: String = {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }()
 
-    static let bundleIdentifier: String = {
+    /// Explicitly nonisolated: accessed from background threads during Sentry configuration
+    nonisolated static let bundleIdentifier: String = {
         Bundle.main.bundleIdentifier ?? "com.ardonos.Dequeue"
     }()
 }

@@ -6,8 +6,10 @@
 //
 
 import XCTest
+import EventKit
 @testable import Dequeue
 
+@MainActor
 final class CalendarServiceTests: XCTestCase {
 
     // MARK: - CalendarEvent Model Tests

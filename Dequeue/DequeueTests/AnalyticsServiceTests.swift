@@ -54,6 +54,7 @@ private func makeAnalyticsTask(
 // MARK: - Summary Tests
 
 @Suite("ProductivitySummary")
+@MainActor
 struct ProductivitySummaryTests {
     @Test("Completion rate calculation")
     func completionRate() {
@@ -98,6 +99,7 @@ struct ProductivitySummaryTests {
 // MARK: - Analytics Service Tests
 
 @Suite("AnalyticsService")
+@MainActor
 struct AnalyticsServiceTests {
     @Test("Summary counts tasks correctly")
     @MainActor func summaryCountsCorrectly() throws {
@@ -304,6 +306,7 @@ struct AnalyticsServiceTests {
 // MARK: - Model Tests
 
 @Suite("Analytics Models")
+@MainActor
 struct AnalyticsModelTests {
     @Test("DailyCompletionData has correct dayLabel")
     func dailyDataLabel() {

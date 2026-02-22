@@ -10,6 +10,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Date+SmartFormat Tests")
+@MainActor
 struct DateSmartFormatTests {
     // MARK: - Today Formatting (relative)
 
