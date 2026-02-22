@@ -81,8 +81,8 @@ enum ErrorReportingService {
         return false
     }
 
-    /// Configures Sentry SDK asynchronously to avoid blocking app launch.
-    /// This should be called from a Task context, not during App init.
+    /// Configures Sentry SDK synchronously so crash reporting is available immediately.
+    /// Called from App.init() to ensure crashes during ModelContainer setup are captured.
     ///
     /// This configuration enables maximum observability:
     /// - 100% trace sampling (single user, no cost concerns)
@@ -91,141 +91,122 @@ enum ErrorReportingService {
     /// - Experimental logs for custom logging
     /// - App hang detection
     /// - Distributed tracing to connect with backend
-    static func configure() async {
-        // Quick synchronous check to avoid async overhead in test environments
+    static func configure() {
         guard !shouldSkipConfiguration else { return }
 
-        // Cache device identifier on main actor before Sentry initialization.
-        // This ensures thread-safe access for logging from any context.
-        // Note: Any log() calls that occur BEFORE configure() completes will show
-        // device: "unknown" - this is acceptable for very early app startup logs
-        // and documenting this behavior is preferable to adding complexity.
-        await MainActor.run {
-            cachedDeviceId = buildDeviceIdentifier()
-        }
+        // Cache device identifier for thread-safe access during logging.
+        // Safe to call here because App.init() runs on MainActor.
+        cachedDeviceId = buildDeviceIdentifier()
 
-        // Capture configuration values on the calling actor before dispatching to background.
-        // This avoids accessing main-actor-isolated properties from a nonisolated context.
         let sentryDSN = Configuration.sentryDSN
         let bundleId = Configuration.bundleIdentifier
         let appVersion = Configuration.appVersion
         let buildNumber = Configuration.buildNumber
         let traceTargets = Configuration.tracePropagationTargets
 
-        // Run Sentry initialization on a background thread to avoid blocking the main thread
-        // Sentry SDK init can take 10+ seconds on first launch or when processing crash reports
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                // Double-check in case of race condition
-                guard !isConfigured else {
-                    continuation.resume()
-                    return
-                }
+        // Initialize Sentry synchronously — SentrySDK.start is fast enough for launch
+        // and we need crash reporting active before ModelContainer init which can fail
+        SentrySDK.start { options in
+            options.dsn = sentryDSN
 
-                SentrySDK.start { options in
-                    options.dsn = sentryDSN
+            // ============================================
+            // DEBUG & ENVIRONMENT
+            // ============================================
+            #if DEBUG
+            options.debug = true
+            options.environment = "development"
+            #else
+            options.debug = false
+            options.environment = "production"
+            #endif
 
-                    // ============================================
-                    // DEBUG & ENVIRONMENT
-                    // ============================================
-                    #if DEBUG
-                    options.debug = true
-                    options.environment = "development"
-                    #else
-                    options.debug = false
-                    options.environment = "production"
-                    #endif
+            // Set release version explicitly
+            let release = "\(bundleId)@\(appVersion)"
+            options.releaseName = "\(release)+\(buildNumber)"
 
-                    // Set release version explicitly
-                    let release = "\(bundleId)@\(appVersion)"
-                    options.releaseName = "\(release)+\(buildNumber)"
+            // ============================================
+            // TRACING & PERFORMANCE (capture everything)
+            // ============================================
+            // 100% sampling since single user - no cost concerns
+            options.tracesSampleRate = 1.0
 
-                    // ============================================
-                    // TRACING & PERFORMANCE (capture everything)
-                    // ============================================
-                    // 100% sampling since single user - no cost concerns
-                    options.tracesSampleRate = 1.0
+            // Automatic instrumentation
+            options.enableAutoPerformanceTracing = true
+            options.enableNetworkTracking = true        // HTTP request spans
+            options.enableFileIOTracing = true          // File read/write spans
+            options.enableCoreDataTracing = true        // Core Data operations
+            #if os(iOS)
+            options.enableUserInteractionTracing = true // Taps, swipes, gestures
+            #endif
+            options.enableSwizzling = true              // Required for automatic instrumentation
 
-                    // Automatic instrumentation
-                    options.enableAutoPerformanceTracing = true
-                    options.enableNetworkTracking = true        // HTTP request spans
-                    options.enableFileIOTracing = true          // File read/write spans
-                    options.enableCoreDataTracing = true        // Core Data operations
-                    #if os(iOS)
-                    options.enableUserInteractionTracing = true // Taps, swipes, gestures
-                    #endif
-                    options.enableSwizzling = true              // Required for automatic instrumentation
+            // App hang detection - detect frozen UI (main thread blocked)
+            options.enableAppHangTracking = true
+            options.appHangTimeoutInterval = 2.0        // Report hangs > 2 seconds
 
-                    // App hang detection - detect frozen UI (main thread blocked)
-                    options.enableAppHangTracking = true
-                    options.appHangTimeoutInterval = 2.0        // Report hangs > 2 seconds
+            // Capture HTTP errors
+            options.enableCaptureFailedRequests = true
+            options.failedRequestStatusCodes = [
+                HttpStatusCodeRange(min: 400, max: 599)  // All 4xx and 5xx
+            ]
 
-                    // Capture HTTP errors
-                    options.enableCaptureFailedRequests = true
-                    options.failedRequestStatusCodes = [
-                        HttpStatusCodeRange(min: 400, max: 599)  // All 4xx and 5xx
-                    ]
-
-                    // ============================================
-                    // PROFILING (CPU profiling for performance issues, iOS only)
-                    // ============================================
-                    #if os(iOS)
-                    options.configureProfiling = { profiling in
-                        profiling.lifecycle = .trace            // Profile during traces
-                        profiling.sessionSampleRate = 1.0       // 100% of sessions
-                    }
-                    #endif
-
-                    // ============================================
-                    // SESSION REPLAY (video-like playback of sessions, iOS only)
-                    // ============================================
-                    #if os(iOS)
-                    options.sessionReplay.sessionSampleRate = 1.0    // Record 100% of sessions
-                    options.sessionReplay.onErrorSampleRate = 1.0    // Definitely record if error occurs
-                    // Note: Replay auto-masks sensitive content by default
-                    #endif
-
-                    // ============================================
-                    // STRUCTURED LOGS (Sentry 9.x+)
-                    // ============================================
-                    options.enableLogs = true
-
-                    // ============================================
-                    // BREADCRUMBS (trail of events before errors)
-                    // ============================================
-                    options.maxBreadcrumbs = 100
-                    options.enableAutoBreadcrumbTracking = true
-                    options.enableNetworkBreadcrumbs = true
-                    #if os(iOS)
-                    options.enableUIViewControllerTracing = true
-                    #endif
-
-                    // ============================================
-                    // DISTRIBUTED TRACING (connect to backend)
-                    // ============================================
-                    // Only send trace headers to our own backend, not third parties
-                    options.tracePropagationTargets = traceTargets
-
-                    // ============================================
-                    // ATTACHMENTS & SCREENSHOTS
-                    // ============================================
-                    #if os(iOS)
-                    options.attachScreenshot = true             // Capture screenshot on errors
-                    options.attachViewHierarchy = true          // Capture view hierarchy on errors
-                    #endif
-                    options.attachStacktrace = true             // Attach stack traces to all events
-
-                    // ============================================
-                    // SESSION TRACKING
-                    // ============================================
-                    options.enableAutoSessionTracking = true
-                    options.sessionTrackingIntervalMillis = 30_000  // 30 second session timeout
-                }
-
-                isConfigured = true
-                continuation.resume()
+            // ============================================
+            // PROFILING (CPU profiling for performance issues, iOS only)
+            // ============================================
+            #if os(iOS)
+            options.configureProfiling = { profiling in
+                profiling.lifecycle = .trace            // Profile during traces
+                profiling.sessionSampleRate = 1.0       // 100% of sessions
             }
+            #endif
+
+            // ============================================
+            // SESSION REPLAY (video-like playback of sessions, iOS only)
+            // ============================================
+            #if os(iOS)
+            options.sessionReplay.sessionSampleRate = 1.0    // Record 100% of sessions
+            options.sessionReplay.onErrorSampleRate = 1.0    // Definitely record if error occurs
+            // Note: Replay auto-masks sensitive content by default
+            #endif
+
+            // ============================================
+            // STRUCTURED LOGS (Sentry 9.x+)
+            // ============================================
+            options.enableLogs = true
+
+            // ============================================
+            // BREADCRUMBS (trail of events before errors)
+            // ============================================
+            options.maxBreadcrumbs = 100
+            options.enableAutoBreadcrumbTracking = true
+            options.enableNetworkBreadcrumbs = true
+            #if os(iOS)
+            options.enableUIViewControllerTracing = true
+            #endif
+
+            // ============================================
+            // DISTRIBUTED TRACING (connect to backend)
+            // ============================================
+            // Only send trace headers to our own backend, not third parties
+            options.tracePropagationTargets = traceTargets
+
+            // ============================================
+            // ATTACHMENTS & SCREENSHOTS
+            // ============================================
+            #if os(iOS)
+            options.attachScreenshot = true             // Capture screenshot on errors
+            options.attachViewHierarchy = true          // Capture view hierarchy on errors
+            #endif
+            options.attachStacktrace = true             // Attach stack traces to all events
+
+            // ============================================
+            // SESSION TRACKING
+            // ============================================
+            options.enableAutoSessionTracking = true
+            options.sessionTrackingIntervalMillis = 30_000  // 30 second session timeout
         }
+
+        isConfigured = true
     }
 
     // MARK: - User Context
