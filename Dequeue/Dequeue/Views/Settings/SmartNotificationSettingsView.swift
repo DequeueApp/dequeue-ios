@@ -30,7 +30,7 @@ struct SmartNotificationSettingsView: View {
                         Text("30 minutes before").tag(30)
                         Text("1 hour before").tag(60)
                         Text("2 hours before").tag(120)
-                        Text("1 day before").tag(1440)
+                        Text("1 day before").tag(1_440)
                     }
                 }
             } header: {
@@ -151,21 +151,21 @@ private struct DigestTimePicker: View {
     @Binding var minute: Int
 
     private var timeText: String {
-        let h = hour % 12 == 0 ? 12 : hour % 12
+        let displayHour = hour.isMultiple(of: 12) ? 12 : hour % 12
         let ampm = hour < 12 ? "AM" : "PM"
-        let m = String(format: "%02d", minute)
-        return "\(h):\(m) \(ampm)"
+        let minuteText = String(format: "%02d", minute)
+        return "\(displayHour):\(minuteText) \(ampm)"
     }
 
     var body: some View {
         Menu {
-            ForEach([6, 7, 8, 9, 10], id: \.self) { h in
-                Button("\(h):00 AM") {
-                    hour = h
+            ForEach([6, 7, 8, 9, 10], id: \.self) { hourOption in
+                Button("\(hourOption):00 AM") {
+                    hour = hourOption
                     minute = 0
                 }
-                Button("\(h):30 AM") {
-                    hour = h
+                Button("\(hourOption):30 AM") {
+                    hour = hourOption
                     minute = 30
                 }
             }

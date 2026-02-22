@@ -168,10 +168,11 @@ struct TemplateEditorView: View {
         _priority = State(initialValue: tmpl?.priority)
         _tags = State(initialValue: tmpl?.tags.joined(separator: ", ") ?? "")
         _hasDueDate = State(initialValue: tmpl?.dueDateOffset != nil)
-        _dueDays = State(initialValue: Int((tmpl?.dueDateOffset ?? 0) / 86400))
-        _dueHours = State(initialValue: Int(((tmpl?.dueDateOffset ?? 0).truncatingRemainder(dividingBy: 86400)) / 3600))
+        _dueDays = State(initialValue: Int((tmpl?.dueDateOffset ?? 0) / 86_400))
+        let dueOffset = tmpl?.dueDateOffset ?? 0
+        _dueHours = State(initialValue: Int(dueOffset.truncatingRemainder(dividingBy: 86_400) / 3_600))
         _hasStartDate = State(initialValue: tmpl?.startDateOffset != nil)
-        _startDays = State(initialValue: Int((tmpl?.startDateOffset ?? 0) / 86400))
+        _startDays = State(initialValue: Int((tmpl?.startDateOffset ?? 0) / 86_400))
         self.isEditing = tmpl != nil
         self.templateId = tmpl?.id ?? UUID().uuidString
         self.onSave = onSave
@@ -276,11 +277,11 @@ struct TemplateEditorView: View {
             .filter { !$0.isEmpty }
 
         let dueDateOffset = hasDueDate
-            ? TimeInterval(dueDays * 86400 + dueHours * 3600)
+            ? TimeInterval(dueDays * 86_400 + dueHours * 3_600)
             : nil
 
         let startDateOffset = hasStartDate
-            ? TimeInterval(startDays * 86400)
+            ? TimeInterval(startDays * 86_400)
             : nil
 
         let template = TaskTemplate(
@@ -384,6 +385,7 @@ struct TaskTemplateManagementView: View {
 
 // MARK: - Preview
 
+// swiftlint:disable no_print
 #Preview("Template Picker") {
     TemplatePickerSheet { result in
         print("Selected: \(result.title)")
@@ -395,6 +397,7 @@ struct TaskTemplateManagementView: View {
         print("Saved: \(template.name)")
     }
 }
+// swiftlint:enable no_print
 
 #Preview("Template Management") {
     NavigationStack {

@@ -170,10 +170,8 @@ final class TaskDependencyService {
         visited.insert(currentId)
 
         guard let currentTask = try? findTask(id: currentId) else { return false }
-        for depId in currentTask.dependencyIds {
-            if dfsReaches(from: depId, target: target, visited: &visited) {
-                return true
-            }
+        for depId in currentTask.dependencyIds where dfsReaches(from: depId, target: target, visited: &visited) {
+            return true
         }
         return false
     }

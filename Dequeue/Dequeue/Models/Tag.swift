@@ -29,10 +29,10 @@ final class Tag {
     // MARK: - Metadata
 
     /// Timestamp when the tag was created
-    var createdAt: Date = Date()
+    var createdAt: Date = Date() // swiftlint:disable:this redundant_type_annotation
 
     /// Timestamp when the tag was last modified
-    var updatedAt: Date = Date()
+    var updatedAt: Date = Date() // swiftlint:disable:this redundant_type_annotation
 
     /// Soft deletion flag for sync-compatible deletion
     var isDeleted: Bool = false
@@ -46,7 +46,7 @@ final class Tag {
     var deviceId: String?
 
     /// Current sync state with backend
-    var syncState: SyncState = SyncState.pending
+    var syncState: SyncState = SyncState.pending // swiftlint:disable:this redundant_type_annotation
 
     /// Timestamp of last successful sync with backend
     var lastSyncedAt: Date?

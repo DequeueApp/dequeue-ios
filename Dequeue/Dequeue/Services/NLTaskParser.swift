@@ -63,7 +63,6 @@ struct NLTaskParseResult: Equatable, Sendable {
 /// The parser is intentionally stateless and uses the provided `referenceDate`
 /// and `calendar` for all date calculations, making it fully testable.
 struct NLTaskParser: Sendable {
-
     // MARK: - Configuration
 
     /// The calendar to use for date calculations
@@ -354,7 +353,8 @@ struct NLTaskParser: Sendable {
         }
 
         // "day after tomorrow"
-        if let match = result.range(of: #"\b(?:by\s+)?day after tomorrow\b"#, options: [.regularExpression, .caseInsensitive]) {
+        let dayAfterTomorrowPattern = #"\b(?:by\s+)?day after tomorrow\b"#
+        if let match = result.range(of: dayAfterTomorrowPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = calendar.date(byAdding: .day, value: 2, to: referenceDate) {
                 return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
@@ -370,7 +370,8 @@ struct NLTaskParser: Sendable {
         }
 
         // "this weekend" (Saturday)
-        if let match = result.range(of: #"\b(?:by\s+)?this weekend\b"#, options: [.regularExpression, .caseInsensitive]) {
+        let thisWeekendPattern = #"\b(?:by\s+)?this weekend\b"#
+        if let match = result.range(of: thisWeekendPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = nextWeekday(.saturday) {
                 return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
@@ -378,13 +379,15 @@ struct NLTaskParser: Sendable {
         }
 
         // "end of day" / "eod"
-        if let match = result.range(of: #"\b(?:by\s+)?(?:end of day|eod)\b"#, options: [.regularExpression, .caseInsensitive]) {
+        let eodPattern = #"\b(?:by\s+)?(?:end of day|eod)\b"#
+        if let match = result.range(of: eodPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             return (result, dateWithTime(referenceDate, hour: 17, minute: 0))
         }
 
         // "end of week" / "eow"
-        if let match = result.range(of: #"\b(?:by\s+)?(?:end of week|eow)\b"#, options: [.regularExpression, .caseInsensitive]) {
+        let eowPattern = #"\b(?:by\s+)?(?:end of week|eow)\b"#
+        if let match = result.range(of: eowPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = nextWeekday(.friday) {
                 return (result, dateWithTime(date, hour: 17, minute: 0))
@@ -487,8 +490,10 @@ struct NLTaskParser: Sendable {
     }
 
     private var allDayNames: [String] {
-        ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-         "mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"]
+        [
+            "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+            "mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"
+        ]
     }
 
     /// Extracts calendar dates: "Jan 15", "March 3rd", "3/15", "12-25"
@@ -578,8 +583,10 @@ struct NLTaskParser: Sendable {
         }
 
         // "from Monday" / "starting next Wednesday"
-        let dayNames = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-                        "mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"]
+        let dayNames = [
+            "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+            "mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"
+        ]
         let dayNamePattern = dayNames.joined(separator: "|")
         let startDayPattern = #"\b(?:from|starting|start:?)\s+(?:next\s+)?("# + dayNamePattern + #")\b"#
         if let regex = try? NSRegularExpression(pattern: startDayPattern, options: .caseInsensitive),

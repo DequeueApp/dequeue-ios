@@ -24,7 +24,9 @@ final class Stack {
     var statusRawValue: String = StackStatus.active.rawValue
     var priority: Int?
     var sortOrder: Int = 0
+    // swiftlint:disable:next redundant_type_annotation
     var createdAt: Date = Date()
+    // swiftlint:disable:next redundant_type_annotation
     var updatedAt: Date = Date()
     var isDeleted: Bool = false
     var isDraft: Bool = false
@@ -40,6 +42,7 @@ final class Stack {
     // Sync fields
     var userId: String?
     var deviceId: String?
+    // swiftlint:disable:next redundant_type_annotation
     var syncState: SyncState = SyncState.pending
     var lastSyncedAt: Date?
     var serverId: String?
