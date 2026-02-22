@@ -11,6 +11,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Activity Feed Tests", .serialized)
+@MainActor
 struct ActivityFeedTests {
     // MARK: - Event Type Filtering
 

@@ -126,6 +126,7 @@ struct TaskEntityTests {
 // MARK: - Intent Priority Tests
 
 @Suite("IntentPriority")
+@MainActor
 struct IntentPriorityTests {
     @Test("Priority raw values match expected integers")
     func priorityRawValues() {
@@ -147,6 +148,7 @@ struct IntentPriorityTests {
 // MARK: - Intent Error Tests
 
 @Suite("IntentError")
+@MainActor
 struct IntentErrorTests {
     @Test("All error cases have localized descriptions")
     func errorDescriptions() {

@@ -12,6 +12,7 @@ import Foundation
 // MARK: - StackStatus Tests
 
 @Suite("StackStatus Tests")
+@MainActor
 struct StackStatusTests {
     @Test("StackStatus has correct raw values")
     func stackStatusRawValues() {
@@ -60,6 +61,7 @@ struct StackStatusTests {
 // MARK: - TaskStatus Tests
 
 @Suite("TaskStatus Tests")
+@MainActor
 struct TaskStatusTests {
     @Test("TaskStatus has correct raw values")
     func taskStatusRawValues() {
@@ -93,6 +95,7 @@ struct TaskStatusTests {
 // MARK: - ReminderStatus Tests
 
 @Suite("ReminderStatus Tests")
+@MainActor
 struct ReminderStatusTests {
     @Test("ReminderStatus has correct raw values")
     func reminderStatusRawValues() {
@@ -119,6 +122,7 @@ struct ReminderStatusTests {
 // MARK: - ArcStatus Tests
 
 @Suite("ArcStatus Tests")
+@MainActor
 struct ArcStatusTests {
     @Test("ArcStatus has correct raw values")
     func arcStatusRawValues() {
@@ -146,6 +150,7 @@ struct ArcStatusTests {
 // MARK: - ParentType Tests
 
 @Suite("ParentType Tests")
+@MainActor
 struct ParentTypeTests {
     @Test("ParentType has correct raw values")
     func parentTypeRawValues() {
@@ -172,6 +177,7 @@ struct ParentTypeTests {
 // MARK: - ActorType Tests
 
 @Suite("ActorType Tests")
+@MainActor
 struct ActorTypeTests {
     @Test("ActorType has correct raw values")
     func actorTypeRawValues() {
@@ -261,6 +267,7 @@ struct EventMetadataTests {
 // MARK: - SyncState Tests
 
 @Suite("SyncState Tests")
+@MainActor
 struct SyncStateTests {
     @Test("SyncState has correct raw values")
     func syncStateRawValues() {
@@ -287,6 +294,7 @@ struct SyncStateTests {
 // MARK: - UploadState Tests
 
 @Suite("UploadState Tests")
+@MainActor
 struct UploadStateTests {
     @Test("UploadState has correct raw values")
     func uploadStateRawValues() {
@@ -314,6 +322,7 @@ struct UploadStateTests {
 // MARK: - EventType Tests
 
 @Suite("EventType Tests")
+@MainActor
 struct EventTypeTests {
     @Test("EventType stack events have correct raw values")
     func eventTypeStackRawValues() {

@@ -16,6 +16,7 @@ import AppKit
 @testable import Dequeue
 
 @Suite("PDFThumbnailGenerator Tests")
+@MainActor
 struct PDFThumbnailGeneratorTests {
     // MARK: - Attachment Extension Tests
 

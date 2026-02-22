@@ -5,7 +5,7 @@
 //  CoreSpotlight indexing for system-wide search of stacks and tasks
 //
 
-import CoreSpotlight
+@preconcurrency import CoreSpotlight
 import SwiftData
 import os.log
 
@@ -209,7 +209,6 @@ final class SpotlightIndexer {
         var parts: [String] = []
 
         let allTasks = stack.tasks.filter { !$0.isDeleted }
-        let pending = allTasks.filter { $0.status == .pending }
         let completed = allTasks.filter { $0.status == .completed }
 
         if allTasks.isEmpty {

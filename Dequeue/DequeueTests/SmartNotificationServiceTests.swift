@@ -101,6 +101,7 @@ private func makeTask(
 // MARK: - Settings Tests
 
 @Suite("SmartNotificationSettings")
+@MainActor
 struct SmartNotificationSettingsTests {
     @Test("Default settings are sensible")
     func defaultSettings() {
@@ -136,6 +137,7 @@ struct SmartNotificationSettingsTests {
 // MARK: - Service Initialization Tests
 
 @Suite("SmartNotificationService Initialization")
+@MainActor
 struct ServiceInitTests {
     @Test("Loads default settings when none saved")
     @MainActor func defaultInit() throws {
@@ -195,6 +197,7 @@ struct ServiceInitTests {
 // MARK: - Due Date Notification Tests
 
 @Suite("Due Date Notifications")
+@MainActor
 struct DueDateTests {
     @Test("Schedules notification for task with future due date")
     @MainActor func schedulesForFutureDue() async throws {
@@ -357,6 +360,7 @@ struct DueDateTests {
 // MARK: - Morning Digest Tests
 
 @Suite("Morning Digest")
+@MainActor
 struct MorningDigestTests {
     @Test("Schedules morning digest when tasks exist")
     @MainActor func schedulesWithTasks() async throws {
@@ -429,6 +433,7 @@ struct MorningDigestTests {
 // MARK: - Overdue Alert Tests
 
 @Suite("Overdue Alerts")
+@MainActor
 struct OverdueAlertTests {
     @Test("Schedules alerts for overdue tasks")
     @MainActor func schedulesForOverdue() async throws {
@@ -522,6 +527,7 @@ struct OverdueAlertTests {
 // MARK: - Query Helper Tests
 
 @Suite("Query Helpers")
+@MainActor
 struct QueryHelperTests {
     @Test("Fetches tasks due on a specific date")
     @MainActor func fetchTasksDueOn() throws {
@@ -592,6 +598,7 @@ struct QueryHelperTests {
 // MARK: - Full Refresh Tests
 
 @Suite("Full Notification Refresh")
+@MainActor
 struct FullRefreshTests {
     @Test("Refresh cleans and re-schedules all")
     @MainActor func refreshAll() async throws {
@@ -631,6 +638,7 @@ struct FullRefreshTests {
 // MARK: - Category Configuration Tests
 
 @Suite("Notification Categories")
+@MainActor
 struct CategoryTests {
     @Test("Configures all expected categories")
     @MainActor func configuresCategories() throws {

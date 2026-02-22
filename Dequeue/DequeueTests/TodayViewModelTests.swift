@@ -47,6 +47,7 @@ private func insertTask(
 // MARK: - Today Section Tests
 
 @Suite("TodaySection")
+@MainActor
 struct TodaySectionTests {
     @Test("All sections have unique ids")
     func uniqueIds() {
@@ -81,6 +82,7 @@ struct TodaySectionTests {
 // MARK: - ViewModel Grouping Tests
 
 @Suite("TodayViewModel Task Grouping")
+@MainActor
 struct ViewModelGroupingTests {
     @Test("Empty state shows no tasks")
     @MainActor func emptyState() throws {

@@ -12,6 +12,7 @@ import Foundation
 // MARK: - QuotaCheckResult Tests
 
 @Suite("QuotaCheckResult Tests")
+@MainActor
 struct QuotaCheckResultTests {
     @Test("allowed case")
     func allowedCase() {
@@ -60,6 +61,7 @@ struct QuotaCheckResultTests {
 // MARK: - QuotaExceededError Tests
 
 @Suite("QuotaExceededError Tests")
+@MainActor
 struct QuotaExceededErrorTests {
     @Test("errorDescription is correct")
     func errorDescription() {
@@ -287,6 +289,7 @@ struct StorageQuotaHandlerTests {
 // MARK: - QuotaExceededDecision Tests
 
 @Suite("QuotaExceededDecision Tests")
+@MainActor
 struct QuotaExceededDecisionTests {
     @Test("All decision cases exist")
     func allCases() {

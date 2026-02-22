@@ -14,9 +14,9 @@ import UniformTypeIdentifiers
 
 extension UTType {
     /// Custom UTType for Dequeue task references (task ID)
-    nonisolated(unsafe) static let dequeueTask = UTType(exportedAs: "app.dequeue.task")
+    nonisolated static let dequeueTask = UTType(exportedAs: "app.dequeue.task")
     /// Custom UTType for Dequeue stack references (stack ID)
-    nonisolated(unsafe) static let dequeueStack = UTType(exportedAs: "app.dequeue.stack")
+    nonisolated static let dequeueStack = UTType(exportedAs: "app.dequeue.stack")
 }
 
 // MARK: - Task Transferable

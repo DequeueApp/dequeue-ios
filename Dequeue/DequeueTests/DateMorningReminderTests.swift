@@ -10,6 +10,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Date+MorningReminder Tests")
+@MainActor
 struct DateMorningReminderTests {
     // MARK: - Basic Functionality
 

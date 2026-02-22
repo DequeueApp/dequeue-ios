@@ -10,6 +10,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("SyncManager Performance Tests")
+@MainActor
 struct SyncManagerPerformanceTests {
     // MARK: - ISO8601 Timestamp Parsing Tests
 

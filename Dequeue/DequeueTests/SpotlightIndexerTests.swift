@@ -11,6 +11,7 @@ import CoreSpotlight
 @testable import Dequeue
 
 @Suite("SpotlightIndexer")
+@MainActor
 struct SpotlightIndexerTests {
 
     // MARK: - Spotlight Activity Handling

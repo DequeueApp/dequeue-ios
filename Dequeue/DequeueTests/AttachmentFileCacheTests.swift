@@ -10,6 +10,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("AttachmentFileCache Tests")
+@MainActor
 struct AttachmentFileCacheTests {
     // MARK: - FileCacheError Tests
 

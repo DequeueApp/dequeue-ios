@@ -12,7 +12,7 @@ import Combine
 import UserNotifications
 import os.log
 
-private let logger = Logger(subsystem: "com.dequeue", category: "FocusTimer")
+private nonisolated let logger = Logger(subsystem: "com.dequeue", category: "FocusTimer")
 
 // MARK: - Timer Phase
 

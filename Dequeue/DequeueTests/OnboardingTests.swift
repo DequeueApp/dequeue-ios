@@ -12,6 +12,7 @@ import Foundation
 // MARK: - OnboardingPage Tests
 
 @Suite("OnboardingPage Model")
+@MainActor
 struct OnboardingPageTests {
 
     @Test("Pages are defined")

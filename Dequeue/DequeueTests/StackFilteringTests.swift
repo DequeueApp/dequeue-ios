@@ -12,6 +12,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("Stack Filtering Tests", .serialized)
+@MainActor
 struct StackFilteringTests {
     // MARK: - HomeView Filter Logic Tests
     // These tests verify the filtering logic that HomeView uses

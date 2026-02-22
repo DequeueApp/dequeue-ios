@@ -14,6 +14,7 @@ import SwiftUI
 // MARK: - MarkdownRenderer Tests
 
 @Suite("MarkdownRenderer")
+@MainActor
 struct MarkdownRendererTests {
     @Test("Renders plain text without crash")
     @MainActor func plainText() {
@@ -95,6 +96,7 @@ struct MarkdownRendererTests {
 // MARK: - Markdown Cheat Sheet Tests
 
 @Suite("MarkdownCheatSheet")
+@MainActor
 struct MarkdownCheatSheetTests {
     @Test("Has all expected examples")
     func hasExamples() {

@@ -45,7 +45,7 @@ struct MarkdownRenderer {
     /// Renders full markdown including block elements (headers, lists, etc.)
     static func renderFull(_ markdown: String) -> AttributedString {
         do {
-            var result = try AttributedString(markdown: markdown, options: .init(
+            let result = try AttributedString(markdown: markdown, options: .init(
                 allowsExtendedAttributes: true,
                 interpretedSyntax: .full,
                 failurePolicy: .returnPartiallyParsedIfPossible

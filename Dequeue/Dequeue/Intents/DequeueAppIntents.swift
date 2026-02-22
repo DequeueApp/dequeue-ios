@@ -25,7 +25,6 @@ struct StackEntity: AppEntity {
     var status: String
 
     var displayRepresentation: DisplayRepresentation {
-        let subtitle: String
         if isActive {
             return DisplayRepresentation(
                 title: "⚡ \(title)",

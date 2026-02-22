@@ -37,9 +37,9 @@ private func makeFilterTask(
     let task = QueueTask(
         title: title,
         dueTime: dueTime,
+        tags: tags,
         status: status,
         priority: priority,
-        tags: tags,
         isDeleted: isDeleted,
         stack: stack
     )
@@ -51,6 +51,7 @@ private func makeFilterTask(
 // MARK: - TaskFilter Model Tests
 
 @Suite("TaskFilter Model")
+@MainActor
 struct TaskFilterModelTests {
     @Test("Default filter has no active filters")
     func defaultFilter() {
@@ -147,6 +148,7 @@ struct TaskFilterModelTests {
 // MARK: - DateRangeFilter Tests
 
 @Suite("DateRangeFilter")
+@MainActor
 struct DateRangeFilterTests {
     @Test("Any returns no bounds")
     func anyRange() {
@@ -211,6 +213,7 @@ struct DateRangeFilterTests {
 // MARK: - TaskSortOption Tests
 
 @Suite("TaskSortOption")
+@MainActor
 struct TaskSortOptionTests {
     @Test("All options have display names")
     func displayNames() {
@@ -230,6 +233,7 @@ struct TaskSortOptionTests {
 // MARK: - TaskFilterService Tests
 
 @Suite("TaskFilterService")
+@MainActor
 struct TaskFilterServiceTests {
     @Test("Apply with default filter returns all non-deleted tasks")
     @MainActor func defaultFilterReturnsAll() throws {
@@ -439,6 +443,7 @@ struct TaskFilterServiceTests {
 // MARK: - FilterPreset Tests
 
 @Suite("FilterPreset")
+@MainActor
 struct FilterPresetTests {
     @Test("Built-in presets have names and icons")
     func builtInsValid() {

@@ -10,6 +10,7 @@ import Foundation
 @testable import Dequeue
 
 @Suite("SyncManager Reconnection Tests")
+@MainActor
 struct SyncManagerReconnectTests {
     @Test("Exponential backoff with jitter stays within expected range")
     func testBackoffJitter() async {
