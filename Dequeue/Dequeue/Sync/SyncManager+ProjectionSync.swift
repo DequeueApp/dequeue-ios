@@ -202,6 +202,8 @@ extension SyncManager {
                 updatedAt: dateFromUnixMs(arcData.updatedAt),
                 isDeleted: arcData.isDeleted
             )
+            arc.status = parseArcStatus(arcData.status)
+            arc.sortOrder = arcData.sortOrder
             context.insert(arc)
         }
     }
@@ -400,6 +402,17 @@ extension SyncManager {
     nonisolated func dateFromUnixMs(_ ms: Int64?) -> Date? {
         guard let ms = ms else { return nil }
         return Date(timeIntervalSince1970: Double(ms) / 1_000.0)
+    }
+
+    /// Parses arc status string to enum.
+    nonisolated func parseArcStatus(_ status: String) -> ArcStatus {
+        switch status.lowercased() {
+        case "active": return .active
+        case "completed": return .completed
+        case "paused": return .paused
+        case "archived": return .archived
+        default: return .active
+        }
     }
 
     /// Parses stack status string to enum.
