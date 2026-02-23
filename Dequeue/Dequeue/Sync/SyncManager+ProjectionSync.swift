@@ -245,6 +245,8 @@ extension SyncManager {
                 isActive: stackData.isActive
             )
             stack.status = parseStackStatus(stackData.status)
+            stack.sortOrder = stackData.sortOrder
+            stack.activeTaskId = stackData.activeTaskId
 
             // Link to Arc if present
             if let arcId = stackData.arcId {

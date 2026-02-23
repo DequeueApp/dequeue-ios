@@ -192,6 +192,8 @@ struct StackProjectionTests {
             "isDeleted": false,
             "arcId": "arc-123",
             "tags": ["errands", "weekly"],
+            "sortOrder": 3,
+            "activeTaskId": "task-xyz",
             "startAt": 1708000000,
             "dueAt": 1708086400,
             "createdAt": 1707900000,
@@ -211,6 +213,8 @@ struct StackProjectionTests {
         #expect(stack.isDeleted == false)
         #expect(stack.arcId == "arc-123")
         #expect(stack.tags == ["errands", "weekly"])
+        #expect(stack.sortOrder == 3)
+        #expect(stack.activeTaskId == "task-xyz")
         #expect(stack.startTime == 1_708_000_000)
         #expect(stack.dueTime == 1_708_086_400)
         #expect(stack.createdAt == 1_707_900_000)
@@ -227,6 +231,7 @@ struct StackProjectionTests {
             "status": "active",
             "isActive": true,
             "tags": [],
+            "sortOrder": 1,
             "startAt": null,
             "dueAt": null,
             "createdAt": 1707900000,
@@ -240,6 +245,8 @@ struct StackProjectionTests {
 
         #expect(stack.id == "stack-api")
         #expect(stack.isDeleted == false)
+        #expect(stack.sortOrder == 1)
+        #expect(stack.activeTaskId == nil)
         #expect(stack.arcId == nil)
         #expect(stack.description == nil)
     }
@@ -263,6 +270,8 @@ struct StackProjectionTests {
 
         #expect(stack.id == "stack-min")
         #expect(stack.isDeleted == false)
+        #expect(stack.sortOrder == 0)
+        #expect(stack.activeTaskId == nil)
         #expect(stack.description == nil)
         #expect(stack.arcId == nil)
         #expect(stack.tags == nil)

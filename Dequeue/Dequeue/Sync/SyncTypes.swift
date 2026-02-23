@@ -59,6 +59,8 @@ struct StackProjection: @preconcurrency Decodable, Sendable {
     let isDeleted: Bool
     let arcId: String?
     let tags: [String]?
+    let sortOrder: Int
+    let activeTaskId: String?
     let startTime: Int64?
     let dueTime: Int64?
     let createdAt: Int64
@@ -68,6 +70,7 @@ struct StackProjection: @preconcurrency Decodable, Sendable {
     // API returns startAt/dueAt but iOS models use startTime/dueTime
     private enum CodingKeys: String, CodingKey {
         case id, title, description, status, isActive, isDeleted, arcId, tags
+        case sortOrder, activeTaskId
         case startTime = "startAt"
         case dueTime = "dueAt"
         case createdAt, updatedAt
@@ -85,6 +88,8 @@ struct StackProjection: @preconcurrency Decodable, Sendable {
         isDeleted = try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
         arcId = try container.decodeIfPresent(String.self, forKey: .arcId)
         tags = try container.decodeIfPresent([String].self, forKey: .tags)
+        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        activeTaskId = try container.decodeIfPresent(String.self, forKey: .activeTaskId)
         startTime = try container.decodeIfPresent(Int64.self, forKey: .startTime)
         dueTime = try container.decodeIfPresent(Int64.self, forKey: .dueTime)
         createdAt = try container.decode(Int64.self, forKey: .createdAt)
