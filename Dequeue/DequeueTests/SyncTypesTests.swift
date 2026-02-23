@@ -180,7 +180,7 @@ struct ProjectionResponseTests {
 @Suite("StackProjection Tests")
 @MainActor
 struct StackProjectionTests {
-    @Test("StackProjection decodes with all fields")
+    @Test("StackProjection decodes with all fields using API field names")
     func decodesWithAllFields() throws {
         let json = """
         {
@@ -192,8 +192,8 @@ struct StackProjectionTests {
             "isDeleted": false,
             "arcId": "arc-123",
             "tags": ["errands", "weekly"],
-            "startTime": 1708000000,
-            "dueTime": 1708086400,
+            "startAt": 1708000000,
+            "dueAt": 1708086400,
             "createdAt": 1707900000,
             "updatedAt": 1708000000
         }
@@ -217,6 +217,33 @@ struct StackProjectionTests {
         #expect(stack.updatedAt == 1_708_000_000)
     }
 
+    @Test("StackProjection decodes without isDeleted (API omits it)")
+    func decodesWithoutIsDeleted() throws {
+        // API list endpoints filter WHERE is_deleted = false and don't include the field
+        let json = """
+        {
+            "id": "stack-api",
+            "title": "From API",
+            "status": "active",
+            "isActive": true,
+            "tags": [],
+            "startAt": null,
+            "dueAt": null,
+            "createdAt": 1707900000,
+            "updatedAt": 1707900000
+        }
+        """.data(using: .utf8)!
+
+        let stack = try JSONDecoder().decode(
+            StackProjection.self, from: json
+        )
+
+        #expect(stack.id == "stack-api")
+        #expect(stack.isDeleted == false)
+        #expect(stack.arcId == nil)
+        #expect(stack.description == nil)
+    }
+
     @Test("StackProjection decodes with minimal fields")
     func decodesWithMinimalFields() throws {
         let json = """
@@ -225,7 +252,6 @@ struct StackProjectionTests {
             "title": "Minimal",
             "status": "active",
             "isActive": true,
-            "isDeleted": false,
             "createdAt": 1707900000,
             "updatedAt": 1707900000
         }
@@ -236,6 +262,7 @@ struct StackProjectionTests {
         )
 
         #expect(stack.id == "stack-min")
+        #expect(stack.isDeleted == false)
         #expect(stack.description == nil)
         #expect(stack.arcId == nil)
         #expect(stack.tags == nil)
@@ -312,15 +339,17 @@ struct TaskProjectionTests {
 @Suite("ArcProjection Tests")
 @MainActor
 struct ArcProjectionTests {
-    @Test("ArcProjection decodes correctly")
+    @Test("ArcProjection decodes correctly with API field names")
     func decodesCorrectly() throws {
         let json = """
         {
             "id": "arc-100",
             "title": "Q1 Sprint",
             "description": "First quarter deliverables",
-            "color": "#3498DB",
+            "colorHex": "#3498DB",
             "isDeleted": false,
+            "startAt": 1707500000,
+            "dueAt": 1708500000,
             "createdAt": 1707000000,
             "updatedAt": 1708000000
         }
@@ -335,8 +364,35 @@ struct ArcProjectionTests {
         #expect(arc.description == "First quarter deliverables")
         #expect(arc.color == "#3498DB")
         #expect(arc.isDeleted == false)
+        #expect(arc.startTime == 1_707_500_000)
+        #expect(arc.dueTime == 1_708_500_000)
         #expect(arc.createdAt == 1_707_000_000)
         #expect(arc.updatedAt == 1_708_000_000)
+    }
+
+    @Test("ArcProjection decodes without isDeleted (API omits it)")
+    func decodesWithoutIsDeleted() throws {
+        // API list endpoints filter WHERE is_deleted = false and don't include the field
+        let json = """
+        {
+            "id": "arc-api",
+            "title": "From API",
+            "colorHex": "#FF0000",
+            "startAt": null,
+            "dueAt": null,
+            "createdAt": 1707000000,
+            "updatedAt": 1707000000
+        }
+        """.data(using: .utf8)!
+
+        let arc = try JSONDecoder().decode(
+            ArcProjection.self, from: json
+        )
+
+        #expect(arc.id == "arc-api")
+        #expect(arc.isDeleted == false)
+        #expect(arc.color == "#FF0000")
+        #expect(arc.description == nil)
     }
 
     @Test("ArcProjection decodes with nil optionals")
@@ -345,7 +401,6 @@ struct ArcProjectionTests {
         {
             "id": "arc-101",
             "title": "No extras",
-            "isDeleted": false,
             "createdAt": 1707000000,
             "updatedAt": 1707000000
         }
@@ -357,6 +412,9 @@ struct ArcProjectionTests {
 
         #expect(arc.description == nil)
         #expect(arc.color == nil)
+        #expect(arc.isDeleted == false)
+        #expect(arc.startTime == nil)
+        #expect(arc.dueTime == nil)
     }
 }
 

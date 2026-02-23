@@ -72,6 +72,24 @@ struct StackProjection: @preconcurrency Decodable, Sendable {
         case dueTime = "dueAt"
         case createdAt, updatedAt
     }
+
+    // Custom init: isDeleted defaults to false when API omits it
+    // (API list endpoints filter WHERE is_deleted = false and don't include the field)
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        status = try container.decode(String.self, forKey: .status)
+        isActive = try container.decode(Bool.self, forKey: .isActive)
+        isDeleted = try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
+        arcId = try container.decodeIfPresent(String.self, forKey: .arcId)
+        tags = try container.decodeIfPresent([String].self, forKey: .tags)
+        startTime = try container.decodeIfPresent(Int64.self, forKey: .startTime)
+        dueTime = try container.decodeIfPresent(Int64.self, forKey: .dueTime)
+        createdAt = try container.decode(Int64.self, forKey: .createdAt)
+        updatedAt = try container.decode(Int64.self, forKey: .updatedAt)
+    }
 }
 
 struct TaskProjection: @preconcurrency Decodable, Sendable {
@@ -114,6 +132,21 @@ struct ArcProjection: @preconcurrency Decodable, Sendable {
         case startTime = "startAt"
         case dueTime = "dueAt"
         case createdAt, updatedAt
+    }
+
+    // Custom init: isDeleted defaults to false when API omits it
+    // (API list endpoints filter WHERE is_deleted = false and don't include the field)
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        color = try container.decodeIfPresent(String.self, forKey: .color)
+        isDeleted = try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
+        startTime = try container.decodeIfPresent(Int64.self, forKey: .startTime)
+        dueTime = try container.decodeIfPresent(Int64.self, forKey: .dueTime)
+        createdAt = try container.decode(Int64.self, forKey: .createdAt)
+        updatedAt = try container.decode(Int64.self, forKey: .updatedAt)
     }
 }
 
