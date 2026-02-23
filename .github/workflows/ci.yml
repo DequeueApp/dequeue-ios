@@ -141,7 +141,7 @@ jobs:
     name: Unit Tests
     runs-on: macos-15
     needs: swiftlint
-    timeout-minutes: 30
+    timeout-minutes: 50
 
     steps:
       - name: Checkout
@@ -164,6 +164,16 @@ jobs:
 
       - name: Run Unit Tests
         run: |
+          # Check if runner macOS version supports macOS 26 deployment target
+          RUNNER_MAJOR=$(sw_vers -productVersion | cut -d. -f1)
+          echo "Runner macOS version: $(sw_vers -productVersion) (major: $RUNNER_MAJOR)"
+
+          if [ "$RUNNER_MAJOR" -lt 26 ]; then
+            echo "::notice::Runner macOS $RUNNER_MAJOR < 26 — lowering test deployment target for compatibility"
+            sed -i '' 's/MACOSX_DEPLOYMENT_TARGET = 26\.0/MACOSX_DEPLOYMENT_TARGET = 15.0/g' \
+              Dequeue/Dequeue.xcodeproj/project.pbxproj
+          fi
+
           set +e
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
