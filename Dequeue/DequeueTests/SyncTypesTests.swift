@@ -24,6 +24,7 @@ struct EventDataTests {
             timestamp: now,
             type: "stack.created",
             payload: payload,
+            metadata: nil,
             userId: "user-456",
             deviceId: "device-789",
             appId: "app-001",
@@ -34,6 +35,7 @@ struct EventDataTests {
         #expect(event.timestamp == now)
         #expect(event.type == "stack.created")
         #expect(event.payload == payload)
+        #expect(event.metadata == nil)
         #expect(event.userId == "user-456")
         #expect(event.deviceId == "device-789")
         #expect(event.appId == "app-001")
@@ -47,6 +49,7 @@ struct EventDataTests {
             timestamp: Date(),
             type: "task.created",
             payload: Data(),
+            metadata: nil,
             userId: "u",
             deviceId: "d",
             appId: "a",
@@ -55,6 +58,28 @@ struct EventDataTests {
 
         #expect(event.payload.isEmpty)
         #expect(event.id == "evt-empty")
+    }
+
+    @Test("EventData stores actor metadata (DEQ-55)")
+    func eventDataWithActorMetadata() throws {
+        let metadata = try JSONEncoder().encode(EventMetadata.ai(agentId: "ada"))
+
+        let event = EventData(
+            id: "evt-ai",
+            timestamp: Date(),
+            type: "task.completed",
+            payload: Data("{\"taskId\":\"t1\"}".utf8),
+            metadata: metadata,
+            userId: "user-1",
+            deviceId: "api-dequeue",
+            appId: "app-1",
+            payloadVersion: 2
+        )
+
+        #expect(event.metadata != nil)
+        let decoded = try JSONDecoder().decode(EventMetadata.self, from: event.metadata!)
+        #expect(decoded.actorType == .ai)
+        #expect(decoded.actorId == "ada")
     }
 }
 
