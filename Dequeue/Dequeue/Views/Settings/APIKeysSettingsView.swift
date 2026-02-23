@@ -119,6 +119,11 @@ struct APIKeysSettingsView: View {
 
         do {
             apiKeys = try await service.listAPIKeys()
+        } catch is CancellationError {
+            // Task was cancelled (e.g. view disappeared), not a real error
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             errorMessage = error.localizedDescription
             showError = true
@@ -134,6 +139,10 @@ struct APIKeysSettingsView: View {
             do {
                 try await service.revokeAPIKey(id: key.id)
                 await loadAPIKeys()
+            } catch is CancellationError {
+                return
+            } catch let urlError as URLError where urlError.code == .cancelled {
+                return
             } catch {
                 errorMessage = "Failed to revoke key: \(error.localizedDescription)"
                 showError = true

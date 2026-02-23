@@ -294,6 +294,11 @@ struct StatsView: View {
 
         do {
             stats = try await statsService.getStats()
+        } catch is CancellationError {
+            // Task was cancelled (e.g. view disappeared), not a real error
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("Failed to load stats: \(error.localizedDescription)")
             errorMessage = error.localizedDescription

@@ -1433,7 +1433,11 @@ actor SyncManager {
 
                 do {
                     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        // Use nonisolated(unsafe) to allow mutation in sendable closure
+                        nonisolated(unsafe) var hasResumed = false
                         webSocketTask.sendPing { error in
+                            guard !hasResumed else { return }
+                            hasResumed = true
                             if let error = error {
                                 continuation.resume(throwing: error)
                             } else {
