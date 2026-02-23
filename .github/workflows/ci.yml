@@ -137,7 +137,6 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
   # Test jobs run in parallel after lint passes
-  # Uses macOS destination to avoid iOS Simulator boot timeouts on GitHub Actions runners
   unit-tests:
     name: Unit Tests
     runs-on: macos-15
@@ -165,6 +164,12 @@ jobs:
 
       - name: Run Unit Tests
         run: |
+          # Lower macOS deployment target so tests can run on CI runners (macOS 15.x)
+          # The app targets macOS 26.0 but tests don't exercise any macOS 26-specific APIs.
+          # This override is CI-only — the project file retains macOS 26.0 for release builds.
+          sed -i '' 's/MACOSX_DEPLOYMENT_TARGET = 26\.0/MACOSX_DEPLOYMENT_TARGET = 15.0/g' \
+            Dequeue/Dequeue.xcodeproj/project.pbxproj
+
           set +e
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
