@@ -495,6 +495,7 @@ struct ReminderProjectionTests {
         #expect(reminder.taskId == nil)
         #expect(reminder.triggerTime == 1_708_100_000)
         #expect(reminder.isDeleted == false)
+        #expect(reminder.snoozedFrom == nil)
     }
 
     @Test("ReminderProjection decodes with task parent")
@@ -519,6 +520,7 @@ struct ReminderProjectionTests {
         #expect(reminder.stackId == nil)
         #expect(reminder.arcId == nil)
         #expect(reminder.isDeleted == false)
+        #expect(reminder.snoozedFrom == nil)
     }
 
     @Test("ReminderProjection decodes with arc parent")
@@ -543,6 +545,33 @@ struct ReminderProjectionTests {
         #expect(reminder.stackId == nil)
         #expect(reminder.taskId == nil)
         #expect(reminder.isDeleted == true)
+        #expect(reminder.snoozedFrom == nil)
+    }
+
+    @Test("ReminderProjection decodes snoozed reminder with snoozedFrom")
+    func decodesSnoozedReminder() throws {
+        let json = """
+        {
+            "id": "rem-13",
+            "parentType": "stack",
+            "parentId": "stack-xyz",
+            "remindAt": 1708400000,
+            "snoozedFrom": 1708100000,
+            "status": "snoozed",
+            "createdAt": 1708000000,
+            "updatedAt": 1708300000
+        }
+        """.data(using: .utf8)!
+
+        let reminder = try JSONDecoder().decode(
+            ReminderProjection.self, from: json
+        )
+
+        #expect(reminder.id == "rem-13")
+        #expect(reminder.stackId == "stack-xyz")
+        #expect(reminder.snoozedFrom == 1_708_100_000)
+        #expect(reminder.triggerTime == 1_708_400_000)
+        #expect(reminder.isDeleted == false)
     }
 }
 
