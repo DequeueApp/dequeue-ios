@@ -141,7 +141,7 @@ jobs:
     name: Unit Tests
     runs-on: macos-15
     needs: swiftlint
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -177,7 +177,8 @@ jobs:
             -destination 'platform=macOS' \
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
-            -parallel-testing-enabled NO \
+            -parallel-testing-enabled YES \
+            -parallel-testing-worker-count 2 \
             CODE_SIGNING_ALLOWED=NO
           XCODEBUILD_EXIT=$?
           set -e
