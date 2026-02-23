@@ -64,6 +64,14 @@ struct StackProjection: @preconcurrency Decodable, Sendable {
     let createdAt: Int64
     let updatedAt: Int64
     // Note: tasks are fetched separately via GET /v1/tasks (not nested in stacks response)
+
+    // API returns startAt/dueAt but iOS models use startTime/dueTime
+    private enum CodingKeys: String, CodingKey {
+        case id, title, description, status, isActive, isDeleted, arcId, tags
+        case startTime = "startAt"
+        case dueTime = "dueAt"
+        case createdAt, updatedAt
+    }
 }
 
 struct TaskProjection: @preconcurrency Decodable, Sendable {
@@ -78,6 +86,14 @@ struct TaskProjection: @preconcurrency Decodable, Sendable {
     let dueTime: Int64?
     let createdAt: Int64
     let updatedAt: Int64
+
+    // API returns startAt/dueAt but iOS models use startTime/dueTime
+    private enum CodingKeys: String, CodingKey {
+        case id, stackId, title, description, sortOrder, status, isActive
+        case startTime = "startAt"
+        case dueTime = "dueAt"
+        case createdAt, updatedAt
+    }
 }
 
 struct ArcProjection: @preconcurrency Decodable, Sendable {
@@ -86,8 +102,19 @@ struct ArcProjection: @preconcurrency Decodable, Sendable {
     let description: String?
     let color: String?
     let isDeleted: Bool
+    let startTime: Int64?
+    let dueTime: Int64?
     let createdAt: Int64
     let updatedAt: Int64
+
+    // API returns colorHex/startAt/dueAt but iOS models use different names
+    private enum CodingKeys: String, CodingKey {
+        case id, title, description, isDeleted
+        case color = "colorHex"
+        case startTime = "startAt"
+        case dueTime = "dueAt"
+        case createdAt, updatedAt
+    }
 }
 
 struct TagProjection: @preconcurrency Decodable, Sendable {
@@ -99,13 +126,19 @@ struct TagProjection: @preconcurrency Decodable, Sendable {
 
 struct ReminderProjection: @preconcurrency Decodable, Sendable {
     let id: String
-    let stackId: String?
-    let arcId: String?
-    let taskId: String?
-    let triggerTime: Int64
-    let notificationSent: Bool
-    let isDeleted: Bool
+    let parentType: String
+    let parentId: String
+    let remindAt: Int64
+    let status: String
     let createdAt: Int64
+    let updatedAt: Int64
+
+    // Derived properties for backward compatibility with populateReminders()
+    var stackId: String? { parentType == "stack" ? parentId : nil }
+    var arcId: String? { parentType == "arc" ? parentId : nil }
+    var taskId: String? { parentType == "task" ? parentId : nil }
+    var triggerTime: Int64 { remindAt }
+    var isDeleted: Bool { status == "deleted" }
 }
 
 // MARK: - WebSocket Stream Messages (DEQ-243)

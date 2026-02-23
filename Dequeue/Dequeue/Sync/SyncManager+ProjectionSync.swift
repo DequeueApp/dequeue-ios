@@ -196,6 +196,8 @@ extension SyncManager {
                 title: arcData.title,
                 arcDescription: arcData.description,
                 colorHex: arcData.color,
+                startTime: dateFromUnixMs(arcData.startTime),
+                dueTime: dateFromUnixMs(arcData.dueTime),
                 createdAt: dateFromUnixMs(arcData.createdAt),
                 updatedAt: dateFromUnixMs(arcData.updatedAt),
                 isDeleted: arcData.isDeleted
