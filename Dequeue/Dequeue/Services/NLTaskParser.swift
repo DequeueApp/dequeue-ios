@@ -344,20 +344,20 @@ struct NLTaskParser: Sendable {
             return (result, dateWithTime(referenceDate, hour: 21, minute: 0))
         }
 
-        // "tomorrow"
-        if let match = result.range(of: #"\b(?:by\s+)?tomorrow\b"#, options: [.regularExpression, .caseInsensitive]) {
-            result = result.replacingCharacters(in: match, with: "")
-            if let tomorrow = calendar.date(byAdding: .day, value: 1, to: referenceDate) {
-                return (result, dateWithTime(tomorrow, hour: resolvedTime.hour, minute: resolvedTime.minute))
-            }
-        }
-
-        // "day after tomorrow"
+        // "day after tomorrow" — must be checked before "tomorrow" to avoid partial match
         let dayAfterTomorrowPattern = #"\b(?:by\s+)?day after tomorrow\b"#
         if let match = result.range(of: dayAfterTomorrowPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = calendar.date(byAdding: .day, value: 2, to: referenceDate) {
                 return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
+            }
+        }
+
+        // "tomorrow"
+        if let match = result.range(of: #"\b(?:by\s+)?tomorrow\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let tomorrow = calendar.date(byAdding: .day, value: 1, to: referenceDate) {
+                return (result, dateWithTime(tomorrow, hour: resolvedTime.hour, minute: resolvedTime.minute))
             }
         }
 

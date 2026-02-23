@@ -20,6 +20,13 @@ actor DeviceService {
 
     private init() {}
 
+    #if DEBUG
+    /// Clears the in-memory device ID cache (for testing only)
+    func clearCachedDeviceId() {
+        cachedDeviceId = nil
+    }
+    #endif
+
     // MARK: - Device ID
 
     func getDeviceId() async -> String {

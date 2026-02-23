@@ -35,9 +35,10 @@ final class DeviceServiceTests: XCTestCase {
 
         service = DeviceService.shared
 
-        // Clean up UserDefaults
+        // Clean up UserDefaults and in-memory cache for test isolation
         UserDefaults.standard.removeObject(forKey: "com.dequeue.deviceId")
         UserDefaults.standard.removeObject(forKey: "com.dequeue.deviceDiscovered")
+        await service.clearCachedDeviceId()
     }
 
     override func tearDown() async throws {
