@@ -313,6 +313,7 @@ extension SyncManager {
                 sortOrder: taskData.sortOrder,
                 createdAt: dateFromUnixMs(taskData.createdAt),
                 updatedAt: dateFromUnixMs(taskData.updatedAt),
+                completedAt: dateFromUnixMs(taskData.completedAt),
                 stack: parentStack,
                 parentTaskId: taskData.parentTaskId
             )
