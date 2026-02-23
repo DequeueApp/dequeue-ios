@@ -16,6 +16,7 @@ struct EventData: Sendable {
     let timestamp: Date
     let type: String
     let payload: Data
+    let metadata: Data?  // DEQ-55: Actor metadata (actorType, actorId)
     let userId: String
     let deviceId: String
     let appId: String

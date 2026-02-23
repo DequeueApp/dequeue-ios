@@ -123,6 +123,18 @@ actor SyncManager {
     }()
     // swiftlint:enable force_try
 
+    /// Adds actor metadata fields (actor_type, actor_id) to an event dictionary (DEQ-55).
+    /// Extracts from the encoded EventMetadata Data, mapping camelCase to snake_case for the server.
+    static func addActorMetadata(from metadata: Data?, to eventDict: inout [String: Any]) {
+        guard let metadata,
+              let metadataDict = try? JSONSerialization.jsonObject(with: metadata) as? [String: Any],
+              let actorType = metadataDict["actorType"] as? String else { return }
+        eventDict["actor_type"] = actorType
+        if let actorId = metadataDict["actorId"] as? String {
+            eventDict["actor_id"] = actorId
+        }
+    }
+
     /// Generates a short sync ID for tracking sync operations in logs.
     /// Uses first 8 characters of a UUID for brevity while maintaining uniqueness.
     static func generateSyncId() -> String {
@@ -410,6 +422,7 @@ actor SyncManager {
                     timestamp: event.timestamp,
                     type: event.type,
                     payload: event.payload,
+                    metadata: event.metadata,
                     userId: event.userId,
                     deviceId: event.deviceId,
                     appId: event.appId,
@@ -443,7 +456,8 @@ actor SyncManager {
             let eventUserId = !eventData.userId.isEmpty ? eventData.userId : (self.userId ?? "")
             let eventDeviceIdToUse = !eventData.deviceId.isEmpty ? eventData.deviceId : eventDeviceId
 
-            return [
+            // Build event dict with required fields
+            var eventDict: [String: Any] = [
                 "id": eventData.id,
                 "user_id": eventUserId,
                 "device_id": eventDeviceIdToUse,
@@ -453,6 +467,11 @@ actor SyncManager {
                 "payload": payload,
                 "payload_version": eventData.payloadVersion
             ]
+
+            // DEQ-55: Include actor metadata if present
+            Self.addActorMetadata(from: eventData.metadata, to: &eventDict)
+
+            return eventDict
         }
 
         // Send via WebSocket for immediate delivery to other devices (fire-and-forget optimization).
@@ -1260,11 +1279,22 @@ actor SyncManager {
         let eventAppId = eventData["app_id"] as? String ?? ""
         let payloadVersion = eventData["payload_version"] as? Int ?? Event.currentPayloadVersion
 
+        // DEQ-55: Parse actor metadata from server event
+        var metadataData: Data?
+        if let actorTypeString = eventData["actor_type"] as? String {
+            var metadataDict: [String: Any] = ["actorType": actorTypeString]
+            if let actorId = eventData["actor_id"] as? String {
+                metadataDict["actorId"] = actorId
+            }
+            metadataData = try? JSONSerialization.data(withJSONObject: metadataDict)
+        }
+
         return Event(
             id: id,
             type: type,
             payload: payloadData,
             timestamp: eventTimestamp,
+            metadata: metadataData,
             entityId: entityId,
             userId: eventUserId,
             deviceId: eventDeviceId,
