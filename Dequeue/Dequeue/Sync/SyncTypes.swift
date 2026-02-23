@@ -59,6 +59,8 @@ struct StackProjection: @preconcurrency Decodable, Sendable {
     let isDeleted: Bool
     let arcId: String?
     let tags: [String]?
+    let sortOrder: Int
+    let activeTaskId: String?
     let startTime: Int64?
     let dueTime: Int64?
     let createdAt: Int64
@@ -68,6 +70,7 @@ struct StackProjection: @preconcurrency Decodable, Sendable {
     // API returns startAt/dueAt but iOS models use startTime/dueTime
     private enum CodingKeys: String, CodingKey {
         case id, title, description, status, isActive, isDeleted, arcId, tags
+        case sortOrder, activeTaskId
         case startTime = "startAt"
         case dueTime = "dueAt"
         case createdAt, updatedAt
@@ -85,6 +88,8 @@ struct StackProjection: @preconcurrency Decodable, Sendable {
         isDeleted = try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
         arcId = try container.decodeIfPresent(String.self, forKey: .arcId)
         tags = try container.decodeIfPresent([String].self, forKey: .tags)
+        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        activeTaskId = try container.decodeIfPresent(String.self, forKey: .activeTaskId)
         startTime = try container.decodeIfPresent(Int64.self, forKey: .startTime)
         dueTime = try container.decodeIfPresent(Int64.self, forKey: .dueTime)
         createdAt = try container.decode(Int64.self, forKey: .createdAt)
@@ -118,8 +123,10 @@ struct ArcProjection: @preconcurrency Decodable, Sendable {
     let id: String
     let title: String
     let description: String?
+    let status: String
     let color: String?
     let isDeleted: Bool
+    let sortOrder: Int
     let startTime: Int64?
     let dueTime: Int64?
     let createdAt: Int64
@@ -127,22 +134,24 @@ struct ArcProjection: @preconcurrency Decodable, Sendable {
 
     // API returns colorHex/startAt/dueAt but iOS models use different names
     private enum CodingKeys: String, CodingKey {
-        case id, title, description, isDeleted
+        case id, title, description, status, isDeleted, sortOrder
         case color = "colorHex"
         case startTime = "startAt"
         case dueTime = "dueAt"
         case createdAt, updatedAt
     }
 
-    // Custom init: isDeleted defaults to false when API omits it
+    // Custom init: isDeleted/sortOrder default when API omits them
     // (API list endpoints filter WHERE is_deleted = false and don't include the field)
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         title = try container.decode(String.self, forKey: .title)
         description = try container.decodeIfPresent(String.self, forKey: .description)
+        status = try container.decodeIfPresent(String.self, forKey: .status) ?? "active"
         color = try container.decodeIfPresent(String.self, forKey: .color)
         isDeleted = try container.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
+        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         startTime = try container.decodeIfPresent(Int64.self, forKey: .startTime)
         dueTime = try container.decodeIfPresent(Int64.self, forKey: .dueTime)
         createdAt = try container.decode(Int64.self, forKey: .createdAt)

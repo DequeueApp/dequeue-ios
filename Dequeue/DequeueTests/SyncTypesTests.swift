@@ -192,6 +192,8 @@ struct StackProjectionTests {
             "isDeleted": false,
             "arcId": "arc-123",
             "tags": ["errands", "weekly"],
+            "sortOrder": 3,
+            "activeTaskId": "task-xyz",
             "startAt": 1708000000,
             "dueAt": 1708086400,
             "createdAt": 1707900000,
@@ -211,6 +213,8 @@ struct StackProjectionTests {
         #expect(stack.isDeleted == false)
         #expect(stack.arcId == "arc-123")
         #expect(stack.tags == ["errands", "weekly"])
+        #expect(stack.sortOrder == 3)
+        #expect(stack.activeTaskId == "task-xyz")
         #expect(stack.startTime == 1_708_000_000)
         #expect(stack.dueTime == 1_708_086_400)
         #expect(stack.createdAt == 1_707_900_000)
@@ -227,6 +231,7 @@ struct StackProjectionTests {
             "status": "active",
             "isActive": true,
             "tags": [],
+            "sortOrder": 1,
             "startAt": null,
             "dueAt": null,
             "createdAt": 1707900000,
@@ -240,6 +245,8 @@ struct StackProjectionTests {
 
         #expect(stack.id == "stack-api")
         #expect(stack.isDeleted == false)
+        #expect(stack.sortOrder == 1)
+        #expect(stack.activeTaskId == nil)
         #expect(stack.arcId == nil)
         #expect(stack.description == nil)
     }
@@ -263,6 +270,8 @@ struct StackProjectionTests {
 
         #expect(stack.id == "stack-min")
         #expect(stack.isDeleted == false)
+        #expect(stack.sortOrder == 0)
+        #expect(stack.activeTaskId == nil)
         #expect(stack.description == nil)
         #expect(stack.arcId == nil)
         #expect(stack.tags == nil)
@@ -346,8 +355,10 @@ struct ArcProjectionTests {
             "id": "arc-100",
             "title": "Q1 Sprint",
             "description": "First quarter deliverables",
+            "status": "active",
             "colorHex": "#3498DB",
             "isDeleted": false,
+            "sortOrder": 2,
             "startAt": 1707500000,
             "dueAt": 1708500000,
             "createdAt": 1707000000,
@@ -362,8 +373,10 @@ struct ArcProjectionTests {
         #expect(arc.id == "arc-100")
         #expect(arc.title == "Q1 Sprint")
         #expect(arc.description == "First quarter deliverables")
+        #expect(arc.status == "active")
         #expect(arc.color == "#3498DB")
         #expect(arc.isDeleted == false)
+        #expect(arc.sortOrder == 2)
         #expect(arc.startTime == 1_707_500_000)
         #expect(arc.dueTime == 1_708_500_000)
         #expect(arc.createdAt == 1_707_000_000)
@@ -377,7 +390,9 @@ struct ArcProjectionTests {
         {
             "id": "arc-api",
             "title": "From API",
+            "status": "completed",
             "colorHex": "#FF0000",
+            "sortOrder": 5,
             "startAt": null,
             "dueAt": null,
             "createdAt": 1707000000,
@@ -391,7 +406,9 @@ struct ArcProjectionTests {
 
         #expect(arc.id == "arc-api")
         #expect(arc.isDeleted == false)
+        #expect(arc.status == "completed")
         #expect(arc.color == "#FF0000")
+        #expect(arc.sortOrder == 5)
         #expect(arc.description == nil)
     }
 
@@ -413,6 +430,8 @@ struct ArcProjectionTests {
         #expect(arc.description == nil)
         #expect(arc.color == nil)
         #expect(arc.isDeleted == false)
+        #expect(arc.status == "active")
+        #expect(arc.sortOrder == 0)
         #expect(arc.startTime == nil)
         #expect(arc.dueTime == nil)
     }
