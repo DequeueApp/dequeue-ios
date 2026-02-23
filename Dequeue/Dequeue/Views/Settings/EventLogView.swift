@@ -128,9 +128,20 @@ struct EventRow: View {
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(event.type)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                HStack(spacing: 4) {
+                    Text(event.type)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    // DEQ-55: Show AI badge for agent-created events
+                    if event.isFromAI {
+                        Text("AI")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(.purple))
+                    }
+                }
 
                 Text(timestampText)
                     .font(.caption)

@@ -310,6 +310,15 @@ struct ArcHistoryRow: View {
                 HStack {
                     Text(actionLabel)
                         .font(.headline)
+                    // DEQ-55: Show AI badge for agent-created events
+                    if event.isFromAI {
+                        Text("AI")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(.purple))
+                    }
                     Spacer()
                     Text(event.timestamp, style: .relative)
                         .font(.caption)
