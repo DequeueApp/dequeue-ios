@@ -67,9 +67,9 @@ final class ClerkAuthService: AuthServiceProtocol {
     private(set) var currentUserId: String?
 
     // Session state change stream for multi-device session handling
-    // Note: continuation is nonisolated to allow access from deinit
+    // Note: continuation is nonisolated(unsafe) to allow access from deinit
     private let sessionStateChangesStream: AsyncStream<SessionStateChange>
-    nonisolated private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
+    nonisolated(unsafe) private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
 
     /// Stream of session state changes for observing unexpected auth events
     /// Use this to react to sessions being invalidated or restored in multi-device scenarios
@@ -358,7 +358,7 @@ final class MockAuthService: AuthServiceProtocol {
     var currentUserId: String?
 
     private let sessionStateChangesStream: AsyncStream<SessionStateChange>
-    nonisolated private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
+    nonisolated(unsafe) private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
 
     var sessionStateChanges: AsyncStream<SessionStateChange> {
         sessionStateChangesStream

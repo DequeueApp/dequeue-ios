@@ -49,8 +49,9 @@ internal final class SyncStatusViewModel {
     private let modelContext: ModelContext
     private let eventService: EventService
     private var syncManager: SyncManager?
-    // nonisolated allows access from deinit for cleanup with @Observable.
-    nonisolated private var updateTask: Task<Void, Never>?
+    // nonisolated(unsafe) allows access from deinit for cleanup with @Observable.
+    // Must use unsafe variant for compatibility across Swift 6.x toolchains.
+    nonisolated(unsafe) private var updateTask: Task<Void, Never>?
     private var previousPendingCount: Int = 0
 
     init(modelContext: ModelContext) {
