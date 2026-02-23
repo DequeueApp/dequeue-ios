@@ -328,6 +328,11 @@ private struct TodayTaskRow: View {
     let onComplete: () -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.syncManager) private var syncManager
+    @Environment(\.authService) private var authService
+
+    @State private var taskService: TaskService?
+    @State private var isCompleting = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -365,11 +370,12 @@ private struct TodayTaskRow: View {
             Button {
                 completeTask()
             } label: {
-                Image(systemName: "checkmark.circle")
+                Image(systemName: isCompleting ? "checkmark.circle.fill" : "checkmark.circle")
                     .font(.title3)
                     .foregroundStyle(.green)
             }
             .buttonStyle(.plain)
+            .disabled(isCompleting)
         }
         .padding(12)
         .background(
@@ -377,6 +383,17 @@ private struct TodayTaskRow: View {
                 .fill(.background)
                 .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
         )
+        .task {
+            guard taskService == nil else { return }
+            let deviceId = await DeviceService.shared.getDeviceId()
+            let userId = authService.currentUserId ?? ""
+            taskService = TaskService(
+                modelContext: modelContext,
+                userId: userId,
+                deviceId: deviceId,
+                syncManager: syncManager
+            )
+        }
     }
 
     private var priorityColor: Color {
@@ -389,10 +406,18 @@ private struct TodayTaskRow: View {
     }
 
     private func completeTask() {
-        task.status = .completed
-        task.updatedAt = Date()
-        try? modelContext.save()
-        onComplete()
+        guard let service = taskService else { return }
+        isCompleting = true
+        Task {
+            do {
+                try await service.markAsCompleted(task)
+                HapticManager.shared.success()
+                onComplete()
+            } catch {
+                isCompleting = false
+                logger.error("Failed to complete task from Today view: \(error)")
+            }
+        }
     }
 }
 
