@@ -64,6 +64,14 @@ struct StackProjection: @preconcurrency Decodable, Sendable {
     let createdAt: Int64
     let updatedAt: Int64
     // Note: tasks are fetched separately via GET /v1/tasks (not nested in stacks response)
+
+    // API returns startAt/dueAt but iOS models use startTime/dueTime
+    private enum CodingKeys: String, CodingKey {
+        case id, title, description, status, isActive, isDeleted, arcId, tags
+        case startTime = "startAt"
+        case dueTime = "dueAt"
+        case createdAt, updatedAt
+    }
 }
 
 struct TaskProjection: @preconcurrency Decodable, Sendable {
@@ -78,6 +86,14 @@ struct TaskProjection: @preconcurrency Decodable, Sendable {
     let dueTime: Int64?
     let createdAt: Int64
     let updatedAt: Int64
+
+    // API returns startAt/dueAt but iOS models use startTime/dueTime
+    private enum CodingKeys: String, CodingKey {
+        case id, stackId, title, description, sortOrder, status, isActive
+        case startTime = "startAt"
+        case dueTime = "dueAt"
+        case createdAt, updatedAt
+    }
 }
 
 struct ArcProjection: @preconcurrency Decodable, Sendable {
@@ -86,8 +102,19 @@ struct ArcProjection: @preconcurrency Decodable, Sendable {
     let description: String?
     let color: String?
     let isDeleted: Bool
+    let startTime: Int64?
+    let dueTime: Int64?
     let createdAt: Int64
     let updatedAt: Int64
+
+    // API returns colorHex/startAt/dueAt but iOS models use different names
+    private enum CodingKeys: String, CodingKey {
+        case id, title, description, isDeleted
+        case color = "colorHex"
+        case startTime = "startAt"
+        case dueTime = "dueAt"
+        case createdAt, updatedAt
+    }
 }
 
 struct TagProjection: @preconcurrency Decodable, Sendable {
