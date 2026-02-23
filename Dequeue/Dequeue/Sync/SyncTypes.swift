@@ -122,6 +122,13 @@ struct TagProjection: @preconcurrency Decodable, Sendable {
     let name: String
     let color: String?
     let createdAt: Int64
+    let updatedAt: Int64
+
+    // API returns colorHex but we use color internally
+    private enum CodingKeys: String, CodingKey {
+        case id, name, createdAt, updatedAt
+        case color = "colorHex"
+    }
 }
 
 struct ReminderProjection: @preconcurrency Decodable, Sendable {

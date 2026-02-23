@@ -216,7 +216,8 @@ extension SyncManager {
                 id: tagData.id,
                 name: tagData.name,
                 colorHex: tagData.color,
-                createdAt: dateFromUnixMs(tagData.createdAt)
+                createdAt: dateFromUnixMs(tagData.createdAt),
+                updatedAt: dateFromUnixMs(tagData.updatedAt)
             )
             context.insert(tag)
             tagMap[tag.id] = tag
