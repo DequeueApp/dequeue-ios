@@ -126,13 +126,19 @@ struct TagProjection: @preconcurrency Decodable, Sendable {
 
 struct ReminderProjection: @preconcurrency Decodable, Sendable {
     let id: String
-    let stackId: String?
-    let arcId: String?
-    let taskId: String?
-    let triggerTime: Int64
-    let notificationSent: Bool
-    let isDeleted: Bool
+    let parentType: String
+    let parentId: String
+    let remindAt: Int64
+    let status: String
     let createdAt: Int64
+    let updatedAt: Int64
+
+    // Derived properties for backward compatibility with populateReminders()
+    var stackId: String? { parentType == "stack" ? parentId : nil }
+    var arcId: String? { parentType == "arc" ? parentId : nil }
+    var taskId: String? { parentType == "task" ? parentId : nil }
+    var triggerTime: Int64 { remindAt }
+    var isDeleted: Bool { status == "deleted" }
 }
 
 // MARK: - WebSocket Stream Messages (DEQ-243)
