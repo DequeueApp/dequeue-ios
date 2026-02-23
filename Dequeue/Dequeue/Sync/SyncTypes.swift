@@ -101,18 +101,23 @@ struct TaskProjection: @preconcurrency Decodable, Sendable {
     let id: String
     let stackId: String
     let title: String
-    let description: String?
+    let notes: String?
     let sortOrder: Int
     let status: String
     let isActive: Bool
+    let priority: Int?
+    let blockedReason: String?
+    let parentTaskId: String?
     let startTime: Int64?
     let dueTime: Int64?
+    let completedAt: Int64?
     let createdAt: Int64
     let updatedAt: Int64
 
     // API returns startAt/dueAt but iOS models use startTime/dueTime
     private enum CodingKeys: String, CodingKey {
-        case id, stackId, title, description, sortOrder, status, isActive
+        case id, stackId, title, notes, sortOrder, status, isActive
+        case priority, blockedReason, parentTaskId, completedAt
         case startTime = "startAt"
         case dueTime = "dueAt"
         case createdAt, updatedAt

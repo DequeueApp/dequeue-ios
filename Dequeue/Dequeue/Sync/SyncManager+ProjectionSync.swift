@@ -304,14 +304,17 @@ extension SyncManager {
             let task = QueueTask(
                 id: taskData.id,
                 title: taskData.title,
-                taskDescription: taskData.description,
+                taskDescription: taskData.notes,
                 startTime: dateFromUnixMs(taskData.startTime),
                 dueTime: dateFromUnixMs(taskData.dueTime),
                 status: parseTaskStatus(taskData.status),
+                priority: taskData.priority,
+                blockedReason: taskData.blockedReason,
                 sortOrder: taskData.sortOrder,
                 createdAt: dateFromUnixMs(taskData.createdAt),
                 updatedAt: dateFromUnixMs(taskData.updatedAt),
-                stack: parentStack
+                stack: parentStack,
+                parentTaskId: taskData.parentTaskId
             )
             context.insert(task)
         }

@@ -197,7 +197,7 @@ jobs:
             exit 1
           fi
 
-          if [ "$PASSED_COUNT" != "0" ]; then
+          if [ -n "$PASSED_COUNT" ] && [ "$PASSED_COUNT" != "0" ]; then
             echo "✅ All $PASSED_COUNT tests passed!"
             exit 0
           fi
@@ -214,7 +214,8 @@ jobs:
             exit 0
           fi
 
-          echo "::error::Could not determine test results"
+          # No tests ran and xcodebuild failed — don't silently pass
+          echo "::error::No tests were executed (xcodebuild exit code: $XCODEBUILD_EXIT). Check deployment target compatibility."
           exit 1
 
       - name: Upload Test Results
