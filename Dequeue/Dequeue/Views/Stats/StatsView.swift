@@ -291,6 +291,7 @@ struct StatsView: View {
 
         isLoading = true
         errorMessage = nil
+        defer { isLoading = false }
 
         do {
             stats = try await statsService.getStats()
@@ -303,8 +304,6 @@ struct StatsView: View {
             logger.error("Failed to load stats: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
-
-        isLoading = false
     }
 }
 
