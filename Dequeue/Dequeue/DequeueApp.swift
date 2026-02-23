@@ -40,6 +40,10 @@ struct DequeueApp: App {
     let syncManager: SyncManager
     let notificationService: NotificationService
 
+    /// Non-nil when ModelContainer failed to initialize even after store deletion.
+    /// The app falls back to an in-memory container and shows an error screen.
+    let databaseErrorMessage: String?
+
     /// Threshold for showing user feedback about sync issues
     private let syncFailureThreshold = 3
 
@@ -54,8 +58,9 @@ struct DequeueApp: App {
     }
 
     init() {
-        // Note: ErrorReportingService.configure() is now called asynchronously
-        // in the body to avoid blocking app launch (was causing 12+ second hangs)
+        // Configure Sentry FIRST — before anything else — so crashes during
+        // ModelContainer init are captured. This is synchronous and fast.
+        ErrorReportingService.configure()
 
         // Use mock auth service for UI tests to bypass Clerk authentication
         if Self.isRunningUITests {
@@ -89,19 +94,51 @@ struct DequeueApp: App {
             cloudKitDatabase: .none
         )
 
+        var dbError: String?
+        let container: ModelContainer
+
         do {
-            sharedModelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            container = try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
             // Schema migration failed - delete store and retry
             ErrorReportingService.capture(error: error, context: ["source": "model_container_init"])
             Self.deleteSwiftDataStore()
 
             do {
-                sharedModelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+                container = try ModelContainer(for: schema, configurations: [modelConfiguration])
             } catch {
-                fatalError("Could not create ModelContainer after store deletion: \(error)")
+                // Graceful recovery: fall back to an in-memory container so the app
+                // can at least launch and show an error screen instead of crashing.
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["source": "model_container_init_after_deletion", "recovery": "in_memory_fallback"]
+                )
+                dbError = error.localizedDescription
+
+                let inMemoryConfig = ModelConfiguration(
+                    schema: schema,
+                    isStoredInMemoryOnly: true,
+                    cloudKitDatabase: .none
+                )
+                do {
+                    container = try ModelContainer(for: schema, configurations: [inMemoryConfig])
+                } catch {
+                    // Last resort: minimal in-memory container — this should essentially never fail
+                    ErrorReportingService.capture(
+                        error: error,
+                        context: ["source": "model_container_in_memory_fallback"]
+                    )
+                    // swiftlint:disable:next force_try
+                    container = try! ModelContainer(
+                        for: schema,
+                        configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+                    )
+                }
             }
         }
+
+        sharedModelContainer = container
+        databaseErrorMessage = dbError
 
         syncManager = SyncManager(modelContainer: sharedModelContainer)
 
@@ -114,7 +151,7 @@ struct DequeueApp: App {
     /// Deletes SwiftData store files when schema migration fails.
     /// Checks both the default app container and the App Group container
     /// since the store location can vary depending on entitlements.
-    private static func deleteSwiftDataStore() {
+    static func deleteSwiftDataStore() {
         let fileManager = FileManager.default
         let storeFileNames = ["default.store", "default.store-shm", "default.store-wal"]
 
@@ -139,24 +176,26 @@ struct DequeueApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(syncManager: syncManager, showSyncError: $showSyncError)
-                .environment(\.authService, authService)
-                .environment(\.clerk, Clerk.shared)
-                .environment(\.syncManager, syncManager)
-                .environment(\.attachmentSettings, attachmentSettings)
-                .environment(\.searchService, SearchService(authService: authService))
-                .environment(\.statsService, StatsService(authService: authService))
-                .environment(\.exportService, ExportService(authService: authService))
-                .environment(\.webhookService, WebhookService(authService: authService))
-                .environment(\.batchService, BatchService(authService: authService))
-                .applyAppTheme()
-                .task {
-                    // Configure error reporting first (runs on background thread)
-                    await ErrorReportingService.configure()
-                    // Log app launch after Sentry is configured
-                    ErrorReportingService.logAppLaunch(isWarmLaunch: false)
-                    await authService.configure()
-                }
+            if let errorMessage = databaseErrorMessage {
+                DatabaseErrorView(message: errorMessage)
+            } else {
+                RootView(syncManager: syncManager, showSyncError: $showSyncError)
+                    .environment(\.authService, authService)
+                    .environment(\.clerk, Clerk.shared)
+                    .environment(\.syncManager, syncManager)
+                    .environment(\.attachmentSettings, attachmentSettings)
+                    .environment(\.searchService, SearchService(authService: authService))
+                    .environment(\.statsService, StatsService(authService: authService))
+                    .environment(\.exportService, ExportService(authService: authService))
+                    .environment(\.webhookService, WebhookService(authService: authService))
+                    .environment(\.batchService, BatchService(authService: authService))
+                    .applyAppTheme()
+                    .task {
+                        // Sentry is already configured synchronously in init()
+                        ErrorReportingService.logAppLaunch(isWarmLaunch: false)
+                        await authService.configure()
+                    }
+            }
         }
         .modelContainer(sharedModelContainer)
         #if os(macOS)
@@ -164,6 +203,59 @@ struct DequeueApp: App {
             AppCommands()  // DEQ-50: Add macOS keyboard shortcuts
         }
         #endif
+    }
+}
+
+// MARK: - Database Error View
+
+/// Shown when the persistent store cannot be created even after deletion.
+/// Gives the user a clear explanation and a way to attempt recovery.
+struct DatabaseErrorView: View {
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.orange)
+
+            Text("Database Error")
+                .font(.title)
+                .fontWeight(.bold)
+
+            Text(
+                "The app's local database could not be initialized. " +
+                "This can happen after an update changes the data format."
+            )
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 32)
+
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 32)
+
+            Button("Delete Local Data & Relaunch") {
+                DequeueApp.deleteSwiftDataStore()
+                // Clean exit so the user can relaunch with a fresh store.
+                // Data will re-sync from the server on next launch.
+                exit(0)
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.top, 8)
+
+            Text("Your data is safe on the server and will re-sync after relaunch.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Spacer()
+        }
+        .padding()
     }
 }
 

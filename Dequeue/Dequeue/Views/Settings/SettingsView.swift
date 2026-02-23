@@ -250,32 +250,10 @@ struct SettingsView: View {
     }
 
     private func deleteAllDataAndRestart() {
-        let fileManager = FileManager.default
-        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Could not find Application Support directory")
-        }
-
-        let storeURL = appSupport.appendingPathComponent("default.store")
-        let storeShmURL = appSupport.appendingPathComponent("default.store-shm")
-        let storeWalURL = appSupport.appendingPathComponent("default.store-wal")
-
-        do {
-            if fileManager.fileExists(atPath: storeURL.path) {
-                try fileManager.removeItem(at: storeURL)
-            }
-            if fileManager.fileExists(atPath: storeShmURL.path) {
-                try fileManager.removeItem(at: storeShmURL)
-            }
-            if fileManager.fileExists(atPath: storeWalURL.path) {
-                try fileManager.removeItem(at: storeWalURL)
-            }
-
-            UserDefaults.standard.removeObject(forKey: "com.dequeue.lastSyncCheckpoint")
-            fatalError("Data deleted - restart app to resync")
-        } catch {
-            ErrorReportingService.capture(error: error, context: ["action": "delete_all_data"])
-            fatalError("Failed to delete data: \(error.localizedDescription)")
-        }
+        // Use the shared store deletion logic and exit cleanly instead of crashing.
+        // A clean exit(0) avoids polluting crash analytics unlike fatalError.
+        DequeueApp.deleteSwiftDataStore()
+        exit(0)
     }
 
     private func signOut() async {
