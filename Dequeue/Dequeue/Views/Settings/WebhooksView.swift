@@ -91,6 +91,11 @@ struct WebhooksView: View {
         do {
             let response = try await webhookService.listWebhooks()
             webhooks = response.data
+        } catch is CancellationError {
+            // Task was cancelled (e.g. view disappeared), not a real error
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("Failed to load webhooks: \(error)")
             errorMessage = error.localizedDescription

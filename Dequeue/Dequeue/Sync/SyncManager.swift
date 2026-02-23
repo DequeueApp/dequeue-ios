@@ -1433,7 +1433,16 @@ actor SyncManager {
 
                 do {
                     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        // Thread-safe guard: sendPing callback can fire multiple times
+                        // when WebSocket disconnects during ping (DEQUEUE-APP-13).
+                        let resumed = OSAllocatedUnfairLock(initialState: false)
                         webSocketTask.sendPing { error in
+                            let shouldResume = resumed.withLock { hasResumed -> Bool in
+                                guard !hasResumed else { return false }
+                                hasResumed = true
+                                return true
+                            }
+                            guard shouldResume else { return }
                             if let error = error {
                                 continuation.resume(throwing: error)
                             } else {
