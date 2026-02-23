@@ -60,9 +60,10 @@ final class SpotlightIndexer {
             items.append(makeTaskItem(task, stackTitle: stack.title))
         }
 
+        let stackTitle = stack.title
         CSSearchableIndex.default().indexSearchableItems(items) { [self] error in
             if let error {
-                logger.error("[Spotlight] Failed to index stack '\(stack.title)': \(error.localizedDescription)")
+                logger.error("[Spotlight] Failed to index stack '\(stackTitle)': \(error.localizedDescription)")
             }
         }
     }
@@ -70,9 +71,10 @@ final class SpotlightIndexer {
     /// Indexes a single task (call after task changes)
     func indexTask(_ task: QueueTask) {
         let item = makeTaskItem(task, stackTitle: task.stack?.title)
+        let taskTitle = task.title
         CSSearchableIndex.default().indexSearchableItems([item]) { [self] error in
             if let error {
-                logger.error("[Spotlight] Failed to index task '\(task.title)': \(error.localizedDescription)")
+                logger.error("[Spotlight] Failed to index task '\(taskTitle)': \(error.localizedDescription)")
             }
         }
     }
