@@ -169,6 +169,7 @@ struct ReminderProjection: @preconcurrency Decodable, Sendable {
     let parentType: String
     let parentId: String
     let remindAt: Int64
+    let snoozedFrom: Int64?
     let status: String
     let createdAt: Int64
     let updatedAt: Int64

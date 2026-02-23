@@ -338,8 +338,11 @@ extension SyncManager {
                 id: reminderData.id,
                 parentId: parentId,
                 parentType: parentType,
+                status: parseReminderStatus(reminderData.status),
+                snoozedFrom: dateFromUnixMs(reminderData.snoozedFrom),
                 remindAt: dateFromUnixMs(reminderData.triggerTime),
                 createdAt: dateFromUnixMs(reminderData.createdAt),
+                updatedAt: dateFromUnixMs(reminderData.updatedAt),
                 isDeleted: reminderData.isDeleted
             )
 
@@ -419,6 +422,16 @@ extension SyncManager {
         case "closed": return .closed
         case "in_progress": return .pending
         default: return .pending
+        }
+    }
+
+    /// Parses reminder status string to enum.
+    nonisolated func parseReminderStatus(_ status: String) -> ReminderStatus {
+        switch status.lowercased() {
+        case "active": return .active
+        case "snoozed": return .snoozed
+        case "fired": return .fired
+        default: return .active
         }
     }
 }
