@@ -365,14 +365,15 @@ struct ArcProjectionTests {
 @Suite("TagProjection Tests")
 @MainActor
 struct TagProjectionTests {
-    @Test("TagProjection decodes correctly")
+    @Test("TagProjection decodes correctly with colorHex mapping")
     func decodesCorrectly() throws {
         let json = """
         {
             "id": "tag-50",
             "name": "urgent",
-            "color": "#E74C3C",
-            "createdAt": 1707500000
+            "colorHex": "#E74C3C",
+            "createdAt": 1707500000,
+            "updatedAt": 1707600000
         }
         """.data(using: .utf8)!
 
@@ -384,6 +385,7 @@ struct TagProjectionTests {
         #expect(tag.name == "urgent")
         #expect(tag.color == "#E74C3C")
         #expect(tag.createdAt == 1_707_500_000)
+        #expect(tag.updatedAt == 1_707_600_000)
     }
 
     @Test("TagProjection decodes with nil color")
@@ -392,7 +394,8 @@ struct TagProjectionTests {
         {
             "id": "tag-51",
             "name": "misc",
-            "createdAt": 1707500000
+            "createdAt": 1707500000,
+            "updatedAt": 1707500000
         }
         """.data(using: .utf8)!
 
@@ -401,6 +404,7 @@ struct TagProjectionTests {
         )
 
         #expect(tag.color == nil)
+        #expect(tag.updatedAt == 1_707_500_000)
     }
 }
 
