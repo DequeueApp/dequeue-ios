@@ -414,11 +414,12 @@ struct ReminderProjectionTests {
         let json = """
         {
             "id": "rem-10",
-            "stackId": "stack-abc",
-            "triggerTime": 1708100000,
-            "notificationSent": false,
-            "isDeleted": false,
-            "createdAt": 1708000000
+            "parentType": "stack",
+            "parentId": "stack-abc",
+            "remindAt": 1708100000,
+            "status": "active",
+            "createdAt": 1708000000,
+            "updatedAt": 1708000000
         }
         """.data(using: .utf8)!
 
@@ -431,7 +432,6 @@ struct ReminderProjectionTests {
         #expect(reminder.arcId == nil)
         #expect(reminder.taskId == nil)
         #expect(reminder.triggerTime == 1_708_100_000)
-        #expect(reminder.notificationSent == false)
         #expect(reminder.isDeleted == false)
     }
 
@@ -440,11 +440,12 @@ struct ReminderProjectionTests {
         let json = """
         {
             "id": "rem-11",
-            "taskId": "task-001",
-            "triggerTime": 1708200000,
-            "notificationSent": true,
-            "isDeleted": false,
-            "createdAt": 1708000000
+            "parentType": "task",
+            "parentId": "task-001",
+            "remindAt": 1708200000,
+            "status": "active",
+            "createdAt": 1708000000,
+            "updatedAt": 1708000000
         }
         """.data(using: .utf8)!
 
@@ -453,7 +454,9 @@ struct ReminderProjectionTests {
         )
 
         #expect(reminder.taskId == "task-001")
-        #expect(reminder.notificationSent == true)
+        #expect(reminder.stackId == nil)
+        #expect(reminder.arcId == nil)
+        #expect(reminder.isDeleted == false)
     }
 
     @Test("ReminderProjection decodes with arc parent")
@@ -461,11 +464,12 @@ struct ReminderProjectionTests {
         let json = """
         {
             "id": "rem-12",
-            "arcId": "arc-100",
-            "triggerTime": 1708300000,
-            "notificationSent": false,
-            "isDeleted": true,
-            "createdAt": 1708000000
+            "parentType": "arc",
+            "parentId": "arc-100",
+            "remindAt": 1708300000,
+            "status": "deleted",
+            "createdAt": 1708000000,
+            "updatedAt": 1708000000
         }
         """.data(using: .utf8)!
 
@@ -474,6 +478,8 @@ struct ReminderProjectionTests {
         )
 
         #expect(reminder.arcId == "arc-100")
+        #expect(reminder.stackId == nil)
+        #expect(reminder.taskId == nil)
         #expect(reminder.isDeleted == true)
     }
 }
