@@ -19,7 +19,9 @@ final class Arc {
     var sortOrder: Int = 0
     /// Optional color hex for visual accent (e.g., "FF6B6B")
     var colorHex: String?
+    // swiftlint:disable:next redundant_type_annotation
     var createdAt: Date = Date()
+    // swiftlint:disable:next redundant_type_annotation
     var updatedAt: Date = Date()
     var isDeleted: Bool = false
 

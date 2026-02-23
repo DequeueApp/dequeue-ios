@@ -269,7 +269,7 @@ struct AnalyticsDashboardView: View {
                             .fill(hourColor(hour))
                             .frame(width: 10, height: max(2, CGFloat(hour.completions) * hourScale))
 
-                        if hour.hour % 6 == 0 {
+                        if hour.hour.isMultiple(of: 6) {
                             Text(hour.label)
                                 .font(.system(size: 7))
                                 .foregroundStyle(.secondary)

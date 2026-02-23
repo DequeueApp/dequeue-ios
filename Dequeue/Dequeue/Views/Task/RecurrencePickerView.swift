@@ -100,7 +100,9 @@ struct RecurrencePickerSheet: View {
                                 .fontWeight(.medium)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(isPresetSelected(preset.rule) ? Color.accentColor : Color.secondary.opacity(0.2))
+                                .background(
+                                    isPresetSelected(preset.rule) ? Color.accentColor : Color.secondary.opacity(0.2)
+                                )
                                 .foregroundStyle(isPresetSelected(preset.rule) ? .white : .primary)
                                 .clipShape(Capsule())
                         }

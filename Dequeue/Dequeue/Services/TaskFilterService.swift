@@ -137,23 +137,23 @@ final class TaskFilterService {
     }
 
     private func applySorting(_ sortBy: TaskSortOption, ascending: Bool, to tasks: [QueueTask]) -> [QueueTask] {
-        tasks.sorted { a, b in
+        tasks.sorted { lhs, rhs in
             let result: Bool
             switch sortBy {
             case .dueDate:
-                let aDate = a.dueTime ?? (ascending ? Date.distantFuture : Date.distantPast)
-                let bDate = b.dueTime ?? (ascending ? Date.distantFuture : Date.distantPast)
-                result = aDate < bDate
+                let lhsDate = lhs.dueTime ?? (ascending ? Date.distantFuture : Date.distantPast)
+                let rhsDate = rhs.dueTime ?? (ascending ? Date.distantFuture : Date.distantPast)
+                result = lhsDate < rhsDate
             case .priority:
-                result = (a.priority ?? 0) < (b.priority ?? 0)
+                result = (lhs.priority ?? 0) < (rhs.priority ?? 0)
             case .title:
-                result = a.title.localizedCaseInsensitiveCompare(b.title) == .orderedAscending
+                result = lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
             case .createdAt:
-                result = a.createdAt < b.createdAt
+                result = lhs.createdAt < rhs.createdAt
             case .updatedAt:
-                result = a.updatedAt < b.updatedAt
+                result = lhs.updatedAt < rhs.updatedAt
             case .sortOrder:
-                result = a.sortOrder < b.sortOrder
+                result = lhs.sortOrder < rhs.sortOrder
             }
             return ascending ? result : !result
         }
@@ -180,7 +180,12 @@ final class TaskFilterService {
     }
 
     /// Adds a new preset
-    func addPreset(name: String, icon: String = "line.3.horizontal.decrease.circle", filter: TaskFilter, userDefaults: UserDefaults = .standard) -> FilterPreset {
+    func addPreset(
+        name: String,
+        icon: String = "line.3.horizontal.decrease.circle",
+        filter: TaskFilter,
+        userDefaults: UserDefaults = .standard
+    ) -> FilterPreset {
         var presets = loadPresets(from: userDefaults)
         let preset = FilterPreset(name: name, icon: icon, filter: filter)
         presets.append(preset)

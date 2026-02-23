@@ -123,7 +123,9 @@ struct StreakDashboardView: View {
                 .fill(.ultraThinMaterial)
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("This week's activity: \(tracker.streakInfo.weekActivity.filter(\.isActive).count) active days")
+        .accessibilityLabel(
+            "This week's activity: \(tracker.streakInfo.weekActivity.filter(\.isActive).count) active days"
+        )
     }
 
     // MARK: - Monthly Heatmap

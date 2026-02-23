@@ -13,6 +13,7 @@ import os.log
 /// View the active stack and its tasks via Siri
 struct ViewCurrentStackIntent: AppIntent {
     static let title: LocalizedStringResource = "View Current Stack"
+    // swiftlint:disable:next redundant_type_annotation
     static let description: IntentDescription = IntentDescription(
         "See your active stack and current task in Dequeue",
         categoryName: "Stacks"
@@ -68,6 +69,7 @@ struct ViewCurrentStackIntent: AppIntent {
 /// Open a specific stack in the app
 struct OpenStackIntent: AppIntent {
     static let title: LocalizedStringResource = "Open Stack"
+    // swiftlint:disable:next redundant_type_annotation
     static let description: IntentDescription = IntentDescription(
         "Open a specific stack in Dequeue",
         categoryName: "Stacks"
@@ -90,6 +92,7 @@ struct OpenStackIntent: AppIntent {
 /// Activate a stack (make it the focused stack)
 struct ActivateStackIntent: AppIntent {
     static let title: LocalizedStringResource = "Activate Stack"
+    // swiftlint:disable:next redundant_type_annotation
     static let description: IntentDescription = IntentDescription(
         "Set a stack as your active/focused stack in Dequeue",
         categoryName: "Stacks"

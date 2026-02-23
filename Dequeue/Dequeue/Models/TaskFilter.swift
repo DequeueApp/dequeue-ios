@@ -10,12 +10,12 @@ import Foundation
 // MARK: - Task Sort Option
 
 enum TaskSortOption: String, Codable, CaseIterable, Identifiable, Sendable {
-    case dueDate = "dueDate"
-    case priority = "priority"
-    case title = "title"
-    case createdAt = "createdAt"
-    case updatedAt = "updatedAt"
-    case sortOrder = "sortOrder"
+    case dueDate
+    case priority
+    case title
+    case createdAt
+    case updatedAt
+    case sortOrder
 
     var id: String { rawValue }
 
@@ -45,15 +45,15 @@ enum TaskSortOption: String, Codable, CaseIterable, Identifiable, Sendable {
 // MARK: - Date Range Filter
 
 enum DateRangeFilter: String, Codable, CaseIterable, Identifiable, Sendable {
-    case any = "any"
-    case overdue = "overdue"
-    case today = "today"
-    case tomorrow = "tomorrow"
-    case thisWeek = "thisWeek"
-    case nextWeek = "nextWeek"
-    case thisMonth = "thisMonth"
-    case noDueDate = "noDueDate"
-    case custom = "custom"
+    case any
+    case overdue
+    case today
+    case tomorrow
+    case thisWeek
+    case nextWeek
+    case thisMonth
+    case noDueDate
+    case custom
 
     var id: String { rawValue }
 
@@ -155,10 +155,10 @@ enum PriorityFilter: Int, Codable, CaseIterable, Identifiable, Sendable {
 // MARK: - Status Filter
 
 enum StatusFilter: String, Codable, CaseIterable, Identifiable, Sendable {
-    case any = "any"
-    case pending = "pending"
-    case completed = "completed"
-    case blocked = "blocked"
+    case any
+    case pending
+    case completed
+    case blocked
 
     var id: String { rawValue }
 
@@ -239,7 +239,12 @@ struct FilterPreset: Codable, Identifiable, Sendable {
     var icon: String
     var filter: TaskFilter
 
-    init(id: String = UUID().uuidString, name: String, icon: String = "line.3.horizontal.decrease.circle", filter: TaskFilter) {
+    init(
+        id: String = UUID().uuidString,
+        name: String,
+        icon: String = "line.3.horizontal.decrease.circle",
+        filter: TaskFilter
+    ) {
         self.id = id
         self.name = name
         self.icon = icon
@@ -252,49 +257,49 @@ struct FilterPreset: Codable, Identifiable, Sendable {
             name: "Overdue",
             icon: "exclamationmark.circle.fill",
             filter: {
-                var f = TaskFilter()
-                f.dateRangeFilter = .overdue
-                f.statusFilter = .pending
-                return f
+                var taskFilter = TaskFilter()
+                taskFilter.dateRangeFilter = .overdue
+                taskFilter.statusFilter = .pending
+                return taskFilter
             }()
         ),
         FilterPreset(
             name: "Due Today",
             icon: "sun.max.fill",
             filter: {
-                var f = TaskFilter()
-                f.dateRangeFilter = .today
-                f.statusFilter = .pending
-                return f
+                var taskFilter = TaskFilter()
+                taskFilter.dateRangeFilter = .today
+                taskFilter.statusFilter = .pending
+                return taskFilter
             }()
         ),
         FilterPreset(
             name: "High Priority",
             icon: "flag.fill",
             filter: {
-                var f = TaskFilter()
-                f.priorityFilter = .high
-                f.statusFilter = .pending
-                return f
+                var taskFilter = TaskFilter()
+                taskFilter.priorityFilter = .high
+                taskFilter.statusFilter = .pending
+                return taskFilter
             }()
         ),
         FilterPreset(
             name: "Blocked",
             icon: "hand.raised.fill",
             filter: {
-                var f = TaskFilter()
-                f.statusFilter = .blocked
-                return f
+                var taskFilter = TaskFilter()
+                taskFilter.statusFilter = .blocked
+                return taskFilter
             }()
         ),
         FilterPreset(
             name: "Recently Updated",
             icon: "arrow.clockwise",
             filter: {
-                var f = TaskFilter()
-                f.sortBy = .updatedAt
-                f.sortAscending = false
-                return f
+                var taskFilter = TaskFilter()
+                taskFilter.sortBy = .updatedAt
+                taskFilter.sortAscending = false
+                return taskFilter
             }()
         ),
     ]

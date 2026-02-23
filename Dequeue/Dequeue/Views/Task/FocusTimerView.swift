@@ -127,7 +127,9 @@ struct FocusTimerView: View {
                     }
             }
         }
-        .accessibilityLabel("Session \(timerService.completedSessions + 1) of \(timerService.config.sessionsBeforeLongBreak)")
+        .accessibilityLabel(
+            "Session \(timerService.completedSessions + 1) of \(timerService.config.sessionsBeforeLongBreak)"
+        )
     }
 
     // MARK: - Timer Circle
@@ -314,8 +316,8 @@ struct FocusTimerView: View {
     }
 
     private func formatFocusTime(_ seconds: TimeInterval) -> String {
-        let hours = Int(seconds) / 3600
-        let minutes = (Int(seconds) % 3600) / 60
+        let hours = Int(seconds) / 3_600
+        let minutes = (Int(seconds) % 3_600) / 60
 
         if hours > 0 {
             return "\(hours)h \(minutes)m"

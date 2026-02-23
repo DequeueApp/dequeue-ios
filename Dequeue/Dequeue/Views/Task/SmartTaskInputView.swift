@@ -233,12 +233,14 @@ struct SmartTaskInputView: View {
 
 #Preview {
     VStack {
+        // swiftlint:disable no_print
         SmartTaskInputView { result in
             print("Title: \(result.title)")
             print("Due: \(String(describing: result.dueTime))")
             print("Priority: \(String(describing: result.priority))")
             print("Tags: \(result.tags)")
         }
+        // swiftlint:enable no_print
         .padding()
 
         Spacer()

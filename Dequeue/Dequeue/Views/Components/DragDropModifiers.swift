@@ -215,7 +215,7 @@ struct StackDropTargetModifier: ViewModifier {
                     return true
                 }
                 return false
-            } isTargeted: { isTargeted in
+            } isTargeted: { _ in
                 // Could add visual feedback here
             }
     }

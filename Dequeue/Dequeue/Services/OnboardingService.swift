@@ -21,6 +21,7 @@ struct OnboardingPage: Identifiable, Sendable {
         OnboardingPage(
             id: "welcome",
             title: "Welcome to Dequeue",
+            // swiftlint:disable:next line_length
             subtitle: "The task manager that works the way you think. Organize your work into focused stacks and knock them out one at a time.",
             systemImage: "tray.full",
             accentColor: .blue
@@ -28,6 +29,7 @@ struct OnboardingPage: Identifiable, Sendable {
         OnboardingPage(
             id: "stacks",
             title: "Stacks Keep You Focused",
+            // swiftlint:disable:next line_length
             subtitle: "Group related tasks into stacks. Activate one stack at a time to stay focused on what matters most right now.",
             systemImage: "square.stack.3d.up",
             accentColor: .purple
@@ -35,6 +37,7 @@ struct OnboardingPage: Identifiable, Sendable {
         OnboardingPage(
             id: "dequeue",
             title: "Dequeue, Don't Multitask",
+            // swiftlint:disable:next line_length
             subtitle: "Complete the top task in your active stack, then move to the next. Like a queue — first in, first out. Simple and powerful.",
             systemImage: "arrow.down.circle",
             accentColor: .green
@@ -42,6 +45,7 @@ struct OnboardingPage: Identifiable, Sendable {
         OnboardingPage(
             id: "sync",
             title: "Synced Everywhere",
+            // swiftlint:disable:next line_length
             subtitle: "Your tasks sync across all your devices in real time. Start on iPhone, continue on Mac. Never miss a beat.",
             systemImage: "arrow.triangle.2.circlepath",
             accentColor: .orange

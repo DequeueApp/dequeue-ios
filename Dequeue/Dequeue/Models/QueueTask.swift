@@ -20,12 +20,15 @@ final class QueueTask {
     var locationLongitude: Double?
     var attachments: [String] = []
     var tags: [String] = []  // DEQ-31: Tag support for tasks
+    // swiftlint:disable:next redundant_type_annotation
     var status: TaskStatus = TaskStatus.pending
     var priority: Int?
     var blockedReason: String?
     var sortOrder: Int = 0
     var lastActiveTime: Date?
+    // swiftlint:disable:next redundant_type_annotation
     var createdAt: Date = Date()
+    // swiftlint:disable:next redundant_type_annotation
     var updatedAt: Date = Date()
     var isDeleted: Bool = false
 
@@ -37,6 +40,7 @@ final class QueueTask {
     // Sync fields
     var userId: String?
     var deviceId: String?
+    // swiftlint:disable:next redundant_type_annotation
     var syncState: SyncState = SyncState.pending
     var lastSyncedAt: Date?
     var serverId: String?

@@ -13,6 +13,7 @@ import os.log
 /// Complete the active task in the current stack via Siri or Shortcuts
 struct CompleteCurrentTaskIntent: AppIntent {
     static let title: LocalizedStringResource = "Complete Current Task"
+    // swiftlint:disable:next redundant_type_annotation
     static let description: IntentDescription = IntentDescription(
         "Complete the active task in your current stack",
         categoryName: "Tasks"
@@ -77,7 +78,7 @@ struct CompleteCurrentTaskIntent: AppIntent {
         if allDone {
             return .result(dialog: "Completed \"\(taskTitle)\" — all tasks in \"\(stackTitle)\" are done! 🎉")
         } else {
-            let nextTask = actuallyPending.sorted(by: { $0.sortOrder < $1.sortOrder }).first
+            let nextTask = actuallyPending.min(by: { $0.sortOrder < $1.sortOrder })
             let nextInfo = nextTask.map { "Next up: \($0.title)" } ?? ""
             return .result(dialog: "Completed \"\(taskTitle)\". \(nextInfo)")
         }
@@ -87,6 +88,7 @@ struct CompleteCurrentTaskIntent: AppIntent {
 /// Complete a specific task by name or entity
 struct CompleteTaskIntent: AppIntent {
     static let title: LocalizedStringResource = "Complete Task"
+    // swiftlint:disable:next redundant_type_annotation
     static let description: IntentDescription = IntentDescription(
         "Complete a specific task in Dequeue",
         categoryName: "Tasks"

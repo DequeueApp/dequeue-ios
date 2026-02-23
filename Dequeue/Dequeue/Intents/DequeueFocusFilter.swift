@@ -20,6 +20,7 @@ import os.log
 @available(iOS 16.0, macOS 13.0, *)
 struct DequeueFocusFilter: SetFocusFilterIntent {
     static let title: LocalizedStringResource = "Set Dequeue Filter"
+    // swiftlint:disable:next redundant_type_annotation
     static let description: IntentDescription = IntentDescription(
         "Filter which stacks are visible when this Focus is active.",
         categoryName: "Focus"
@@ -80,6 +81,7 @@ struct DequeueFocusFilter: SetFocusFilterIntent {
         )
 
         FocusFilterConfig.save(config)
+        // swiftlint:disable:next line_length
         os_log("[FocusFilter] Activated: activeOnly=\(config.showActiveStackOnly), stacks=\(config.visibleStackIds.count), muted=\(config.muteOtherStacks)")
 
         return .result()

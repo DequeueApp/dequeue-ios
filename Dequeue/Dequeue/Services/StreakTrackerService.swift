@@ -140,7 +140,6 @@ enum StreakMilestone: Int, CaseIterable, Sendable {
 /// and milestone achievements.
 @MainActor
 final class StreakTrackerService: ObservableObject {
-
     /// Minimum tasks per day to count as an "active" day for streak purposes
     static let minimumTasksForStreak = 1
 
@@ -165,11 +164,15 @@ final class StreakTrackerService: ObservableObject {
         self.userDefaults = userDefaults
         self.calendar = calendar
         self.streakInfo = StreakInfo(
-            currentStreak: 0, longestStreak: 0,
-            totalTasksCompleted: 0, totalActiveDays: 0,
-            isTodayActive: false, todayTasksCompleted: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            totalTasksCompleted: 0,
+            totalActiveDays: 0,
+            isTodayActive: false,
+            todayTasksCompleted: 0,
             tasksRemainingForStreak: Self.minimumTasksForStreak,
-            weekActivity: [], monthActivity: []
+            weekActivity: [],
+            monthActivity: []
         )
         loadRecords()
         recalculate()

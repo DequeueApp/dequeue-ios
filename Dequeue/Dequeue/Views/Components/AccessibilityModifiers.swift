@@ -133,7 +133,7 @@ struct StackAccessibilityModifier: ViewModifier {
 // MARK: - Announcement Helpers
 
 /// Sends a VoiceOver announcement for important state changes
-struct AccessibilityAnnouncement {
+enum AccessibilityAnnouncement {
     static func announce(_ message: String) {
         #if os(iOS)
         UIAccessibility.post(notification: .announcement, argument: message)
