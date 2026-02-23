@@ -112,13 +112,14 @@ struct NLTaskParser: Sendable {
         // 3. Extract time expressions ("at 3pm", "at 15:00")
         (working, extractedTime) = extractTime(from: working)
 
-        // 4. Extract date expressions ("tomorrow", "next Monday", "Jan 15", etc.)
-        (working, extractedDueDate) = extractDueDate(from: working, time: extractedTime)
-
-        // 5. Extract start date ("from Monday", "starting tomorrow")
+        // 4. Extract start date first — "from/starting <date>" is more specific
+        //    than bare date keywords, so it must consume its tokens before due date extraction.
         (working, extractedStartDate) = extractStartDate(from: working, time: nil)
 
-        // 6. If we got a time but no date, assume today
+        // 5. Extract due date expressions ("tomorrow", "next Monday", "Jan 15", etc.)
+        (working, extractedDueDate) = extractDueDate(from: working, time: extractedTime)
+
+        // 6. If we got a time but no due date, assume today
         if let time = extractedTime, extractedDueDate == nil {
             var components = calendar.dateComponents([.year, .month, .day], from: referenceDate)
             components.hour = time.hour
