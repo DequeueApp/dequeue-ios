@@ -141,7 +141,7 @@ jobs:
     name: Unit Tests
     runs-on: macos-15
     needs: swiftlint
-    timeout-minutes: 60
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -164,12 +164,6 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          # Lower macOS deployment target so tests can run on CI runners (macOS 15.x)
-          # The app targets macOS 26.0 but tests don't exercise any macOS 26-specific APIs.
-          # This override is CI-only — the project file retains macOS 26.0 for release builds.
-          sed -i '' 's/MACOSX_DEPLOYMENT_TARGET = 26\.0/MACOSX_DEPLOYMENT_TARGET = 15.0/g' \
-            Dequeue/Dequeue.xcodeproj/project.pbxproj
-
           set +e
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
@@ -177,8 +171,7 @@ jobs:
             -destination 'platform=macOS' \
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
-            -parallel-testing-enabled YES \
-            -parallel-testing-worker-count 2 \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO
           XCODEBUILD_EXIT=$?
           set -e
