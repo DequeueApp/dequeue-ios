@@ -232,6 +232,8 @@ final class LocalStatsService {
     }
 
     private func fetchAllArcs() throws -> [Arc] {
+        // Arc does not have an isDraft property (only Stack does), so
+        // filtering by isDeleted is sufficient.
         let descriptor = FetchDescriptor<Arc>(
             predicate: #Predicate<Arc> { !$0.isDeleted }
         )

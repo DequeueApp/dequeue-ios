@@ -161,17 +161,45 @@ struct LocalStatsServiceTests {
         #expect(stats.tasks.overdue == 1) // Only pending with past due date
     }
 
+    @Test("Blocked tasks with past due date count as overdue")
+    func blockedOverdueTasksCounted() throws {
+        let container = try makeTestContainer()
+        let ctx = container.mainContext
+
+        let blockedOverdue = QueueTask(
+            title: "Blocked Overdue",
+            dueTime: Date().addingTimeInterval(-3600),
+            status: .blocked
+        )
+        ctx.insert(blockedOverdue)
+
+        let pendingOverdue = QueueTask(
+            title: "Pending Overdue",
+            dueTime: Date().addingTimeInterval(-3600),
+            status: .pending
+        )
+        ctx.insert(pendingOverdue)
+        try ctx.save()
+
+        let stats = try makeService(container: container).getStats()
+
+        // Both blocked and pending tasks with past due date count as overdue
+        #expect(stats.tasks.overdue == 2)
+    }
+
     @Test("Counts tasks created today")
     func countsCreatedToday() throws {
         let container = try makeTestContainer()
         let ctx = container.mainContext
+        let calendar = Calendar.current
 
         // Created now (today)
         ctx.insert(QueueTask(title: "Today", status: .pending))
 
-        // Created yesterday
+        // Created yesterday — use calendar arithmetic to avoid midnight boundary issues
         let yesterday = QueueTask(title: "Yesterday", status: .pending)
-        yesterday.createdAt = Date().addingTimeInterval(-86400)
+        let yesterdayDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))! // Safe: subtracting 1 day from valid date
+        yesterday.createdAt = yesterdayDate
         ctx.insert(yesterday)
         try ctx.save()
 
@@ -190,10 +218,12 @@ struct LocalStatsServiceTests {
         completedToday.completedAt = Date()
         ctx.insert(completedToday)
 
-        // Completed yesterday
+        // Completed yesterday — use calendar arithmetic to avoid midnight boundary issues
+        let calendar = Calendar.current
+        let yesterdayDate = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))! // Safe: subtracting 1 day from valid date
         let completedYesterday = QueueTask(title: "Done yesterday", status: .completed)
-        completedYesterday.completedAt = Date().addingTimeInterval(-86400)
-        completedYesterday.updatedAt = Date().addingTimeInterval(-86400)
+        completedYesterday.completedAt = yesterdayDate
+        completedYesterday.updatedAt = yesterdayDate
         ctx.insert(completedYesterday)
 
         // Completed but no completedAt (legacy) — should NOT count in time-based stats
