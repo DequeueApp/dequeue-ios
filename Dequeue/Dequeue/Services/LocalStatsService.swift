@@ -39,6 +39,10 @@ final class LocalStatsService {
     }
 
     /// Computes aggregate statistics from the local SwiftData store.
+    ///
+    /// Runs synchronously on the main thread. For typical task counts (hundreds to
+    /// low thousands), this completes in sub-millisecond time. If performance becomes
+    /// a concern with very large datasets, consider offloading to a background context.
     /// - Returns: Complete statistics matching the `StatsResponse` format
     func getStats() throws -> StatsResponse {
         let allTasks = try fetchAllTasks()
@@ -71,6 +75,9 @@ final class LocalStatsService {
 
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: Date())
+        // Uses Calendar.current which respects the user's locale for first day of week
+        // (Sunday in US, Monday in most of Europe). This is intentional for a local-only
+        // display — "this week" should match the user's expectations on their device.
         let startOfWeek = calendar.date(
             from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
         ) ?? startOfToday
@@ -143,9 +150,12 @@ final class LocalStatsService {
         // Only use tasks with explicit completedAt for streak calculation
         let completedTasks = allTasks.filter { $0.status == .completed && $0.completedAt != nil }
 
-        // Build a set of date strings that had at least one completion
+        // Build a set of date strings that had at least one completion.
+        // POSIX locale ensures consistent date strings regardless of device
+        // calendar settings (Buddhist, Islamic, Hebrew, etc.).
         var activeDateStrings = Set<String>()
         let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateFormat = "yyyy-MM-dd"
 
         for task in completedTasks {

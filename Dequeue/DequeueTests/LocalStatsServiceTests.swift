@@ -16,7 +16,7 @@ struct LocalStatsServiceTests {
 
     // MARK: - Helpers
 
-    private func makeContainer() throws -> ModelContainer {
+    private func makeTestContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try ModelContainer(
             for: Arc.self, Stack.self, QueueTask.self, Reminder.self,
@@ -33,7 +33,7 @@ struct LocalStatsServiceTests {
 
     @Test("Empty store returns all zeros")
     func emptyStoreReturnsZeros() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let service = makeService(container: container)
 
         let stats = try service.getStats()
@@ -65,7 +65,7 @@ struct LocalStatsServiceTests {
 
     @Test("Counts total non-deleted tasks")
     func countsTotalTasks() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
 
         ctx.insert(QueueTask(title: "Task 1", status: .pending))
@@ -86,7 +86,7 @@ struct LocalStatsServiceTests {
 
     @Test("Excludes recurrence templates from stats")
     func excludesRecurrenceTemplates() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
 
         ctx.insert(QueueTask(title: "Real task", status: .pending))
@@ -104,7 +104,7 @@ struct LocalStatsServiceTests {
 
     @Test("Counts active tasks (pending + blocked)")
     func countsActiveTasks() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
 
         ctx.insert(QueueTask(title: "Pending", status: .pending))
@@ -120,7 +120,7 @@ struct LocalStatsServiceTests {
 
     @Test("Counts completed tasks")
     func countsCompletedTasks() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
 
         ctx.insert(QueueTask(title: "Done 1", status: .completed))
@@ -136,7 +136,7 @@ struct LocalStatsServiceTests {
 
     @Test("Counts overdue tasks")
     func countsOverdueTasks() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
 
         let overdue = QueueTask(title: "Overdue", dueTime: Date().addingTimeInterval(-3600), status: .pending)
@@ -163,7 +163,7 @@ struct LocalStatsServiceTests {
 
     @Test("Counts tasks created today")
     func countsCreatedToday() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
 
         // Created now (today)
@@ -182,7 +182,7 @@ struct LocalStatsServiceTests {
 
     @Test("Counts tasks completed today using explicit completedAt only")
     func countsCompletedToday() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
 
         // Completed today with completedAt set
@@ -215,7 +215,7 @@ struct LocalStatsServiceTests {
 
     @Test("Breaks down active tasks by priority")
     func priorityBreakdown() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
 
         ctx.insert(QueueTask(title: "No priority", status: .pending, priority: nil))
@@ -241,7 +241,7 @@ struct LocalStatsServiceTests {
 
     @Test("Counts stacks and arcs")
     func countsStacksAndArcs() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
 
         let stack1 = Stack(title: "Active Stack")
@@ -279,7 +279,7 @@ struct LocalStatsServiceTests {
 
     @Test("Calculates streak from consecutive completed days")
     func calculatesStreak() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
         let calendar = Calendar.current
 
@@ -290,22 +290,22 @@ struct LocalStatsServiceTests {
 
         // Complete a task yesterday
         let yesterday = QueueTask(title: "Yesterday", status: .completed)
-        yesterday.completedAt = calendar.date(byAdding: .day, value: -1, to: Date())!
-        yesterday.updatedAt = yesterday.completedAt!
+        yesterday.completedAt = calendar.date(byAdding: .day, value: -1, to: Date())! // Safe: adding days to a valid Date always succeeds
+        yesterday.updatedAt = yesterday.completedAt! // Safe: set on preceding line
         ctx.insert(yesterday)
 
         // Complete a task 2 days ago
         let twoDaysAgo = QueueTask(title: "Two days ago", status: .completed)
-        twoDaysAgo.completedAt = calendar.date(byAdding: .day, value: -2, to: Date())!
-        twoDaysAgo.updatedAt = twoDaysAgo.completedAt!
+        twoDaysAgo.completedAt = calendar.date(byAdding: .day, value: -2, to: Date())! // Safe: adding days to a valid Date always succeeds
+        twoDaysAgo.updatedAt = twoDaysAgo.completedAt! // Safe: set on preceding line
         ctx.insert(twoDaysAgo)
 
         // Gap on day 3 (no completion)
 
         // Complete a task 4 days ago (shouldn't count due to gap)
         let fourDaysAgo = QueueTask(title: "Four days ago", status: .completed)
-        fourDaysAgo.completedAt = calendar.date(byAdding: .day, value: -4, to: Date())!
-        fourDaysAgo.updatedAt = fourDaysAgo.completedAt!
+        fourDaysAgo.completedAt = calendar.date(byAdding: .day, value: -4, to: Date())! // Safe: adding days to a valid Date always succeeds
+        fourDaysAgo.updatedAt = fourDaysAgo.completedAt! // Safe: set on preceding line
         ctx.insert(fourDaysAgo)
         try ctx.save()
 
@@ -316,19 +316,19 @@ struct LocalStatsServiceTests {
 
     @Test("Streak starts from yesterday if no completions today")
     func streakStartsFromYesterday() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
         let calendar = Calendar.current
 
         // No completions today, but yesterday and day before
         let yesterday = QueueTask(title: "Yesterday", status: .completed)
-        yesterday.completedAt = calendar.date(byAdding: .day, value: -1, to: Date())!
-        yesterday.updatedAt = yesterday.completedAt!
+        yesterday.completedAt = calendar.date(byAdding: .day, value: -1, to: Date())! // Safe: adding days to a valid Date always succeeds
+        yesterday.updatedAt = yesterday.completedAt! // Safe: set on preceding line
         ctx.insert(yesterday)
 
         let twoDaysAgo = QueueTask(title: "Two days ago", status: .completed)
-        twoDaysAgo.completedAt = calendar.date(byAdding: .day, value: -2, to: Date())!
-        twoDaysAgo.updatedAt = twoDaysAgo.completedAt!
+        twoDaysAgo.completedAt = calendar.date(byAdding: .day, value: -2, to: Date())! // Safe: adding days to a valid Date always succeeds
+        twoDaysAgo.updatedAt = twoDaysAgo.completedAt! // Safe: set on preceding line
         ctx.insert(twoDaysAgo)
         try ctx.save()
 
@@ -339,14 +339,14 @@ struct LocalStatsServiceTests {
 
     @Test("Zero streak when no recent completions")
     func zeroStreak() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
         let calendar = Calendar.current
 
         // Only completions from a week ago (with gap)
         let weekAgo = QueueTask(title: "Old", status: .completed)
-        weekAgo.completedAt = calendar.date(byAdding: .day, value: -7, to: Date())!
-        weekAgo.updatedAt = weekAgo.completedAt!
+        weekAgo.completedAt = calendar.date(byAdding: .day, value: -7, to: Date())! // Safe: adding days to a valid Date always succeeds
+        weekAgo.updatedAt = weekAgo.completedAt! // Safe: set on preceding line
         ctx.insert(weekAgo)
         try ctx.save()
 
@@ -359,7 +359,7 @@ struct LocalStatsServiceTests {
 
     @Test("Complete stats response with mixed data")
     func completeStatsWithMixedData() throws {
-        let container = try makeContainer()
+        let container = try makeTestContainer()
         let ctx = container.mainContext
 
         // Create a stack with tasks
