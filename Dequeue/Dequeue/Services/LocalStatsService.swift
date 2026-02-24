@@ -24,6 +24,9 @@ private enum TaskPriority {
     static let high = 3
 }
 
+/// Maximum number of days to look back for completion streak calculation.
+private let streakWindowDays = 90
+
 // MARK: - Local Stats Service
 
 /// Computes statistics from SwiftData models, providing offline-first stats.
@@ -33,6 +36,15 @@ private enum TaskPriority {
 @MainActor
 final class LocalStatsService {
     private let modelContext: ModelContext
+
+    /// Reusable date formatter for streak calculation. Uses POSIX locale to ensure
+    /// consistent date strings regardless of device calendar settings.
+    private static let streakDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
@@ -65,21 +77,22 @@ final class LocalStatsService {
     // MARK: - Task Stats
 
     private func computeTaskStats(from allTasks: [QueueTask]) -> TaskStats {
+        let now = Date()
         let total = allTasks.count
         let completed = allTasks.filter { $0.status == .completed }.count
         let active = allTasks.filter { $0.status == .pending || $0.status == .blocked }.count
         let overdue = allTasks.filter { task in
             guard let dueTime = task.dueTime else { return false }
-            return dueTime < Date() && task.status != .completed && task.status != .closed
+            return dueTime < now && task.status != .completed && task.status != .closed
         }.count
 
         let calendar = Calendar.current
-        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfToday = calendar.startOfDay(for: now)
         // Uses Calendar.current which respects the user's locale for first day of week
         // (Sunday in US, Monday in most of Europe). This is intentional for a local-only
         // display — "this week" should match the user's expectations on their device.
         let startOfWeek = calendar.date(
-            from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+            from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
         ) ?? startOfToday
 
         let createdToday = allTasks.filter { $0.createdAt >= startOfToday }.count
@@ -120,12 +133,11 @@ final class LocalStatsService {
         var none = 0
 
         for task in activeTasks {
-            switch task.priority {
+            switch task.priority ?? TaskPriority.none {
             case TaskPriority.high: high += 1
             case TaskPriority.medium: medium += 1
             case TaskPriority.low: low += 1
-            case TaskPriority.none: none += 1
-            default: none += 1 // Unknown priority values treated as none
+            default: none += 1
             }
         }
 
@@ -136,6 +148,9 @@ final class LocalStatsService {
 
     private func computeStackStats(stacks: [Stack], arcs: [Arc]) -> StackStats {
         let total = stacks.count
+        // Uses raw value comparison because Stack stores status as a String in SwiftData
+        // (@Attribute), not a typed enum. The computed `status` property parses the raw
+        // value but using it in a filter closure triggers SwiftData Predicate limitations.
         let active = stacks.filter { $0.statusRawValue == StackStatus.active.rawValue }.count
         let totalArcs = arcs.count
 
@@ -147,23 +162,22 @@ final class LocalStatsService {
     private func computeCompletionStreak(from allTasks: [QueueTask]) -> Int {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
+        let formatter = Self.streakDateFormatter
 
         // Only use tasks with explicit completedAt for streak calculation
         let completedTasks = allTasks.filter { $0.status == .completed && $0.completedAt != nil }
 
         // Build a set of date strings that had at least one completion.
-        // POSIX locale ensures consistent date strings regardless of device
-        // calendar settings (Buddhist, Islamic, Hebrew, etc.).
         var activeDateStrings = Set<String>()
-        let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        let windowStart = calendar.date(
+            byAdding: .day, value: -streakWindowDays, to: today
+        ) ?? today
 
         for task in completedTasks {
             guard let completedAt = task.completedAt else { continue }
-            // Only consider completions within last 90 days
-            if completedAt >= (calendar.date(byAdding: .day, value: -90, to: today) ?? today) {
-                activeDateStrings.insert(dateFormatter.string(from: completedAt))
+            if completedAt >= windowStart {
+                activeDateStrings.insert(formatter.string(from: completedAt))
             }
         }
 
@@ -171,7 +185,7 @@ final class LocalStatsService {
         var streak = 0
         var checkDate = today
 
-        let todayString = dateFormatter.string(from: today)
+        let todayString = formatter.string(from: today)
         let todayHasCompletions = activeDateStrings.contains(todayString)
 
         if todayHasCompletions {
@@ -183,8 +197,8 @@ final class LocalStatsService {
         }
 
         // Count consecutive days backward
-        for _ in 0..<90 {
-            let dateString = dateFormatter.string(from: checkDate)
+        for _ in 0..<streakWindowDays {
+            let dateString = formatter.string(from: checkDate)
             if activeDateStrings.contains(dateString) {
                 streak += 1
                 checkDate = calendar.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
