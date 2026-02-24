@@ -241,6 +241,69 @@ struct LocalStatsServiceTests {
         #expect(stats.tasks.completed == 3) // Total completed still counts all
     }
 
+    // MARK: - Weekly Stats
+
+    @Test("Counts tasks created this week")
+    func countsCreatedThisWeek() throws {
+        let container = try makeTestContainer()
+        let ctx = container.mainContext
+        let calendar = Calendar.current
+        let now = Date()
+
+        // Task created now (this week)
+        ctx.insert(QueueTask(title: "This week", status: .pending))
+
+        // Task created 2 days ago (still this week if not crossing week boundary)
+        let twoDaysAgo = QueueTask(title: "Two days ago", status: .pending)
+        twoDaysAgo.createdAt = calendar.date(byAdding: .day, value: -2, to: now)! // Safe: calendar arithmetic on valid date
+        ctx.insert(twoDaysAgo)
+
+        // Task created 10 days ago (previous week)
+        let tenDaysAgo = QueueTask(title: "Last week", status: .pending)
+        tenDaysAgo.createdAt = calendar.date(byAdding: .day, value: -10, to: now)! // Safe: calendar arithmetic on valid date
+        ctx.insert(tenDaysAgo)
+        try ctx.save()
+
+        let stats = try makeService(container: container).getStats()
+
+        // At minimum, the task created "now" should count. The 2-day-old task
+        // may or may not count depending on where we are in the current week.
+        #expect(stats.tasks.createdThisWeek >= 1)
+        #expect(stats.tasks.createdThisWeek <= 2)
+        // The 10-day-old task should never be in this week
+        #expect(stats.tasks.createdThisWeek < 3)
+    }
+
+    @Test("Counts tasks completed this week using explicit completedAt")
+    func countsCompletedThisWeek() throws {
+        let container = try makeTestContainer()
+        let ctx = container.mainContext
+        let calendar = Calendar.current
+        let now = Date()
+
+        // Completed today with completedAt set
+        let completedNow = QueueTask(title: "Done now", status: .completed)
+        completedNow.completedAt = now
+        ctx.insert(completedNow)
+
+        // Completed 10 days ago (previous week)
+        let completedOld = QueueTask(title: "Done last week", status: .completed)
+        let tenDaysAgo = calendar.date(byAdding: .day, value: -10, to: now)! // Safe: calendar arithmetic on valid date
+        completedOld.completedAt = tenDaysAgo
+        completedOld.updatedAt = tenDaysAgo
+        ctx.insert(completedOld)
+
+        // Completed but no completedAt (legacy) — should NOT count
+        let legacyCompleted = QueueTask(title: "Legacy done", status: .completed)
+        legacyCompleted.completedAt = nil
+        ctx.insert(legacyCompleted)
+        try ctx.save()
+
+        let stats = try makeService(container: container).getStats()
+
+        #expect(stats.tasks.completedThisWeek == 1) // Only the one completed today
+    }
+
     // MARK: - Priority Breakdown
 
     @Test("Breaks down active tasks by priority")

@@ -279,7 +279,6 @@ struct StatsView: View {
 
     // MARK: - Data Loading
 
-    @MainActor
     private func loadStats() {
         guard let localStatsService else {
             errorMessage = "Statistics are not available."

@@ -58,14 +58,15 @@ final class LocalStatsService {
     /// a concern with very large datasets, consider offloading to a background context.
     /// - Returns: Complete statistics matching the `StatsResponse` format
     func getStats() throws -> StatsResponse {
+        let now = Date()
         let allTasks = try fetchAllTasks()
         let allStacks = try fetchAllStacks()
         let allArcs = try fetchAllArcs()
 
-        let taskStats = computeTaskStats(from: allTasks)
+        let taskStats = computeTaskStats(from: allTasks, now: now)
         let priorityBreakdown = computePriorityBreakdown(from: allTasks)
         let stackStats = computeStackStats(stacks: allStacks, arcs: allArcs)
-        let completionStreak = computeCompletionStreak(from: allTasks)
+        let completionStreak = computeCompletionStreak(from: allTasks, now: now)
 
         return StatsResponse(
             tasks: taskStats,
@@ -77,8 +78,7 @@ final class LocalStatsService {
 
     // MARK: - Task Stats
 
-    private func computeTaskStats(from allTasks: [QueueTask]) -> TaskStats {
-        let now = Date()
+    private func computeTaskStats(from allTasks: [QueueTask], now: Date) -> TaskStats {
         let total = allTasks.count
         let completed = allTasks.filter { $0.status == .completed }.count
         let active = allTasks.filter { $0.status == .pending || $0.status == .blocked }.count
@@ -160,9 +160,9 @@ final class LocalStatsService {
 
     // MARK: - Completion Streak
 
-    private func computeCompletionStreak(from allTasks: [QueueTask]) -> Int {
+    private func computeCompletionStreak(from allTasks: [QueueTask], now: Date) -> Int {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+        let today = calendar.startOfDay(for: now)
         let formatter = Self.streakDateFormatter
 
         // Only use tasks with explicit completedAt for streak calculation
@@ -182,7 +182,9 @@ final class LocalStatsService {
             }
         }
 
-        // Count consecutive days backward from today (or yesterday if today has no completions yet)
+        // Count consecutive days backward from today (or yesterday if today has no completions yet).
+        // Maximum streak = streakWindowDays (90). When today has completions, streak starts at 1
+        // and the loop runs up to streakWindowDays-1 more times (total max = 90).
         var streak = 0
         var checkDate = today
 
@@ -197,8 +199,9 @@ final class LocalStatsService {
             checkDate = calendar.date(byAdding: .day, value: -1, to: today) ?? today
         }
 
-        // Count consecutive days backward
-        for _ in 0..<Self.streakWindowDays {
+        // Count consecutive days backward. Loop limit ensures total streak ≤ streakWindowDays.
+        let remainingDays = Self.streakWindowDays - streak
+        for _ in 0..<remainingDays {
             let dateString = formatter.string(from: checkDate)
             if activeDateStrings.contains(dateString) {
                 streak += 1
