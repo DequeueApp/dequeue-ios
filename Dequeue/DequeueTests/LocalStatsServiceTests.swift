@@ -267,6 +267,23 @@ struct LocalStatsServiceTests {
         #expect(stats.priority.total == 5)
     }
 
+    @Test("Unknown priority values counted as none")
+    func unknownPriorityCountedAsNone() throws {
+        let container = try makeTestContainer()
+        let ctx = container.mainContext
+
+        ctx.insert(QueueTask(title: "Normal none", status: .pending, priority: 0))
+        ctx.insert(QueueTask(title: "Future priority 4", status: .pending, priority: 4))
+        ctx.insert(QueueTask(title: "Future priority 99", status: .pending, priority: 99))
+        ctx.insert(QueueTask(title: "Known high", status: .pending, priority: 3))
+        try ctx.save()
+
+        let stats = try makeService(container: container).getStats()
+
+        #expect(stats.priority.none == 3) // 0, 4, and 99 all counted as none
+        #expect(stats.priority.high == 1)
+    }
+
     // MARK: - Stack Stats
 
     @Test("Counts stacks and arcs")

@@ -15,17 +15,15 @@ private let logger = Logger(subsystem: "com.dequeue", category: "LocalStatsServi
 
 // MARK: - Priority Constants
 
-/// Priority level constants matching the API convention.
+/// Priority levels matching the API convention (0-3).
 /// See `PriorityBreakdown` in StatsService.swift for mapping documentation.
-private enum TaskPriority {
-    static let none = 0
-    static let low = 1
-    static let medium = 2
-    static let high = 3
+/// This is the only place these values are defined — no project-wide priority enum exists.
+private enum TaskPriority: Int {
+    case none = 0
+    case low = 1
+    case medium = 2
+    case high = 3
 }
-
-/// Maximum number of days to look back for completion streak calculation.
-private let streakWindowDays = 90
 
 // MARK: - Local Stats Service
 
@@ -36,6 +34,9 @@ private let streakWindowDays = 90
 @MainActor
 final class LocalStatsService {
     private let modelContext: ModelContext
+
+    /// Maximum number of days to look back for completion streak calculation.
+    private static let streakWindowDays = 90
 
     /// Reusable date formatter for streak calculation. Uses POSIX locale to ensure
     /// consistent date strings regardless of device calendar settings.
@@ -133,11 +134,11 @@ final class LocalStatsService {
         var none = 0
 
         for task in activeTasks {
-            switch task.priority ?? TaskPriority.none {
-            case TaskPriority.high: high += 1
-            case TaskPriority.medium: medium += 1
-            case TaskPriority.low: low += 1
-            default: none += 1
+            switch TaskPriority(rawValue: task.priority ?? TaskPriority.none.rawValue) {
+            case .high: high += 1
+            case .medium: medium += 1
+            case .low: low += 1
+            case .none, nil: none += 1 // nil = unknown/future priority value
             }
         }
 
@@ -171,7 +172,7 @@ final class LocalStatsService {
         var activeDateStrings = Set<String>()
 
         let windowStart = calendar.date(
-            byAdding: .day, value: -streakWindowDays, to: today
+            byAdding: .day, value: -Self.streakWindowDays, to: today
         ) ?? today
 
         for task in completedTasks {
@@ -197,7 +198,7 @@ final class LocalStatsService {
         }
 
         // Count consecutive days backward
-        for _ in 0..<streakWindowDays {
+        for _ in 0..<Self.streakWindowDays {
             let dateString = formatter.string(from: checkDate)
             if activeDateStrings.contains(dateString) {
                 streak += 1
