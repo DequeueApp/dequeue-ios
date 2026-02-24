@@ -10,7 +10,7 @@ import Foundation
 import SwiftData
 @testable import Dequeue
 
-@Suite("LocalStatsService")
+@Suite("LocalStatsService", .serialized)
 @MainActor
 struct LocalStatsServiceTests {
 
@@ -82,6 +82,24 @@ struct LocalStatsServiceTests {
         let stats = try service.getStats()
 
         #expect(stats.tasks.total == 3)
+    }
+
+    @Test("Excludes recurrence templates from stats")
+    func excludesRecurrenceTemplates() throws {
+        let container = try makeContainer()
+        let ctx = container.mainContext
+
+        ctx.insert(QueueTask(title: "Real task", status: .pending))
+
+        let template = QueueTask(title: "Template task", status: .pending)
+        template.isRecurrenceTemplate = true
+        ctx.insert(template)
+
+        try ctx.save()
+
+        let stats = try makeService(container: container).getStats()
+
+        #expect(stats.tasks.total == 1) // Only real task counted
     }
 
     @Test("Counts active tasks (pending + blocked)")
@@ -162,7 +180,7 @@ struct LocalStatsServiceTests {
         #expect(stats.tasks.createdToday == 1)
     }
 
-    @Test("Counts tasks completed today using completedAt")
+    @Test("Counts tasks completed today using explicit completedAt only")
     func countsCompletedToday() throws {
         let container = try makeContainer()
         let ctx = container.mainContext
@@ -178,6 +196,11 @@ struct LocalStatsServiceTests {
         completedYesterday.updatedAt = Date().addingTimeInterval(-86400)
         ctx.insert(completedYesterday)
 
+        // Completed but no completedAt (legacy) — should NOT count in time-based stats
+        let legacyCompleted = QueueTask(title: "Legacy completed", status: .completed)
+        legacyCompleted.completedAt = nil
+        ctx.insert(legacyCompleted)
+
         // Pending (not completed)
         ctx.insert(QueueTask(title: "Pending", status: .pending))
         try ctx.save()
@@ -185,6 +208,7 @@ struct LocalStatsServiceTests {
         let stats = try makeService(container: container).getStats()
 
         #expect(stats.tasks.completedToday == 1)
+        #expect(stats.tasks.completed == 3) // Total completed still counts all
     }
 
     // MARK: - Priority Breakdown
@@ -319,7 +343,7 @@ struct LocalStatsServiceTests {
         let ctx = container.mainContext
         let calendar = Calendar.current
 
-        // Only completions from a week ago
+        // Only completions from a week ago (with gap)
         let weekAgo = QueueTask(title: "Old", status: .completed)
         weekAgo.completedAt = calendar.date(byAdding: .day, value: -7, to: Date())!
         weekAgo.updatedAt = weekAgo.completedAt!

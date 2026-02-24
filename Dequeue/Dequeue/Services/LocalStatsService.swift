@@ -9,9 +9,20 @@
 import Foundation
 import os.log
 import SwiftData
-import SwiftUI
+import SwiftUI  // Required for EnvironmentKey and EnvironmentValues
 
 private let logger = Logger(subsystem: "com.dequeue", category: "LocalStatsService")
+
+// MARK: - Priority Constants
+
+/// Priority level constants matching the API convention.
+/// See `PriorityBreakdown` in StatsService.swift for mapping documentation.
+private enum TaskPriority {
+    static let none = 0
+    static let low = 1
+    static let medium = 2
+    static let high = 3
+}
 
 // MARK: - Local Stats Service
 
@@ -65,17 +76,18 @@ final class LocalStatsService {
         ) ?? startOfToday
 
         let createdToday = allTasks.filter { $0.createdAt >= startOfToday }.count
+        // Only count tasks with explicit completedAt; tasks completed before that field
+        // was tracked are excluded from time-based counts to avoid skew from updatedAt
+        // being bumped by subsequent sync/sort/tag updates.
         let completedToday = allTasks.filter { task in
-            guard task.status == .completed else { return false }
-            let completionDate = task.completedAt ?? task.updatedAt
-            return completionDate >= startOfToday
+            guard task.status == .completed, let completedAt = task.completedAt else { return false }
+            return completedAt >= startOfToday
         }.count
 
         let createdThisWeek = allTasks.filter { $0.createdAt >= startOfWeek }.count
         let completedThisWeek = allTasks.filter { task in
-            guard task.status == .completed else { return false }
-            let completionDate = task.completedAt ?? task.updatedAt
-            return completionDate >= startOfWeek
+            guard task.status == .completed, let completedAt = task.completedAt else { return false }
+            return completedAt >= startOfWeek
         }.count
 
         return TaskStats(
@@ -102,9 +114,9 @@ final class LocalStatsService {
 
         for task in activeTasks {
             switch task.priority {
-            case 3: high += 1
-            case 2: medium += 1
-            case 1: low += 1
+            case TaskPriority.high: high += 1
+            case TaskPriority.medium: medium += 1
+            case TaskPriority.low: low += 1
             default: none += 1
             }
         }
@@ -128,7 +140,8 @@ final class LocalStatsService {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
 
-        let completedTasks = allTasks.filter { $0.status == .completed }
+        // Only use tasks with explicit completedAt for streak calculation
+        let completedTasks = allTasks.filter { $0.status == .completed && $0.completedAt != nil }
 
         // Build a set of date strings that had at least one completion
         var activeDateStrings = Set<String>()
@@ -136,10 +149,10 @@ final class LocalStatsService {
         dateFormatter.dateFormat = "yyyy-MM-dd"
 
         for task in completedTasks {
-            let completionDate = task.completedAt ?? task.updatedAt
+            guard let completedAt = task.completedAt else { continue }
             // Only consider completions within last 90 days
-            if completionDate >= (calendar.date(byAdding: .day, value: -90, to: today) ?? today) {
-                activeDateStrings.insert(dateFormatter.string(from: completionDate))
+            if completedAt >= (calendar.date(byAdding: .day, value: -90, to: today) ?? today) {
+                activeDateStrings.insert(dateFormatter.string(from: completedAt))
             }
         }
 
@@ -175,10 +188,15 @@ final class LocalStatsService {
     // MARK: - SwiftData Queries
 
     private func fetchAllTasks() throws -> [QueueTask] {
+        // Fetch non-deleted tasks and filter in-memory to avoid Predicate macro
+        // limitations with compound expressions on enum/Bool fields.
         let descriptor = FetchDescriptor<QueueTask>(
             predicate: #Predicate<QueueTask> { !$0.isDeleted }
         )
-        return try modelContext.fetch(descriptor)
+        let tasks = try modelContext.fetch(descriptor)
+        // Exclude recurrence templates — they are synthetic placeholders used by
+        // RecurringTaskService and not real user tasks.
+        return tasks.filter { !$0.isRecurrenceTemplate }
     }
 
     private func fetchAllStacks() throws -> [Stack] {

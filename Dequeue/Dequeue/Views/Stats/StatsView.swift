@@ -57,7 +57,7 @@ struct StatsView: View {
             Text(message)
         } actions: {
             Button("Try Again") {
-                Task { await loadStats() }
+                loadStats()
             }
         }
     }
