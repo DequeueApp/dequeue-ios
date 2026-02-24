@@ -9,20 +9,8 @@
 import Foundation
 import os.log
 import SwiftData
-import SwiftUI  // Required for EnvironmentKey and EnvironmentValues
 
 private let logger = Logger(subsystem: "com.dequeue", category: "LocalStatsService")
-
-// MARK: - Priority Constants
-
-/// Priority levels matching the API convention (0-3).
-/// Defined here as the canonical source for priority raw values used across the app.
-enum TaskPriorityLevel: Int {
-    case none = 0
-    case low = 1
-    case medium = 2
-    case high = 3
-}
 
 // MARK: - Local Stats Service
 
@@ -207,7 +195,8 @@ final class LocalStatsService {
     /// Computes the completion streak from a set of date strings with completions.
     ///
     /// Counts consecutive days backward from today (or yesterday if today has no
-    /// completions yet). Maximum streak is capped at `streakWindowDays` (90).
+    /// completions yet). Maximum streak is `streakWindowDays` (90) when today
+    /// has completions, or `streakWindowDays - 1` (89) when it doesn't.
     private static func computeCompletionStreak(
         from completionDateStrings: Set<String>,
         today: Date,
@@ -271,18 +260,5 @@ final class LocalStatsService {
             predicate: #Predicate<Arc> { !$0.isDeleted }
         )
         return try modelContext.fetch(descriptor)
-    }
-}
-
-// MARK: - Environment Key
-
-private struct LocalStatsServiceKey: EnvironmentKey {
-    static let defaultValue: LocalStatsService? = nil
-}
-
-extension EnvironmentValues {
-    var localStatsService: LocalStatsService? {
-        get { self[LocalStatsServiceKey.self] }
-        set { self[LocalStatsServiceKey.self] = newValue }
     }
 }

@@ -21,6 +21,15 @@ enum TaskStatus: String, Codable, CaseIterable {
     case closed
 }
 
+/// Priority levels matching the API convention (0-3).
+/// Used by LocalStatsService, filters, and UI priority labels.
+enum TaskPriorityLevel: Int {
+    case none = 0
+    case low = 1
+    case medium = 2
+    case high = 3
+}
+
 enum ReminderStatus: String, Codable, CaseIterable {
     case active
     case snoozed

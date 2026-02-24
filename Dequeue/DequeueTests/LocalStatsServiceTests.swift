@@ -248,30 +248,37 @@ struct LocalStatsServiceTests {
         let container = try makeTestContainer()
         let ctx = container.mainContext
         let calendar = Calendar.current
-        let now = Date()
 
-        // Task created now (this week)
-        ctx.insert(QueueTask(title: "This week", status: .pending))
+        // Fix "now" to a known Wednesday so "2 days ago" (Monday) is always same week.
+        // Wednesday Feb 19, 2025 12:00 UTC
+        var components = DateComponents()
+        components.year = 2025
+        components.month = 2
+        components.day = 19
+        components.hour = 12
+        let fixedWednesday = calendar.date(from: components)! // Safe: known valid date
 
-        // Task created 2 days ago (still this week if not crossing week boundary)
+        // Task created on the same Wednesday
+        let thisWeek = QueueTask(title: "This week", status: .pending)
+        thisWeek.createdAt = fixedWednesday
+        ctx.insert(thisWeek)
+
+        // Task created 2 days ago (Monday) — same week
         let twoDaysAgo = QueueTask(title: "Two days ago", status: .pending)
-        twoDaysAgo.createdAt = calendar.date(byAdding: .day, value: -2, to: now)! // Safe: calendar arithmetic on valid date
+        twoDaysAgo.createdAt = calendar.date(byAdding: .day, value: -2, to: fixedWednesday)! // Safe: calendar arithmetic
         ctx.insert(twoDaysAgo)
 
-        // Task created 10 days ago (previous week)
+        // Task created 10 days ago — previous week
         let tenDaysAgo = QueueTask(title: "Last week", status: .pending)
-        tenDaysAgo.createdAt = calendar.date(byAdding: .day, value: -10, to: now)! // Safe: calendar arithmetic on valid date
+        tenDaysAgo.createdAt = calendar.date(byAdding: .day, value: -10, to: fixedWednesday)! // Safe: calendar arithmetic
         ctx.insert(tenDaysAgo)
         try ctx.save()
 
-        let stats = try makeService(container: container).getStats()
+        let allTasks = try container.mainContext.fetch(FetchDescriptor<QueueTask>())
+        let stats = LocalStatsService.compute(from: allTasks, stacks: [], arcs: [], now: fixedWednesday)
 
-        // At minimum, the task created "now" should count. The 2-day-old task
-        // may or may not count depending on where we are in the current week.
-        #expect(stats.tasks.createdThisWeek >= 1)
-        #expect(stats.tasks.createdThisWeek <= 2)
-        // The 10-day-old task should never be in this week
-        #expect(stats.tasks.createdThisWeek < 3)
+        #expect(stats.tasks.createdThisWeek == 2) // Wednesday + Monday
+        #expect(stats.tasks.total == 3)
     }
 
     @Test("Counts tasks completed this week using explicit completedAt")
