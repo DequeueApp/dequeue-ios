@@ -10,7 +10,9 @@ import Foundation
 import os.log
 import SwiftData
 
-private let logger = Logger(subsystem: "com.dequeue", category: "LocalStatsService")
+// nonisolated(unsafe) because this is accessed from both @MainActor and nonisolated
+// static contexts in LocalStatsService. Logger is thread-safe.
+nonisolated(unsafe) private let logger = Logger(subsystem: "com.dequeue", category: "LocalStatsService")
 
 // MARK: - Local Stats Service
 
@@ -26,13 +28,14 @@ final class LocalStatsService {
     private let modelContext: ModelContext
 
     /// Maximum number of days to look back for completion streak calculation.
-    static let streakWindowDays = 90
+    nonisolated(unsafe) static let streakWindowDays = 90
 
     /// Reusable date formatter for streak calculation. Uses POSIX locale to ensure
     /// consistent date strings regardless of device calendar settings.
-    private static let streakDateFormatter: DateFormatter = {
+    nonisolated(unsafe) private static let streakDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = Calendar.current.timeZone
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
@@ -71,7 +74,7 @@ final class LocalStatsService {
     ///   - arcs: Non-deleted arcs
     ///   - now: Reference time for relative calculations (defaults to current time)
     /// - Returns: Complete statistics matching the `StatsResponse` format
-    static func compute(
+    nonisolated static func compute(
         from tasks: [QueueTask],
         stacks: [Stack],
         arcs: [Arc],
@@ -197,7 +200,7 @@ final class LocalStatsService {
     /// Counts consecutive days backward from today (or yesterday if today has no
     /// completions yet). Maximum streak is `streakWindowDays` (90) when today
     /// has completions, or `streakWindowDays - 1` (89) when it doesn't.
-    private static func computeCompletionStreak(
+    nonisolated private static func computeCompletionStreak(
         from completionDateStrings: Set<String>,
         today: Date,
         calendar: Calendar

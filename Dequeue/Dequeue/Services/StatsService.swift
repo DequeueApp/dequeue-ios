@@ -7,7 +7,6 @@
 
 import Foundation
 import os.log
-import SwiftUI
 
 private let logger = Logger(subsystem: "com.dequeue", category: "StatsService")
 
@@ -136,18 +135,5 @@ final class StatsService: @unchecked Sendable {
         } catch {
             throw StatsError.networkError(error)
         }
-    }
-}
-
-// MARK: - Environment Key
-
-private struct StatsServiceKey: EnvironmentKey {
-    static let defaultValue: StatsService? = nil
-}
-
-extension EnvironmentValues {
-    var statsService: StatsService? {
-        get { self[StatsServiceKey.self] }
-        set { self[StatsServiceKey.self] = newValue }
     }
 }
