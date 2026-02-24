@@ -301,6 +301,10 @@ struct WebhookDetailView: View {
             deliveries = response.data
             nextCursor = response.pagination.nextCursor
             hasMore = response.pagination.hasMore
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("Failed to load deliveries: \(error)")
             errorMessage = error.localizedDescription
@@ -315,6 +319,10 @@ struct WebhookDetailView: View {
             deliveries.append(contentsOf: response.data)
             nextCursor = response.pagination.nextCursor
             hasMore = response.pagination.hasMore
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("Failed to load more deliveries: \(error)")
             errorMessage = error.localizedDescription
