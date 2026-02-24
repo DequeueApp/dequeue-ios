@@ -138,7 +138,7 @@ final class LocalStatsService {
             case .high: high += 1
             case .medium: medium += 1
             case .low: low += 1
-            case .none, nil: none += 1 // nil = unknown/future priority value
+            case .some(.none), nil: none += 1 // .some(.none) = TaskPriority.none; nil = unknown raw value
             }
         }
 
