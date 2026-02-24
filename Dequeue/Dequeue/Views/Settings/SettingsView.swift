@@ -260,6 +260,10 @@ struct SettingsView: View {
         isSigningOut = true
         do {
             try await authService.signOut()
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             signOutError = error.localizedDescription
             showSignOutError = true

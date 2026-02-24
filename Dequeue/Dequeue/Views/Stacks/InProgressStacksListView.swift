@@ -273,6 +273,10 @@ extension InProgressStacksListView {
         do {
             try await syncManager.manualPush()
             try await syncManager.manualPull()
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             syncError = error
             showingSyncError = true

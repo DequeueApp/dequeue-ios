@@ -331,6 +331,10 @@ private struct CreateAPIKeySheet: View {
             )
             dismiss()
             onKeyCreated(createdKey)
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             errorMessage = error.localizedDescription
             showError = true

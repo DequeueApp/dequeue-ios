@@ -146,7 +146,9 @@ struct SearchView: View {
             results = response.results
             hasSearched = true
         } catch is CancellationError {
-            // Ignore cancellation
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("Search failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription

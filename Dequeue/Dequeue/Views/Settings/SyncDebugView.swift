@@ -178,6 +178,10 @@ struct SyncDebugView: View {
         do {
             try await syncManager.manualPull()
             syncResult = "Pull completed at \(Date().formatted())"
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             syncResult = "Pull failed: \(error.localizedDescription)"
         }
@@ -195,6 +199,10 @@ struct SyncDebugView: View {
         do {
             try await syncManager.manualPush()
             syncResult = "Push completed at \(Date().formatted())"
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             syncResult = "Push failed: \(error.localizedDescription)"
         }
