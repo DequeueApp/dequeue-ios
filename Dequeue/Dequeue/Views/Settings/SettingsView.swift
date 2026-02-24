@@ -258,6 +258,7 @@ struct SettingsView: View {
 
     private func signOut() async {
         isSigningOut = true
+        defer { isSigningOut = false }
         do {
             try await authService.signOut()
         } catch is CancellationError {
@@ -269,7 +270,6 @@ struct SettingsView: View {
             showSignOutError = true
             ErrorReportingService.capture(error: error, context: ["action": "sign_out"])
         }
-        isSigningOut = false
     }
 }
 

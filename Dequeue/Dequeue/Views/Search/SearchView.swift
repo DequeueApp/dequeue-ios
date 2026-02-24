@@ -139,6 +139,7 @@ struct SearchView: View {
 
         isSearching = true
         errorMessage = nil
+        defer { isSearching = false }
 
         do {
             let response = try await searchService.search(query: query)
@@ -154,8 +155,6 @@ struct SearchView: View {
             errorMessage = error.localizedDescription
             hasSearched = true
         }
-
-        isSearching = false
     }
 }
 

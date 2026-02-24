@@ -175,6 +175,7 @@ struct SyncDebugView: View {
         }
 
         isPulling = true
+        defer { isPulling = false }
         do {
             try await syncManager.manualPull()
             syncResult = "Pull completed at \(Date().formatted())"
@@ -185,7 +186,6 @@ struct SyncDebugView: View {
         } catch {
             syncResult = "Pull failed: \(error.localizedDescription)"
         }
-        isPulling = false
         await loadDebugInfo()
     }
 
@@ -196,6 +196,7 @@ struct SyncDebugView: View {
         }
 
         isPushing = true
+        defer { isPushing = false }
         do {
             try await syncManager.manualPush()
             syncResult = "Push completed at \(Date().formatted())"
@@ -206,7 +207,6 @@ struct SyncDebugView: View {
         } catch {
             syncResult = "Push failed: \(error.localizedDescription)"
         }
-        isPushing = false
         await loadDebugInfo()
     }
 }
