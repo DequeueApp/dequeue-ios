@@ -14,12 +14,14 @@ final class EnvironmentManagerTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        // Reset UserDefaults for clean test state
+        // Reset UserDefaults and singleton state for clean test isolation
         UserDefaults.standard.removeObject(forKey: "app.environment")
+        EnvironmentManager.shared.resetToDefault()
     }
 
     override func tearDown() {
         UserDefaults.standard.removeObject(forKey: "app.environment")
+        EnvironmentManager.shared.resetToDefault()
         super.tearDown()
     }
 

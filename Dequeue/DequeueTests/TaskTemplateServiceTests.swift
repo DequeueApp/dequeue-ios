@@ -257,8 +257,9 @@ final class TaskTemplateServiceTests: XCTestCase {
     // MARK: - Task Template Model
 
     func testTaskTemplateEquality() {
-        let a = TaskTemplate(id: "same", name: "A", title: "A")
-        let b = TaskTemplate(id: "same", name: "A", title: "A")
+        let fixedDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let a = TaskTemplate(id: "same", name: "A", title: "A", createdAt: fixedDate, updatedAt: fixedDate)
+        let b = TaskTemplate(id: "same", name: "A", title: "A", createdAt: fixedDate, updatedAt: fixedDate)
         XCTAssertEqual(a, b)
     }
 

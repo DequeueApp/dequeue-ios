@@ -112,13 +112,14 @@ struct NLTaskParser: Sendable {
         // 3. Extract time expressions ("at 3pm", "at 15:00")
         (working, extractedTime) = extractTime(from: working)
 
-        // 4. Extract date expressions ("tomorrow", "next Monday", "Jan 15", etc.)
-        (working, extractedDueDate) = extractDueDate(from: working, time: extractedTime)
-
-        // 5. Extract start date ("from Monday", "starting tomorrow")
+        // 4. Extract start date first — "from/starting <date>" is more specific
+        //    than bare date keywords, so it must consume its tokens before due date extraction.
         (working, extractedStartDate) = extractStartDate(from: working, time: nil)
 
-        // 6. If we got a time but no date, assume today
+        // 5. Extract due date expressions ("tomorrow", "next Monday", "Jan 15", etc.)
+        (working, extractedDueDate) = extractDueDate(from: working, time: extractedTime)
+
+        // 6. If we got a time but no due date, assume today
         if let time = extractedTime, extractedDueDate == nil {
             var components = calendar.dateComponents([.year, .month, .day], from: referenceDate)
             components.hour = time.hour
@@ -344,20 +345,20 @@ struct NLTaskParser: Sendable {
             return (result, dateWithTime(referenceDate, hour: 21, minute: 0))
         }
 
-        // "tomorrow"
-        if let match = result.range(of: #"\b(?:by\s+)?tomorrow\b"#, options: [.regularExpression, .caseInsensitive]) {
-            result = result.replacingCharacters(in: match, with: "")
-            if let tomorrow = calendar.date(byAdding: .day, value: 1, to: referenceDate) {
-                return (result, dateWithTime(tomorrow, hour: resolvedTime.hour, minute: resolvedTime.minute))
-            }
-        }
-
-        // "day after tomorrow"
+        // "day after tomorrow" — must be checked before "tomorrow" to avoid partial match
         let dayAfterTomorrowPattern = #"\b(?:by\s+)?day after tomorrow\b"#
         if let match = result.range(of: dayAfterTomorrowPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = calendar.date(byAdding: .day, value: 2, to: referenceDate) {
                 return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
+            }
+        }
+
+        // "tomorrow"
+        if let match = result.range(of: #"\b(?:by\s+)?tomorrow\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let tomorrow = calendar.date(byAdding: .day, value: 1, to: referenceDate) {
+                return (result, dateWithTime(tomorrow, hour: resolvedTime.hour, minute: resolvedTime.minute))
             }
         }
 

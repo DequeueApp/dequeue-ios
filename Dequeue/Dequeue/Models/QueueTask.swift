@@ -31,6 +31,7 @@ final class QueueTask {
     // swiftlint:disable:next redundant_type_annotation
     var updatedAt: Date = Date()
     var isDeleted: Bool = false
+    var completedAt: Date?
 
     // AI delegation fields (DEQ-54)
     var delegatedToAI: Bool = false
@@ -83,6 +84,7 @@ final class QueueTask {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         isDeleted: Bool = false,
+        completedAt: Date? = nil,
         delegatedToAI: Bool = false,
         aiAgentId: String? = nil,
         aiDelegatedAt: Date? = nil,
@@ -118,6 +120,7 @@ final class QueueTask {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isDeleted = isDeleted
+        self.completedAt = completedAt
         self.delegatedToAI = delegatedToAI
         self.aiAgentId = aiAgentId
         self.aiDelegatedAt = aiDelegatedAt
