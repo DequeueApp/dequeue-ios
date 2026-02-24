@@ -125,6 +125,11 @@ struct SettingsView: View {
                 Label("Statistics", systemImage: "chart.bar")
             }
             NavigationLink {
+                StreakDashboardView()
+            } label: {
+                Label("Streaks", systemImage: "flame")
+            }
+            NavigationLink {
                 ExportView()
             } label: {
                 Label("Export Data", systemImage: "square.and.arrow.up")
