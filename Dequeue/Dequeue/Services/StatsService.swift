@@ -89,11 +89,8 @@ enum StatsError: LocalizedError {
 /// Service for fetching task statistics via the Dequeue API.
 /// Network-only service - does not use @MainActor.
 ///
-/// **Deprecated:** StatsView now uses `LocalStatsService` which computes stats
-/// from SwiftData locally. This class is retained for potential future use when
-/// the API stats endpoint is available (production is still on v0.3.0 which
-/// lacks `/v1/me/stats`). Can be removed once local stats prove sufficient.
-@available(*, deprecated, message: "Use LocalStatsService for offline-first stats")
+/// NOTE: Retained for future web app use. StatsView now uses LocalStatsService.
+/// Remove once the /v1/me/stats endpoint reaches production (API v0.5+).
 final class StatsService: @unchecked Sendable {
     private let authService: any AuthServiceProtocol
     private let urlSession: URLSession

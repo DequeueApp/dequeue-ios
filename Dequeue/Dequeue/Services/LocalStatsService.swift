@@ -53,9 +53,10 @@ final class LocalStatsService {
 
     /// Computes aggregate statistics from the local SwiftData store.
     ///
-    /// Runs synchronously on the main thread. For typical task counts (hundreds to
-    /// low thousands), this completes in sub-millisecond time. If performance becomes
-    /// a concern with very large datasets, consider offloading to a background context.
+    /// Runs synchronously on the main thread using single-pass aggregation.
+    /// For typical task counts (hundreds to low thousands), this is fast.
+    /// If performance becomes a concern with very large datasets (10k+),
+    /// consider offloading to a background ModelContext.
     /// - Returns: Complete statistics matching the `StatsResponse` format
     func getStats() throws -> StatsResponse {
         let now = Date()
@@ -79,14 +80,6 @@ final class LocalStatsService {
     // MARK: - Task Stats
 
     private func computeTaskStats(from allTasks: [QueueTask], now: Date) -> TaskStats {
-        let total = allTasks.count
-        let completed = allTasks.filter { $0.status == .completed }.count
-        let active = allTasks.filter { $0.status == .pending || $0.status == .blocked }.count
-        let overdue = allTasks.filter { task in
-            guard let dueTime = task.dueTime else { return false }
-            return dueTime < now && task.status != .completed && task.status != .closed
-        }.count
-
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: now)
         // Uses Calendar.current which respects the user's locale for first day of week
@@ -96,20 +89,36 @@ final class LocalStatsService {
             from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
         ) ?? startOfToday
 
-        let createdToday = allTasks.filter { $0.createdAt >= startOfToday }.count
-        // Only count tasks with explicit completedAt; tasks completed before that field
-        // was tracked are excluded from time-based counts to avoid skew from updatedAt
-        // being bumped by subsequent sync/sort/tag updates.
-        let completedToday = allTasks.filter { task in
-            guard task.status == .completed, let completedAt = task.completedAt else { return false }
-            return completedAt >= startOfToday
-        }.count
+        // Single-pass aggregation — O(n) instead of O(6n) from separate filter passes.
+        // Keeps main-thread blocking window minimal for large task counts.
+        var total = 0, completed = 0, active = 0, overdue = 0
+        var createdToday = 0, createdThisWeek = 0, completedToday = 0, completedThisWeek = 0
 
-        let createdThisWeek = allTasks.filter { $0.createdAt >= startOfWeek }.count
-        let completedThisWeek = allTasks.filter { task in
-            guard task.status == .completed, let completedAt = task.completedAt else { return false }
-            return completedAt >= startOfWeek
-        }.count
+        for task in allTasks {
+            total += 1
+
+            switch task.status {
+            case .completed:
+                completed += 1
+                // Only count tasks with explicit completedAt; tasks completed before that field
+                // was tracked are excluded from time-based counts to avoid skew from updatedAt
+                // being bumped by subsequent sync/sort/tag updates.
+                if let completedAt = task.completedAt {
+                    if completedAt >= startOfToday { completedToday += 1 }
+                    if completedAt >= startOfWeek { completedThisWeek += 1 }
+                }
+            case .pending, .blocked:
+                active += 1
+                if let dueTime = task.dueTime, dueTime < now {
+                    overdue += 1
+                }
+            default:
+                break
+            }
+
+            if task.createdAt >= startOfToday { createdToday += 1 }
+            if task.createdAt >= startOfWeek { createdThisWeek += 1 }
+        }
 
         return TaskStats(
             total: total,
