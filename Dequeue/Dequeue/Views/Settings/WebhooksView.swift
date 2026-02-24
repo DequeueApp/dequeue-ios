@@ -339,6 +339,10 @@ struct WebhookDetailView: View {
             showTestResult = true
             // Reload deliveries to show the test delivery
             await loadDeliveries()
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("Test delivery failed: \(error)")
             errorMessage = error.localizedDescription
@@ -354,6 +358,10 @@ struct WebhookDetailView: View {
             try await webhookService.deleteWebhook(id: webhook.id)
             onDelete()
             dismiss()
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("Failed to delete webhook: \(error)")
             errorMessage = error.localizedDescription
@@ -686,6 +694,10 @@ struct CreateWebhookView: View {
             let webhook = try await webhookService.createWebhook(request)
             createdSecret = webhook.secret
             onCreate(webhook)
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             logger.error("Failed to create webhook: \(error)")
             errorMessage = error.localizedDescription

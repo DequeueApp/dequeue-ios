@@ -258,14 +258,18 @@ struct SettingsView: View {
 
     private func signOut() async {
         isSigningOut = true
+        defer { isSigningOut = false }
         do {
             try await authService.signOut()
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             signOutError = error.localizedDescription
             showSignOutError = true
             ErrorReportingService.capture(error: error, context: ["action": "sign_out"])
         }
-        isSigningOut = false
     }
 }
 
