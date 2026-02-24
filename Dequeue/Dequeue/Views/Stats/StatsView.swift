@@ -11,7 +11,7 @@ import os.log
 private let logger = Logger(subsystem: "com.dequeue", category: "StatsView")
 
 struct StatsView: View {
-    @Environment(\.statsService) private var statsService
+    @Environment(\.localStatsService) private var localStatsService
     @State private var stats: StatsResponse?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -31,10 +31,10 @@ struct StatsView: View {
             }
             .navigationTitle("Statistics")
             .refreshable {
-                await loadStats()
+                loadStats()
             }
             .task {
-                await loadStats()
+                loadStats()
             }
         }
     }
@@ -283,8 +283,8 @@ struct StatsView: View {
     // MARK: - Data Loading
 
     @MainActor
-    private func loadStats() async {
-        guard let statsService else {
+    private func loadStats() {
+        guard let localStatsService else {
             errorMessage = "Statistics are not available."
             return
         }
@@ -294,12 +294,7 @@ struct StatsView: View {
         defer { isLoading = false }
 
         do {
-            stats = try await statsService.getStats()
-        } catch is CancellationError {
-            // Task was cancelled (e.g. view disappeared), not a real error
-            return
-        } catch let urlError as URLError where urlError.code == .cancelled {
-            return
+            stats = try localStatsService.getStats()
         } catch {
             logger.error("Failed to load stats: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
