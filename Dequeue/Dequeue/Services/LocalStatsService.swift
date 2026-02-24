@@ -124,7 +124,8 @@ final class LocalStatsService {
             case TaskPriority.high: high += 1
             case TaskPriority.medium: medium += 1
             case TaskPriority.low: low += 1
-            default: none += 1
+            case TaskPriority.none: none += 1
+            default: none += 1 // Unknown priority values treated as none
             }
         }
 
@@ -227,7 +228,7 @@ final class LocalStatsService {
 // MARK: - Environment Key
 
 private struct LocalStatsServiceKey: EnvironmentKey {
-    @MainActor static let defaultValue: LocalStatsService? = nil
+    static let defaultValue: LocalStatsService? = nil
 }
 
 extension EnvironmentValues {

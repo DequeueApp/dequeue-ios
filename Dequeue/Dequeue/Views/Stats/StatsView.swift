@@ -13,15 +13,12 @@ private let logger = Logger(subsystem: "com.dequeue", category: "StatsView")
 struct StatsView: View {
     @Environment(\.localStatsService) private var localStatsService
     @State private var stats: StatsResponse?
-    @State private var isLoading = false
     @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
             Group {
-                if isLoading && stats == nil {
-                    loadingView
-                } else if let stats {
+                if let stats {
                     statsContent(stats)
                 } else if let errorMessage {
                     errorView(errorMessage)
@@ -289,9 +286,7 @@ struct StatsView: View {
             return
         }
 
-        isLoading = true
         errorMessage = nil
-        defer { isLoading = false }
 
         do {
             stats = try localStatsService.getStats()
