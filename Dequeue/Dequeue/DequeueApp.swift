@@ -240,7 +240,8 @@ struct DequeueApp: App {
                     .environment(\.syncManager, syncManager)
                     .environment(\.attachmentSettings, attachmentSettings)
                     .environment(\.searchService, SearchService(authService: authService))
-                    .environment(\.localStatsService, LocalStatsService(modelContext: sharedModelContainer.mainContext))
+                    // LocalStatsService is no longer needed in the environment — StatsView
+                    // now uses @Query for reactive stats via LocalStatsService.compute().
                     .environment(\.exportService, ExportService(authService: authService))
                     .environment(\.webhookService, WebhookService(authService: authService))
                     .environment(\.batchService, BatchService(authService: authService))

@@ -16,9 +16,8 @@ private let logger = Logger(subsystem: "com.dequeue", category: "LocalStatsServi
 // MARK: - Priority Constants
 
 /// Priority levels matching the API convention (0-3).
-/// See `PriorityBreakdown` in StatsService.swift for mapping documentation.
-/// This is the only place these values are defined — no project-wide priority enum exists.
-private enum TaskPriority: Int {
+/// Defined here as the canonical source for priority raw values used across the app.
+enum TaskPriorityLevel: Int {
     case none = 0
     case low = 1
     case medium = 2
@@ -29,14 +28,17 @@ private enum TaskPriority: Int {
 
 /// Computes statistics from SwiftData models, providing offline-first stats.
 ///
-/// This replaces the network-only StatsService for native apps, computing
-/// all stats locally from the event-sourced SwiftData store.
+/// Provides two usage patterns:
+/// 1. **Static `compute()`** — Pure function for `@Query`-driven reactive views.
+///    The view owns the data via `@Query` and passes pre-fetched collections.
+/// 2. **Instance `getStats()`** — Convenience for callers with a `ModelContext`.
+///    Fetches data from SwiftData and delegates to `compute()`.
 @MainActor
 final class LocalStatsService {
     private let modelContext: ModelContext
 
     /// Maximum number of days to look back for completion streak calculation.
-    private static let streakWindowDays = 90
+    static let streakWindowDays = 90
 
     /// Reusable date formatter for streak calculation. Uses POSIX locale to ensure
     /// consistent date strings regardless of device calendar settings.
@@ -53,33 +55,44 @@ final class LocalStatsService {
 
     /// Computes aggregate statistics from the local SwiftData store.
     ///
-    /// Runs synchronously on the main thread using single-pass aggregation.
-    /// For typical task counts (hundreds to low thousands), this is fast.
-    /// If performance becomes a concern with very large datasets (10k+),
-    /// consider offloading to a background ModelContext.
+    /// Fetches all data from ModelContext and delegates to the static `compute()` method.
     /// - Returns: Complete statistics matching the `StatsResponse` format
     func getStats() throws -> StatsResponse {
-        let now = Date()
         let allTasks = try fetchAllTasks()
         let allStacks = try fetchAllStacks()
         let allArcs = try fetchAllArcs()
 
-        let taskStats = computeTaskStats(from: allTasks, now: now)
-        let priorityBreakdown = computePriorityBreakdown(from: allTasks)
-        let stackStats = computeStackStats(stacks: allStacks, arcs: allArcs)
-        let completionStreak = computeCompletionStreak(from: allTasks, now: now)
-
-        return StatsResponse(
-            tasks: taskStats,
-            priority: priorityBreakdown,
-            stacks: stackStats,
-            completionStreak: completionStreak
-        )
+        return Self.compute(from: allTasks, stacks: allStacks, arcs: allArcs)
     }
 
-    // MARK: - Task Stats
+    // MARK: - Static Computation (Pure Function)
 
-    private func computeTaskStats(from allTasks: [QueueTask], now: Date) -> TaskStats {
+    // swiftlint:disable cyclomatic_complexity
+    // Complexity is 16 (limit 15) due to intentional single-pass aggregation
+    // that folds task stats, priority, and streak into one O(n) loop.
+
+    /// Computes statistics from pre-fetched collections.
+    ///
+    /// Pure function with no side effects — suitable for calling from `@Query`-driven
+    /// SwiftUI views where the view framework manages data observation and reactivity.
+    /// Uses true single-pass aggregation over tasks for minimal computation time.
+    ///
+    /// - Parameters:
+    ///   - tasks: Non-deleted tasks (recurrence templates will be filtered out)
+    ///   - stacks: Non-deleted, non-draft stacks
+    ///   - arcs: Non-deleted arcs
+    ///   - now: Reference time for relative calculations (defaults to current time)
+    /// - Returns: Complete statistics matching the `StatsResponse` format
+    static func compute(
+        from tasks: [QueueTask],
+        stacks: [Stack],
+        arcs: [Arc],
+        now: Date = Date()
+    ) -> StatsResponse {
+        // Exclude recurrence templates — they are synthetic placeholders used by
+        // RecurringTaskService and not real user tasks.
+        let filteredTasks = tasks.filter { !$0.isRecurrenceTemplate }
+
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: now)
         // Uses Calendar.current which respects the user's locale for first day of week
@@ -89,12 +102,21 @@ final class LocalStatsService {
             from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
         ) ?? startOfToday
 
-        // Single-pass aggregation — O(n) instead of O(6n) from separate filter passes.
-        // Keeps main-thread blocking window minimal for large task counts.
+        // True single-pass aggregation — task stats, priority breakdown, and streak
+        // data are all computed in one O(n) loop over the task list.
         var total = 0, completed = 0, active = 0, overdue = 0
         var createdToday = 0, createdThisWeek = 0, completedToday = 0, completedThisWeek = 0
+        var highPriority = 0, mediumPriority = 0, lowPriority = 0, nonePriority = 0
 
-        for task in allTasks {
+        // Streak: collect completion date strings in the window
+        let today = startOfToday
+        let windowStart = calendar.date(
+            byAdding: .day, value: -streakWindowDays, to: today
+        ) ?? today
+        let formatter = streakDateFormatter
+        var completionDateStrings = Set<String>()
+
+        for task in filteredTasks {
             total += 1
 
             switch task.status {
@@ -106,11 +128,27 @@ final class LocalStatsService {
                 if let completedAt = task.completedAt {
                     if completedAt >= startOfToday { completedToday += 1 }
                     if completedAt >= startOfWeek { completedThisWeek += 1 }
+                    // Collect for streak calculation
+                    if completedAt >= windowStart {
+                        completionDateStrings.insert(formatter.string(from: completedAt))
+                    }
                 }
             case .pending, .blocked:
                 active += 1
                 if let dueTime = task.dueTime, dueTime < now {
                     overdue += 1
+                }
+                // Priority breakdown (active tasks only)
+                switch TaskPriorityLevel(rawValue: task.priority ?? TaskPriorityLevel.none.rawValue) {
+                case .high: highPriority += 1
+                case .medium: mediumPriority += 1
+                case .low: lowPriority += 1
+                case .some(.none), nil:
+                    nonePriority += 1
+                    // Log unexpected raw values for debugging (nil from unknown rawValue)
+                    if let priority = task.priority, TaskPriorityLevel(rawValue: priority) == nil {
+                        logger.warning("Unknown priority raw value: \(priority, privacy: .public)")
+                    }
                 }
             default:
                 break
@@ -120,7 +158,7 @@ final class LocalStatsService {
             if task.createdAt >= startOfWeek { createdThisWeek += 1 }
         }
 
-        return TaskStats(
+        let taskStats = TaskStats(
             total: total,
             active: active,
             completed: completed,
@@ -130,75 +168,57 @@ final class LocalStatsService {
             createdToday: createdToday,
             createdThisWeek: createdThisWeek
         )
-    }
 
-    // MARK: - Priority Breakdown
+        let priorityBreakdown = PriorityBreakdown(
+            none: nonePriority,
+            low: lowPriority,
+            medium: mediumPriority,
+            high: highPriority
+        )
 
-    private func computePriorityBreakdown(from allTasks: [QueueTask]) -> PriorityBreakdown {
-        let activeTasks = allTasks.filter { $0.status == .pending || $0.status == .blocked }
-
-        var high = 0
-        var medium = 0
-        var low = 0
-        var none = 0
-
-        for task in activeTasks {
-            switch TaskPriority(rawValue: task.priority ?? TaskPriority.none.rawValue) {
-            case .high: high += 1
-            case .medium: medium += 1
-            case .low: low += 1
-            case .some(.none), nil: none += 1 // .some(.none) = TaskPriority.none; nil = unknown raw value
-            }
-        }
-
-        return PriorityBreakdown(none: none, low: low, medium: medium, high: high)
-    }
-
-    // MARK: - Stack Stats
-
-    private func computeStackStats(stacks: [Stack], arcs: [Arc]) -> StackStats {
-        let total = stacks.count
+        // Stack stats
         // Uses raw value comparison because Stack stores status as a String in SwiftData
         // (@Attribute), not a typed enum. The computed `status` property parses the raw
         // value but using it in a filter closure triggers SwiftData Predicate limitations.
-        let active = stacks.filter { $0.statusRawValue == StackStatus.active.rawValue }.count
-        let totalArcs = arcs.count
+        let stackStats = StackStats(
+            total: stacks.count,
+            active: stacks.filter { $0.statusRawValue == StackStatus.active.rawValue }.count,
+            totalArcs: arcs.count
+        )
 
-        return StackStats(total: total, active: active, totalArcs: totalArcs)
+        // Completion streak
+        let streak = computeCompletionStreak(
+            from: completionDateStrings,
+            today: today,
+            calendar: calendar
+        )
+
+        return StatsResponse(
+            tasks: taskStats,
+            priority: priorityBreakdown,
+            stacks: stackStats,
+            completionStreak: streak
+        )
     }
+    // swiftlint:enable cyclomatic_complexity
 
-    // MARK: - Completion Streak
+    // MARK: - Streak Calculation
 
-    private func computeCompletionStreak(from allTasks: [QueueTask], now: Date) -> Int {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: now)
-        let formatter = Self.streakDateFormatter
-
-        // Only use tasks with explicit completedAt for streak calculation
-        let completedTasks = allTasks.filter { $0.status == .completed && $0.completedAt != nil }
-
-        // Build a set of date strings that had at least one completion.
-        var activeDateStrings = Set<String>()
-
-        let windowStart = calendar.date(
-            byAdding: .day, value: -Self.streakWindowDays, to: today
-        ) ?? today
-
-        for task in completedTasks {
-            guard let completedAt = task.completedAt else { continue }
-            if completedAt >= windowStart {
-                activeDateStrings.insert(formatter.string(from: completedAt))
-            }
-        }
-
-        // Count consecutive days backward from today (or yesterday if today has no completions yet).
-        // Maximum streak = streakWindowDays (90). When today has completions, streak starts at 1
-        // and the loop runs up to streakWindowDays-1 more times (total max = 90).
+    /// Computes the completion streak from a set of date strings with completions.
+    ///
+    /// Counts consecutive days backward from today (or yesterday if today has no
+    /// completions yet). Maximum streak is capped at `streakWindowDays` (90).
+    private static func computeCompletionStreak(
+        from completionDateStrings: Set<String>,
+        today: Date,
+        calendar: Calendar
+    ) -> Int {
+        let formatter = streakDateFormatter
         var streak = 0
         var checkDate = today
 
         let todayString = formatter.string(from: today)
-        let todayHasCompletions = activeDateStrings.contains(todayString)
+        let todayHasCompletions = completionDateStrings.contains(todayString)
 
         if todayHasCompletions {
             streak = 1
@@ -209,10 +229,13 @@ final class LocalStatsService {
         }
 
         // Count consecutive days backward. Loop limit ensures total streak ≤ streakWindowDays.
-        let remainingDays = Self.streakWindowDays - streak
+        // Cap at (streakWindowDays - 1) remaining to avoid examining dates beyond the window
+        // when today has no completions (otherwise the loop could check streakWindowDays days
+        // starting from yesterday = streakWindowDays + 1 days from today).
+        let remainingDays = streakWindowDays - 1
         for _ in 0..<remainingDays {
             let dateString = formatter.string(from: checkDate)
-            if activeDateStrings.contains(dateString) {
+            if completionDateStrings.contains(dateString) {
                 streak += 1
                 checkDate = calendar.date(byAdding: .day, value: -1, to: checkDate) ?? checkDate
             } else {
@@ -231,10 +254,7 @@ final class LocalStatsService {
         let descriptor = FetchDescriptor<QueueTask>(
             predicate: #Predicate<QueueTask> { !$0.isDeleted }
         )
-        let tasks = try modelContext.fetch(descriptor)
-        // Exclude recurrence templates — they are synthetic placeholders used by
-        // RecurringTaskService and not real user tasks.
-        return tasks.filter { !$0.isRecurrenceTemplate }
+        return try modelContext.fetch(descriptor)
     }
 
     private func fetchAllStacks() throws -> [Stack] {
