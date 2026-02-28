@@ -348,19 +348,14 @@ struct RootView: View {
                 // This ensures widgets show the latest state when the user leaves the app
                 WidgetDataService.updateAllWidgets(context: modelContext)
 
-                // Disconnect sync cleanly before iOS suspends the app.
-                // This stops the heartbeat timer, WebSocket listener, and periodic
-                // push/pull tasks — reducing memory pressure that can cause iOS to
-                // kill the app via jetsam. The .active handler reconnects via
-                // ensureSyncConnected() when the user returns.
+                // Suspend sync, then flush Sentry — all off the main thread.
+                // Order matters: suspend first so any teardown errors get captured
+                // by the subsequent Sentry flush. Using a single Task ensures
+                // sequential execution without blocking the main thread.
                 Task {
                     await syncManager.suspendForBackground()
+                    ErrorReportingService.prepareForBackground()
                 }
-
-                // Flush pending Sentry events and pause heavy features (session
-                // replay, profiling) to reduce memory footprint in background.
-                // iOS aggressively kills backgrounded apps using too much memory.
-                ErrorReportingService.prepareForBackground()
             case .inactive:
                 // No logging needed for inactive state
                 break
