@@ -348,12 +348,19 @@ struct RootView: View {
                 // This ensures widgets show the latest state when the user leaves the app
                 WidgetDataService.updateAllWidgets(context: modelContext)
 
-                // Use detached task with utility priority to avoid blocking the background transition.
-                // This is fire-and-forget logging that shouldn't delay the app's transition to background.
-                Task.detached(priority: .utility) { [self] in
-                    let pendingCount = await getPendingSyncItemCount()
-                    await ErrorReportingService.logAppBackground(pendingSyncItems: pendingCount)
+                // Disconnect sync cleanly before iOS suspends the app.
+                // This stops the heartbeat timer, WebSocket listener, and periodic
+                // push/pull tasks — reducing memory pressure that can cause iOS to
+                // kill the app via jetsam. The .active handler reconnects via
+                // ensureSyncConnected() when the user returns.
+                Task {
+                    await syncManager.suspendForBackground()
                 }
+
+                // Flush pending Sentry events and pause heavy features (session
+                // replay, profiling) to reduce memory footprint in background.
+                // iOS aggressively kills backgrounded apps using too much memory.
+                ErrorReportingService.prepareForBackground()
             case .inactive:
                 // No logging needed for inactive state
                 break
