@@ -333,6 +333,15 @@ actor SyncManager {
         getTokenFunction = nil
     }
 
+    /// Suspends sync for app backgrounding. Unlike disconnect(), this preserves
+    /// credentials so reconnection is fast when the app returns to foreground.
+    /// Stops all running tasks (heartbeat, listener, push/pull) and closes the
+    /// WebSocket to reduce memory pressure and prevent iOS jetsam kills.
+    func suspendForBackground() {
+        disconnectInternal()
+        os_log("[Sync] Suspended for background — connection and tasks stopped, credentials preserved")
+    }
+
     /// Internal disconnect that cleans up connection state but preserves credentials.
     /// Used when reconnecting to avoid losing the ability to authenticate.
     private func disconnectInternal() {

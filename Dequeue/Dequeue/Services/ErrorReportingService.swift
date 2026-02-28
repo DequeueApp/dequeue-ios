@@ -209,6 +209,20 @@ enum ErrorReportingService {
         isConfigured = true
     }
 
+    // MARK: - Background Lifecycle
+
+    /// Prepares Sentry for app backgrounding by flushing pending events.
+    /// Session replay automatically pauses when the app enters background.
+    /// Flushing ensures any pending crash/error events are delivered before
+    /// iOS suspends (or jetsam-kills) the app.
+    static func prepareForBackground() {
+        guard isConfigured else { return }
+
+        // Flush any pending events/breadcrumbs before iOS suspends the app.
+        // Use a short timeout since iOS gives limited background time.
+        SentrySDK.flush(timeout: 2.0)
+    }
+
     // MARK: - User Context
 
     static func setUser(id: String, email: String? = nil) {

@@ -348,11 +348,13 @@ struct RootView: View {
                 // This ensures widgets show the latest state when the user leaves the app
                 WidgetDataService.updateAllWidgets(context: modelContext)
 
-                // Use detached task with utility priority to avoid blocking the background transition.
-                // This is fire-and-forget logging that shouldn't delay the app's transition to background.
-                Task.detached(priority: .utility) { [self] in
-                    let pendingCount = await getPendingSyncItemCount()
-                    await ErrorReportingService.logAppBackground(pendingSyncItems: pendingCount)
+                // Suspend sync, then flush Sentry — all off the main thread.
+                // Order matters: suspend first so any teardown errors get captured
+                // by the subsequent Sentry flush. Using a single Task ensures
+                // sequential execution without blocking the main thread.
+                Task {
+                    await syncManager.suspendForBackground()
+                    ErrorReportingService.prepareForBackground()
                 }
             case .inactive:
                 // No logging needed for inactive state
