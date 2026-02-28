@@ -93,11 +93,28 @@ extension ErrorReportingService {
 
     // MARK: - App Lifecycle Logging
 
-    /// Log app launch
+    /// Log app launch and send a verification event to confirm Sentry connectivity.
+    /// Sends an actual Sentry event (not just a log/breadcrumb) on every cold launch
+    /// so we can verify crash reporting pipeline health in the dashboard.
     static func logAppLaunch(isWarmLaunch: Bool) {
+        let buildNumber = Configuration.buildNumber
+        let appVersion = Configuration.appVersion
+
         logInfo("App launched", attributes: [
-            "launchType": isWarmLaunch ? "warm" : "cold"
+            "launchType": isWarmLaunch ? "warm" : "cold",
+            "build": buildNumber
         ])
+
+        // Send a lightweight Sentry event on cold launch to verify the pipeline.
+        // If these events stop appearing in Sentry, crash reporting is broken.
+        if !isWarmLaunch {
+            SentrySDK.capture(message: "app.cold_launch") { scope in
+                scope.setLevel(.info)
+                scope.setTag(value: buildNumber, key: "build")
+                scope.setTag(value: appVersion, key: "app_version")
+                scope.setTag(value: "launch_verification", key: "event_type")
+            }
+        }
     }
 
     /// Log app entering foreground
