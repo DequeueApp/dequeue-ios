@@ -344,21 +344,24 @@ struct RootView: View {
                     }
                 }
             case .background:
-                // Update widget data before going to background (DEQ-120)
-                // This ensures widgets show the latest state when the user leaves the app
-                WidgetDataService.updateAllWidgets(context: modelContext)
-
-                // Suspend sync, then flush Sentry — all off the main thread.
-                // Order matters: suspend first so any teardown errors get captured
-                // by the subsequent Sentry flush. Using a single Task ensures
-                // sequential execution without blocking the main thread.
+                // ⚠️ DO NOT perform synchronous SwiftData queries here.
+                // iOS takes a snapshot for the app switcher during the .background
+                // transition. Any synchronous SwiftData access via performAndWait
+                // causes a reentrancy assertion failure in NSManagedObjectContext
+                // when the snapshot triggers SwiftUI layout (which also accesses
+                // SwiftData through @Query views).
+                //
+                // Widget update moved to .inactive (fires before .background).
                 Task {
                     await syncManager.suspendForBackground()
                     ErrorReportingService.prepareForBackground()
                 }
             case .inactive:
-                // No logging needed for inactive state
-                break
+                // Update widget data when going inactive (before .background).
+                // This runs before iOS takes the app switcher snapshot, avoiding
+                // the NSManagedObjectContext reentrancy crash that occurs when
+                // synchronous SwiftData queries run during snapshot rendering.
+                WidgetDataService.updateAllWidgets(context: modelContext)
             @unknown default:
                 break
             }
