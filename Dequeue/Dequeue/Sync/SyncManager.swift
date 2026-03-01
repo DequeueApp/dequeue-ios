@@ -1394,9 +1394,16 @@ actor SyncManager {
         let currentAttempts = reconnectAttempts
         guard currentAttempts < maxReconnectAttempts,
               token != nil else {
+            // Clean up the stale WebSocket task so connectionStatus correctly
+            // reports .disconnected ("Offline") instead of .connecting ("Connecting...").
+            // Without this, webSocketTask remains non-nil after exhausting retries,
+            // causing the UI to show "Connecting..." indefinitely.
+            webSocketTask?.cancel(with: .goingAway, reason: nil)
+            webSocketTask = nil
+            os_log("[Sync] Giving up reconnection after \(currentAttempts) attempts")
             await ErrorReportingService.addBreadcrumb(
                 category: "sync",
-                message: "Max reconnect attempts reached",
+                message: "Max reconnect attempts reached, transitioning to disconnected",
                 data: ["attempts": currentAttempts]
             )
             return
