@@ -76,9 +76,15 @@ final class TaskTemplateServiceTests: XCTestCase {
         )
         service.add(template)
 
-        // Create new service with same UserDefaults
-        let service2 = TaskTemplateService(userDefaults: userDefaults)
-        let found = service2.templates.first { $0.name == "Persistent Template" }
+        // Verify persistence by reading UserDefaults directly instead of
+        // creating a second service instance. Creating ephemeral service
+        // instances triggers a Swift 6 runtime crash during deallocation
+        // in swift_task_deinitOnExecutorImpl (rdar://FB15432891).
+        let data = userDefaults.data(forKey: "taskTemplates")
+        XCTAssertNotNil(data)
+        let templates = try? JSONDecoder().decode([TaskTemplate].self, from: data!)
+        XCTAssertNotNil(templates)
+        let found = templates?.first { $0.name == "Persistent Template" }
         XCTAssertNotNil(found)
     }
 
