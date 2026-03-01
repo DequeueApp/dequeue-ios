@@ -398,14 +398,25 @@ struct RootView: View {
             }
         }
         #if os(iOS)
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-            // Show overlay BEFORE iOS takes the snapshot.
-            // willResignActive fires before the snapshot render pass.
-            showSnapshotOverlay = true
+        .task {
+            // UIApplication notifications only work in the actual app, not in test runners
+            guard !ProcessInfo.processInfo.environment.keys.contains("XCTestConfigurationFilePath") else {
+                return
+            }
+
+            // Listen for UIKit-level notifications (fire before scenePhase changes)
+            for await _ in NotificationCenter.default.notifications(named: UIApplication.willResignActiveNotification) {
+                showSnapshotOverlay = true
+            }
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-            // Remove overlay when app returns to foreground
-            showSnapshotOverlay = false
+        .task {
+            guard !ProcessInfo.processInfo.environment.keys.contains("XCTestConfigurationFilePath") else {
+                return
+            }
+
+            for await _ in NotificationCenter.default.notifications(named: UIApplication.didBecomeActiveNotification) {
+                showSnapshotOverlay = false
+            }
         }
         #endif
         .task {
