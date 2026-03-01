@@ -190,6 +190,8 @@ jobs:
           LOGFILE="xcodebuild-test.log"
 
           set +e
+          # Redirect xcodebuild output directly to logfile so $! captures xcodebuild's
+          # PID (not tee's). We echo the log at the end for CI visibility.
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
@@ -197,7 +199,7 @@ jobs:
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$LOGFILE" &
+            CODE_SIGNING_ALLOWED=NO &>"$LOGFILE" &
           XCODE_PID=$!
 
           # Wait with timeout — poll every 5 seconds
@@ -224,6 +226,11 @@ jobs:
 
           echo "xcodebuild exit code: $XCODEBUILD_EXIT (elapsed: ${SECONDS}s, timed_out: $TIMED_OUT)"
 
+          # Dump log for CI visibility (truncate to last 200 lines to avoid noise from crash-restart loop)
+          echo "--- xcodebuild output (last 200 lines) ---"
+          tail -200 "$LOGFILE"
+          echo "--- end xcodebuild output ---"
+
           # --- Parse results ---
           # Strategy: check xcodebuild output first (always available), then xcresult bundle.
           # The "All tests" line from xcodebuild output is the most reliable source when
@@ -231,8 +238,8 @@ jobs:
 
           # 1. Parse xcodebuild output for the "All tests" summary line
           #    Format: "Executed N tests, with M failures (X unexpected) in T (W) seconds"
-          ALL_TESTS_LINE=$(grep "Test Suite 'All tests' passed\|Test Suite 'All tests' failed" "$LOGFILE" | head -1 || true)
-          EXECUTED_LINE=$(grep "Executed [0-9]* tests" "$LOGFILE" | grep "Test Suite 'All tests'" -A1 | grep "Executed" | head -1 || true)
+          #    Find the "Executed N tests" line that follows "Test Suite 'All tests'"
+          EXECUTED_LINE=$(grep -A1 "Test Suite 'All tests'" "$LOGFILE" | grep "Executed [0-9]* tests" | head -1 || true)
           # Fallback: get the last "Executed N tests" line from the first test run (before any restart)
           if [ -z "$EXECUTED_LINE" ]; then
             EXECUTED_LINE=$(awk '/Restarting after unexpected exit/{exit} /Executed [0-9]+ tests/' "$LOGFILE" | tail -1 || true)
@@ -281,13 +288,14 @@ jobs:
           fi
 
           # Exit code 65 with no failures = test runner crash, not test failure
-          if [ "$XCODEBUILD_EXIT" = "65" ]; then
-            echo "::warning::xcodebuild returned exit code 65 but no test failures detected"
+          # But only trust this if we actually parsed some test output (avoid hiding build failures)
+          if [ "$XCODEBUILD_EXIT" = "65" ] && grep -q "Executed [0-9]* test" "$LOGFILE" 2>/dev/null; then
+            echo "::warning::xcodebuild returned exit code 65 but no test failures detected (crash during teardown)"
             exit 0
           fi
 
-          # No tests ran and xcodebuild failed — don't silently pass
-          echo "::error::No tests were executed (xcodebuild exit code: $XCODEBUILD_EXIT). Check deployment target compatibility."
+          # Could not determine results — don't silently pass
+          echo "::error::Could not determine test results (xcodebuild exit code: $XCODEBUILD_EXIT). Build may have failed or output was unparseable."
           exit 1
 
       - name: Upload Test Results
