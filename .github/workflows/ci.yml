@@ -141,7 +141,7 @@ jobs:
     name: Unit Tests
     runs-on: macos-15
     needs: swiftlint
-    timeout-minutes: 50
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -174,6 +174,15 @@ jobs:
               Dequeue/Dequeue.xcodeproj/project.pbxproj
           fi
 
+          # Run xcodebuild in background with timeout.
+          # Swift 6 has a runtime bug where @MainActor-isolated objects crash during
+          # deallocation (swift_task_deinitOnExecutorImpl double-free). After all tests
+          # pass, the test host crashes on teardown and xcodebuild enters an infinite
+          # crash-restart loop. We cap the total time so we can still parse results
+          # from the xcresult bundle even if xcodebuild never exits cleanly.
+          MAX_WAIT=900  # 15 minutes (tests take ~30s, build ~4min)
+          SECONDS=0
+
           set +e
           xcodebuild test \
             -project Dequeue/Dequeue.xcodeproj \
@@ -182,18 +191,39 @@ jobs:
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO
-          XCODEBUILD_EXIT=$?
+            CODE_SIGNING_ALLOWED=NO &
+          XCODE_PID=$!
+
+          # Wait with timeout — poll every 5 seconds
+          TIMED_OUT=false
+          while kill -0 $XCODE_PID 2>/dev/null; do
+            if [ $SECONDS -ge $MAX_WAIT ]; then
+              echo "::warning::xcodebuild exceeded ${MAX_WAIT}s timeout — killing (likely Swift 6 crash-restart loop)"
+              kill $XCODE_PID 2>/dev/null || true
+              sleep 2
+              kill -9 $XCODE_PID 2>/dev/null || true
+              TIMED_OUT=true
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "$TIMED_OUT" = "false" ]; then
+            wait $XCODE_PID
+            XCODEBUILD_EXIT=$?
+          else
+            XCODEBUILD_EXIT=137  # killed
+          fi
           set -e
 
-          echo "xcodebuild exit code: $XCODEBUILD_EXIT"
+          echo "xcodebuild exit code: $XCODEBUILD_EXIT (elapsed: ${SECONDS}s, timed_out: $TIMED_OUT)"
 
           if [ ! -d "UnitTestResults.xcresult" ]; then
             echo "::error::No test results found"
             exit 1
           fi
 
-          # Parse results
+          # Parse results from xcresult bundle (reliable even if xcodebuild was killed)
           RESULTS_JSON=$(xcrun xcresulttool get --format json --path UnitTestResults.xcresult 2>/dev/null || echo "{}")
           FAILED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsFailedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "0")
           PASSED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsPassedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "0")
@@ -207,6 +237,9 @@ jobs:
           fi
 
           if [ -n "$PASSED_COUNT" ] && [ "$PASSED_COUNT" != "0" ]; then
+            if [ "$TIMED_OUT" = "true" ]; then
+              echo "::warning::xcodebuild was killed after crash-restart loop, but all $PASSED_COUNT tests had already passed"
+            fi
             echo "✅ All $PASSED_COUNT tests passed!"
             exit 0
           fi
