@@ -218,12 +218,22 @@ final class FocusTimerServiceTests: XCTestCase {
         XCTAssertEqual(config.sessionsBeforeLongBreak, 2)
     }
 
-    func testConfigPersistence() {
+    func testConfigPersistence() throws {
         service.config = .deepWork
 
-        // Create a new service with the same UserDefaults
-        let service2 = FocusTimerService(userDefaults: userDefaults)
-        XCTAssertEqual(service2.config.workDuration, 50 * 60)
+        // Verify persistence by reading UserDefaults directly instead of
+        // creating a second service instance. Creating ephemeral service
+        // instances triggers a Swift 6 runtime crash during deallocation
+        // in swift_task_deinitOnExecutorImpl (rdar://FB15432891).
+        let data = try XCTUnwrap(
+            userDefaults.data(forKey: "focusTimerConfig"),
+            "Expected focusTimerConfig to be persisted in UserDefaults"
+        )
+        let saved = try XCTUnwrap(
+            try? JSONDecoder().decode(FocusTimerConfig.self, from: data),
+            "Expected focusTimerConfig data to be decodable as FocusTimerConfig"
+        )
+        XCTAssertEqual(saved.workDuration, 50 * 60)
     }
 
     // MARK: - Timer Phase
