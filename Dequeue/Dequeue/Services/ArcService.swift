@@ -393,7 +393,10 @@ final class ArcService {
         syncManager?.triggerImmediatePush()
     }
 
-    /// Helper to apply a DateUpdate to a date field and record the change
+    /// Helper to apply a DateUpdate to a date field and record the change.
+    /// Converts dates to Unix milliseconds (Int64) to match the project convention
+    /// (CLAUDE.md: "Always use Unix milliseconds for timestamps") and to avoid
+    /// NSInvalidArgumentException from passing raw Date to JSONSerialization.
     private func applyDateUpdate(
         _ update: DateUpdate?,
         to date: inout Date?,
@@ -403,10 +406,15 @@ final class ArcService {
         guard let update = update else { return }
         switch update {
         case .clear where date != nil:
-            changes[key] = ["from": date as Any, "to": NSNull()]
+            // date is guaranteed non-nil by the where clause; use map for safe unwrap
+            if let fromMs = date.map({ Int64($0.timeIntervalSince1970 * 1_000) }) {
+                changes[key] = ["from": fromMs, "to": NSNull()]
+            }
             date = nil
         case .set(let newDate) where date != newDate:
-            changes[key] = ["from": date as Any, "to": newDate]
+            let fromValue: Any = date.map { Int64($0.timeIntervalSince1970 * 1_000) } ?? NSNull()
+            let toValue = Int64(newDate.timeIntervalSince1970 * 1_000)
+            changes[key] = ["from": fromValue, "to": toValue]
             date = newDate
         default:
             break
