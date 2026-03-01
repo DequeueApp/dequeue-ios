@@ -174,14 +174,20 @@ jobs:
               Dequeue/Dequeue.xcodeproj/project.pbxproj
           fi
 
-          # Run xcodebuild in background with timeout.
+          # Run xcodebuild in background with timeout and tee output to a log.
+          #
           # Swift 6 has a runtime bug where @MainActor-isolated objects crash during
-          # deallocation (swift_task_deinitOnExecutorImpl double-free). After all tests
-          # pass, the test host crashes on teardown and xcodebuild enters an infinite
-          # crash-restart loop. We cap the total time so we can still parse results
-          # from the xcresult bundle even if xcodebuild never exits cleanly.
+          # deallocation (swift_task_deinitOnExecutorImpl double-free). After tests
+          # complete, the test host crashes on teardown and xcodebuild enters an
+          # infinite crash-restart loop. We cap the total time and parse the raw
+          # xcodebuild output to determine pass/fail — the xcresult bundle may be
+          # incomplete if xcodebuild is killed mid-loop.
+          #
+          # TODO: Remove this workaround once Apple fixes swift_task_deinitOnExecutorImpl
+          # double-free (rdar://FB15432891).
           MAX_WAIT=900  # 15 minutes (tests take ~30s, build ~4min)
-          SECONDS=0
+          SECONDS=0     # reset bash built-in elapsed-time counter
+          LOGFILE="xcodebuild-test.log"
 
           set +e
           xcodebuild test \
@@ -191,7 +197,7 @@ jobs:
             -only-testing:DequeueTests \
             -resultBundlePath UnitTestResults.xcresult \
             -parallel-testing-enabled NO \
-            CODE_SIGNING_ALLOWED=NO &
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$LOGFILE" &
           XCODE_PID=$!
 
           # Wait with timeout — poll every 5 seconds
@@ -218,20 +224,44 @@ jobs:
 
           echo "xcodebuild exit code: $XCODEBUILD_EXIT (elapsed: ${SECONDS}s, timed_out: $TIMED_OUT)"
 
-          if [ ! -d "UnitTestResults.xcresult" ]; then
-            echo "::error::No test results found"
-            exit 1
+          # --- Parse results ---
+          # Strategy: check xcodebuild output first (always available), then xcresult bundle.
+          # The "All tests" line from xcodebuild output is the most reliable source when
+          # the process is killed, since xcresult may not have finalized its summary.
+
+          # 1. Parse xcodebuild output for the "All tests" summary line
+          #    Format: "Executed N tests, with M failures (X unexpected) in T (W) seconds"
+          ALL_TESTS_LINE=$(grep "Test Suite 'All tests' passed\|Test Suite 'All tests' failed" "$LOGFILE" | head -1 || true)
+          EXECUTED_LINE=$(grep "Executed [0-9]* tests" "$LOGFILE" | grep "Test Suite 'All tests'" -A1 | grep "Executed" | head -1 || true)
+          # Fallback: get the last "Executed N tests" line from the first test run (before any restart)
+          if [ -z "$EXECUTED_LINE" ]; then
+            EXECUTED_LINE=$(awk '/Restarting after unexpected exit/{exit} /Executed [0-9]+ tests/' "$LOGFILE" | tail -1 || true)
           fi
 
-          # Parse results from xcresult bundle (reliable even if xcodebuild was killed)
-          RESULTS_JSON=$(xcrun xcresulttool get --format json --path UnitTestResults.xcresult 2>/dev/null || echo "{}")
-          FAILED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsFailedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "0")
-          PASSED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsPassedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "0")
+          PASSED_COUNT=""
+          FAILED_COUNT=""
+          if [ -n "$EXECUTED_LINE" ]; then
+            TOTAL=$(echo "$EXECUTED_LINE" | grep -oE 'Executed [0-9]+' | grep -oE '[0-9]+')
+            FAILURES=$(echo "$EXECUTED_LINE" | grep -oE 'with [0-9]+ failures' | grep -oE '[0-9]+')
+            if [ -n "$TOTAL" ] && [ -n "$FAILURES" ]; then
+              FAILED_COUNT="$FAILURES"
+              PASSED_COUNT=$((TOTAL - FAILURES))
+            fi
+          fi
 
-          echo "Tests passed: $PASSED_COUNT"
-          echo "Tests failed: $FAILED_COUNT"
+          # 2. Fallback: try xcresult bundle if we couldn't parse from output
+          if [ -z "$PASSED_COUNT" ] && [ -d "UnitTestResults.xcresult" ]; then
+            echo "Parsing xcresult bundle as fallback..."
+            RESULTS_JSON=$(xcrun xcresulttool get --format json --path UnitTestResults.xcresult 2>/dev/null || echo "{}")
+            FAILED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsFailedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "")
+            PASSED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsPassedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "")
+          fi
 
-          if [ "$FAILED_COUNT" != "0" ] && [ "$FAILED_COUNT" != "" ]; then
+          echo "Tests passed: ${PASSED_COUNT:-unknown}"
+          echo "Tests failed: ${FAILED_COUNT:-unknown}"
+
+          # 3. Evaluate results
+          if [ -n "$FAILED_COUNT" ] && [ "$FAILED_COUNT" != "0" ]; then
             echo "::error::$FAILED_COUNT test(s) failed"
             exit 1
           fi
