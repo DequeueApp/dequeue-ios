@@ -195,8 +195,11 @@ jobs:
 
           # Parse results
           RESULTS_JSON=$(xcrun xcresulttool get --format json --path UnitTestResults.xcresult 2>/dev/null || echo "{}")
-          FAILED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsFailedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "0")
-          PASSED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsPassedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "0")
+          FAILED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsFailedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || true)
+          PASSED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsPassedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || true)
+          # Default to empty if grep found nothing (pipeline exit code from head masks grep failure)
+          FAILED_COUNT="${FAILED_COUNT:-}"
+          PASSED_COUNT="${PASSED_COUNT:-}"
 
           echo "Tests passed: $PASSED_COUNT"
           echo "Tests failed: $FAILED_COUNT"
@@ -217,10 +220,15 @@ jobs:
             exit 0
           fi
 
-          # Exit code 65 with no failures = test runner crash, not test failure
+          # Exit code 65 with no failures but SOME tests passed = test runner crash, not test failure
+          # If no tests passed either, this is likely a build failure — don't silently pass
           if [ "$XCODEBUILD_EXIT" = "65" ]; then
-            echo "::warning::xcodebuild returned exit code 65 but no test failures detected"
-            exit 0
+            if [ -n "$PASSED_COUNT" ] && [ "$PASSED_COUNT" != "0" ]; then
+              echo "::warning::xcodebuild returned exit code 65 but $PASSED_COUNT tests passed with no failures — likely test runner crash"
+              exit 0
+            fi
+            echo "::error::xcodebuild returned exit code 65 with no tests executed — likely a build failure"
+            exit 1
           fi
 
           # No tests ran and xcodebuild failed — don't silently pass
