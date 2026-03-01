@@ -292,12 +292,12 @@ struct TaskProjectionTests {
             "id": "task-001",
             "stackId": "stack-abc",
             "title": "Buy milk",
-            "description": "Organic whole milk",
+            "notes": "Organic whole milk",
             "sortOrder": 0,
             "status": "pending",
             "isActive": true,
-            "startTime": 1708000000,
-            "dueTime": 1708086400,
+            "startAt": 1708000000,
+            "dueAt": 1708086400,
             "createdAt": 1707900000,
             "updatedAt": 1708000000
         }
@@ -310,7 +310,7 @@ struct TaskProjectionTests {
         #expect(task.id == "task-001")
         #expect(task.stackId == "stack-abc")
         #expect(task.title == "Buy milk")
-        #expect(task.description == "Organic whole milk")
+        #expect(task.notes == "Organic whole milk")
         #expect(task.sortOrder == 0)
         #expect(task.status == "pending")
         #expect(task.isActive == true)
@@ -337,7 +337,7 @@ struct TaskProjectionTests {
             TaskProjection.self, from: json
         )
 
-        #expect(task.description == nil)
+        #expect(task.notes == nil)
         #expect(task.startTime == nil)
         #expect(task.dueTime == nil)
     }
