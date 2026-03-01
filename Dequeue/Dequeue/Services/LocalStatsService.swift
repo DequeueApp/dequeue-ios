@@ -28,17 +28,19 @@ final class LocalStatsService {
     private let modelContext: ModelContext
 
     /// Maximum number of days to look back for completion streak calculation.
-    nonisolated(unsafe) static let streakWindowDays = 90
+    static let streakWindowDays = 90
 
-    /// Reusable date formatter for streak calculation. Uses POSIX locale to ensure
+    /// Creates a date formatter for streak calculation. Uses POSIX locale to ensure
     /// consistent date strings regardless of device calendar settings.
-    nonisolated(unsafe) private static let streakDateFormatter: DateFormatter = {
+    /// Created per-call rather than shared to avoid DateFormatter thread-safety issues
+    /// (DateFormatter is not thread-safe and compute() is nonisolated).
+    private static func makeStreakDateFormatter() -> DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = Calendar.current.timeZone
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
-    }()
+    }
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
@@ -104,7 +106,7 @@ final class LocalStatsService {
         let windowStart = calendar.date(
             byAdding: .day, value: -streakWindowDays, to: today
         ) ?? today
-        let formatter = streakDateFormatter
+        let formatter = makeStreakDateFormatter()
         var completionDateStrings = Set<String>()
 
         for task in filteredTasks {
@@ -205,7 +207,7 @@ final class LocalStatsService {
         today: Date,
         calendar: Calendar
     ) -> Int {
-        let formatter = streakDateFormatter
+        let formatter = makeStreakDateFormatter()
         var streak = 0
         var checkDate = today
 
