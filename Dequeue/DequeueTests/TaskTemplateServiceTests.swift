@@ -69,7 +69,7 @@ final class TaskTemplateServiceTests: XCTestCase {
         XCTAssertEqual(service.templates.last?.name, "Custom Template")
     }
 
-    func testAddTemplatePersists() {
+    func testAddTemplatePersists() throws {
         let template = TaskTemplate(
             name: "Persistent Template",
             title: "Persist this"
@@ -80,12 +80,16 @@ final class TaskTemplateServiceTests: XCTestCase {
         // creating a second service instance. Creating ephemeral service
         // instances triggers a Swift 6 runtime crash during deallocation
         // in swift_task_deinitOnExecutorImpl (rdar://FB15432891).
-        let data = userDefaults.data(forKey: "taskTemplates")
-        XCTAssertNotNil(data)
-        let templates = try? JSONDecoder().decode([TaskTemplate].self, from: data!)
-        XCTAssertNotNil(templates)
-        let found = templates?.first { $0.name == "Persistent Template" }
-        XCTAssertNotNil(found)
+        let data = try XCTUnwrap(
+            userDefaults.data(forKey: "taskTemplates"),
+            "Expected taskTemplates to be persisted in UserDefaults"
+        )
+        let templates = try XCTUnwrap(
+            try? JSONDecoder().decode([TaskTemplate].self, from: data),
+            "Expected taskTemplates data to be decodable"
+        )
+        let found = templates.first { $0.name == "Persistent Template" }
+        XCTAssertNotNil(found, "Expected to find 'Persistent Template' in persisted templates")
     }
 
     // MARK: - Update

@@ -394,6 +394,12 @@ final class ArcService {
     }
 
     /// Helper to apply a DateUpdate to a date field and record the change
+    /// Converts a Date to a Unix timestamp in milliseconds, matching the format
+    /// used by ArcState and the backend API for event payloads.
+    private func dateToMillis(_ date: Date) -> Int64 {
+        Int64(date.timeIntervalSince1970 * 1_000)
+    }
+
     private func applyDateUpdate(
         _ update: DateUpdate?,
         to date: inout Date?,
@@ -403,10 +409,10 @@ final class ArcService {
         guard let update = update else { return }
         switch update {
         case .clear where date != nil:
-            changes[key] = ["from": date as Any, "to": NSNull()]
+            changes[key] = ["from": date.map { dateToMillis($0) } as Any, "to": NSNull()]
             date = nil
         case .set(let newDate) where date != newDate:
-            changes[key] = ["from": date as Any, "to": newDate]
+            changes[key] = ["from": date.map { dateToMillis($0) } as Any, "to": dateToMillis(newDate)]
             date = newDate
         default:
             break

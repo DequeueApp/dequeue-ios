@@ -112,7 +112,7 @@ final class StreakTrackerServiceTests: XCTestCase {
 
     // MARK: - Persistence
 
-    func testRecordsPersist() {
+    func testRecordsPersist() throws {
         service.recordTaskCompletion()
         service.recordTaskCompletion()
 
@@ -120,17 +120,26 @@ final class StreakTrackerServiceTests: XCTestCase {
         // creating a second service instance. Creating ephemeral service
         // instances triggers a Swift 6 runtime crash during deallocation
         // in swift_task_deinitOnExecutorImpl (rdar://FB15432891).
-        let data = userDefaults.data(forKey: "streakTrackerRecords")
-        XCTAssertNotNil(data)
-        let records = try? JSONDecoder().decode(
-            [String: DailyProductivityRecord].self, from: data!
+        // Note: isTodayActive is a computed property on the live service and
+        // cannot be tested via raw UserDefaults. The serialization of the
+        // underlying records is verified below.
+        let data = try XCTUnwrap(
+            userDefaults.data(forKey: "streakTrackerRecords"),
+            "Expected streakTrackerRecords to be persisted in UserDefaults"
         )
-        XCTAssertNotNil(records)
+        let records = try XCTUnwrap(
+            try? JSONDecoder().decode(
+                [String: DailyProductivityRecord].self, from: data
+            ),
+            "Expected streakTrackerRecords data to be decodable"
+        )
         let today = Calendar.current.startOfDay(for: Date())
         let key = ISO8601DateFormatter().string(from: today).prefix(10)
-        let todayRecord = records?[String(key)]
-        XCTAssertNotNil(todayRecord)
-        XCTAssertEqual(todayRecord?.tasksCompleted, 2)
+        let todayRecord = try XCTUnwrap(
+            records[String(key)],
+            "Expected a record for today's date key"
+        )
+        XCTAssertEqual(todayRecord.tasksCompleted, 2)
     }
 
     // MARK: - Week Activity
