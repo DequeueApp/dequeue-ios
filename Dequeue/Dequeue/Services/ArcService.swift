@@ -406,13 +406,15 @@ final class ArcService {
         guard let update = update else { return }
         switch update {
         case .clear where date != nil:
-            let fromValue = date.map { Int64($0.timeIntervalSince1970 * 1_000) }
-            changes[key] = ["from": fromValue as Any, "to": NSNull()]
+            // date is guaranteed non-nil by the where clause; use map for safe unwrap
+            if let fromMs = date.map({ Int64($0.timeIntervalSince1970 * 1_000) }) {
+                changes[key] = ["from": fromMs, "to": NSNull()]
+            }
             date = nil
         case .set(let newDate) where date != newDate:
-            let fromValue = date.map { Int64($0.timeIntervalSince1970 * 1_000) }
+            let fromValue: Any = date.map { Int64($0.timeIntervalSince1970 * 1_000) } ?? NSNull()
             let toValue = Int64(newDate.timeIntervalSince1970 * 1_000)
-            changes[key] = ["from": fromValue as Any, "to": toValue]
+            changes[key] = ["from": fromValue, "to": toValue]
             date = newDate
         default:
             break
