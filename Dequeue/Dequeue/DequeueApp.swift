@@ -313,8 +313,13 @@ struct RootView: View {
         .overlay {
             if showSnapshotOverlay {
                 ZStack {
+                    #if os(iOS)
                     Color(.systemBackground)
                         .ignoresSafeArea()
+                    #else
+                    Color(nsColor: .windowBackgroundColor)
+                        .ignoresSafeArea()
+                    #endif
                     Image(systemName: "tray.full.fill")
                         .font(.system(size: 48))
                         .foregroundStyle(.tertiary)
