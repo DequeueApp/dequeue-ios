@@ -86,6 +86,16 @@ struct DequeueApp: App {
             Arc.self
         ])
 
+        // One-time migration: force-delete store with incompatible schema data.
+        // ModelContainer init can succeed even when stored data is corrupt (old enum
+        // values, missing defaults, etc.), but @Query fetches crash with a fatal
+        // assertion failure in SwiftData's decoder. This runs BEFORE ModelContainer
+        // init to wipe the corrupt store. Increment storeFormatVersion when model
+        // changes would produce data that old builds can't decode.
+        if !Self.isRunningTests && !Self.isRunningUITests {
+            Self.migrateStoreIfNeeded()
+        }
+
         // Use in-memory store when running tests or UI tests to avoid file system issues
         // and ensure test isolation
         let modelConfiguration = ModelConfiguration(
@@ -148,30 +158,75 @@ struct DequeueApp: App {
         notificationService.configureNotificationCategories()
     }
 
-    /// Deletes SwiftData store files when schema migration fails.
-    /// Checks both the default app container and the App Group container
-    /// since the store location can vary depending on entitlements.
+    // MARK: - Store Migration
+
+    /// Version counter for the on-disk store format.
+    /// Increment this whenever model changes produce data that older builds can't decode.
+    /// When the stored version < this value, the store is deleted and data re-syncs from server.
+    private static let storeFormatVersion = 2  // v2: PR #335/#336 schema defaults overhaul
+
+    /// Checks if the on-disk store needs to be wiped due to incompatible schema changes.
+    /// Runs BEFORE ModelContainer init to prevent fatal assertion failures in SwiftData
+    /// when it tries to decode old-format data with new model definitions.
+    static func migrateStoreIfNeeded() {
+        let key = "com.dequeue.storeFormatVersion"
+        let storedVersion = UserDefaults.standard.integer(forKey: key) // 0 if never set
+
+        if storedVersion < storeFormatVersion {
+            os_log("[Migration] Store format version \(storedVersion) < \(storeFormatVersion), wiping store")
+            deleteSwiftDataStore()
+            UserDefaults.standard.set(storeFormatVersion, forKey: key)
+            os_log("[Migration] Store wiped, format version set to \(storeFormatVersion)")
+        }
+    }
+
+    /// Deletes SwiftData store files aggressively.
+    /// Searches both the default app container and the App Group container for ANY
+    /// SQLite-based store files (default.store and any .sqlite variants).
     static func deleteSwiftDataStore() {
         let fileManager = FileManager.default
-        let storeFileNames = ["default.store", "default.store-shm", "default.store-wal"]
+
+        // All possible store file names and their WAL/SHM companions
+        let storeBaseNames = ["default.store", "default.sqlite"]
+        let suffixes = ["", "-shm", "-wal"]
+        let storeFileNames = storeBaseNames.flatMap { base in suffixes.map { base + $0 } }
 
         // 1. Delete from default app Application Support directory
         if let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             for fileName in storeFileNames {
-                try? fileManager.removeItem(at: appSupport.appendingPathComponent(fileName))
+                let url = appSupport.appendingPathComponent(fileName)
+                if fileManager.fileExists(atPath: url.path) {
+                    do {
+                        try fileManager.removeItem(at: url)
+                        os_log("[Migration] Deleted: \(url.lastPathComponent)")
+                    } catch {
+                        os_log("[Migration] Failed to delete \(url.lastPathComponent): \(error.localizedDescription)")
+                    }
+                }
             }
         }
 
         // 2. Delete from App Group container (widgets share data via group container)
-        if let groupURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.com.ardonos.Dequeue") {
+        if let groupURL = fileManager.containerURL(
+            forSecurityApplicationGroupIdentifier: "group.com.ardonos.Dequeue"
+        ) {
             let groupAppSupport = groupURL.appendingPathComponent("Library/Application Support")
             for fileName in storeFileNames {
-                try? fileManager.removeItem(at: groupAppSupport.appendingPathComponent(fileName))
+                let url = groupAppSupport.appendingPathComponent(fileName)
+                if fileManager.fileExists(atPath: url.path) {
+                    do {
+                        try fileManager.removeItem(at: url)
+                        os_log("[Migration] Deleted (group): \(url.lastPathComponent)")
+                    } catch {
+                        os_log("[Migration] Failed to delete (group) \(url.lastPathComponent): \(error.localizedDescription)")
+                    }
+                }
             }
         }
 
         // Also clear sync checkpoint so we get fresh data from server
         UserDefaults.standard.removeObject(forKey: "com.dequeue.lastSyncCheckpoint")
+        os_log("[Migration] Cleared sync checkpoint")
     }
 
     var body: some Scene {
