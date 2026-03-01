@@ -393,11 +393,10 @@ final class ArcService {
         syncManager?.triggerImmediatePush()
     }
 
-    /// Helper to apply a DateUpdate to a date field and record the change
-    /// ISO8601 formatter for serializing dates in change dictionaries.
-    /// Dates must be converted to strings before being passed to JSONSerialization.
-    private static let iso8601Formatter = ISO8601DateFormatter()
-
+    /// Helper to apply a DateUpdate to a date field and record the change.
+    /// Converts dates to Unix milliseconds (Int64) to match the project convention
+    /// (CLAUDE.md: "Always use Unix milliseconds for timestamps") and to avoid
+    /// NSInvalidArgumentException from passing raw Date to JSONSerialization.
     private func applyDateUpdate(
         _ update: DateUpdate?,
         to date: inout Date?,
@@ -407,15 +406,13 @@ final class ArcService {
         guard let update = update else { return }
         switch update {
         case .clear where date != nil:
-            // Convert Date to ISO8601 string — JSONSerialization crashes on raw Date
-            let fromValue: Any = date.map { Self.iso8601Formatter.string(from: $0) } as Any
-            changes[key] = ["from": fromValue, "to": NSNull()]
+            let fromValue = date.map { Int64($0.timeIntervalSince1970 * 1_000) }
+            changes[key] = ["from": fromValue as Any, "to": NSNull()]
             date = nil
         case .set(let newDate) where date != newDate:
-            // Convert both dates to ISO8601 strings for JSON compatibility
-            let fromValue: Any = date.map { Self.iso8601Formatter.string(from: $0) } as Any
-            let toValue = Self.iso8601Formatter.string(from: newDate)
-            changes[key] = ["from": fromValue, "to": toValue]
+            let fromValue = date.map { Int64($0.timeIntervalSince1970 * 1_000) }
+            let toValue = Int64(newDate.timeIntervalSince1970 * 1_000)
+            changes[key] = ["from": fromValue as Any, "to": toValue]
             date = newDate
         default:
             break
