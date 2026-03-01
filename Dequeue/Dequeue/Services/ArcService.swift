@@ -394,6 +394,10 @@ final class ArcService {
     }
 
     /// Helper to apply a DateUpdate to a date field and record the change
+    /// ISO8601 formatter for serializing dates in change dictionaries.
+    /// Dates must be converted to strings before being passed to JSONSerialization.
+    private static let iso8601Formatter = ISO8601DateFormatter()
+
     private func applyDateUpdate(
         _ update: DateUpdate?,
         to date: inout Date?,
@@ -403,10 +407,15 @@ final class ArcService {
         guard let update = update else { return }
         switch update {
         case .clear where date != nil:
-            changes[key] = ["from": date as Any, "to": NSNull()]
+            // Convert Date to ISO8601 string — JSONSerialization crashes on raw Date
+            let fromValue: Any = date.map { Self.iso8601Formatter.string(from: $0) } as Any
+            changes[key] = ["from": fromValue, "to": NSNull()]
             date = nil
         case .set(let newDate) where date != newDate:
-            changes[key] = ["from": date as Any, "to": newDate]
+            // Convert both dates to ISO8601 strings for JSON compatibility
+            let fromValue: Any = date.map { Self.iso8601Formatter.string(from: $0) } as Any
+            let toValue = Self.iso8601Formatter.string(from: newDate)
+            changes[key] = ["from": fromValue, "to": toValue]
             date = newDate
         default:
             break
