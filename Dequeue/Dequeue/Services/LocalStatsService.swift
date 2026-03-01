@@ -28,13 +28,13 @@ final class LocalStatsService {
     private let modelContext: ModelContext
 
     /// Maximum number of days to look back for completion streak calculation.
-    static let streakWindowDays = 90
+    nonisolated static let streakWindowDays = 90
 
     /// Creates a date formatter for streak calculation. Uses POSIX locale to ensure
     /// consistent date strings regardless of device calendar settings.
     /// Created per-call rather than shared to avoid DateFormatter thread-safety issues
     /// (DateFormatter is not thread-safe and compute() is nonisolated).
-    private static func makeStreakDateFormatter() -> DateFormatter {
+    nonisolated private static func makeStreakDateFormatter() -> DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = Calendar.current.timeZone
