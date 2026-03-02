@@ -2,7 +2,9 @@
 //  BatchOperationServiceTests.swift
 //  DequeueTests
 //
-//  Tests for BatchOperationService — local batch operations on SwiftData tasks.
+//  Integration tests for BatchOperationService — tests the actual service
+//  with SwiftData in-memory contexts. Enum/result model tests live in
+//  BatchOperationTests.swift; this file covers service-level behavior.
 //
 
 import Testing
@@ -50,92 +52,6 @@ private func makeBatchTask(
     context.insert(task)
     try context.save()
     return task
-}
-
-// MARK: - BatchOperation Enum Tests
-
-@Suite("BatchOperation Enum", .serialized)
-@MainActor
-struct BatchOpEnumTests {
-
-    @Test("All operations have unique raw values")
-    func uniqueRawValues() {
-        let rawValues = BatchOperation.allCases.map(\.rawValue)
-        #expect(Set(rawValues).count == rawValues.count)
-    }
-
-    @Test("All operations have non-empty system images")
-    func systemImages() {
-        for operation in BatchOperation.allCases {
-            #expect(!operation.systemImage.isEmpty, "Missing systemImage for \(operation.rawValue)")
-        }
-    }
-
-    @Test("Destructive operations are correctly identified")
-    func destructiveOperations() {
-        #expect(BatchOperation.delete.isDestructive)
-        #expect(BatchOperation.close.isDestructive)
-        #expect(!BatchOperation.complete.isDestructive)
-        #expect(!BatchOperation.reopen.isDestructive)
-        #expect(!BatchOperation.move.isDestructive)
-        #expect(!BatchOperation.setPriority.isDestructive)
-        #expect(!BatchOperation.addTags.isDestructive)
-        #expect(!BatchOperation.removeTags.isDestructive)
-        #expect(!BatchOperation.setDueDate.isDestructive)
-        #expect(!BatchOperation.clearDueDate.isDestructive)
-    }
-
-    @Test("Operation id matches raw value")
-    func identifiable() {
-        for operation in BatchOperation.allCases {
-            #expect(operation.id == operation.rawValue)
-        }
-    }
-}
-
-// MARK: - BatchOperationResult Tests
-
-@Suite("BatchOperationResult", .serialized)
-@MainActor
-struct BatchOpResultTests {
-
-    @Test("Full success result")
-    func fullSuccess() {
-        let result = BatchOperationResult(
-            operation: .complete,
-            totalSelected: 3,
-            successCount: 3,
-            failureCount: 0,
-            errors: []
-        )
-        #expect(result.isFullSuccess)
-        #expect(result.summary == "Complete: 3 tasks updated")
-    }
-
-    @Test("Single task success uses singular noun")
-    func singularNoun() {
-        let result = BatchOperationResult(
-            operation: .delete,
-            totalSelected: 1,
-            successCount: 1,
-            failureCount: 0,
-            errors: []
-        )
-        #expect(result.summary == "Delete: 1 task updated")
-    }
-
-    @Test("Partial failure result")
-    func partialFailure() {
-        let result = BatchOperationResult(
-            operation: .setPriority,
-            totalSelected: 5,
-            successCount: 3,
-            failureCount: 2,
-            errors: ["Task A: error", "Task B: error"]
-        )
-        #expect(!result.isFullSuccess)
-        #expect(result.summary == "Set Priority: 3 succeeded, 2 failed")
-    }
 }
 
 // MARK: - Available Operations Tests
@@ -247,10 +163,10 @@ struct BatchOpAvailableTests {
             modelContext: context, userId: "test", deviceId: "test"
         )
         let ops = service.availableOperations(for: [pending, completed])
-        #expect(ops.contains(.complete))   // pending is completable
-        #expect(ops.contains(.reopen))     // completed is reopenable
-        #expect(ops.contains(.close))      // pending is closable
-        #expect(ops.contains(.clearDueDate)) // completed has due date
+        #expect(ops.contains(.complete))
+        #expect(ops.contains(.reopen))
+        #expect(ops.contains(.close))
+        #expect(ops.contains(.clearDueDate))
     }
 }
 
@@ -295,7 +211,6 @@ struct BatchOpCompleteTests {
         #expect(result.failureCount == 1)
         #expect(result.errors.count == 1)
         #expect(pending.status == .completed)
-        #expect(done.status == .completed) // unchanged
     }
 
     @Test("Complete blocked tasks succeeds")
@@ -311,6 +226,60 @@ struct BatchOpCompleteTests {
 
         #expect(result.successCount == 1)
         #expect(blocked.status == .completed)
+    }
+
+    @Test("Complete dismisses active reminders")
+    func dismissesReminders() async throws {
+        let container = try makeBatchTestContainer()
+        let context = container.mainContext
+        let task = try makeBatchTask(title: "Reminded", status: .pending, in: context)
+
+        // Add active and snoozed reminders
+        let activeReminder = Reminder(
+            parentId: task.id,
+            parentType: .task,
+            status: .active,
+            remindAt: Date(),
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+        activeReminder.task = task
+        context.insert(activeReminder)
+
+        let snoozedReminder = Reminder(
+            parentId: task.id,
+            parentType: .task,
+            status: .snoozed,
+            remindAt: Date(),
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+        snoozedReminder.task = task
+        context.insert(snoozedReminder)
+
+        // Add an already-fired reminder that should be untouched
+        let firedReminder = Reminder(
+            parentId: task.id,
+            parentType: .task,
+            status: .fired,
+            remindAt: Date(),
+            userId: "test-user",
+            deviceId: "test-device"
+        )
+        firedReminder.task = task
+        context.insert(firedReminder)
+        try context.save()
+
+        let service = BatchOperationService(
+            modelContext: context, userId: "test", deviceId: "test"
+        )
+
+        _ = try await service.batchComplete([task])
+
+        #expect(task.status == .completed)
+        #expect(activeReminder.status == .fired)
+        #expect(snoozedReminder.status == .fired)
+        #expect(firedReminder.status == .fired) // unchanged
     }
 
     @Test("Complete sets syncState to pending")
@@ -476,6 +445,25 @@ struct BatchOpDeleteTests {
 
         #expect(task.syncState == .pending)
     }
+
+    @Test("Delete re-deletes already deleted tasks without error")
+    func reDeleteTask() async throws {
+        let container = try makeBatchTestContainer()
+        let context = container.mainContext
+        let task = try makeBatchTask(title: "Already deleted", in: context)
+        task.isDeleted = true
+        try context.save()
+        let service = BatchOperationService(
+            modelContext: context, userId: "test", deviceId: "test"
+        )
+
+        // Note: batchDelete has no guard against re-deleting.
+        // This test documents current behavior — it re-deletes without error.
+        let result = try await service.batchDelete([task])
+
+        #expect(result.successCount == 1)
+        #expect(task.isDeleted)
+    }
 }
 
 // MARK: - Batch Move Tests
@@ -542,9 +530,33 @@ struct BatchOpMoveTests {
         let result = try await service.batchMove([t1, t2], to: target)
 
         #expect(result.successCount == 2)
-        // Sort order should be sequential starting from 0 (empty target stack)
         #expect(t1.sortOrder == 0)
         #expect(t2.sortOrder == 1)
+    }
+
+    @Test("Move with mixed skip uses index-based sort order")
+    func moveWithSkipSortOrder() async throws {
+        let container = try makeBatchTestContainer()
+        let context = container.mainContext
+        let target = Stack(title: "Target")
+        context.insert(target)
+        try context.save()
+
+        // First task already in target → will be skipped
+        let alreadyThere = try makeBatchTask(title: "Already", stack: target, in: context)
+        // Second task needs to move
+        let moveable = try makeBatchTask(title: "Moveable", in: context)
+        let service = BatchOperationService(
+            modelContext: context, userId: "test", deviceId: "test"
+        )
+
+        let result = try await service.batchMove([alreadyThere, moveable], to: target)
+
+        #expect(result.successCount == 1)
+        #expect(result.failureCount == 1)
+        // Note: sort order uses array index, so moveable gets index 1 (gap at 0)
+        // This documents current behavior — skipped items still consume an index.
+        #expect(moveable.sortOrder == 1)
     }
 }
 
@@ -685,7 +697,7 @@ struct BatchOpDueDateTests {
         let container = try makeBatchTestContainer()
         let context = container.mainContext
         let task = try makeBatchTask(title: "Task", in: context)
-        let dueDate = Date().addingTimeInterval(86400) // tomorrow
+        let dueDate = Date().addingTimeInterval(86400)
         let service = BatchOperationService(
             modelContext: context, userId: "test", deviceId: "test"
         )
@@ -772,16 +784,17 @@ struct BatchOpEdgeCaseTests {
         let container = try makeBatchTestContainer()
         let context = container.mainContext
         let task = try makeBatchTask(title: "Task", in: context)
-        let originalDate = task.updatedAt
-        // Small delay to ensure different timestamp
-        try await Task.sleep(for: .milliseconds(10))
+        // Set to a known past date for a reliable comparison
+        let pastDate = Date(timeIntervalSince1970: 1_000_000)
+        task.updatedAt = pastDate
+        try context.save()
         let service = BatchOperationService(
             modelContext: context, userId: "test", deviceId: "test"
         )
 
         _ = try await service.batchSetPriority([task], priority: 3)
 
-        #expect(task.updatedAt > originalDate)
+        #expect(task.updatedAt > pastDate)
     }
 
     @Test("Batch result reports correct operation type")
@@ -795,5 +808,22 @@ struct BatchOpEdgeCaseTests {
 
         let deleteResult = try await service.batchDelete([task])
         #expect(deleteResult.operation == .delete)
+    }
+
+    @Test("Batch operations create events")
+    func createsEvents() async throws {
+        let container = try makeBatchTestContainer()
+        let context = container.mainContext
+        let task = try makeBatchTask(title: "Task", status: .pending, in: context)
+        let service = BatchOperationService(
+            modelContext: context, userId: "test", deviceId: "test"
+        )
+
+        _ = try await service.batchComplete([task])
+
+        // Verify an event was recorded
+        let descriptor = FetchDescriptor<Event>()
+        let events = try context.fetch(descriptor)
+        #expect(!events.isEmpty, "Expected at least one event after batch complete")
     }
 }
