@@ -82,7 +82,8 @@ struct DataImportSkipCompletedTests {
             {"title": "Active", "status": "pending"},
             {"title": "Closed", "status": "closed"},
             {"title": "Cancelled UK", "status": "cancelled"},
-            {"title": "Canceled US", "status": "canceled"}
+            {"title": "Canceled US", "status": "canceled"},
+            {"title": "Mixed Case", "status": "CANCELLED"}
         ]
         """
 
@@ -92,7 +93,7 @@ struct DataImportSkipCompletedTests {
         )
 
         #expect(result.imported == 1)
-        #expect(result.skipped == 3)
+        #expect(result.skipped == 4)
     }
 
     @Test("skipCompleted does not skip active statuses")
