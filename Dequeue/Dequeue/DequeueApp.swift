@@ -171,7 +171,7 @@ struct DequeueApp: App {
     /// Version counter for the on-disk store format.
     /// Increment this whenever model changes produce data that older builds can't decode.
     /// When the stored version < this value, the store is deleted and data re-syncs from server.
-    private static let storeFormatVersion = 2  // v2: PR #335/#336 schema defaults overhaul
+    private static let storeFormatVersion = 3  // v3: QueueTask/Reminder status stored as rawValue String
 
     /// Checks if the on-disk store needs to be wiped due to incompatible schema changes.
     /// Runs BEFORE ModelContainer init to prevent fatal assertion failures in SwiftData

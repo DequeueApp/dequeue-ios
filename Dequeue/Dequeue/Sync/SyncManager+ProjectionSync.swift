@@ -36,7 +36,7 @@ extension SyncManager {
             throw SyncError.notAuthenticated
         }
 
-        let baseURL = await MainActor.run { Configuration.syncAPIBaseURL }
+        let baseURL = await MainActor.run { Configuration.dequeueAPIBaseURL }
 
         // Fetch all resource types in parallel
         // Note: Explicit type annotations help the type-checker avoid timeout on complex expressions
