@@ -399,11 +399,16 @@ final class DataImportService {
 
         let existingOrder = targetStack.pendingTasks.count
 
+        let terminalStatuses: Set<String> = [
+            "completed", "done", "finished",
+            "closed", "cancelled", "canceled"
+        ]
+
         for (index, parsedTask) in parsed.enumerated() {
-            // Skip completed tasks if requested
+            // Skip completed/closed tasks if requested
             if skipCompleted,
                let status = parsedTask.status?.lowercased(),
-               status == "completed" || status == "done" || status == "closed" {
+               terminalStatuses.contains(status) {
                 skipped += 1
                 continue
             }
