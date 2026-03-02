@@ -55,6 +55,7 @@ private func makeBatchTask(
 // MARK: - BatchOperation Enum Tests
 
 @Suite("BatchOperation Enum", .serialized)
+@MainActor
 struct BatchOpEnumTests {
 
     @Test("All operations have unique raw values")
@@ -95,6 +96,7 @@ struct BatchOpEnumTests {
 // MARK: - BatchOperationResult Tests
 
 @Suite("BatchOperationResult", .serialized)
+@MainActor
 struct BatchOpResultTests {
 
     @Test("Full success result")
