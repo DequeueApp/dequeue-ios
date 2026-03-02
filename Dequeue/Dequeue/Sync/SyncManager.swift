@@ -87,8 +87,8 @@ actor SyncManager {
         syncTotalEvents
     }
 
-    // Key for storing last sync checkpoint in UserDefaults
-    private let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
+    // Key for storing last sync checkpoint in UserDefaults (shared constant from DequeueApp)
+    private let lastSyncCheckpointKey = DequeueApp.lastSyncCheckpointKey
 
     // ISO8601 formatter that supports fractional seconds (Go's RFC3339Nano format)
     // Note: ISO8601DateFormatter is thread-safe but not marked Sendable in current SDK

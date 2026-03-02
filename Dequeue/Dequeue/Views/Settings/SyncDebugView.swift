@@ -21,7 +21,7 @@ struct SyncDebugView: View {
     @State private var isPulling = false
     @State private var isPushing = false
 
-    private let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
+    private let lastSyncCheckpointKey = DequeueApp.lastSyncCheckpointKey
 
     var body: some View {
         List {
