@@ -13,8 +13,15 @@ final class Reminder {
     @Attribute(.unique) var id: String
     var parentId: String
     var parentType: ParentType
-    // swiftlint:disable:next redundant_type_annotation
-    var status: ReminderStatus = ReminderStatus.active
+    // Store status as raw String for SwiftData #Predicate compatibility.
+    // #Predicate cannot access .rawValue on enum properties stored directly.
+    var statusRawValue = ReminderStatus.active.rawValue
+
+    /// Typed accessor for reminder status. Reads/writes `statusRawValue`.
+    var status: ReminderStatus {
+        get { ReminderStatus(rawValue: statusRawValue) ?? .active }
+        set { statusRawValue = newValue.rawValue }
+    }
     var snoozedFrom: Date?
     // swiftlint:disable:next redundant_type_annotation
     var remindAt: Date = Date()
@@ -58,7 +65,7 @@ final class Reminder {
         self.id = id
         self.parentId = parentId
         self.parentType = parentType
-        self.status = status
+        self.statusRawValue = status.rawValue
         self.snoozedFrom = snoozedFrom
         self.remindAt = remindAt
         self.createdAt = createdAt

@@ -20,8 +20,16 @@ final class QueueTask {
     var locationLongitude: Double?
     var attachments: [String] = []
     var tags: [String] = []  // DEQ-31: Tag support for tasks
-    // swiftlint:disable:next redundant_type_annotation
-    var status: TaskStatus = TaskStatus.pending
+    // Store status as raw String for SwiftData #Predicate compatibility.
+    // #Predicate cannot access .rawValue on enum properties — it causes a fatal error:
+    // "Failed to validate \QueueTask.status.rawValue because rawValue is not a member of TaskStatus"
+    var statusRawValue = TaskStatus.pending.rawValue
+
+    /// Typed accessor for task status. Reads/writes `statusRawValue`.
+    var status: TaskStatus {
+        get { TaskStatus(rawValue: statusRawValue) ?? .pending }
+        set { statusRawValue = newValue.rawValue }
+    }
     var priority: Int?
     var blockedReason: String?
     var sortOrder: Int = 0
@@ -112,7 +120,7 @@ final class QueueTask {
         self.locationLongitude = locationLongitude
         self.attachments = attachments
         self.tags = tags  // DEQ-31
-        self.status = status
+        self.statusRawValue = status.rawValue
         self.priority = priority
         self.blockedReason = blockedReason
         self.sortOrder = sortOrder

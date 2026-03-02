@@ -99,7 +99,7 @@ enum WidgetDataService {
             // Note: #Predicate requires explicit enum comparisons via local variables
             let pendingRaw = TaskStatus.pending.rawValue
             let predicate = #Predicate<QueueTask> { task in
-                task.isDeleted == false && task.status.rawValue == pendingRaw && task.dueTime != nil
+                task.isDeleted == false && task.statusRawValue == pendingRaw && task.dueTime != nil
             }
             var descriptor = FetchDescriptor<QueueTask>(
                 predicate: predicate,
@@ -146,14 +146,14 @@ enum WidgetDataService {
             // Count tasks completed today
             let completedRaw = TaskStatus.completed.rawValue
             let completedPredicate = #Predicate<QueueTask> { task in
-                task.isDeleted == false && task.status.rawValue == completedRaw && task.updatedAt >= startOfDay
+                task.isDeleted == false && task.statusRawValue == completedRaw && task.updatedAt >= startOfDay
             }
             let completedToday = try context.fetchCount(FetchDescriptor<QueueTask>(predicate: completedPredicate))
 
             // Count pending tasks across all stacks
             let pendingRaw = TaskStatus.pending.rawValue
             let pendingPredicate = #Predicate<QueueTask> { task in
-                task.isDeleted == false && task.status.rawValue == pendingRaw
+                task.isDeleted == false && task.statusRawValue == pendingRaw
             }
             let pendingTotal = try context.fetchCount(FetchDescriptor<QueueTask>(predicate: pendingPredicate))
 
@@ -167,7 +167,7 @@ enum WidgetDataService {
             // Count overdue tasks — fetch pending and filter in memory
             // (Date comparisons with optionals are tricky in #Predicate)
             let pendingWithDuePredicate = #Predicate<QueueTask> { task in
-                task.isDeleted == false && task.status.rawValue == pendingRaw && task.dueTime != nil
+                task.isDeleted == false && task.statusRawValue == pendingRaw && task.dueTime != nil
             }
             let pendingWithDue = try context.fetch(FetchDescriptor<QueueTask>(predicate: pendingWithDuePredicate))
             let overdueCount = pendingWithDue.filter { ($0.dueTime ?? .distantFuture) < now }.count
@@ -178,7 +178,7 @@ enum WidgetDataService {
             }
             let allTaskCount = try context.fetchCount(FetchDescriptor<QueueTask>(predicate: allTasksPredicate))
             let allCompletedPredicate = #Predicate<QueueTask> { task in
-                task.isDeleted == false && task.status.rawValue == completedRaw
+                task.isDeleted == false && task.statusRawValue == completedRaw
             }
             let allCompleted = try context.fetchCount(FetchDescriptor<QueueTask>(predicate: allCompletedPredicate))
 
