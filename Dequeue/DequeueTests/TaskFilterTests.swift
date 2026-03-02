@@ -823,6 +823,7 @@ struct DateRangeFilterExtendedTests {
 // MARK: - PriorityFilter & StatusFilter Tests
 
 @Suite("PriorityFilter Properties")
+@MainActor
 struct PriorityFilterPropertyTests {
     @Test("All priority filters have display names and colors")
     func properties() {
@@ -835,6 +836,7 @@ struct PriorityFilterPropertyTests {
 }
 
 @Suite("StatusFilter Properties")
+@MainActor
 struct StatusFilterPropertyTests {
     @Test("All status filters have display names")
     func properties() {
