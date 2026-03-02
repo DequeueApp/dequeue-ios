@@ -7,7 +7,6 @@
 
 import Foundation
 import os.log
-import SwiftUI
 
 private let logger = Logger(subsystem: "com.dequeue", category: "StatsService")
 
@@ -86,8 +85,11 @@ enum StatsError: LocalizedError {
 
 // MARK: - Stats Service
 
-/// Service for fetching task statistics via the Dequeue API
-/// Network-only service - does not use @MainActor
+/// Service for fetching task statistics via the Dequeue API.
+/// Network-only service - does not use @MainActor.
+///
+/// NOTE: Retained for future web app use. StatsView now uses LocalStatsService.
+/// Remove once the /v1/me/stats endpoint reaches production (API v0.5+).
 final class StatsService: @unchecked Sendable {
     private let authService: any AuthServiceProtocol
     private let urlSession: URLSession
@@ -133,18 +135,5 @@ final class StatsService: @unchecked Sendable {
         } catch {
             throw StatsError.networkError(error)
         }
-    }
-}
-
-// MARK: - Environment Key
-
-private struct StatsServiceKey: EnvironmentKey {
-    static let defaultValue: StatsService? = nil
-}
-
-extension EnvironmentValues {
-    var statsService: StatsService? {
-        get { self[StatsServiceKey.self] }
-        set { self[StatsServiceKey.self] = newValue }
     }
 }

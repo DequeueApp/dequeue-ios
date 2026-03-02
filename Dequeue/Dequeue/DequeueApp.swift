@@ -248,7 +248,6 @@ struct DequeueApp: App {
                     .environment(\.syncManager, syncManager)
                     .environment(\.attachmentSettings, attachmentSettings)
                     .environment(\.searchService, SearchService(authService: authService))
-                    .environment(\.statsService, StatsService(authService: authService))
                     .environment(\.exportService, ExportService(authService: authService))
                     .environment(\.webhookService, WebhookService(authService: authService))
                     .environment(\.batchService, BatchService(authService: authService))

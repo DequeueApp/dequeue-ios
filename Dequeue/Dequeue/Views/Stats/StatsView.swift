@@ -2,63 +2,37 @@
 //  StatsView.swift
 //  Dequeue
 //
-//  Task statistics dashboard
+//  Task statistics dashboard — reactive to SwiftData changes via @Query.
 //
 
+import SwiftData
 import SwiftUI
 import os.log
 
 private let logger = Logger(subsystem: "com.dequeue", category: "StatsView")
 
 struct StatsView: View {
-    @Environment(\.statsService) private var statsService
-    @State private var stats: StatsResponse?
-    @State private var isLoading = false
-    @State private var errorMessage: String?
+    // @Query provides automatic reactivity — stats update immediately when
+    // tasks, stacks, or arcs change anywhere in the app (no pull-to-refresh needed).
+    @Query(filter: #Predicate<QueueTask> { !$0.isDeleted })
+    private var tasks: [QueueTask]
+
+    @Query(filter: #Predicate<Stack> { !$0.isDeleted && !$0.isDraft })
+    private var stacks: [Stack]
+
+    @Query(filter: #Predicate<Arc> { !$0.isDeleted })
+    private var arcs: [Arc]
+
+    /// Computed stats derived from @Query data. Recomputed automatically
+    /// whenever the underlying SwiftData collections change.
+    private var stats: StatsResponse {
+        LocalStatsService.compute(from: tasks, stacks: stacks, arcs: arcs)
+    }
 
     var body: some View {
         NavigationStack {
-            Group {
-                if isLoading && stats == nil {
-                    loadingView
-                } else if let stats {
-                    statsContent(stats)
-                } else if let errorMessage {
-                    errorView(errorMessage)
-                } else {
-                    loadingView
-                }
-            }
-            .navigationTitle("Statistics")
-            .refreshable {
-                await loadStats()
-            }
-            .task {
-                await loadStats()
-            }
-        }
-    }
-
-    // MARK: - Loading & Error
-
-    private var loadingView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-            Text("Loading statistics...")
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func errorView(_ message: String) -> some View {
-        ContentUnavailableView {
-            Label("Unable to Load", systemImage: "exclamationmark.triangle")
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Try Again") {
-                Task { await loadStats() }
-            }
+            statsContent(stats)
+                .navigationTitle("Statistics")
         }
     }
 
@@ -277,32 +251,6 @@ struct StatsView: View {
                     color: .indigo
                 )
             }
-        }
-    }
-
-    // MARK: - Data Loading
-
-    @MainActor
-    private func loadStats() async {
-        guard let statsService else {
-            errorMessage = "Statistics are not available."
-            return
-        }
-
-        isLoading = true
-        errorMessage = nil
-        defer { isLoading = false }
-
-        do {
-            stats = try await statsService.getStats()
-        } catch is CancellationError {
-            // Task was cancelled (e.g. view disappeared), not a real error
-            return
-        } catch let urlError as URLError where urlError.code == .cancelled {
-            return
-        } catch {
-            logger.error("Failed to load stats: \(error.localizedDescription)")
-            errorMessage = error.localizedDescription
         }
     }
 }

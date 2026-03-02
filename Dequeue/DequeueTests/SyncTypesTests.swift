@@ -215,6 +215,7 @@ struct StackProjectionTests {
         #expect(stack.tags == ["errands", "weekly"])
         #expect(stack.sortOrder == 3)
         #expect(stack.activeTaskId == "task-xyz")
+        // CodingKeys maps JSON "startAt"/"dueAt" → model "startTime"/"dueTime"
         #expect(stack.startTime == 1_708_000_000)
         #expect(stack.dueTime == 1_708_086_400)
         #expect(stack.createdAt == 1_707_900_000)
@@ -296,8 +297,12 @@ struct TaskProjectionTests {
             "sortOrder": 0,
             "status": "pending",
             "isActive": true,
+            "priority": 2,
+            "blockedReason": null,
+            "parentTaskId": null,
             "startAt": 1708000000,
             "dueAt": 1708086400,
+            "completedAt": null,
             "createdAt": 1707900000,
             "updatedAt": 1708000000
         }
@@ -314,6 +319,8 @@ struct TaskProjectionTests {
         #expect(task.sortOrder == 0)
         #expect(task.status == "pending")
         #expect(task.isActive == true)
+        #expect(task.priority == 2)
+        // CodingKeys maps JSON "startAt"/"dueAt" → model "startTime"/"dueTime"
         #expect(task.startTime == 1_708_000_000)
         #expect(task.dueTime == 1_708_086_400)
     }
