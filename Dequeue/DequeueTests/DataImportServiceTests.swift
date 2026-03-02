@@ -13,7 +13,7 @@ import SwiftData
 
 // MARK: - Test Container
 
-private func makeImportTestContainer() throws -> ModelContainer {
+private func makeTestContainer() throws -> ModelContainer {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     return try ModelContainer(
         for: Stack.self,
@@ -359,7 +359,7 @@ struct DataImportServiceIntegrationTests {
 
     @Test("Import CSV tasks into stack")
     func importCSV() async throws {
-        let container = try makeImportTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Import Target")
         context.insert(stack)
@@ -386,7 +386,7 @@ struct DataImportServiceIntegrationTests {
 
     @Test("Import JSON tasks into stack")
     func importJSON() async throws {
-        let container = try makeImportTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Import Target")
         context.insert(stack)
@@ -413,7 +413,7 @@ struct DataImportServiceIntegrationTests {
 
     @Test("Import plain text tasks into stack")
     func importPlainText() async throws {
-        let container = try makeImportTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Import Target")
         context.insert(stack)
@@ -439,7 +439,7 @@ struct DataImportServiceIntegrationTests {
 
     @Test("Skip completed tasks when requested")
     func skipCompleted() async throws {
-        let container = try makeImportTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Import Target")
         context.insert(stack)
@@ -467,7 +467,7 @@ struct DataImportServiceIntegrationTests {
 
     @Test("Throw on empty parsed result")
     func emptyResult() async throws {
-        let container = try makeImportTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Import Target")
         context.insert(stack)
@@ -486,7 +486,7 @@ struct DataImportServiceIntegrationTests {
 
     @Test("Imported tasks get sequential sort orders")
     func sortOrders() async throws {
-        let container = try makeImportTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Import Target")
         context.insert(stack)
@@ -512,7 +512,7 @@ struct DataImportServiceIntegrationTests {
 
     @Test("Import creates events for each task")
     func createsEvents() async throws {
-        let container = try makeImportTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Import Target")
         context.insert(stack)
@@ -529,11 +529,15 @@ struct DataImportServiceIntegrationTests {
         let descriptor = FetchDescriptor<Event>()
         let events = try context.fetch(descriptor)
         #expect(events.count >= 2, "Expected at least 2 events for 2 imported tasks")
+        #expect(
+            events.contains { $0.eventType == .taskCreated },
+            "Expected at least one task.created event"
+        )
     }
 
     @Test("Import maps status values correctly")
     func statusMapping() async throws {
-        let container = try makeImportTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Import Target")
         context.insert(stack)
@@ -558,7 +562,9 @@ struct DataImportServiceIntegrationTests {
         )
         #expect(result.imported == 5)
 
-        // Verify status mapping
+        // Verify status mapping.
+        // Tasks are inserted with sortOrder = existingOrder + index, where existingOrder
+        // is 0 (fresh stack), so they appear in JSON array order when sorted by sortOrder.
         let descriptor = FetchDescriptor<QueueTask>(
             sortBy: [SortDescriptor(\.sortOrder)]
         )
@@ -572,7 +578,7 @@ struct DataImportServiceIntegrationTests {
 
     @Test("Skip completed includes 'done' and 'closed' variants")
     func skipCompletedVariants() async throws {
-        let container = try makeImportTestContainer()
+        let container = try makeTestContainer()
         let context = container.mainContext
         let stack = Stack(title: "Import Target")
         context.insert(stack)
@@ -597,5 +603,82 @@ struct DataImportServiceIntegrationTests {
 
         #expect(result.imported == 1)
         #expect(result.skipped == 2)
+    }
+
+    @Test("Skip completed does NOT skip 'cancelled' status")
+    func skipCompletedMissesCancelled() async throws {
+        // NOTE: This documents a gap in the skipCompleted filter.
+        // "cancelled" maps to .closed but is not in the skip list
+        // ("completed", "done", "closed"). A task with status "cancelled"
+        // will be imported even with skipCompleted = true.
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let stack = Stack(title: "Import Target")
+        context.insert(stack)
+        try context.save()
+
+        let service = DataImportService(
+            modelContext: context, userId: "test", deviceId: "test"
+        )
+
+        let json = """
+        [
+            {"title": "Active", "status": "pending"},
+            {"title": "Cancelled", "status": "cancelled"}
+        ]
+        """
+
+        let result = try await service.importTasks(
+            content: json, format: .json, targetStack: stack,
+            skipCompleted: true
+        )
+
+        // "cancelled" is NOT in the skip list, so both tasks are imported
+        #expect(result.imported == 2)
+        #expect(result.skipped == 0)
+
+        // But the cancelled task gets .closed status
+        let descriptor = FetchDescriptor<QueueTask>(
+            sortBy: [SortDescriptor(\.sortOrder)]
+        )
+        let tasks = try context.fetch(descriptor)
+        #expect(tasks[1].status == .closed)
+    }
+
+    @Test("CSV import persists field values through full pipeline")
+    func csvFieldsPersistThroughPipeline() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let stack = Stack(title: "Import Target")
+        context.insert(stack)
+        try context.save()
+
+        let service = DataImportService(
+            modelContext: context, userId: "test", deviceId: "test"
+        )
+
+        let csv = """
+        title,description,priority,tags,due
+        Ship feature,Update the widget,high,frontend;release,2026-06-15
+        """
+
+        let result = try await service.importTasks(
+            content: csv, format: .csv, targetStack: stack
+        )
+        #expect(result.imported == 1)
+
+        let descriptor = FetchDescriptor<QueueTask>()
+        let tasks = try context.fetch(descriptor)
+        let task = try #require(tasks.first)
+
+        #expect(task.title == "Ship feature")
+        #expect(task.taskDescription == "Update the widget")
+        #expect(task.priority == 3)      // "high" → 3
+        #expect(task.dueTime != nil)     // due date parsed
+        #expect(task.status == .pending) // default status
+        #expect(task.stack?.id == stack.id)
+
+        // Verify tags were persisted
+        #expect(task.tags.sorted() == ["frontend", "release"])
     }
 }
