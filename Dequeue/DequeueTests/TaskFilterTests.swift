@@ -772,6 +772,7 @@ struct TaskFilterServiceExtendedTests {
 // MARK: - DateRangeFilter Extended Tests
 
 @Suite("DateRangeFilter — Extended")
+@MainActor
 struct DateRangeFilterExtendedTests {
     @Test("Tomorrow returns correct bounds")
     func tomorrowRange() {
