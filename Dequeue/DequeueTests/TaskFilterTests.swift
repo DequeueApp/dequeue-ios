@@ -523,6 +523,7 @@ struct TaskFilterServiceExtendedTests {
         let context = try makeFilterTestContext()
         let task = try makeFilterTask(title: "Task A", in: context)
         task.taskDescription = "This needs backend work"
+        try context.save()
         let taskB = try makeFilterTask(title: "Task B", in: context)
 
         let service = TaskFilterService(modelContext: context)
@@ -686,7 +687,7 @@ struct TaskFilterServiceExtendedTests {
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
         filter.dateRangeFilter = .custom
-        filter.customStartDate = cal.date(byAdding: .day, value: -1, to: now)
+        filter.customStartDate = try #require(cal.date(byAdding: .day, value: -1, to: now))
         filter.customEndDate = twoDaysFromNow
         let results = service.apply(filter: filter, to: [t1, t2, t3])
 
@@ -776,8 +777,9 @@ struct TaskFilterServiceExtendedTests {
 struct DateRangeFilterExtendedTests {
     @Test("Tomorrow returns correct bounds")
     func tomorrowRange() {
-        let range = DateRangeFilter.tomorrow.dateRange()
-        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let now = Date()
+        let range = DateRangeFilter.tomorrow.dateRange(from: now)
+        let startOfToday = Calendar.current.startOfDay(for: now)
         let expectedStart = Calendar.current.date(byAdding: .day, value: 1, to: startOfToday)
         let expectedEnd = Calendar.current.date(byAdding: .day, value: 2, to: startOfToday)
         #expect(range.start == expectedStart)
@@ -786,8 +788,9 @@ struct DateRangeFilterExtendedTests {
 
     @Test("Next week spans days 7 through 14")
     func nextWeekRange() {
-        let range = DateRangeFilter.nextWeek.dateRange()
-        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let now = Date()
+        let range = DateRangeFilter.nextWeek.dateRange(from: now)
+        let startOfToday = Calendar.current.startOfDay(for: now)
         let expectedStart = Calendar.current.date(byAdding: .day, value: 7, to: startOfToday)
         let expectedEnd = Calendar.current.date(byAdding: .day, value: 14, to: startOfToday)
         #expect(range.start == expectedStart)
@@ -796,8 +799,9 @@ struct DateRangeFilterExtendedTests {
 
     @Test("This month spans 1 month from today")
     func thisMonthRange() {
-        let range = DateRangeFilter.thisMonth.dateRange()
-        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let now = Date()
+        let range = DateRangeFilter.thisMonth.dateRange(from: now)
+        let startOfToday = Calendar.current.startOfDay(for: now)
         let expectedEnd = Calendar.current.date(byAdding: .month, value: 1, to: startOfToday)
         #expect(range.start == startOfToday)
         #expect(range.end == expectedEnd)
