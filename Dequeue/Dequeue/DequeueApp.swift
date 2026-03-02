@@ -161,10 +161,12 @@ struct DequeueApp: App {
     // MARK: - Store Migration
 
     /// UserDefaults key for tracking the on-disk store format version.
-    static let storeFormatVersionKey = "com.dequeue.storeFormatVersion"
+    /// nonisolated so other actors (e.g. SyncManager) can reference without MainActor hop.
+    nonisolated static let storeFormatVersionKey = "com.dequeue.storeFormatVersion"
 
     /// UserDefaults key for the last sync checkpoint (cleared on store wipe).
-    static let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
+    /// nonisolated so other actors (e.g. SyncManager) can reference without MainActor hop.
+    nonisolated static let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
 
     /// Version counter for the on-disk store format.
     /// Increment this whenever model changes produce data that older builds can't decode.
