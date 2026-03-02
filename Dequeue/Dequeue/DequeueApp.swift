@@ -160,6 +160,12 @@ struct DequeueApp: App {
 
     // MARK: - Store Migration
 
+    /// UserDefaults key for tracking the on-disk store format version.
+    static let storeFormatVersionKey = "com.dequeue.storeFormatVersion"
+
+    /// UserDefaults key for the last sync checkpoint (cleared on store wipe).
+    static let lastSyncCheckpointKey = "com.dequeue.lastSyncCheckpoint"
+
     /// Version counter for the on-disk store format.
     /// Increment this whenever model changes produce data that older builds can't decode.
     /// When the stored version < this value, the store is deleted and data re-syncs from server.
@@ -168,14 +174,13 @@ struct DequeueApp: App {
     /// Checks if the on-disk store needs to be wiped due to incompatible schema changes.
     /// Runs BEFORE ModelContainer init to prevent fatal assertion failures in SwiftData
     /// when it tries to decode old-format data with new model definitions.
-    static func migrateStoreIfNeeded() {
-        let key = "com.dequeue.storeFormatVersion"
-        let storedVersion = UserDefaults.standard.integer(forKey: key) // 0 if never set
+    private static func migrateStoreIfNeeded() {
+        let storedVersion = UserDefaults.standard.integer(forKey: storeFormatVersionKey) // 0 if never set
 
         if storedVersion < storeFormatVersion {
             os_log("[Migration] Store format version \(storedVersion) < \(storeFormatVersion), wiping store")
             deleteSwiftDataStore()
-            UserDefaults.standard.set(storeFormatVersion, forKey: key)
+            UserDefaults.standard.set(storeFormatVersion, forKey: storeFormatVersionKey)
             os_log("[Migration] Store wiped, format version set to \(storeFormatVersion)")
         }
     }
@@ -218,14 +223,15 @@ struct DequeueApp: App {
                         try fileManager.removeItem(at: url)
                         os_log("[Migration] Deleted (group): \(url.lastPathComponent)")
                     } catch {
-                        os_log("[Migration] Failed to delete (group) \(url.lastPathComponent): \(error.localizedDescription)")
+                        let name = url.lastPathComponent
+                        os_log("[Migration] Failed to delete (group) \(name): \(error.localizedDescription)")
                     }
                 }
             }
         }
 
         // Also clear sync checkpoint so we get fresh data from server
-        UserDefaults.standard.removeObject(forKey: "com.dequeue.lastSyncCheckpoint")
+        UserDefaults.standard.removeObject(forKey: lastSyncCheckpointKey)
         os_log("[Migration] Cleared sync checkpoint")
     }
 
