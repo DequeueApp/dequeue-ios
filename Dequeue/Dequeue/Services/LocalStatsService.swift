@@ -179,11 +179,12 @@ final class LocalStatsService {
             totalArcs: arcs.count
         )
 
-        // Completion streak
+        // Completion streak — reuse the formatter already created above
         let streak = computeCompletionStreak(
             from: completionDateStrings,
             today: today,
-            calendar: calendar
+            calendar: calendar,
+            formatter: formatter
         )
 
         return StatsResponse(
@@ -205,9 +206,9 @@ final class LocalStatsService {
     nonisolated private static func computeCompletionStreak(
         from completionDateStrings: Set<String>,
         today: Date,
-        calendar: Calendar
+        calendar: Calendar,
+        formatter: DateFormatter
     ) -> Int {
-        let formatter = makeStreakDateFormatter()
         var streak = 0
         var checkDate = today
 
