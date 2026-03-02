@@ -33,7 +33,7 @@ private func makeFilterTask(
     stack: Stack? = nil,
     isDeleted: Bool = false,
     in context: ModelContext
-) -> QueueTask {
+) throws -> QueueTask {
     let task = QueueTask(
         title: title,
         dueTime: dueTime,
@@ -44,7 +44,7 @@ private func makeFilterTask(
         stack: stack
     )
     context.insert(task)
-    try? context.save()
+    try context.save()
     return task
 }
 
@@ -238,9 +238,9 @@ struct TaskFilterServiceTests {
     @Test("Apply with default filter returns all non-deleted tasks")
     @MainActor func defaultFilterReturnsAll() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "Task A", in: context)
-        _ = makeFilterTask(title: "Task B", in: context)
-        _ = makeFilterTask(title: "Deleted", isDeleted: true, in: context)
+        _ = try makeFilterTask(title: "Task A", in: context)
+        _ = try makeFilterTask(title: "Task B", in: context)
+        _ = try makeFilterTask(title: "Deleted", isDeleted: true, in: context)
 
         let service = TaskFilterService(modelContext: context)
         let results = service.fetchFiltered(filter: .default)
@@ -251,9 +251,9 @@ struct TaskFilterServiceTests {
     @Test("Status filter: pending only")
     @MainActor func statusFilterPending() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "Active", status: .pending, in: context)
-        _ = makeFilterTask(title: "Done", status: .completed, in: context)
-        _ = makeFilterTask(title: "Blocked", status: .blocked, in: context)
+        _ = try makeFilterTask(title: "Active", status: .pending, in: context)
+        _ = try makeFilterTask(title: "Done", status: .completed, in: context)
+        _ = try makeFilterTask(title: "Blocked", status: .blocked, in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -267,8 +267,8 @@ struct TaskFilterServiceTests {
     @Test("Status filter: completed only")
     @MainActor func statusFilterCompleted() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "Active", status: .pending, in: context)
-        _ = makeFilterTask(title: "Done", status: .completed, in: context)
+        _ = try makeFilterTask(title: "Active", status: .pending, in: context)
+        _ = try makeFilterTask(title: "Done", status: .completed, in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -282,9 +282,9 @@ struct TaskFilterServiceTests {
     @Test("Priority filter: high only")
     @MainActor func priorityFilterHigh() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "High", priority: 3, in: context)
-        _ = makeFilterTask(title: "Low", priority: 1, in: context)
-        _ = makeFilterTask(title: "None", in: context)
+        _ = try makeFilterTask(title: "High", priority: 3, in: context)
+        _ = try makeFilterTask(title: "Low", priority: 1, in: context)
+        _ = try makeFilterTask(title: "None", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -298,9 +298,9 @@ struct TaskFilterServiceTests {
     @Test("Search text filters by title")
     @MainActor func searchByTitle() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "Buy groceries", in: context)
-        _ = makeFilterTask(title: "Fix bug #123", in: context)
-        _ = makeFilterTask(title: "Review PR", in: context)
+        _ = try makeFilterTask(title: "Buy groceries", in: context)
+        _ = try makeFilterTask(title: "Fix bug #123", in: context)
+        _ = try makeFilterTask(title: "Review PR", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -314,7 +314,7 @@ struct TaskFilterServiceTests {
     @Test("Search is case-insensitive")
     @MainActor func searchCaseInsensitive() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "IMPORTANT Task", in: context)
+        _ = try makeFilterTask(title: "IMPORTANT Task", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -327,9 +327,9 @@ struct TaskFilterServiceTests {
     @Test("Tag filter works")
     @MainActor func tagFilter() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "Work Task", tags: ["work"], in: context)
-        _ = makeFilterTask(title: "Personal", tags: ["personal"], in: context)
-        _ = makeFilterTask(title: "Both", tags: ["work", "personal"], in: context)
+        _ = try makeFilterTask(title: "Work Task", tags: ["work"], in: context)
+        _ = try makeFilterTask(title: "Personal", tags: ["personal"], in: context)
+        _ = try makeFilterTask(title: "Both", tags: ["work", "personal"], in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -342,8 +342,8 @@ struct TaskFilterServiceTests {
     @Test("Show only with due dates")
     @MainActor func onlyWithDueDates() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "Has Due", dueTime: Date(), in: context)
-        _ = makeFilterTask(title: "No Due", in: context)
+        _ = try makeFilterTask(title: "Has Due", dueTime: Date(), in: context)
+        _ = try makeFilterTask(title: "No Due", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -357,9 +357,9 @@ struct TaskFilterServiceTests {
     @Test("Sort by title ascending")
     @MainActor func sortByTitleAsc() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "Charlie", in: context)
-        _ = makeFilterTask(title: "Alice", in: context)
-        _ = makeFilterTask(title: "Bob", in: context)
+        _ = try makeFilterTask(title: "Charlie", in: context)
+        _ = try makeFilterTask(title: "Alice", in: context)
+        _ = try makeFilterTask(title: "Bob", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -373,9 +373,9 @@ struct TaskFilterServiceTests {
     @Test("Sort by title descending")
     @MainActor func sortByTitleDesc() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "Charlie", in: context)
-        _ = makeFilterTask(title: "Alice", in: context)
-        _ = makeFilterTask(title: "Bob", in: context)
+        _ = try makeFilterTask(title: "Charlie", in: context)
+        _ = try makeFilterTask(title: "Alice", in: context)
+        _ = try makeFilterTask(title: "Bob", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -389,9 +389,9 @@ struct TaskFilterServiceTests {
     @Test("Sort by priority")
     @MainActor func sortByPriority() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "Low", priority: 1, in: context)
-        _ = makeFilterTask(title: "High", priority: 3, in: context)
-        _ = makeFilterTask(title: "Med", priority: 2, in: context)
+        _ = try makeFilterTask(title: "Low", priority: 1, in: context)
+        _ = try makeFilterTask(title: "High", priority: 3, in: context)
+        _ = try makeFilterTask(title: "Med", priority: 2, in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -406,12 +406,12 @@ struct TaskFilterServiceTests {
     @Test("Combined filters work together")
     @MainActor func combinedFilters() throws {
         let context = try makeFilterTestContext()
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        let tomorrow = try #require(Calendar.current.date(byAdding: .day, value: 1, to: Date()))
 
-        _ = makeFilterTask(title: "High Priority Tomorrow", dueTime: tomorrow, priority: 3, in: context)
-        _ = makeFilterTask(title: "Low Priority Tomorrow", dueTime: tomorrow, priority: 1, in: context)
-        _ = makeFilterTask(title: "High Priority No Date", priority: 3, in: context)
-        _ = makeFilterTask(title: "Completed", status: .completed, priority: 3, in: context)
+        _ = try makeFilterTask(title: "High Priority Tomorrow", dueTime: tomorrow, priority: 3, in: context)
+        _ = try makeFilterTask(title: "Low Priority Tomorrow", dueTime: tomorrow, priority: 1, in: context)
+        _ = try makeFilterTask(title: "High Priority No Date", priority: 3, in: context)
+        _ = try makeFilterTask(title: "Completed", status: .completed, priority: 3, in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -427,8 +427,8 @@ struct TaskFilterServiceTests {
     @Test("NoDueDate filter returns tasks without due dates")
     @MainActor func noDueDateFilter() throws {
         let context = try makeFilterTestContext()
-        _ = makeFilterTask(title: "Has Due", dueTime: Date(), in: context)
-        _ = makeFilterTask(title: "No Due", in: context)
+        _ = try makeFilterTask(title: "Has Due", dueTime: Date(), in: context)
+        _ = try makeFilterTask(title: "No Due", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -521,9 +521,9 @@ struct TaskFilterServiceExtendedTests {
     @Test("Search matches task description")
     func searchByDescription() throws {
         let context = try makeFilterTestContext()
-        let task = makeFilterTask(title: "Task A", in: context)
+        let task = try makeFilterTask(title: "Task A", in: context)
         task.taskDescription = "This needs backend work"
-        let taskB = makeFilterTask(title: "Task B", in: context)
+        let taskB = try makeFilterTask(title: "Task B", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -537,8 +537,8 @@ struct TaskFilterServiceExtendedTests {
     @Test("Search matches tag content")
     func searchByTagContent() throws {
         let context = try makeFilterTestContext()
-        let task = makeFilterTask(title: "Task A", tags: ["frontend"], in: context)
-        let taskB = makeFilterTask(title: "Task B", tags: ["backend"], in: context)
+        let task = try makeFilterTask(title: "Task A", tags: ["frontend"], in: context)
+        let taskB = try makeFilterTask(title: "Task B", tags: ["backend"], in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -552,7 +552,7 @@ struct TaskFilterServiceExtendedTests {
     @Test("Search with no matches returns empty")
     func searchNoMatches() throws {
         let context = try makeFilterTestContext()
-        let task = makeFilterTask(title: "Hello World", in: context)
+        let task = try makeFilterTask(title: "Hello World", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -571,15 +571,15 @@ struct TaskFilterServiceExtendedTests {
         let stack2 = Stack(title: "Personal")
         context.insert(stack1)
         context.insert(stack2)
-        try? context.save()
+        try context.save()
 
-        let t1 = makeFilterTask(title: "Work Task", stack: stack1, in: context)
-        let t2 = makeFilterTask(title: "Personal Task", stack: stack2, in: context)
-        let t3 = makeFilterTask(title: "No Stack", in: context)
+        let t1 = try makeFilterTask(title: "Work Task", stack: stack1, in: context)
+        let t2 = try makeFilterTask(title: "Personal Task", stack: stack2, in: context)
+        let t3 = try makeFilterTask(title: "No Stack", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
-        filter.selectedStackIds = Set([stack1.id])
+        filter.selectedStackIds = [stack1.id]
         let results = service.apply(filter: filter, to: [t1, t2, t3])
 
         #expect(results.count == 1)
@@ -593,15 +593,15 @@ struct TaskFilterServiceExtendedTests {
         let stack2 = Stack(title: "B")
         context.insert(stack1)
         context.insert(stack2)
-        try? context.save()
+        try context.save()
 
-        let t1 = makeFilterTask(title: "In A", stack: stack1, in: context)
-        let t2 = makeFilterTask(title: "In B", stack: stack2, in: context)
-        let t3 = makeFilterTask(title: "Orphan", in: context)
+        let t1 = try makeFilterTask(title: "In A", stack: stack1, in: context)
+        let t2 = try makeFilterTask(title: "In B", stack: stack2, in: context)
+        let t3 = try makeFilterTask(title: "Orphan", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
-        filter.selectedStackIds = Set([stack1.id, stack2.id])
+        filter.selectedStackIds = [stack1.id, stack2.id]
         let results = service.apply(filter: filter, to: [t1, t2, t3])
 
         #expect(results.count == 2)
@@ -612,11 +612,11 @@ struct TaskFilterServiceExtendedTests {
     @Test("Sort by sortOrder ascending")
     func sortBySortOrderAsc() throws {
         let context = try makeFilterTestContext()
-        let t1 = makeFilterTask(title: "Third", in: context)
+        let t1 = try makeFilterTask(title: "Third", in: context)
         t1.sortOrder = 3
-        let t2 = makeFilterTask(title: "First", in: context)
+        let t2 = try makeFilterTask(title: "First", in: context)
         t2.sortOrder = 1
-        let t3 = makeFilterTask(title: "Second", in: context)
+        let t3 = try makeFilterTask(title: "Second", in: context)
         t3.sortOrder = 2
 
         let service = TaskFilterService(modelContext: context)
@@ -633,10 +633,10 @@ struct TaskFilterServiceExtendedTests {
     @Test("Sort by due date places nil last (ascending)")
     func sortByDueDateNilLast() throws {
         let context = try makeFilterTestContext()
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
-        let t1 = makeFilterTask(title: "Tomorrow", dueTime: tomorrow, in: context)
-        let t2 = makeFilterTask(title: "Today", dueTime: Date(), in: context)
-        let t3 = makeFilterTask(title: "No Due", in: context)
+        let tomorrow = try #require(Calendar.current.date(byAdding: .day, value: 1, to: Date()))
+        let t1 = try makeFilterTask(title: "Tomorrow", dueTime: tomorrow, in: context)
+        let t2 = try makeFilterTask(title: "Today", dueTime: Date(), in: context)
+        let t3 = try makeFilterTask(title: "No Due", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -654,12 +654,12 @@ struct TaskFilterServiceExtendedTests {
     @Test("Overdue filter returns tasks before start of today")
     func overdueFilter() throws {
         let context = try makeFilterTestContext()
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        let yesterday = try #require(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
+        let tomorrow = try #require(Calendar.current.date(byAdding: .day, value: 1, to: Date()))
 
-        let t1 = makeFilterTask(title: "Overdue", dueTime: yesterday, in: context)
-        let t2 = makeFilterTask(title: "Future", dueTime: tomorrow, in: context)
-        let t3 = makeFilterTask(title: "No Due", in: context)
+        let t1 = try makeFilterTask(title: "Overdue", dueTime: yesterday, in: context)
+        let t2 = try makeFilterTask(title: "Future", dueTime: tomorrow, in: context)
+        let t3 = try makeFilterTask(title: "No Due", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -675,13 +675,13 @@ struct TaskFilterServiceExtendedTests {
         let context = try makeFilterTestContext()
         let cal = Calendar.current
         let now = Date()
-        let twoDaysAgo = cal.date(byAdding: .day, value: -2, to: now)!
-        let twoDaysFromNow = cal.date(byAdding: .day, value: 2, to: now)!
-        let fiveDaysFromNow = cal.date(byAdding: .day, value: 5, to: now)!
+        let twoDaysAgo = try #require(cal.date(byAdding: .day, value: -2, to: now))
+        let twoDaysFromNow = try #require(cal.date(byAdding: .day, value: 2, to: now))
+        let fiveDaysFromNow = try #require(cal.date(byAdding: .day, value: 5, to: now))
 
-        let t1 = makeFilterTask(title: "In Range", dueTime: now, in: context)
-        let t2 = makeFilterTask(title: "Before Range", dueTime: twoDaysAgo, in: context)
-        let t3 = makeFilterTask(title: "After Range", dueTime: fiveDaysFromNow, in: context)
+        let t1 = try makeFilterTask(title: "In Range", dueTime: now, in: context)
+        let t2 = try makeFilterTask(title: "Before Range", dueTime: twoDaysAgo, in: context)
+        let t3 = try makeFilterTask(title: "After Range", dueTime: fiveDaysFromNow, in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -699,11 +699,11 @@ struct TaskFilterServiceExtendedTests {
         let context = try makeFilterTestContext()
         let cal = Calendar.current
         let now = Date()
-        let yesterday = cal.date(byAdding: .day, value: -1, to: now)!
-        let twoDaysAgo = cal.date(byAdding: .day, value: -2, to: now)!
+        let yesterday = try #require(cal.date(byAdding: .day, value: -1, to: now))
+        let twoDaysAgo = try #require(cal.date(byAdding: .day, value: -2, to: now))
 
-        let t1 = makeFilterTask(title: "Recent", dueTime: now, in: context)
-        let t2 = makeFilterTask(title: "Old", dueTime: twoDaysAgo, in: context)
+        let t1 = try makeFilterTask(title: "Recent", dueTime: now, in: context)
+        let t2 = try makeFilterTask(title: "Old", dueTime: twoDaysAgo, in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -721,9 +721,9 @@ struct TaskFilterServiceExtendedTests {
     @Test("Status + tags + search combined")
     func statusTagsSearchCombined() throws {
         let context = try makeFilterTestContext()
-        let t1 = makeFilterTask(title: "Fix login bug", tags: ["bug"], in: context)
-        let t2 = makeFilterTask(title: "Add login feature", tags: ["feature"], in: context)
-        let t3 = makeFilterTask(
+        let t1 = try makeFilterTask(title: "Fix login bug", tags: ["bug"], in: context)
+        let t2 = try makeFilterTask(title: "Add login feature", tags: ["feature"], in: context)
+        let t3 = try makeFilterTask(
             title: "Fix signup bug",
             status: .completed,
             tags: ["bug"],
@@ -733,7 +733,7 @@ struct TaskFilterServiceExtendedTests {
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
         filter.statusFilter = .pending
-        filter.selectedTagIds = Set(["bug"])
+        filter.selectedTagIds = ["bug"]
         filter.searchText = "login"
         let results = service.apply(filter: filter, to: [t1, t2, t3])
 
@@ -756,8 +756,8 @@ struct TaskFilterServiceExtendedTests {
     @Test("Blocked status filter")
     func blockedFilter() throws {
         let context = try makeFilterTestContext()
-        let t1 = makeFilterTask(title: "Blocked", status: .blocked, in: context)
-        let t2 = makeFilterTask(title: "Pending", in: context)
+        let t1 = try makeFilterTask(title: "Blocked", status: .blocked, in: context)
+        let t2 = try makeFilterTask(title: "Pending", in: context)
 
         let service = TaskFilterService(modelContext: context)
         var filter = TaskFilter()
@@ -772,7 +772,6 @@ struct TaskFilterServiceExtendedTests {
 // MARK: - DateRangeFilter Extended Tests
 
 @Suite("DateRangeFilter — Extended")
-@MainActor
 struct DateRangeFilterExtendedTests {
     @Test("Tomorrow returns correct bounds")
     func tomorrowRange() {
@@ -811,18 +810,19 @@ struct DateRangeFilterExtendedTests {
     }
 
     @Test("dateRange(from:) uses reference date correctly")
-    func referenceDate() {
-        let refDate = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 15))!
+    func referenceDate() throws {
+        let refDate = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 15)))
         let range = DateRangeFilter.today.dateRange(from: refDate)
         let startOfRef = Calendar.current.startOfDay(for: refDate)
+        let expectedEnd = Calendar.current.date(byAdding: .day, value: 1, to: startOfRef)
         #expect(range.start == startOfRef)
+        #expect(range.end == expectedEnd)
     }
 }
 
 // MARK: - PriorityFilter & StatusFilter Tests
 
 @Suite("PriorityFilter Properties")
-@MainActor
 struct PriorityFilterPropertyTests {
     @Test("All priority filters have display names and colors")
     func properties() {
@@ -835,7 +835,6 @@ struct PriorityFilterPropertyTests {
 }
 
 @Suite("StatusFilter Properties")
-@MainActor
 struct StatusFilterPropertyTests {
     @Test("All status filters have display names")
     func properties() {
