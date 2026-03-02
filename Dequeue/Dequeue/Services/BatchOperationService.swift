@@ -243,7 +243,7 @@ final class BatchOperationService {
 
         let startOrder = targetStack.pendingTasks.count
 
-        for (index, task) in tasks.enumerated() {
+        for task in tasks {
             do {
                 guard task.stack?.id != targetStack.id else {
                     errors.append("\(task.title): already in target stack")
@@ -251,7 +251,7 @@ final class BatchOperationService {
                 }
                 let fromStackId = task.stack?.id ?? ""
                 task.stack = targetStack
-                task.sortOrder = startOrder + index
+                task.sortOrder = startOrder + successCount
                 task.updatedAt = Date()
                 task.syncState = .pending
                 try await eventService.recordTaskUpdated(task, changes: [

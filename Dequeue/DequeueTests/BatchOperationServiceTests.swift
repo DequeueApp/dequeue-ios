@@ -534,29 +534,30 @@ struct BatchOpMoveTests {
         #expect(t2.sortOrder == 1)
     }
 
-    @Test("Move with mixed skip uses index-based sort order")
+    @Test("Move with mixed skip assigns contiguous sort orders")
     func moveWithSkipSortOrder() async throws {
         let container = try makeBatchTestContainer()
         let context = container.mainContext
+        let source = Stack(title: "Source")
         let target = Stack(title: "Target")
+        context.insert(source)
         context.insert(target)
         try context.save()
 
-        // First task already in target → will be skipped
-        let alreadyThere = try makeBatchTask(title: "Already", stack: target, in: context)
-        // Second task needs to move
-        let moveable = try makeBatchTask(title: "Moveable", in: context)
+        // Three tasks: first and third in source (will move), second already in target (skip)
+        let t1 = try makeBatchTask(title: "First", stack: source, in: context)
+        let skip = try makeBatchTask(title: "Skip", stack: target, in: context)
+        let t3 = try makeBatchTask(title: "Third", stack: source, in: context)
         let service = BatchOperationService(
             modelContext: context, userId: "test", deviceId: "test"
         )
 
-        let result = try await service.batchMove([alreadyThere, moveable], to: target)
+        let result = try await service.batchMove([t1, skip, t3], to: target)
 
-        #expect(result.successCount == 1)
+        #expect(result.successCount == 2)
         #expect(result.failureCount == 1)
-        // Note: sort order uses array index, so moveable gets index 1 (gap at 0)
-        // This documents current behavior — skipped items still consume an index.
-        #expect(moveable.sortOrder == 1)
+        // Moved tasks get contiguous sort orders — skipped items don't create gaps
+        #expect(t3.sortOrder == t1.sortOrder + 1)
     }
 }
 
@@ -821,9 +822,10 @@ struct BatchOpEdgeCaseTests {
 
         _ = try await service.batchComplete([task])
 
-        // Verify an event was recorded
+        // Verify a task.completed event was recorded
         let descriptor = FetchDescriptor<Event>()
         let events = try context.fetch(descriptor)
         #expect(!events.isEmpty, "Expected at least one event after batch complete")
+        #expect(events.first?.eventType == .taskCompleted, "Expected task.completed event type")
     }
 }
