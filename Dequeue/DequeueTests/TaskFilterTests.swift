@@ -509,3 +509,339 @@ struct FilterPresetTests {
         #expect(afterRemove.isEmpty)
     }
 }
+
+// MARK: - Extended TaskFilterService Tests
+
+@Suite("TaskFilterService — Extended Coverage", .serialized)
+@MainActor
+struct TaskFilterServiceExtendedTests {
+
+    // MARK: - Search by description and tags
+
+    @Test("Search matches task description")
+    func searchByDescription() throws {
+        let context = try makeFilterTestContext()
+        let task = makeFilterTask(title: "Task A", in: context)
+        task.taskDescription = "This needs backend work"
+        let taskB = makeFilterTask(title: "Task B", in: context)
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.searchText = "backend"
+        let results = service.apply(filter: filter, to: [task, taskB])
+
+        #expect(results.count == 1)
+        #expect(results[0].title == "Task A")
+    }
+
+    @Test("Search matches tag content")
+    func searchByTagContent() throws {
+        let context = try makeFilterTestContext()
+        let task = makeFilterTask(title: "Task A", tags: ["frontend"], in: context)
+        let taskB = makeFilterTask(title: "Task B", tags: ["backend"], in: context)
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.searchText = "front"
+        let results = service.apply(filter: filter, to: [task, taskB])
+
+        #expect(results.count == 1)
+        #expect(results[0].title == "Task A")
+    }
+
+    @Test("Search with no matches returns empty")
+    func searchNoMatches() throws {
+        let context = try makeFilterTestContext()
+        let task = makeFilterTask(title: "Hello World", in: context)
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.searchText = "zzzznotfound"
+        let results = service.apply(filter: filter, to: [task])
+
+        #expect(results.isEmpty)
+    }
+
+    // MARK: - Stack filter
+
+    @Test("Stack filter matches tasks in selected stacks")
+    func stackFilter() throws {
+        let context = try makeFilterTestContext()
+        let stack1 = Stack(title: "Work")
+        let stack2 = Stack(title: "Personal")
+        context.insert(stack1)
+        context.insert(stack2)
+        try? context.save()
+
+        let t1 = makeFilterTask(title: "Work Task", stack: stack1, in: context)
+        let t2 = makeFilterTask(title: "Personal Task", stack: stack2, in: context)
+        let t3 = makeFilterTask(title: "No Stack", in: context)
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.selectedStackIds = Set([stack1.id])
+        let results = service.apply(filter: filter, to: [t1, t2, t3])
+
+        #expect(results.count == 1)
+        #expect(results[0].title == "Work Task")
+    }
+
+    @Test("Stack filter with multiple stacks uses OR logic")
+    func multipleStackFilter() throws {
+        let context = try makeFilterTestContext()
+        let stack1 = Stack(title: "A")
+        let stack2 = Stack(title: "B")
+        context.insert(stack1)
+        context.insert(stack2)
+        try? context.save()
+
+        let t1 = makeFilterTask(title: "In A", stack: stack1, in: context)
+        let t2 = makeFilterTask(title: "In B", stack: stack2, in: context)
+        let t3 = makeFilterTask(title: "Orphan", in: context)
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.selectedStackIds = Set([stack1.id, stack2.id])
+        let results = service.apply(filter: filter, to: [t1, t2, t3])
+
+        #expect(results.count == 2)
+    }
+
+    // MARK: - Sort by sortOrder and dueDate nil handling
+
+    @Test("Sort by sortOrder ascending")
+    func sortBySortOrderAsc() throws {
+        let context = try makeFilterTestContext()
+        let t1 = makeFilterTask(title: "Third", in: context)
+        t1.sortOrder = 3
+        let t2 = makeFilterTask(title: "First", in: context)
+        t2.sortOrder = 1
+        let t3 = makeFilterTask(title: "Second", in: context)
+        t3.sortOrder = 2
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.sortBy = .sortOrder
+        filter.sortAscending = true
+        let results = service.apply(filter: filter, to: [t1, t2, t3])
+
+        #expect(results[0].title == "First")
+        #expect(results[1].title == "Second")
+        #expect(results[2].title == "Third")
+    }
+
+    @Test("Sort by due date places nil last (ascending)")
+    func sortByDueDateNilLast() throws {
+        let context = try makeFilterTestContext()
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        let t1 = makeFilterTask(title: "Tomorrow", dueTime: tomorrow, in: context)
+        let t2 = makeFilterTask(title: "Today", dueTime: Date(), in: context)
+        let t3 = makeFilterTask(title: "No Due", in: context)
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.sortBy = .dueDate
+        filter.sortAscending = true
+        let results = service.apply(filter: filter, to: [t1, t2, t3])
+
+        #expect(results[0].title == "Today")
+        #expect(results[1].title == "Tomorrow")
+        #expect(results[2].title == "No Due") // distantFuture sorts last
+    }
+
+    // MARK: - Date range filters
+
+    @Test("Overdue filter returns tasks before start of today")
+    func overdueFilter() throws {
+        let context = try makeFilterTestContext()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+
+        let t1 = makeFilterTask(title: "Overdue", dueTime: yesterday, in: context)
+        let t2 = makeFilterTask(title: "Future", dueTime: tomorrow, in: context)
+        let t3 = makeFilterTask(title: "No Due", in: context)
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.dateRangeFilter = .overdue
+        let results = service.apply(filter: filter, to: [t1, t2, t3])
+
+        #expect(results.count == 1)
+        #expect(results[0].title == "Overdue")
+    }
+
+    @Test("Custom date range with start and end")
+    func customDateRange() throws {
+        let context = try makeFilterTestContext()
+        let cal = Calendar.current
+        let now = Date()
+        let twoDaysAgo = cal.date(byAdding: .day, value: -2, to: now)!
+        let twoDaysFromNow = cal.date(byAdding: .day, value: 2, to: now)!
+        let fiveDaysFromNow = cal.date(byAdding: .day, value: 5, to: now)!
+
+        let t1 = makeFilterTask(title: "In Range", dueTime: now, in: context)
+        let t2 = makeFilterTask(title: "Before Range", dueTime: twoDaysAgo, in: context)
+        let t3 = makeFilterTask(title: "After Range", dueTime: fiveDaysFromNow, in: context)
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.dateRangeFilter = .custom
+        filter.customStartDate = cal.date(byAdding: .day, value: -1, to: now)
+        filter.customEndDate = twoDaysFromNow
+        let results = service.apply(filter: filter, to: [t1, t2, t3])
+
+        #expect(results.count == 1)
+        #expect(results[0].title == "In Range")
+    }
+
+    @Test("Custom date range with only start date")
+    func customStartOnly() throws {
+        let context = try makeFilterTestContext()
+        let cal = Calendar.current
+        let now = Date()
+        let yesterday = cal.date(byAdding: .day, value: -1, to: now)!
+        let twoDaysAgo = cal.date(byAdding: .day, value: -2, to: now)!
+
+        let t1 = makeFilterTask(title: "Recent", dueTime: now, in: context)
+        let t2 = makeFilterTask(title: "Old", dueTime: twoDaysAgo, in: context)
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.dateRangeFilter = .custom
+        filter.customStartDate = yesterday
+        filter.customEndDate = nil
+        let results = service.apply(filter: filter, to: [t1, t2])
+
+        #expect(results.count == 1)
+        #expect(results[0].title == "Recent")
+    }
+
+    // MARK: - Combined multi-filter tests
+
+    @Test("Status + tags + search combined")
+    func statusTagsSearchCombined() throws {
+        let context = try makeFilterTestContext()
+        let t1 = makeFilterTask(title: "Fix login bug", tags: ["bug"], in: context)
+        let t2 = makeFilterTask(title: "Add login feature", tags: ["feature"], in: context)
+        let t3 = makeFilterTask(
+            title: "Fix signup bug",
+            status: .completed,
+            tags: ["bug"],
+            in: context
+        )
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.statusFilter = .pending
+        filter.selectedTagIds = Set(["bug"])
+        filter.searchText = "login"
+        let results = service.apply(filter: filter, to: [t1, t2, t3])
+
+        #expect(results.count == 1)
+        #expect(results[0].title == "Fix login bug")
+    }
+
+    @Test("Empty input array returns empty results")
+    func emptyInput() throws {
+        let context = try makeFilterTestContext()
+        let service = TaskFilterService(modelContext: context)
+
+        var filter = TaskFilter()
+        filter.statusFilter = .pending
+        let results = service.apply(filter: filter, to: [])
+
+        #expect(results.isEmpty)
+    }
+
+    @Test("Blocked status filter")
+    func blockedFilter() throws {
+        let context = try makeFilterTestContext()
+        let t1 = makeFilterTask(title: "Blocked", status: .blocked, in: context)
+        let t2 = makeFilterTask(title: "Pending", in: context)
+
+        let service = TaskFilterService(modelContext: context)
+        var filter = TaskFilter()
+        filter.statusFilter = .blocked
+        let results = service.apply(filter: filter, to: [t1, t2])
+
+        #expect(results.count == 1)
+        #expect(results[0].title == "Blocked")
+    }
+}
+
+// MARK: - DateRangeFilter Extended Tests
+
+@Suite("DateRangeFilter — Extended")
+@MainActor
+struct DateRangeFilterExtendedTests {
+    @Test("Tomorrow returns correct bounds")
+    func tomorrowRange() {
+        let range = DateRangeFilter.tomorrow.dateRange()
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let expectedStart = Calendar.current.date(byAdding: .day, value: 1, to: startOfToday)
+        let expectedEnd = Calendar.current.date(byAdding: .day, value: 2, to: startOfToday)
+        #expect(range.start == expectedStart)
+        #expect(range.end == expectedEnd)
+    }
+
+    @Test("Next week spans days 7 through 14")
+    func nextWeekRange() {
+        let range = DateRangeFilter.nextWeek.dateRange()
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let expectedStart = Calendar.current.date(byAdding: .day, value: 7, to: startOfToday)
+        let expectedEnd = Calendar.current.date(byAdding: .day, value: 14, to: startOfToday)
+        #expect(range.start == expectedStart)
+        #expect(range.end == expectedEnd)
+    }
+
+    @Test("This month spans 1 month from today")
+    func thisMonthRange() {
+        let range = DateRangeFilter.thisMonth.dateRange()
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let expectedEnd = Calendar.current.date(byAdding: .month, value: 1, to: startOfToday)
+        #expect(range.start == startOfToday)
+        #expect(range.end == expectedEnd)
+    }
+
+    @Test("Custom returns nil bounds")
+    func customRange() {
+        let range = DateRangeFilter.custom.dateRange()
+        #expect(range.start == nil)
+        #expect(range.end == nil)
+    }
+
+    @Test("dateRange(from:) uses reference date correctly")
+    func referenceDate() {
+        let refDate = Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 15))!
+        let range = DateRangeFilter.today.dateRange(from: refDate)
+        let startOfRef = Calendar.current.startOfDay(for: refDate)
+        #expect(range.start == startOfRef)
+    }
+}
+
+// MARK: - PriorityFilter & StatusFilter Tests
+
+@Suite("PriorityFilter Properties")
+@MainActor
+struct PriorityFilterPropertyTests {
+    @Test("All priority filters have display names and colors")
+    func properties() {
+        for pf in PriorityFilter.allCases {
+            #expect(!pf.displayName.isEmpty)
+            #expect(!pf.color.isEmpty)
+            #expect(pf.id == pf.rawValue)
+        }
+    }
+}
+
+@Suite("StatusFilter Properties")
+@MainActor
+struct StatusFilterPropertyTests {
+    @Test("All status filters have display names")
+    func properties() {
+        for sf in StatusFilter.allCases {
+            #expect(!sf.displayName.isEmpty)
+            #expect(sf.id == sf.rawValue)
+        }
+    }
+}
