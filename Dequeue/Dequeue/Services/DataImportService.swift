@@ -400,10 +400,11 @@ final class DataImportService {
         let existingOrder = targetStack.pendingTasks.count
 
         for (index, parsedTask) in parsed.enumerated() {
-            // Skip completed tasks if requested
+            // Skip completed/closed tasks if requested
             if skipCompleted,
                let status = parsedTask.status?.lowercased(),
-               status == "completed" || status == "done" || status == "closed" {
+               status == "completed" || status == "done" || status == "finished"
+                || status == "closed" || status == "cancelled" || status == "canceled" {
                 skipped += 1
                 continue
             }
