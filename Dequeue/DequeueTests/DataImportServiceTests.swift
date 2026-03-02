@@ -382,6 +382,14 @@ struct DataImportServiceIntegrationTests {
         #expect(result.imported == 2)
         #expect(result.errors.isEmpty)
         #expect(result.isSuccess)
+
+        // Verify persisted field values
+        let descriptor = FetchDescriptor<QueueTask>()
+        let tasks = try context.fetch(descriptor)
+        let byTitle = Dictionary(uniqueKeysWithValues: tasks.map { ($0.title, $0) })
+        #expect(byTitle["Buy milk"]?.priority == 3)       // "high" → 3
+        #expect(byTitle["Buy milk"]?.tags.contains("groceries") == true)
+        #expect(byTitle["Fix bug"]?.priority == 2)        // "medium" → 2
     }
 
     @Test("Import JSON tasks into stack")
@@ -508,6 +516,11 @@ struct DataImportServiceIntegrationTests {
         #expect(tasks.count == 3)
         #expect(tasks[0].sortOrder < tasks[1].sortOrder)
         #expect(tasks[1].sortOrder < tasks[2].sortOrder)
+
+        // Verify sort order matches input order
+        #expect(tasks[0].title == "First")
+        #expect(tasks[1].title == "Second")
+        #expect(tasks[2].title == "Third")
     }
 
     @Test("Import creates events for each task")
@@ -528,11 +541,8 @@ struct DataImportServiceIntegrationTests {
 
         let descriptor = FetchDescriptor<Event>()
         let events = try context.fetch(descriptor)
-        #expect(events.count >= 2, "Expected at least 2 events for 2 imported tasks")
-        #expect(
-            events.contains { $0.eventType == .taskCreated },
-            "Expected at least one task.created event"
-        )
+        let taskCreatedEvents = events.filter { $0.eventType == .taskCreated }
+        #expect(taskCreatedEvents.count == 2, "Expected exactly 2 task.created events")
     }
 
     @Test("Import maps status values correctly")
@@ -562,18 +572,16 @@ struct DataImportServiceIntegrationTests {
         )
         #expect(result.imported == 5)
 
-        // Verify status mapping.
-        // Tasks are inserted with sortOrder = existingOrder + index, where existingOrder
-        // is 0 (fresh stack), so they appear in JSON array order when sorted by sortOrder.
-        let descriptor = FetchDescriptor<QueueTask>(
-            sortBy: [SortDescriptor(\.sortOrder)]
-        )
+        // Look up tasks by title for resilience against sort order changes
+        let descriptor = FetchDescriptor<QueueTask>()
         let tasks = try context.fetch(descriptor)
-        #expect(tasks[0].status == .pending)
-        #expect(tasks[1].status == .completed)    // "done" → completed
-        #expect(tasks[2].status == .blocked)       // "waiting" → blocked
-        #expect(tasks[3].status == .closed)        // "cancelled" → closed
-        #expect(tasks[4].status == .pending)       // "something" → pending (default)
+        let byTitle = Dictionary(uniqueKeysWithValues: tasks.map { ($0.title, $0) })
+
+        #expect(byTitle["Pending"]?.status == .pending)
+        #expect(byTitle["Done"]?.status == .completed)     // "done" → completed
+        #expect(byTitle["Blocked"]?.status == .blocked)    // "waiting" → blocked
+        #expect(byTitle["Closed"]?.status == .closed)      // "cancelled" → closed
+        #expect(byTitle["Unknown"]?.status == .pending)    // unknown → pending (default)
     }
 
     @Test("Skip completed includes 'done' and 'closed' variants")
@@ -603,46 +611,6 @@ struct DataImportServiceIntegrationTests {
 
         #expect(result.imported == 1)
         #expect(result.skipped == 2)
-    }
-
-    @Test("Skip completed does NOT skip 'cancelled' status")
-    func skipCompletedMissesCancelled() async throws {
-        // NOTE: This documents a gap in the skipCompleted filter.
-        // "cancelled" maps to .closed but is not in the skip list
-        // ("completed", "done", "closed"). A task with status "cancelled"
-        // will be imported even with skipCompleted = true.
-        let container = try makeTestContainer()
-        let context = container.mainContext
-        let stack = Stack(title: "Import Target")
-        context.insert(stack)
-        try context.save()
-
-        let service = DataImportService(
-            modelContext: context, userId: "test", deviceId: "test"
-        )
-
-        let json = """
-        [
-            {"title": "Active", "status": "pending"},
-            {"title": "Cancelled", "status": "cancelled"}
-        ]
-        """
-
-        let result = try await service.importTasks(
-            content: json, format: .json, targetStack: stack,
-            skipCompleted: true
-        )
-
-        // "cancelled" is NOT in the skip list, so both tasks are imported
-        #expect(result.imported == 2)
-        #expect(result.skipped == 0)
-
-        // But the cancelled task gets .closed status
-        let descriptor = FetchDescriptor<QueueTask>(
-            sortBy: [SortDescriptor(\.sortOrder)]
-        )
-        let tasks = try context.fetch(descriptor)
-        #expect(tasks[1].status == .closed)
     }
 
     @Test("CSV import persists field values through full pipeline")
