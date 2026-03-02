@@ -55,7 +55,7 @@ private func makeBatchTask(
 // MARK: - BatchOperation Enum Tests
 
 @Suite("BatchOperation Enum", .serialized)
-struct BatchOperationEnumTests {
+struct BatchOpEnumTests {
 
     @Test("All operations have unique raw values")
     func uniqueRawValues() {
@@ -95,7 +95,7 @@ struct BatchOperationEnumTests {
 // MARK: - BatchOperationResult Tests
 
 @Suite("BatchOperationResult", .serialized)
-struct BatchOperationResultTests {
+struct BatchOpResultTests {
 
     @Test("Full success result")
     func fullSuccess() {
@@ -140,7 +140,7 @@ struct BatchOperationResultTests {
 
 @Suite("BatchOperationService — Available Operations", .serialized)
 @MainActor
-struct AvailableOperationsTests {
+struct BatchOpAvailableTests {
 
     @Test("Empty selection returns no operations")
     func emptySelection() throws {
@@ -256,7 +256,7 @@ struct AvailableOperationsTests {
 
 @Suite("BatchOperationService — Batch Complete", .serialized)
 @MainActor
-struct BatchCompleteTests {
+struct BatchOpCompleteTests {
 
     @Test("Complete pending tasks")
     func completePendingTasks() async throws {
@@ -332,7 +332,7 @@ struct BatchCompleteTests {
 
 @Suite("BatchOperationService — Batch Close", .serialized)
 @MainActor
-struct BatchCloseTests {
+struct BatchOpCloseTests {
 
     @Test("Close pending tasks")
     func closePendingTasks() async throws {
@@ -370,7 +370,7 @@ struct BatchCloseTests {
 
 @Suite("BatchOperationService — Batch Reopen", .serialized)
 @MainActor
-struct BatchReopenTests {
+struct BatchOpReopenTests {
 
     @Test("Reopen completed tasks")
     func reopenCompleted() async throws {
@@ -439,7 +439,7 @@ struct BatchReopenTests {
 
 @Suite("BatchOperationService — Batch Delete", .serialized)
 @MainActor
-struct BatchDeleteTests {
+struct BatchOpDeleteTests {
 
     @Test("Delete marks tasks as deleted")
     func softDelete() async throws {
@@ -480,7 +480,7 @@ struct BatchDeleteTests {
 
 @Suite("BatchOperationService — Batch Move", .serialized)
 @MainActor
-struct BatchMoveTests {
+struct BatchOpMoveTests {
 
     @Test("Move tasks to a different stack")
     func moveToStack() async throws {
@@ -550,7 +550,7 @@ struct BatchMoveTests {
 
 @Suite("BatchOperationService — Batch Set Priority", .serialized)
 @MainActor
-struct BatchSetPriorityTests {
+struct BatchOpSetPriorityTests {
 
     @Test("Set priority on multiple tasks")
     func setPriority() async throws {
@@ -590,7 +590,7 @@ struct BatchSetPriorityTests {
 
 @Suite("BatchOperationService — Batch Tags", .serialized)
 @MainActor
-struct BatchTagTests {
+struct BatchOpTagTests {
 
     @Test("Add tags to tasks")
     func addTags() async throws {
@@ -676,7 +676,7 @@ struct BatchTagTests {
 
 @Suite("BatchOperationService — Batch Due Date", .serialized)
 @MainActor
-struct BatchDueDateTests {
+struct BatchOpDueDateTests {
 
     @Test("Set due date on tasks")
     func setDueDate() async throws {
@@ -748,7 +748,7 @@ struct BatchDueDateTests {
 
 @Suite("BatchOperationService — Edge Cases", .serialized)
 @MainActor
-struct BatchEdgeCaseTests {
+struct BatchOpEdgeCaseTests {
 
     @Test("Empty task array returns zero-count result")
     func emptyArray() async throws {
