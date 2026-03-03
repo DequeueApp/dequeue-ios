@@ -202,7 +202,7 @@ extension SyncManager {
                 updatedAt: dateFromUnixMs(arcData.updatedAt),
                 isDeleted: arcData.isDeleted
             )
-            arc.status = parseArcStatus(arcData.status)
+            arc.status = Self.parseArcStatus(arcData.status)
             arc.sortOrder = arcData.sortOrder
             context.insert(arc)
         }
@@ -246,7 +246,7 @@ extension SyncManager {
                 isDeleted: stackData.isDeleted,
                 isActive: stackData.isActive
             )
-            stack.status = parseStackStatus(stackData.status)
+            stack.status = Self.parseStackStatus(stackData.status)
             stack.sortOrder = stackData.sortOrder
             stack.activeTaskId = stackData.activeTaskId
 
@@ -307,7 +307,7 @@ extension SyncManager {
                 taskDescription: taskData.notes,
                 startTime: dateFromUnixMs(taskData.startTime),
                 dueTime: dateFromUnixMs(taskData.dueTime),
-                status: parseTaskStatus(taskData.status),
+                status: Self.parseTaskStatus(taskData.status),
                 priority: taskData.priority,
                 blockedReason: taskData.blockedReason,
                 sortOrder: taskData.sortOrder,
@@ -346,7 +346,7 @@ extension SyncManager {
                 id: reminderData.id,
                 parentId: parentId,
                 parentType: parentType,
-                status: parseReminderStatus(reminderData.status),
+                status: Self.parseReminderStatus(reminderData.status),
                 snoozedFrom: dateFromUnixMs(reminderData.snoozedFrom),
                 remindAt: dateFromUnixMs(reminderData.triggerTime),
                 createdAt: dateFromUnixMs(reminderData.createdAt),
@@ -409,7 +409,7 @@ extension SyncManager {
     }
 
     /// Parses arc status string to enum.
-    nonisolated func parseArcStatus(_ status: String) -> ArcStatus {
+    nonisolated static func parseArcStatus(_ status: String) -> ArcStatus {
         switch status.lowercased() {
         case "active": return .active
         case "completed": return .completed
@@ -420,7 +420,8 @@ extension SyncManager {
     }
 
     /// Parses stack status string to enum.
-    nonisolated func parseStackStatus(_ status: String) -> StackStatus {
+    /// Handles legacy values: "draft" and "in_progress" map to `.active`.
+    nonisolated static func parseStackStatus(_ status: String) -> StackStatus {
         switch status.lowercased() {
         case "active": return .active
         case "completed": return .completed
@@ -433,7 +434,8 @@ extension SyncManager {
     }
 
     /// Parses task status string to enum.
-    nonisolated func parseTaskStatus(_ status: String) -> TaskStatus {
+    /// Handles legacy value: "in_progress" maps to `.pending`.
+    nonisolated static func parseTaskStatus(_ status: String) -> TaskStatus {
         switch status.lowercased() {
         case "pending": return .pending
         case "completed": return .completed
@@ -445,7 +447,7 @@ extension SyncManager {
     }
 
     /// Parses reminder status string to enum.
-    nonisolated func parseReminderStatus(_ status: String) -> ReminderStatus {
+    nonisolated static func parseReminderStatus(_ status: String) -> ReminderStatus {
         switch status.lowercased() {
         case "active": return .active
         case "snoozed": return .snoozed
