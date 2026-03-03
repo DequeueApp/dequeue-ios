@@ -39,21 +39,21 @@ extension SyncManager {
         let baseURL = await MainActor.run { Configuration.dequeueAPIBaseURL }
 
         // Fetch all resource types in parallel
-        // Note: Explicit type annotations help the type-checker avoid timeout on complex expressions
+        // Note: dequeueAPIBaseURL already includes /v1 prefix, so paths are relative
         async let stacksTask: [StackProjection] = fetchProjectionPage(
-            StackProjection.self, url: "\(baseURL)/v1/stacks", token: token
+            StackProjection.self, url: "\(baseURL)/stacks", token: token
         )
         async let tasksTask: [TaskProjection] = fetchProjectionPage(
-            TaskProjection.self, url: "\(baseURL)/v1/tasks", token: token
+            TaskProjection.self, url: "\(baseURL)/tasks", token: token
         )
         async let arcsTask: [ArcProjection] = fetchProjectionPage(
-            ArcProjection.self, url: "\(baseURL)/v1/arcs", token: token
+            ArcProjection.self, url: "\(baseURL)/arcs", token: token
         )
         async let tagsTask: [TagProjection] = fetchProjectionPage(
-            TagProjection.self, url: "\(baseURL)/v1/tags", token: token
+            TagProjection.self, url: "\(baseURL)/tags", token: token
         )
         async let remindersTask: [ReminderProjection] = fetchProjectionPage(
-            ReminderProjection.self, url: "\(baseURL)/v1/reminders", token: token
+            ReminderProjection.self, url: "\(baseURL)/reminders", token: token
         )
 
         do {
