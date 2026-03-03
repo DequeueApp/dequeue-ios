@@ -157,11 +157,16 @@ internal final class SyncStatusViewModel {
 
     /// Format last sync time for display
     var lastSyncTimeFormatted: String {
+        lastSyncTimeFormattedRelativeTo(Date())
+    }
+
+    /// Formats last sync time relative to a reference date.
+    /// Extracted for testability — call site uses `Date()` by default.
+    internal func lastSyncTimeFormattedRelativeTo(_ now: Date) -> String {
         guard let lastSyncTime = lastSyncTime else {
             return "Never"
         }
 
-        let now = Date()
         let interval = now.timeIntervalSince(lastSyncTime)
 
         if interval < 60 {
@@ -179,6 +184,20 @@ internal final class SyncStatusViewModel {
 
     /// Status message for display
     var statusMessage: String {
+        statusMessageFor(
+            connectionStatus: connectionStatus,
+            isSyncing: isSyncing,
+            pendingEventCount: pendingEventCount
+        )
+    }
+
+    /// Computes the status message from explicit state values.
+    /// Extracted for testability — the public `statusMessage` property delegates here.
+    internal func statusMessageFor(
+        connectionStatus: ConnectionStatus,
+        isSyncing: Bool,
+        pendingEventCount: Int
+    ) -> String {
         switch connectionStatus {
         case .connected:
             if isSyncing {
