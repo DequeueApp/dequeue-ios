@@ -28,6 +28,10 @@ extension SyncManager {
         let syncId = Self.generateSyncId()
         os_log("[Sync] Projection sync started: syncId=\(syncId)")
 
+        await MainActor.run {
+            ErrorReportingService.logProjectionSyncStart()
+        }
+
         isInitialSyncActive = true
         defer { isInitialSyncActive = false }
 
@@ -81,6 +85,17 @@ extension SyncManager {
             let durationFormatted = String(format: "%.2f", duration)
             os_log("[Sync] Projection sync complete: syncId=\(syncId), duration=\(durationFormatted)s")
 
+            await MainActor.run {
+                ErrorReportingService.logProjectionSyncComplete(
+                    stacks: stacks.count,
+                    tasks: tasks.count,
+                    arcs: arcs.count,
+                    tags: tags.count,
+                    reminders: reminders.count,
+                    duration: duration
+                )
+            }
+
             await ErrorReportingService.logSyncComplete(
                 syncId: syncId,
                 duration: duration,
@@ -88,7 +103,11 @@ extension SyncManager {
                 itemsDownloaded: stacks.count + tasks.count + arcs.count + tags.count + reminders.count
             )
         } catch {
+            let duration = Date().timeIntervalSince(startTime)
             os_log("[Sync] Projection sync failed: \(error.localizedDescription)")
+            await MainActor.run {
+                ErrorReportingService.logProjectionSyncFailed(error: error, duration: duration)
+            }
             throw error
         }
     }
@@ -113,11 +132,25 @@ extension SyncManager {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+            let fetchStart = Date()
             let (data, response) = try await syncSession.data(for: request)
+            let fetchDuration = Date().timeIntervalSince(fetchStart)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 os_log("[Sync] Invalid response type for \(urlString)")
                 throw SyncError.pullFailed
+            }
+
+            // Log every projection fetch for observability (DEQ-246/247)
+            await MainActor.run {
+                ErrorReportingService.logSyncNetworkRequest(
+                    method: "GET",
+                    url: urlString,
+                    statusCode: httpResponse.statusCode,
+                    responseSize: data.count,
+                    duration: fetchDuration,
+                    error: httpResponse.statusCode >= 400 ? String(data: data, encoding: .utf8) : nil
+                )
             }
 
             guard httpResponse.statusCode == 200 else {
