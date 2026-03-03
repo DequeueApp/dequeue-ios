@@ -35,6 +35,10 @@ nonisolated struct CertificatePinningConfiguration: Sendable {
 
 extension CertificatePinningConfiguration {
     /// Default configuration with production pins
+    /// TEMPORARILY DISABLED (2026-03-03): Cert pinning blocking all connections.
+    /// The pinning hashes were computed using raw key format (SecKeyCopyExternalRepresentation)
+    /// but may not match the actual certificate chain. Sync has been broken since Feb 20 when
+    /// pinning was enabled. Disabling until we can generate correct hashes and test properly.
     nonisolated static let production = CertificatePinningConfiguration(
         pinnedDomains: [
             "api.dequeue.app",
@@ -47,7 +51,7 @@ extension CertificatePinningConfiguration {
             "0Bbh/jEZSKymTy3kTOhsmlHKBB32EDu1KojrP3YfV9c=", // Let's Encrypt E6 intermediate
             "y7xVm0TVJNahMr2sZydE2jQH8SquXV9yLF9seROHHHU="  // Let's Encrypt E7 intermediate (currently active)
         ],
-        enforced: true
+        enforced: false  // DISABLED: blocking all connections since Feb 20
     )
 
     /// Disabled configuration for testing — allows all connections
