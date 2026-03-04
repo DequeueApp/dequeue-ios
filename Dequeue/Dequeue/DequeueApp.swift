@@ -62,6 +62,10 @@ struct DequeueApp: App {
         // ModelContainer init are captured. This is synchronous and fast.
         ErrorReportingService.configure()
 
+        // Validate environment configuration after Sentry is ready so any
+        // issues (wrong keys, HTTP URLs in production, etc.) are captured.
+        StartupValidator.validate(configuration: EnvironmentManager.shared.configuration)
+
         // Use mock auth service for UI tests to bypass Clerk authentication
         if Self.isRunningUITests {
             let mockAuth = MockAuthService()
