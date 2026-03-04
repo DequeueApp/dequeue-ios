@@ -65,6 +65,8 @@ actor SyncManager {
     var isInitialSyncActive = false
     var syncEventsProcessed = 0
     var syncTotalEvents = 0
+    /// Human-readable status message shown during initial sync (set by projection/event sync paths)
+    var syncStatusMessage: String = ""
 
     /// Whether an initial sync is currently in progress (fresh device downloading events)
     var isInitialSyncInProgress: Bool {
@@ -85,6 +87,12 @@ actor SyncManager {
     /// Total number of events to sync during initial sync (DEQ-240)
     var initialSyncTotalEvents: Int {
         syncTotalEvents
+    }
+
+    /// Human-readable status message for the current sync phase.
+    /// Set during projection sync to inform users of progress phases.
+    var initialSyncMessage: String {
+        syncStatusMessage
     }
 
     // Key for storing last sync checkpoint in UserDefaults (shared constant from DequeueApp)

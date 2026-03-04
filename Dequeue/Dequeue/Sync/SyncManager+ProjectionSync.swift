@@ -33,7 +33,11 @@ extension SyncManager {
         }
 
         isInitialSyncActive = true
-        defer { isInitialSyncActive = false }
+        syncStatusMessage = "Connecting to server\u{2026}"
+        defer {
+            isInitialSyncActive = false
+            syncStatusMessage = ""
+        }
 
         guard let token = try await refreshToken() else {
             os_log("[Sync] Projection sync failed: Not authenticated")
@@ -44,6 +48,7 @@ extension SyncManager {
 
         // ── Fetch phase ──────────────────────────────────────────────────────────────
         // DEQ-248: Record fetch-phase wall-clock timing for Sentry performance transaction.
+        syncStatusMessage = "Fetching your data\u{2026}"
         let fetchStart = Date()
 
         // Fetch all resource types in parallel
@@ -79,6 +84,7 @@ extension SyncManager {
             os_log("[Sync] Fetched projections: \(sc) stacks, \(tc) tasks, \(ac) arcs, \(tgc) tags, \(rc) reminders")
 
             // ── Populate phase ────────────────────────────────────────────────────────
+            syncStatusMessage = "Saving locally\u{2026}"
             let populateStart = Date()
             try await populateFromProjections(
                 stacks: stacks, tasks: tasks, arcs: arcs, tags: tags, reminders: reminders

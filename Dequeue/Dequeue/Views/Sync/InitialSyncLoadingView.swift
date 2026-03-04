@@ -3,7 +3,7 @@
 //  Dequeue
 //
 //  Loading view shown during initial sync to prevent flickering UI
-//  Enhanced with progress tracking (DEQ-240)
+//  Enhanced with progress tracking (DEQ-240) and phase-aware messages
 //
 
 import SwiftUI
@@ -11,6 +11,9 @@ import SwiftUI
 struct InitialSyncLoadingView: View {
     let eventsProcessed: Int
     let totalEvents: Int?  // DEQ-240: Add total count for progress bar
+    /// Phase-aware status message (e.g. "Fetching your data…", "Saving locally…").
+    /// Falls back to computed text when empty.
+    var statusMessage: String = ""
 
     var body: some View {
         VStack(spacing: 20) {
@@ -30,8 +33,14 @@ struct InitialSyncLoadingView: View {
             Text("Syncing your stacks")
                 .font(.headline)
 
-            // DEQ-240: Show "X of Y events" when total is known
-            if let total = totalEvents, total > 0 {
+            // Phase-aware message takes priority; fall back to event count display.
+            if !statusMessage.isEmpty {
+                Text(statusMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .animation(.easeInOut(duration: 0.3), value: statusMessage)
+            } else if let total = totalEvents, total > 0 {
+                // DEQ-240: Show "X of Y events" when total is known
                 Text("\(eventsProcessed) of \(total) events")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -42,7 +51,7 @@ struct InitialSyncLoadingView: View {
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             } else {
-                Text("Connecting to server...")
+                Text("Connecting to server\u{2026}")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -62,6 +71,14 @@ struct InitialSyncLoadingView: View {
 
 #Preview("Zero Events") {
     InitialSyncLoadingView(eventsProcessed: 0, totalEvents: nil)
+}
+
+#Preview("Fetching Phase") {
+    InitialSyncLoadingView(eventsProcessed: 0, totalEvents: nil, statusMessage: "Fetching your data\u{2026}")
+}
+
+#Preview("Saving Phase") {
+    InitialSyncLoadingView(eventsProcessed: 0, totalEvents: nil, statusMessage: "Saving locally\u{2026}")
 }
 
 #Preview("Unknown Total") {
