@@ -40,69 +40,68 @@ struct StacksView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                if let syncStatus = syncStatusViewModel, syncStatus.isInitialSyncInProgress {
-                    // Show a subtle banner during initial sync instead of blocking the UI
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Syncing your data...")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial)
-                }
-                stacksContent
-            }
-            .navigationTitle("Stacks")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 16) {
-                        // Calendar button
-                        Button {
-                            showCalendarSheet = true
-                        } label: {
-                            Label("Calendar", systemImage: "calendar")
-                        }
-                        .accessibilityLabel("Calendar")
+            stacksContent
+                .navigationTitle("Stacks")
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        HStack(spacing: 16) {
+                            // Calendar button
+                            Button {
+                                showCalendarSheet = true
+                            } label: {
+                                Label("Calendar", systemImage: "calendar")
+                            }
+                            .accessibilityLabel("Calendar")
 
-                        // Reminders button with badge
-                        Button {
-                            showRemindersSheet = true
-                        } label: {
-                            remindersButtonLabel
-                        }
-                        .accessibilityLabel("Reminders")
-                        .accessibilityHint(urgentReminderCount > 0
-                            ? "\(urgentReminderCount) reminders need attention"
-                            : "View all reminders")
+                            // Reminders button with badge
+                            Button {
+                                showRemindersSheet = true
+                            } label: {
+                                remindersButtonLabel
+                            }
+                            .accessibilityLabel("Reminders")
+                            .accessibilityHint(urgentReminderCount > 0
+                                ? "\(urgentReminderCount) reminders need attention"
+                                : "View all reminders")
 
-                        // Add stack button
-                        Button {
-                            showAddSheet = true
-                        } label: {
-                            Label("Add Stack", systemImage: "plus")
+                            // Add stack button
+                            Button {
+                                showAddSheet = true
+                            } label: {
+                                Label("Add Stack", systemImage: "plus")
+                            }
+                            #if os(macOS)
+                            .keyboardShortcut("n", modifiers: .command)
+                            #endif
+                            .accessibilityIdentifier("addStackButton")
+                            .accessibilityLabel("Add new stack")
+                            .accessibilityHint("Creates a new stack")
                         }
-                        #if os(macOS)
-                        .keyboardShortcut("n", modifiers: .command)
-                        #endif
-                        .accessibilityIdentifier("addStackButton")
-                        .accessibilityLabel("Add new stack")
-                        .accessibilityHint("Creates a new stack")
                     }
                 }
-            }
-            .task {
-                // Initialize sync status view model
-                if syncStatusViewModel == nil {
-                    let viewModel = SyncStatusViewModel(modelContext: modelContext)
-                    if let manager = syncManager {
-                        viewModel.setSyncManager(manager)
+                .task {
+                    // Initialize sync status view model
+                    if syncStatusViewModel == nil {
+                        let viewModel = SyncStatusViewModel(modelContext: modelContext)
+                        if let manager = syncManager {
+                            viewModel.setSyncManager(manager)
+                        }
+                        syncStatusViewModel = viewModel
                     }
-                    syncStatusViewModel = viewModel
                 }
+        }
+        // DEQ-202: Full-screen loading overlay during initial sync (first device load).
+        // Covers the entire NavigationStack to prevent flickering as events are projected
+        // into SwiftData one-by-one. Shows accurate progress when totalEvents is known
+        // via WebSocket sync.stream.start message.
+        .overlay {
+            if let syncStatus = syncStatusViewModel, syncStatus.isInitialSyncInProgress {
+                InitialSyncLoadingView(
+                    eventsProcessed: syncStatus.initialSyncEventsProcessed,
+                    totalEvents: syncStatus.initialSyncTotalEvents > 0
+                        ? syncStatus.initialSyncTotalEvents
+                        : nil
+                )
             }
         }
         .sheet(isPresented: $showAddSheet) {
