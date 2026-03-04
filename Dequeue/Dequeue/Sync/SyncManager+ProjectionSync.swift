@@ -164,6 +164,7 @@ extension SyncManager {
     ) async throws -> [T] {
         var allResults: [T] = []
         var currentURL: String? = url
+        var currentToken = token  // Mutable so 401-retry can update for subsequent pages
 
         while let urlString = currentURL {
             guard let url = URL(string: urlString) else {
@@ -172,7 +173,7 @@ extension SyncManager {
             }
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(currentToken)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
             let fetchStart = Date()
@@ -196,16 +197,39 @@ extension SyncManager {
                 )
             }
 
-            guard httpResponse.statusCode == 200 else {
-                if let responseBody = String(data: data, encoding: .utf8) {
-                    os_log(
-                        "[Sync] Projection fetch failed (\(httpResponse.statusCode)): \(responseBody)"
-                    )
+            // If token was rejected, refresh once and retry — mirrors syncPull 401 handling.
+            // This resolves DEQUEUE-APP-1/DEQUEUE-APP-6 where stale tokens cause pullFailed
+            // on projection sync endpoints (/v1/tags, /v1/stacks, etc.).
+            let decodeData: Data
+            if httpResponse.statusCode == 401 {
+                os_log("[Sync] Token rejected during projection fetch, refreshing...")
+                guard let newToken = try await refreshToken() else {
+                    os_log("[Sync] Token refresh failed during projection fetch")
+                    throw SyncError.notAuthenticated
                 }
-                throw SyncError.pullFailed
+                currentToken = newToken
+                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                let (retryData, retryResponse) = try await syncSession.data(for: request)
+                guard let retryHTTP = retryResponse as? HTTPURLResponse,
+                      retryHTTP.statusCode == 200 else {
+                    let retryStatus = (retryResponse as? HTTPURLResponse)?.statusCode ?? -1
+                    os_log("[Sync] Projection fetch retry failed with status: \(retryStatus)")
+                    throw SyncError.pullFailed
+                }
+                decodeData = retryData
+            } else {
+                guard httpResponse.statusCode == 200 else {
+                    if let responseBody = String(data: data, encoding: .utf8) {
+                        os_log(
+                            "[Sync] Projection fetch failed (\(httpResponse.statusCode)): \(responseBody)"
+                        )
+                    }
+                    throw SyncError.pullFailed
+                }
+                decodeData = data
             }
 
-            let decoded = try JSONDecoder().decode(ProjectionResponse<T>.self, from: data)
+            let decoded = try JSONDecoder().decode(ProjectionResponse<T>.self, from: decodeData)
             allResults.append(contentsOf: decoded.data)
 
             // Handle pagination — use URLComponents to properly manage query parameters
