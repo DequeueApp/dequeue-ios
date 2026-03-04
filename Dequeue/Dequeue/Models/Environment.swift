@@ -52,6 +52,28 @@ enum DeploymentEnvironment: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+// MARK: - Validation Types
+
+/// Severity of a startup environment validation issue.
+enum ValidationSeverity: String, Equatable, Sendable {
+    /// Non-fatal — logged and sent to Sentry, but the app can continue.
+    case warning
+    /// Fatal misconfiguration — could break auth, sync, or error reporting.
+    case error
+}
+
+/// A single issue found during startup environment validation.
+struct EnvironmentValidationIssue: Equatable, Sendable {
+    /// The configuration field or check that failed (e.g. "clerkPublishableKey").
+    let key: String
+    /// Human-readable description of the problem.
+    let message: String
+    /// How serious the issue is.
+    let severity: ValidationSeverity
+}
+
+// MARK: - Environment Configuration
+
 /// Environment-specific configuration
 struct EnvironmentConfiguration {
     let environment: DeploymentEnvironment
@@ -64,6 +86,88 @@ struct EnvironmentConfiguration {
     /// Computed property for sync API base URL (includes /apps/{appId} prefix)
     var syncAPIBaseURL: URL {
         return syncServiceBaseURL.appendingPathComponent("apps/\(syncAppId)")
+    }
+
+    // MARK: - Validation
+
+    /// Validates this configuration and returns any detected issues.
+    ///
+    /// Checks performed:
+    /// - URL schemes are `https` (or `http` in non-production)
+    /// - URLs have non-empty hosts
+    /// - Clerk publishable key starts with `pk_`
+    /// - Production builds are not using `pk_test_` keys
+    /// - Sentry DSN is non-empty and starts with `https://`
+    /// - Sync app ID is non-empty
+    ///
+    /// - Returns: Array of `EnvironmentValidationIssue`; empty means all checks passed.
+    func validate() -> [EnvironmentValidationIssue] {
+        var issues: [EnvironmentValidationIssue] = []
+
+        // --- URL checks ---
+        let urlFields: [(String, URL)] = [
+            ("dequeueAPIBaseURL", dequeueAPIBaseURL),
+            ("syncServiceBaseURL", syncServiceBaseURL)
+        ]
+        for (field, url) in urlFields {
+            guard let scheme = url.scheme, !scheme.isEmpty else {
+                issues.append(.init(key: field, message: "\(field) has no URL scheme", severity: .error))
+                continue
+            }
+            guard scheme == "https" || scheme == "http" else {
+                issues.append(.init(
+                    key: field,
+                    message: "\(field) uses unexpected scheme '\(scheme)'",
+                    severity: .error
+                ))
+                continue
+            }
+            if environment == .production && scheme != "https" {
+                issues.append(.init(
+                    key: field,
+                    message: "\(field) must use HTTPS in production (got '\(scheme)')",
+                    severity: .error
+                ))
+            }
+            if url.host == nil || (url.host ?? "").isEmpty {
+                issues.append(.init(key: field, message: "\(field) has no host", severity: .error))
+            }
+        }
+
+        // --- Clerk key ---
+        if clerkPublishableKey.isEmpty {
+            issues.append(.init(key: "clerkPublishableKey", message: "Clerk key is empty", severity: .error))
+        } else if !clerkPublishableKey.hasPrefix("pk_") {
+            issues.append(.init(
+                key: "clerkPublishableKey",
+                message: "Clerk key must start with 'pk_' (got '\(clerkPublishableKey.prefix(8))...')",
+                severity: .error
+            ))
+        } else if environment == .production && clerkPublishableKey.hasPrefix("pk_test_") {
+            issues.append(.init(
+                key: "clerkPublishableKey",
+                message: "Production is using a test Clerk key (pk_test_). Switch to pk_live_ before shipping.",
+                severity: .warning
+            ))
+        }
+
+        // --- Sentry DSN ---
+        if sentryDSN.isEmpty {
+            issues.append(.init(key: "sentryDSN", message: "Sentry DSN is empty", severity: .warning))
+        } else if !sentryDSN.hasPrefix("https://") {
+            issues.append(.init(
+                key: "sentryDSN",
+                message: "Sentry DSN should start with 'https://'",
+                severity: .warning
+            ))
+        }
+
+        // --- Sync app ID ---
+        if syncAppId.isEmpty {
+            issues.append(.init(key: "syncAppId", message: "Sync app ID is empty", severity: .error))
+        }
+
+        return issues
     }
 
     // MARK: - Predefined Configurations
