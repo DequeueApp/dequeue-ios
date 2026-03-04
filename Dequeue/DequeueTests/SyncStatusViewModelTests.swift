@@ -427,4 +427,37 @@ struct SyncStatusViewModelTests {
         // When not connected, initial sync should not be in progress
         #expect(viewModel.isInitialSyncInProgress == false)
     }
+
+    // MARK: - initialSyncMessage Tests
+
+    @Test("ViewModel initializes with empty initialSyncMessage")
+    func viewModelInitialSyncMessageEmpty() async throws {
+        let container = try ModelContainer(
+            for: Event.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let viewModel = SyncStatusViewModel(modelContext: container.mainContext)
+
+        // Default message should be empty — no sync in progress
+        #expect(viewModel.initialSyncMessage == "")
+    }
+
+    @Test("ViewModel tracks initialSyncMessage from SyncManager via updateStatusNow")
+    func viewModelTracksInitialSyncMessage() async throws {
+        let container = try ModelContainer(
+            for: Event.self,
+            Stack.self,
+            QueueTask.self,
+            Reminder.self,
+            Device.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let viewModel = SyncStatusViewModel(modelContext: container.mainContext)
+        let syncManager = SyncManager(modelContainer: container)
+        viewModel.setSyncManager(syncManager)
+
+        // Force update — sync is idle so message should be empty
+        await viewModel.updateStatusNow()
+        #expect(viewModel.initialSyncMessage == "")
+    }
 }
