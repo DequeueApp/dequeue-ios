@@ -2,11 +2,13 @@
 //  ErrorReportingService+SyncObservability.swift
 //  Dequeue
 //
-//  Remote observability for sync operations. Provides structured Sentry breadcrumbs
-//  and error events so sync failures can be diagnosed without Xcode console logs.
+//  Remote observability for sync operations. Provides structured Sentry breadcrumbs,
+//  error events, and performance transactions so sync behaviour can be diagnosed
+//  and profiled without Xcode console logs.
 //
 //  DEQ-246: Structured Sentry breadcrumbs for all sync & network operations
 //  DEQ-247: Fire Sentry error events on critical API failures (4xx/5xx)
+//  DEQ-248: Sentry performance transactions for sync health metrics
 //
 
 import Foundation
@@ -275,6 +277,80 @@ extension ErrorReportingService {
                 }
             }
         }
+    }
+
+    // MARK: - Performance Transactions (DEQ-248)
+    //
+    // Design note: The Sentry `Span` protocol is @MainActor-isolated in strict Swift 6
+    // concurrency mode, so all Sentry performance API calls must happen on MainActor.
+    // SyncManager (a custom actor) therefore records plain `Date` values for timing,
+    // then calls these @MainActor methods at operation completion to create and
+    // immediately finish a transaction with a retroactive startTimestamp.
+    //
+    // This gives accurate total-duration traces in Sentry Performance without
+    // any Span objects ever crossing actor boundaries.
+
+    /// Timing and entity-count metrics captured by `SyncManager` during a projection sync.
+    struct ProjectionSyncMetrics {
+        let syncId: String
+        let syncStart: Date
+        let fetchDurationMs: Int
+        let populateDurationMs: Int
+        let stacks: Int
+        let tasks: Int
+        let arcs: Int
+        let tags: Int
+        let reminders: Int
+        let success: Bool
+    }
+
+    /// Records a completed projection sync as a Sentry performance transaction.
+    ///
+    /// The transaction's start timestamp is set retroactively to `metrics.syncStart`,
+    /// so the duration visible in Sentry Performance matches the actual wall-clock time.
+    @MainActor
+    static func recordProjectionSyncTransaction(_ metrics: ProjectionSyncMetrics) {
+        let tx = SentrySDK.startTransaction(name: "Projection Sync", operation: "sync.projection")
+        tx.startTimestamp = metrics.syncStart
+        tx.setData(value: metrics.syncId, key: "sync_id")
+
+        let totalEntities = metrics.stacks + metrics.tasks + metrics.arcs + metrics.tags + metrics.reminders
+        tx.setData(value: totalEntities, key: "entity_count")
+        tx.setData(value: metrics.stacks, key: "stacks")
+        tx.setData(value: metrics.tasks, key: "tasks")
+        tx.setData(value: metrics.arcs, key: "arcs")
+        tx.setData(value: metrics.tags, key: "tags")
+        tx.setData(value: metrics.reminders, key: "reminders")
+
+        // Sub-operation durations as Sentry measurements (visible alongside the transaction)
+        tx.setMeasurement(name: "fetch_duration_ms", value: NSNumber(value: metrics.fetchDurationMs))
+        tx.setMeasurement(name: "populate_duration_ms", value: NSNumber(value: metrics.populateDurationMs))
+
+        tx.finish(status: metrics.success ? .ok : .internalError)
+    }
+
+    /// Timing metrics captured by `SyncManager` during an event push cycle.
+    struct EventPushMetrics {
+        let syncId: String
+        let pushStart: Date
+        let httpDurationMs: Int
+        let eventCount: Int
+        let httpStatusCode: Int
+        let success: Bool
+    }
+
+    /// Records a completed event push cycle as a Sentry performance transaction.
+    ///
+    /// The transaction's start timestamp is set retroactively to `metrics.pushStart`.
+    @MainActor
+    static func recordEventPushTransaction(_ metrics: EventPushMetrics) {
+        let tx = SentrySDK.startTransaction(name: "Event Push", operation: "sync.push")
+        tx.startTimestamp = metrics.pushStart
+        tx.setData(value: metrics.syncId, key: "sync_id")
+        tx.setData(value: metrics.eventCount, key: "event_count")
+        tx.setData(value: metrics.httpStatusCode, key: "http.status_code")
+        tx.setMeasurement(name: "http_duration_ms", value: NSNumber(value: metrics.httpDurationMs))
+        tx.finish(status: metrics.success ? .ok : .internalError)
     }
 
     // MARK: - Private Helpers
