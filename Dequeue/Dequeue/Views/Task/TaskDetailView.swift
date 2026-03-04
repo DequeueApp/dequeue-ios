@@ -374,45 +374,35 @@ struct TaskDetailView: View {
 
     private var datesSection: some View {
         Section("Dates") {
-            DatePicker(
-                "Start Date",
-                selection: Binding(
-                    get: { task.startTime ?? Date() },
+            OptionalDatePicker(
+                label: "Start Date",
+                icon: "calendar.badge.clock",
+                date: Binding(
+                    get: { task.startTime },
                     set: { newDate in
-                        updateTaskStartDate(newDate)
+                        if let newDate {
+                            updateTaskStartDate(newDate)
+                        } else {
+                            clearTaskStartDate()
+                        }
                     }
-                ),
-                displayedComponents: [.date, .hourAndMinute]
+                )
             )
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                if task.startTime != nil {
-                    Button(role: .destructive) {
-                        clearTaskStartDate()
-                    } label: {
-                        Label("Clear", systemImage: "xmark")
-                    }
-                }
-            }
 
-            DatePicker(
-                "Due Date",
-                selection: Binding(
-                    get: { task.dueTime ?? Date() },
+            OptionalDatePicker(
+                label: "Due Date",
+                icon: "calendar.badge.exclamationmark",
+                date: Binding(
+                    get: { task.dueTime },
                     set: { newDate in
-                        updateTaskDueDate(newDate)
+                        if let newDate {
+                            updateTaskDueDate(newDate)
+                        } else {
+                            clearTaskDueDate()
+                        }
                     }
-                ),
-                displayedComponents: [.date, .hourAndMinute]
+                )
             )
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                if task.dueTime != nil {
-                    Button(role: .destructive) {
-                        clearTaskDueDate()
-                    } label: {
-                        Label("Clear", systemImage: "xmark")
-                    }
-                }
-            }
         }
     }
 
