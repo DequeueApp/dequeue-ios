@@ -46,6 +46,9 @@ internal final class SyncStatusViewModel {
     /// Total number of events during initial sync (DEQ-240)
     private(set) var initialSyncTotalEvents: Int = 0
 
+    /// Human-readable status message for the current sync phase (e.g. "Fetching your data…")
+    private(set) var initialSyncMessage: String = ""
+
     private let modelContext: ModelContext
     private let eventService: EventService
     private var syncManager: SyncManager?
@@ -99,6 +102,7 @@ internal final class SyncStatusViewModel {
             let initialSyncActive = await syncManager.isInitialSyncInProgress
             let eventsProcessed = await syncManager.initialSyncEventsProcessed
             let totalEvents = await syncManager.initialSyncTotalEvents
+            let syncMessage = await syncManager.initialSyncMessage
 
             // Fetch pending event count - do this AFTER connection status to minimize race window.
             // Note: There's an inherent race between status and count fetches, but this is
@@ -127,6 +131,7 @@ internal final class SyncStatusViewModel {
             isInitialSyncInProgress = initialSyncActive
             initialSyncEventsProcessed = eventsProcessed
             initialSyncTotalEvents = totalEvents
+            initialSyncMessage = syncMessage
 
             // Update pending count
             pendingEventCount = currentCount

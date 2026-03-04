@@ -100,7 +100,8 @@ struct StacksView: View {
                     eventsProcessed: syncStatus.initialSyncEventsProcessed,
                     totalEvents: syncStatus.initialSyncTotalEvents > 0
                         ? syncStatus.initialSyncTotalEvents
-                        : nil
+                        : nil,
+                    statusMessage: syncStatus.initialSyncMessage
                 )
             }
         }
