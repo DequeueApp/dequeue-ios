@@ -2,11 +2,76 @@
 //  CalendarView.swift
 //  Dequeue
 //
-//  Shows tasks and calendar events in a unified timeline view
+//  Shows tasks, stacks, arcs, reminders, and calendar events in a unified timeline view
 //
 
 import SwiftUI
 import SwiftData
+
+// MARK: - Unified Calendar Item
+
+/// A single item in the unified calendar timeline.
+/// Wraps calendar events, tasks, stacks, arcs, and reminders into a sortable timeline.
+enum CalendarItem: Identifiable {
+    case calendarEvent(CalendarEvent)
+    case task(QueueTask, dateType: DateType)
+    case stack(Stack, dateType: DateType)
+    case arc(Arc, dateType: DateType)
+    case reminder(Reminder, parent: ReminderParent)
+
+    enum DateType: String {
+        case startAt = "Starts"
+        case dueAt = "Due"
+    }
+
+    enum ReminderParent {
+        case stack(Stack)
+        case task(QueueTask)
+        case arc(Arc)
+
+        var title: String {
+            switch self {
+            case .stack(let parentStack): return parentStack.title
+            case .task(let parentTask): return parentTask.title
+            case .arc(let parentArc): return parentArc.title
+            }
+        }
+    }
+
+    var id: String {
+        switch self {
+        case let .calendarEvent(event): return "event-\(event.id)"
+        case let .task(task, dateType): return "task-\(task.id)-\(dateType.rawValue)"
+        case let .stack(stack, dateType): return "stack-\(stack.id)-\(dateType.rawValue)"
+        case let .arc(arc, dateType): return "arc-\(arc.id)-\(dateType.rawValue)"
+        case let .reminder(reminder, _): return "reminder-\(reminder.id)"
+        }
+    }
+
+    /// The time used for sorting in the timeline
+    var sortTime: Date {
+        switch self {
+        case let .calendarEvent(event):
+            return event.startDate
+        case let .task(task, dateType):
+            return dateType == .startAt ? (task.startTime ?? .distantFuture) : (task.dueTime ?? .distantFuture)
+        case let .stack(stack, dateType):
+            return dateType == .startAt ? (stack.startTime ?? .distantFuture) : (stack.dueTime ?? .distantFuture)
+        case let .arc(arc, dateType):
+            return dateType == .startAt ? (arc.startTime ?? .distantFuture) : (arc.dueTime ?? .distantFuture)
+        case let .reminder(reminder, _):
+            return reminder.remindAt
+        }
+    }
+
+    /// Whether this is an all-day item (no specific time)
+    var isAllDay: Bool {
+        if case .calendarEvent(let event) = self { return event.isAllDay }
+        return false
+    }
+}
+
+// MARK: - Calendar View
 
 struct CalendarView: View {
     @Environment(\.modelContext) private var modelContext
@@ -15,7 +80,11 @@ struct CalendarView: View {
     @State private var selectedDate = Date()
     @State private var showImportSheet = false
     @State private var selectedEventForImport: CalendarEvent?
+    @State private var selectedStack: Stack?
+    @State private var selectedTask: QueueTask?
+    @State private var selectedArc: Arc?
 
+    // Query all non-deleted tasks
     @Query(
         filter: #Predicate<QueueTask> { task in
             task.isDeleted == false
@@ -24,18 +93,58 @@ struct CalendarView: View {
     )
     private var allTasksRaw: [QueueTask]
 
-    /// Filtered to exclude completed/closed tasks (predicate can't compare enums)
-    private var allTasks: [QueueTask] {
+    // Query all non-deleted stacks
+    @Query(
+        filter: #Predicate<Stack> { stack in
+            stack.isDeleted == false
+        },
+        sort: [SortDescriptor(\Stack.dueTime)]
+    )
+    private var allStacksRaw: [Stack]
+
+    // Query all non-deleted arcs
+    @Query(
+        filter: #Predicate<Arc> { arc in
+            arc.isDeleted == false
+        },
+        sort: [SortDescriptor(\Arc.dueTime)]
+    )
+    private var allArcsRaw: [Arc]
+
+    // Query all non-deleted reminders
+    @Query(
+        filter: #Predicate<Reminder> { reminder in
+            reminder.isDeleted == false
+        },
+        sort: [SortDescriptor(\Reminder.remindAt)]
+    )
+    private var allReminders: [Reminder]
+
+    /// Filtered to exclude completed/closed tasks
+    private var activeTasks: [QueueTask] {
         allTasksRaw.filter { $0.status != .completed && $0.status != .closed }
+    }
+
+    /// Filtered to active stacks only
+    private var activeStacks: [Stack] {
+        allStacksRaw.filter { $0.status == .active }
+    }
+
+    /// Filtered to active arcs only
+    private var activeArcs: [Arc] {
+        allArcsRaw.filter { $0.status == .active }
+    }
+
+    /// Active reminders only
+    private var activeReminders: [Reminder] {
+        allReminders.filter { $0.status == .active }
     }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Date selector
                 dateHeader
 
-                // Content
                 if calendarService.isAuthorized {
                     authorizedContent
                 } else {
@@ -46,6 +155,18 @@ struct CalendarView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .navigationDestination(for: QueueTask.self) { task in
+                TaskDetailView(task: task)
+            }
+            .sheet(item: $selectedStack) { stack in
+                StackEditorView(mode: .edit(stack))
+            }
+            .sheet(item: $selectedTask) { task in
+                TaskDetailView(task: task)
+            }
+            .sheet(item: $selectedArc) { arc in
+                ArcEditorView(mode: .edit(arc))
+            }
             .task {
                 if calendarService.isAuthorized {
                     await calendarService.refreshEvents()
@@ -64,8 +185,8 @@ struct CalendarView: View {
                     DateChip(
                         date: date,
                         isSelected: Calendar.current.isDate(date, inSameDayAs: selectedDate),
-                        hasEvents: hasEvents(on: date),
-                        hasTasks: hasTasks(on: date)
+                        hasEvents: hasCalendarEvents(on: date),
+                        hasTasks: hasDequeueItems(on: date)
                     ) {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             selectedDate = date
@@ -86,41 +207,39 @@ struct CalendarView: View {
     // MARK: - Authorized Content
 
     private var authorizedContent: some View {
-        List {
-            // Tasks due on selected date
-            let dateTasks = tasksForDate(selectedDate)
-            if !dateTasks.isEmpty {
-                Section("Tasks Due") {
-                    ForEach(dateTasks) { task in
-                        NavigationLink {
-                            TaskDetailView(task: task)
-                        } label: {
-                            CalendarTaskRow(task: task)
+        let items = unifiedTimelineItems(for: selectedDate)
+
+        return Group {
+            if items.isEmpty {
+                List {
+                    Section {
+                        ContentUnavailableView {
+                            Label("No Events", systemImage: "calendar")
+                        } description: {
+                            Text("Nothing scheduled for \(formattedDate(selectedDate))")
                         }
                     }
                 }
-            }
-
-            // Calendar events on selected date
-            let dateEvents = calendarService.events(for: selectedDate)
-            if !dateEvents.isEmpty {
-                Section("Events") {
-                    ForEach(dateEvents) { event in
-                        CalendarEventRow(event: event) {
-                            selectedEventForImport = event
-                            showImportSheet = true
+            } else {
+                List {
+                    // All-day items first
+                    let allDayItems = items.filter(\.isAllDay)
+                    if !allDayItems.isEmpty {
+                        Section("All Day") {
+                            ForEach(allDayItems) { item in
+                                calendarItemRow(item)
+                            }
                         }
                     }
-                }
-            }
 
-            // Empty state
-            if dateTasks.isEmpty && dateEvents.isEmpty {
-                Section {
-                    ContentUnavailableView {
-                        Label("No Events", systemImage: "calendar")
-                    } description: {
-                        Text("Nothing scheduled for \(formattedDate(selectedDate))")
+                    // Timed items in chronological order
+                    let timedItems = items.filter { !$0.isAllDay }
+                    if !timedItems.isEmpty {
+                        Section("Timeline") {
+                            ForEach(timedItems) { item in
+                                calendarItemRow(item)
+                            }
+                        }
                     }
                 }
             }
@@ -132,6 +251,166 @@ struct CalendarView: View {
             if let event = selectedEventForImport {
                 ImportEventSheet(event: event)
             }
+        }
+    }
+
+    // MARK: - Unified Timeline Builder
+
+    private func unifiedTimelineItems(for date: Date) -> [CalendarItem] {
+        let calendar = Calendar.current
+        var items: [CalendarItem] = []
+
+        items += calendarEventItems(for: date)
+        items += taskItems(for: date, calendar: calendar)
+        items += stackItems(for: date, calendar: calendar)
+        items += arcItems(for: date, calendar: calendar)
+        items += reminderItems(for: date, calendar: calendar)
+
+        return items.sorted { $0.sortTime < $1.sortTime }
+    }
+
+    private func calendarEventItems(for date: Date) -> [CalendarItem] {
+        calendarService.events(for: date).map { .calendarEvent($0) }
+    }
+
+    private func taskItems(for date: Date, calendar: Calendar) -> [CalendarItem] {
+        var items: [CalendarItem] = []
+        for task in activeTasks {
+            let startIsOnDay = task.startTime.map { calendar.isDate($0, inSameDayAs: date) } ?? false
+            if startIsOnDay {
+                items.append(.task(task, dateType: .startAt))
+            }
+            if let dueTime = task.dueTime, calendar.isDate(dueTime, inSameDayAs: date) {
+                // Skip dueAt if start is on same day with identical time (avoid duplicate)
+                if !(startIsOnDay && task.startTime == task.dueTime) {
+                    items.append(.task(task, dateType: .dueAt))
+                }
+            }
+        }
+        return items
+    }
+
+    private func stackItems(for date: Date, calendar: Calendar) -> [CalendarItem] {
+        var items: [CalendarItem] = []
+        for stack in activeStacks {
+            let startIsOnDay = stack.startTime.map { calendar.isDate($0, inSameDayAs: date) } ?? false
+            if startIsOnDay {
+                items.append(.stack(stack, dateType: .startAt))
+            }
+            if let dueTime = stack.dueTime, calendar.isDate(dueTime, inSameDayAs: date) {
+                if !(startIsOnDay && stack.startTime == stack.dueTime) {
+                    items.append(.stack(stack, dateType: .dueAt))
+                }
+            }
+        }
+        return items
+    }
+
+    private func arcItems(for date: Date, calendar: Calendar) -> [CalendarItem] {
+        var items: [CalendarItem] = []
+        for arc in activeArcs {
+            let startIsOnDay = arc.startTime.map { calendar.isDate($0, inSameDayAs: date) } ?? false
+            if startIsOnDay {
+                items.append(.arc(arc, dateType: .startAt))
+            }
+            if let dueTime = arc.dueTime, calendar.isDate(dueTime, inSameDayAs: date) {
+                if !(startIsOnDay && arc.startTime == arc.dueTime) {
+                    items.append(.arc(arc, dateType: .dueAt))
+                }
+            }
+        }
+        return items
+    }
+
+    private func reminderItems(for date: Date, calendar: Calendar) -> [CalendarItem] {
+        var items: [CalendarItem] = []
+        for reminder in activeReminders where calendar.isDate(reminder.remindAt, inSameDayAs: date) {
+            if let stack = reminder.stack {
+                items.append(.reminder(reminder, parent: .stack(stack)))
+            } else if let task = reminder.task {
+                items.append(.reminder(reminder, parent: .task(task)))
+            } else if let arc = reminder.arc {
+                items.append(.reminder(reminder, parent: .arc(arc)))
+            }
+        }
+        return items
+    }
+
+    // MARK: - Row Rendering
+
+    @ViewBuilder
+    private func calendarItemRow(_ item: CalendarItem) -> some View {
+        switch item {
+        case .calendarEvent(let event):
+            CalendarEventRow(event: event) {
+                selectedEventForImport = event
+                showImportSheet = true
+            }
+
+        case let .task(task, dateType):
+            NavigationLink(value: task) {
+                DequeueItemRow(
+                    title: task.title,
+                    time: dateType == .startAt ? task.startTime : task.dueTime,
+                    dateLabel: dateType.rawValue,
+                    icon: "checklist",
+                    iconColor: .blue,
+                    parentTitle: task.stack?.title,
+                    isOverdue: dateType == .dueAt && (task.dueTime ?? .distantFuture) < Date()
+                )
+            }
+
+        case let .stack(stack, dateType):
+            Button {
+                selectedStack = stack
+            } label: {
+                DequeueItemRow(
+                    title: stack.title,
+                    time: dateType == .startAt ? stack.startTime : stack.dueTime,
+                    dateLabel: dateType.rawValue,
+                    icon: "square.stack.3d.up",
+                    iconColor: .purple,
+                    parentTitle: nil,
+                    isOverdue: dateType == .dueAt && (stack.dueTime ?? .distantFuture) < Date()
+                )
+            }
+            .buttonStyle(.plain)
+
+        case let .arc(arc, dateType):
+            Button {
+                selectedArc = arc
+            } label: {
+                DequeueItemRow(
+                    title: arc.title,
+                    time: dateType == .startAt ? arc.startTime : arc.dueTime,
+                    dateLabel: dateType.rawValue,
+                    icon: "arrow.triangle.branch",
+                    iconColor: .orange,
+                    parentTitle: nil,
+                    isOverdue: dateType == .dueAt && (arc.dueTime ?? .distantFuture) < Date()
+                )
+            }
+            .buttonStyle(.plain)
+
+        case let .reminder(reminder, parent):
+            Button {
+                switch parent {
+                case let .stack(parentStack): selectedStack = parentStack
+                case let .task(parentTask): selectedTask = parentTask
+                case let .arc(parentArc): selectedArc = parentArc
+                }
+            } label: {
+                DequeueItemRow(
+                    title: parent.title,
+                    time: reminder.remindAt,
+                    dateLabel: "Reminder",
+                    icon: "bell",
+                    iconColor: .red,
+                    parentTitle: nil,
+                    isOverdue: reminder.remindAt < Date()
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -152,31 +431,95 @@ struct CalendarView: View {
 
     // MARK: - Helpers
 
-    private func tasksForDate(_ date: Date) -> [QueueTask] {
-        let calendar = Calendar.current
-        return allTasks.filter { task in
-            if let dueTime = task.dueTime {
-                return calendar.isDate(dueTime, inSameDayAs: date)
-            }
-            if let startTime = task.startTime {
-                return calendar.isDate(startTime, inSameDayAs: date)
-            }
-            return false
-        }
-    }
-
-    private func hasEvents(on date: Date) -> Bool {
+    private func hasCalendarEvents(on date: Date) -> Bool {
         !calendarService.events(for: date).isEmpty
     }
 
-    private func hasTasks(on date: Date) -> Bool {
-        !tasksForDate(date).isEmpty
+    private func hasDequeueItems(on date: Date) -> Bool {
+        let calendar = Calendar.current
+        let hasTask = activeTasks.contains { task in
+            task.startTime.map { calendar.isDate($0, inSameDayAs: date) } == true ||
+            task.dueTime.map { calendar.isDate($0, inSameDayAs: date) } == true
+        }
+        let hasStack = activeStacks.contains { stack in
+            stack.startTime.map { calendar.isDate($0, inSameDayAs: date) } == true ||
+            stack.dueTime.map { calendar.isDate($0, inSameDayAs: date) } == true
+        }
+        let hasArc = activeArcs.contains { arc in
+            arc.startTime.map { calendar.isDate($0, inSameDayAs: date) } == true ||
+            arc.dueTime.map { calendar.isDate($0, inSameDayAs: date) } == true
+        }
+        let hasReminder = activeReminders.contains { reminder in
+            calendar.isDate(reminder.remindAt, inSameDayAs: date)
+        }
+        return hasTask || hasStack || hasArc || hasReminder
     }
 
     private func formattedDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - Dequeue Item Row (Unified style for tasks/stacks/arcs/reminders)
+
+struct DequeueItemRow: View {
+    let title: String
+    let time: Date?
+    let dateLabel: String
+    let icon: String
+    let iconColor: Color
+    let parentTitle: String?
+    let isOverdue: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Type icon
+            Image(systemName: icon)
+                .font(.body)
+                .foregroundStyle(iconColor)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+
+                HStack(spacing: 4) {
+                    Text(dateLabel)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(isOverdue ? .red : iconColor)
+
+                    if let time {
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text(time, style: .time)
+                            .font(.caption)
+                            .foregroundStyle(isOverdue ? .red : .secondary)
+                    }
+
+                    if let parentTitle {
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Text(parentTitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -239,61 +582,6 @@ struct DateChip: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "d"
         return formatter.string(from: date)
-    }
-}
-
-// MARK: - Calendar Task Row
-
-struct CalendarTaskRow: View {
-    let task: QueueTask
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Priority indicator
-            Circle()
-                .fill(priorityColor)
-                .frame(width: 8, height: 8)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(task.title)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-
-                if let dueTime = task.dueTime {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.caption2)
-                        Text(dueTime, style: .time)
-                            .font(.caption)
-                    }
-                    .foregroundStyle(isOverdue ? .red : .secondary)
-                }
-            }
-
-            Spacer()
-
-            if let stack = task.stack {
-                Text(stack.title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.vertical, 2)
-    }
-
-    private var priorityColor: Color {
-        switch task.priority {
-        case 1: return .red
-        case 2: return .orange
-        case 3: return .yellow
-        default: return .gray.opacity(0.3)
-        }
-    }
-
-    private var isOverdue: Bool {
-        guard let dueTime = task.dueTime else { return false }
-        return dueTime < Date()
     }
 }
 
@@ -389,7 +677,7 @@ struct ImportEventSheet: View {
     )
     private var allStacks: [Stack]
 
-    /// Filtered to active stacks only (predicate can't compare enums directly)
+    /// Filtered to active stacks only
     private var activeStacks: [Stack] {
         allStacks.filter { $0.status == .active }
     }

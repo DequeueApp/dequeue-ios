@@ -199,45 +199,35 @@ extension StackEditorView {
     var datesSection: some View {
         if case .edit(let stack) = mode, !isReadOnly {
             Section("Dates") {
-                DatePicker(
-                    "Start Date",
-                    selection: Binding(
-                        get: { stack.startTime ?? Date() },
+                OptionalDatePicker(
+                    label: "Start Date",
+                    icon: "calendar.badge.clock",
+                    date: Binding(
+                        get: { stack.startTime },
                         set: { newDate in
-                            updateStackStartDate(stack: stack, newDate: newDate)
+                            if let newDate {
+                                updateStackStartDate(stack: stack, newDate: newDate)
+                            } else {
+                                clearStackStartDate(stack: stack)
+                            }
                         }
-                    ),
-                    displayedComponents: [.date, .hourAndMinute]
+                    )
                 )
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    if stack.startTime != nil {
-                        Button(role: .destructive) {
-                            clearStackStartDate(stack: stack)
-                        } label: {
-                            Label("Clear", systemImage: "xmark")
-                        }
-                    }
-                }
 
-                DatePicker(
-                    "Due Date",
-                    selection: Binding(
-                        get: { stack.dueTime ?? Date() },
+                OptionalDatePicker(
+                    label: "Due Date",
+                    icon: "calendar.badge.exclamationmark",
+                    date: Binding(
+                        get: { stack.dueTime },
                         set: { newDate in
-                            updateStackDueDate(stack: stack, newDate: newDate)
+                            if let newDate {
+                                updateStackDueDate(stack: stack, newDate: newDate)
+                            } else {
+                                clearStackDueDate(stack: stack)
+                            }
                         }
-                    ),
-                    displayedComponents: [.date, .hourAndMinute]
+                    )
                 )
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    if stack.dueTime != nil {
-                        Button(role: .destructive) {
-                            clearStackDueDate(stack: stack)
-                        } label: {
-                            Label("Clear", systemImage: "xmark")
-                        }
-                    }
-                }
             }
         }
     }
