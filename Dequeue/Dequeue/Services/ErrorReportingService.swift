@@ -144,10 +144,15 @@ enum ErrorReportingService {
             options.enableAppHangTracking = true
             options.appHangTimeoutInterval = 2.0        // Report hangs > 2 seconds
 
-            // Capture HTTP errors
+            // Capture HTTP errors.
+            // Exclude 401 (Unauthorized): the app explicitly handles 401s with a
+            // force-refresh retry (SearchService, SyncManager). A persistent 401 after
+            // retry throws SearchError.notAuthenticated which triggers the re-auth alert.
+            // Auto-capturing 401s only floods Sentry with noise for broken sessions.
             options.enableCaptureFailedRequests = true
             options.failedRequestStatusCodes = [
-                HttpStatusCodeRange(min: 400, max: 599)  // All 4xx and 5xx
+                HttpStatusCodeRange(min: 400, max: 400),  // 400 Bad Request
+                HttpStatusCodeRange(min: 402, max: 599)   // 402–599 (skip 401 Unauthorized)
             ]
 
             // ============================================

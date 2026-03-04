@@ -12,12 +12,14 @@ private let logger = Logger(subsystem: "com.dequeue", category: "SearchView")
 
 struct SearchView: View {
     @Environment(\.searchService) private var searchService
+    @Environment(\.authService) private var authService
     @State private var searchText = ""
     @State private var results: [SearchResultItem] = []
     @State private var isSearching = false
     @State private var errorMessage: String?
     @State private var hasSearched = false
     @State private var searchTask: Task<Void, Never>?
+    @State private var requiresReauth = false
 
     var body: some View {
         NavigationStack {
@@ -39,6 +41,18 @@ struct SearchView: View {
             }
             .onSubmit(of: .search) {
                 performImmediateSearch()
+            }
+            .alert("Session Expired", isPresented: $requiresReauth) {
+                Button("Sign In Again", role: .destructive) {
+                    // Sign-out is handled by the auth state observer in the app root;
+                    // clearing the Clerk session will redirect to the login screen.
+                    Task { await signOut() }
+                }
+                Button("Cancel", role: .cancel) {
+                    requiresReauth = false
+                }
+            } message: {
+                Text("Your session has expired. Please sign in again to use search.")
             }
         }
     }
@@ -150,10 +164,26 @@ struct SearchView: View {
             return
         } catch let urlError as URLError where urlError.code == .cancelled {
             return
+        } catch SearchError.notAuthenticated {
+            // Session is genuinely broken — prompt the user to re-authenticate.
+            // Do not show a generic error; show the re-auth alert instead.
+            logger.warning("Search requires re-authentication — showing re-auth alert")
+            requiresReauth = true
+            hasSearched = false
         } catch {
             logger.error("Search failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
             hasSearched = true
+        }
+    }
+
+    // MARK: - Sign Out
+
+    private func signOut() async {
+        do {
+            try await authService.signOut()
+        } catch {
+            logger.error("Sign-out after search 401 failed: \(error.localizedDescription)")
         }
     }
 }

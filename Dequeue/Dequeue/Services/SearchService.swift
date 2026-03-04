@@ -156,8 +156,6 @@ final class SearchService: @unchecked Sendable {
             throw SearchError.queryTooLong
         }
 
-        let token = try await authService.getAuthToken()
-
         var components = URLComponents(
             url: Configuration.dequeueAPIBaseURL.appendingPathComponent("search"),
             resolvingAgainstBaseURL: true
@@ -171,12 +169,27 @@ final class SearchService: @unchecked Sendable {
             throw SearchError.invalidResponse
         }
 
+        logger.debug("Searching for: \(trimmed)")
+
+        return try await executeSearchRequest(url: url, query: trimmed, retrying: false)
+    }
+
+    /// Executes the actual HTTP search request. On 401, retries once with a force-refreshed token.
+    private func executeSearchRequest(url: URL, query: String, retrying: Bool) async throws -> SearchResponse {
+        let token: String
+        do {
+            // On retry, bypass the Clerk token cache to get a guaranteed-fresh JWT.
+            token = retrying
+                ? try await authService.forceRefreshAuthToken()
+                : try await authService.getAuthToken()
+        } catch {
+            throw SearchError.notAuthenticated
+        }
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        logger.debug("Searching for: \(trimmed)")
 
         do {
             let (data, response) = try await urlSession.data(for: request)
@@ -185,13 +198,28 @@ final class SearchService: @unchecked Sendable {
                 throw SearchError.invalidResponse
             }
 
+            // On 401, attempt a single retry with a force-refreshed token.
+            // This handles expired/revoked Clerk sessions that weren't caught locally.
+            if httpResponse.statusCode == 401 {
+                if !retrying {
+                    logger.warning("Search got 401 — force-refreshing token and retrying")
+                    return try await executeSearchRequest(url: url, query: query, retrying: true)
+                } else {
+                    // Both the initial request and the force-refresh retry returned 401.
+                    // The Clerk session is genuinely broken (expired, revoked, or invalidated).
+                    // Throw notAuthenticated so the caller can prompt re-authentication.
+                    logger.error("Search got 401 after force-refresh — session is invalid, require re-auth")
+                    throw SearchError.notAuthenticated
+                }
+            }
+
             guard (200...299).contains(httpResponse.statusCode) else {
                 let errorMessage = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
                 throw SearchError.serverError(statusCode: httpResponse.statusCode, message: errorMessage)
             }
 
             let searchResponse = try JSONDecoder().decode(SearchResponse.self, from: data)
-            logger.info("Search returned \(searchResponse.total) results for '\(trimmed)'")
+            logger.info("Search returned \(searchResponse.total) results for '\(query)'")
             return searchResponse
         } catch let error as SearchError {
             throw error

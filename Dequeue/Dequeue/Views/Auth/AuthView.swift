@@ -348,6 +348,7 @@ private final class DefaultAuthService: AuthServiceProtocol, @unchecked Sendable
     func configure() async {}
     func signOut() async throws {}
     func getAuthToken() async throws -> String { throw AuthError.notAuthenticated }
+    func forceRefreshAuthToken() async throws -> String { throw AuthError.notAuthenticated }
     func refreshSessionIfNeeded() async {}
 }
 

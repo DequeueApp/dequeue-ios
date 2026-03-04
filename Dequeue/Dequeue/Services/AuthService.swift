@@ -47,6 +47,9 @@ protocol AuthServiceProtocol {
     @MainActor func configure() async
     @MainActor func signOut() async throws
     @MainActor func getAuthToken() async throws -> String
+    /// Force-fetches a fresh token from Clerk, bypassing the local cache.
+    /// Use when a request returns 401 to retry with a guaranteed-fresh token.
+    @MainActor func forceRefreshAuthToken() async throws -> String
     @MainActor func refreshSessionIfNeeded() async
 }
 
@@ -236,7 +239,23 @@ final class ClerkAuthService: AuthServiceProtocol {
         guard let session else {
             throw AuthError.notAuthenticated
         }
-        guard let token = try await session.getToken()?.jwt else {
+        // Use a 30-second expiration buffer (vs the default 10s) to preemptively
+        // refresh tokens before they expire during in-flight requests.
+        guard let token = try await session.getToken(.init(expirationBuffer: 30))?.jwt else {
+            throw AuthError.noToken
+        }
+        return token
+    }
+
+    @MainActor
+    func forceRefreshAuthToken() async throws -> String {
+        let session = await MainActor.run { Clerk.shared.session }
+        guard let session else {
+            throw AuthError.notAuthenticated
+        }
+        // Skip the cache entirely — forces a fresh JWT from Clerk's servers.
+        // Use this after receiving a 401 to recover from revoked/expired sessions.
+        guard let token = try await session.getToken(.init(skipCache: true))?.jwt else {
             throw AuthError.noToken
         }
         return token
@@ -393,6 +412,12 @@ final class MockAuthService: AuthServiceProtocol {
             throw AuthError.notAuthenticated
         }
         return "mock-token-\(UUID().uuidString)"
+    }
+
+    @MainActor
+    func forceRefreshAuthToken() async throws -> String {
+        // Same as getAuthToken for mock — no real cache to bypass
+        return try await getAuthToken()
     }
 
     @MainActor
