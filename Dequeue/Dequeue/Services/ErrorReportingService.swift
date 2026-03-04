@@ -81,6 +81,54 @@ enum ErrorReportingService {
         return false
     }
 
+    // MARK: - Crash Visibility
+
+    /// UserDefaults key for tracking clean/dirty exits.
+    /// Written to "launching" on startup, set to "clean" on graceful background.
+    /// If still "launching" on next boot, previous session crashed.
+    private static let exitStateKey = "com.dequeue.lastExitState"
+
+    /// UserDefaults key for the last launch timestamp (ISO 8601).
+    private static let lastLaunchKey = "com.dequeue.lastLaunchTimestamp"
+
+    /// Records that the app is launching. Called at the very start of `configure()`.
+    /// On next launch, if the exit state is still "launching", we know the previous
+    /// session crashed (dirty exit).
+    private static func markLaunching() {
+        let defaults = UserDefaults.standard
+        let previousState = defaults.string(forKey: exitStateKey) ?? "first_launch"
+        let previousLaunch = defaults.string(forKey: lastLaunchKey) ?? "unknown"
+
+        // Write "launching" immediately — if we crash, this will still be set on next boot
+        defaults.set("launching", forKey: exitStateKey)
+        defaults.set(ISO8601DateFormatter().string(from: Date()), forKey: lastLaunchKey)
+        defaults.synchronize()  // Force write to disk NOW, before anything else
+
+        // Check if previous session was a dirty exit
+        if previousState == "launching" {
+            // Previous session crashed — Sentry's crash handler may or may not have caught it.
+            // Fire an explicit event so we always have visibility.
+            SentrySDK.capture(message: "Dirty exit detected: previous session crashed") { scope in
+                scope.setLevel(.warning)
+                scope.setTag(value: previousState, key: "previous_exit_state")
+                scope.setTag(value: previousLaunch, key: "previous_launch_time")
+                scope.setContext(value: [
+                    "previous_exit_state": previousState,
+                    "previous_launch_time": previousLaunch,
+                    "current_launch_time": ISO8601DateFormatter().string(from: Date()),
+                    "explanation": "App did not record a clean exit before this launch. "
+                        + "This indicates a crash, watchdog kill, or OOM termination."
+                ], key: "dirty_exit")
+            }
+        }
+    }
+
+    /// Records a clean exit. Call when the app enters background gracefully.
+    static func markCleanExit() {
+        UserDefaults.standard.set("clean", forKey: exitStateKey)
+        UserDefaults.standard.synchronize()
+    }
+
     /// Configures Sentry SDK synchronously so crash reporting is available immediately.
     /// Called from App.init() to ensure crashes during ModelContainer setup are captured.
     ///
@@ -209,7 +257,31 @@ enum ErrorReportingService {
             // ============================================
             options.enableAutoSessionTracking = true
             options.sessionTrackingIntervalMillis = 30_000  // 30 second session timeout
+
+            // ============================================
+            // CRASH VISIBILITY
+            // ============================================
+            // Watchdog termination tracking detects when iOS kills the app
+            // (OOM, background timeout, watchdog) even if no crash handler fires
+            options.enableWatchdogTerminationTracking = true
+
+            // Callback fires on next launch if previous session crashed.
+            // Captures an explicit event so we always have crash visibility
+            // even if the automatic crash report is incomplete.
+            options.onCrashedLastRun = { event in
+                let breadcrumb = Breadcrumb(level: .fatal, category: "crash")
+                breadcrumb.message = "Previous session crashed — onCrashedLastRun fired"
+                breadcrumb.data = [
+                    "crash_event_id": event.eventId.sentryIdString,
+                    "crash_timestamp": event.timestamp?.description ?? "unknown"
+                ]
+                SentrySDK.addBreadcrumb(breadcrumb)
+            }
         }
+
+        // Mark this launch in UserDefaults AFTER Sentry is active.
+        // If previous session was a dirty exit, fires a Sentry event.
+        markLaunching()
 
         isConfigured = true
     }
@@ -222,6 +294,11 @@ enum ErrorReportingService {
     /// iOS suspends (or jetsam-kills) the app.
     static func prepareForBackground() {
         guard isConfigured else { return }
+
+        // Record clean exit BEFORE flushing so the state is persisted to disk.
+        // If iOS kills the app in background (OOM, watchdog), we'll still
+        // have the "clean" state — only a crash during active use leaves "launching".
+        markCleanExit()
 
         // Flush any pending events/breadcrumbs before iOS suspends the app.
         // Use a short timeout since iOS gives limited background time.
