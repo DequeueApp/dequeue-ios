@@ -24,7 +24,7 @@ extension SyncManager {
     ///
     /// Falls back to event replay if projection fetch fails.
     func syncViaProjections() async throws {
-        let startTime = Date()
+        let syncStart = Date()
         let syncId = Self.generateSyncId()
         os_log("[Sync] Projection sync started: syncId=\(syncId)")
 
@@ -41,6 +41,10 @@ extension SyncManager {
         }
 
         let baseURL = await MainActor.run { Configuration.dequeueAPIBaseURL }
+
+        // ── Fetch phase ──────────────────────────────────────────────────────────────
+        // DEQ-248: Record fetch-phase wall-clock timing for Sentry performance transaction.
+        let fetchStart = Date()
 
         // Fetch all resource types in parallel
         // Note: dequeueAPIBaseURL already includes /v1 prefix, so paths are relative
@@ -68,24 +72,29 @@ extension SyncManager {
             let tags = try await tagsTask
             let reminders = try await remindersTask
 
+            let fetchDurationMs = Int(Date().timeIntervalSince(fetchStart) * 1_000)
+
             let sc = stacks.count, tc = tasks.count, ac = arcs.count
             let tgc = tags.count, rc = reminders.count
             os_log("[Sync] Fetched projections: \(sc) stacks, \(tc) tasks, \(ac) arcs, \(tgc) tags, \(rc) reminders")
 
-            // Populate local models
+            // ── Populate phase ────────────────────────────────────────────────────────
+            let populateStart = Date()
             try await populateFromProjections(
                 stacks: stacks, tasks: tasks, arcs: arcs, tags: tags, reminders: reminders
             )
+            let populateDurationMs = Int(Date().timeIntervalSince(populateStart) * 1_000)
 
             // Set checkpoint to now (all future events will be synced incrementally)
             let checkpoint = Self.iso8601Standard.string(from: Date())
             saveLastSyncCheckpoint(checkpoint)
 
-            let duration = Date().timeIntervalSince(startTime)
+            let duration = Date().timeIntervalSince(syncStart)
             let durationFormatted = String(format: "%.2f", duration)
             os_log("[Sync] Projection sync complete: syncId=\(syncId), duration=\(durationFormatted)s")
 
             await MainActor.run {
+                // Existing breadcrumb + log
                 ErrorReportingService.logProjectionSyncComplete(
                     stacks: stacks.count,
                     tasks: tasks.count,
@@ -93,6 +102,23 @@ extension SyncManager {
                     tags: tags.count,
                     reminders: reminders.count,
                     duration: duration
+                )
+
+                // DEQ-248: Record Sentry performance transaction with retroactive start time.
+                // All Sentry Span API calls must happen on MainActor (strict concurrency).
+                ErrorReportingService.recordProjectionSyncTransaction(
+                    .init(
+                        syncId: syncId,
+                        syncStart: syncStart,
+                        fetchDurationMs: fetchDurationMs,
+                        populateDurationMs: populateDurationMs,
+                        stacks: stacks.count,
+                        tasks: tasks.count,
+                        arcs: arcs.count,
+                        tags: tags.count,
+                        reminders: reminders.count,
+                        success: true
+                    )
                 )
             }
 
@@ -103,10 +129,21 @@ extension SyncManager {
                 itemsDownloaded: stacks.count + tasks.count + arcs.count + tags.count + reminders.count
             )
         } catch {
-            let duration = Date().timeIntervalSince(startTime)
+            let duration = Date().timeIntervalSince(syncStart)
             os_log("[Sync] Projection sync failed: \(error.localizedDescription)")
             await MainActor.run {
                 ErrorReportingService.logProjectionSyncFailed(error: error, duration: duration)
+                // DEQ-248: Still record a failed transaction so we can see failure rates.
+                ErrorReportingService.recordProjectionSyncTransaction(
+                    .init(
+                        syncId: syncId,
+                        syncStart: syncStart,
+                        fetchDurationMs: Int(duration * 1_000),
+                        populateDurationMs: 0,
+                        stacks: 0, tasks: 0, arcs: 0, tags: 0, reminders: 0,
+                        success: false
+                    )
+                )
             }
             throw error
         }

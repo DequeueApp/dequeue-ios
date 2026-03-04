@@ -535,9 +535,9 @@ actor SyncManager {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["events": syncEvents])
 
-        let pushStartTime = Date()
+        let httpStart = Date()
         let (data, response) = try await syncSession.data(for: request)
-        let pushDuration = Date().timeIntervalSince(pushStartTime)
+        let pushDuration = Date().timeIntervalSince(httpStart)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SyncError.pushFailed
@@ -601,6 +601,19 @@ actor SyncManager {
             os_log("[Sync] Push completed: syncId=\(syncId), duration=\(String(format: "%.2f", duration))s")
             await MainActor.run {
                 ErrorReportingService.logSyncPush(eventCount: pendingEventData.count, duration: duration, success: true)
+
+                // DEQ-248: Record Sentry performance transaction with retroactive start time.
+                // All Sentry Span API calls must happen on MainActor (strict concurrency).
+                ErrorReportingService.recordEventPushTransaction(
+                    .init(
+                        syncId: syncId,
+                        pushStart: startTime,
+                        httpDurationMs: Int(pushDuration * 1_000),
+                        eventCount: pendingEventData.count,
+                        httpStatusCode: httpResponse.statusCode,
+                        success: true
+                    )
+                )
             }
             await ErrorReportingService.logSyncComplete(
                 syncId: syncId,
@@ -613,6 +626,8 @@ actor SyncManager {
             // The reachability check can take 2+ seconds, which would delay sync retry unnecessarily
             let duration = Date().timeIntervalSince(startTime)
             let capturedError = error
+            let capturedHttpStatus = httpResponse.statusCode
+            let capturedEventCount = pendingEventData.count
             Task.detached(priority: .utility) {
                 let failureReason = await NetworkReachability.classifyFailure(error: capturedError)
                 await ErrorReportingService.logSyncFailure(
@@ -622,6 +637,19 @@ actor SyncManager {
                     failureReason: failureReason.description,
                     internetReachable: failureReason.isServerProblem
                 )
+                // DEQ-248: Record failed push transaction.
+                await MainActor.run {
+                    ErrorReportingService.recordEventPushTransaction(
+                        .init(
+                            syncId: syncId,
+                            pushStart: startTime,
+                            httpDurationMs: Int(pushDuration * 1_000),
+                            eventCount: capturedEventCount,
+                            httpStatusCode: capturedHttpStatus,
+                            success: false
+                        )
+                    )
+                }
             }
             throw error
         }
