@@ -154,11 +154,22 @@ final class ClerkAuthService: AuthServiceProtocol {
             try await Clerk.shared.load()
         } catch {
             refreshError = error
-            // Log error for debugging but don't crash - degrade gracefully
-            ErrorReportingService.capture(
-                error: error,
-                context: ["source": "session_refresh", "offline_mode": !NetworkMonitor.shared.isConnected]
-            )
+            // Only report unexpected errors to Sentry — not 401 Unauthorized.
+            //
+            // When a Clerk session is revoked server-side, `Clerk.shared.load()` throws
+            // an HTTPClientError with status 401 (POST /v1/client/sessions/.../tokens).
+            // This is *expected* behaviour: the revocation is handled gracefully below
+            // (session invalidation breadcrumb + stream emit). Capturing these 401s
+            // explicitly bypasses the `failedRequestStatusCodes = [402-599]` filter and
+            // was responsible for 3,500+ spurious Sentry events (DEQUEUE-APP-12).
+            let isExpected401 = error.localizedDescription.contains("401")
+                || (error as NSError).code == 401
+            if !isExpected401 {
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["source": "session_refresh", "offline_mode": !NetworkMonitor.shared.isConnected]
+                )
+            }
         }
 
         // Update auth state in case session was invalidated server-side
