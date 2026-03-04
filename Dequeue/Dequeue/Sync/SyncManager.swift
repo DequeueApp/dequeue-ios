@@ -340,6 +340,9 @@ actor SyncManager {
     func suspendForBackground() {
         disconnectInternal()
         os_log("[Sync] Suspended for background — connection and tasks stopped, credentials preserved")
+        Task { @MainActor in
+            ErrorReportingService.logSyncStateTransition(from: "connected", to: "suspended", trigger: "background")
+        }
     }
 
     /// Internal disconnect that cleans up connection state but preserves credentials.
@@ -364,7 +367,14 @@ actor SyncManager {
     }
 
     private func connectWebSocket() async throws {
+        await MainActor.run {
+            ErrorReportingService.logSyncStateTransition(from: "disconnected", to: "connecting", trigger: "connectWebSocket")
+        }
+
         guard let token = try await refreshToken() else {
+            await MainActor.run {
+                ErrorReportingService.logAuthTokenRefresh(success: false, error: "No token available")
+            }
             throw SyncError.notAuthenticated
         }
 
@@ -380,6 +390,10 @@ actor SyncManager {
             throw SyncError.invalidURL
         }
 
+        await MainActor.run {
+            ErrorReportingService.logWebSocketConnecting(url: url.absoluteString)
+        }
+
         webSocketTask = syncSession.webSocketTask(with: url)
         webSocketTask?.resume()
 
@@ -393,19 +407,27 @@ actor SyncManager {
         startNetworkMonitoring()
 
         await MainActor.run {
-            ErrorReportingService.addBreadcrumb(
-                category: "sync",
-                message: "WebSocket connected"
-            )
+            ErrorReportingService.logWebSocketConnected()
+            ErrorReportingService.logSyncStateTransition(from: "connecting", to: "connected")
         }
     }
 
     // Internal for SyncManager+ProjectionSync.swift extension access
     func refreshToken() async throws -> String? {
         if let getToken = getTokenFunction {
-            let newToken = try await getToken()
-            self.token = newToken
-            return newToken
+            do {
+                let newToken = try await getToken()
+                self.token = newToken
+                await MainActor.run {
+                    ErrorReportingService.logAuthTokenRefresh(success: true)
+                }
+                return newToken
+            } catch {
+                await MainActor.run {
+                    ErrorReportingService.logAuthTokenRefresh(success: false, error: error.localizedDescription)
+                }
+                throw error
+            }
         }
         return token
     }
@@ -513,10 +535,24 @@ actor SyncManager {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["events": syncEvents])
 
+        let pushStartTime = Date()
         let (data, response) = try await syncSession.data(for: request)
+        let pushDuration = Date().timeIntervalSince(pushStartTime)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SyncError.pushFailed
+        }
+
+        // Log every push network request for observability (DEQ-246/247)
+        await MainActor.run {
+            ErrorReportingService.logSyncNetworkRequest(
+                method: "POST",
+                url: pushURL.absoluteString,
+                statusCode: httpResponse.statusCode,
+                responseSize: data.count,
+                duration: pushDuration,
+                error: httpResponse.statusCode >= 400 ? String(data: data, encoding: .utf8) : nil
+            )
         }
 
         do {
@@ -526,10 +562,23 @@ actor SyncManager {
                     throw SyncError.notAuthenticated
                 }
                 request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                let retryStart = Date()
                 let (retryData, retryResponse) = try await syncSession.data(for: request)
+                let retryDuration = Date().timeIntervalSince(retryStart)
 
                 guard let retryHttpResponse = retryResponse as? HTTPURLResponse,
                       retryHttpResponse.statusCode == 200 else {
+                    let retryStatus = (retryResponse as? HTTPURLResponse)?.statusCode ?? 0
+                    await MainActor.run {
+                        ErrorReportingService.logSyncNetworkRequest(
+                            method: "POST",
+                            url: pushURL.absoluteString,
+                            statusCode: retryStatus,
+                            responseSize: retryData.count,
+                            duration: retryDuration,
+                            error: "Push retry failed"
+                        )
+                    }
                     throw SyncError.pushFailed
                 }
 
@@ -550,6 +599,9 @@ actor SyncManager {
             // Log successful push
             let duration = Date().timeIntervalSince(startTime)
             os_log("[Sync] Push completed: syncId=\(syncId), duration=\(String(format: "%.2f", duration))s")
+            await MainActor.run {
+                ErrorReportingService.logSyncPush(eventCount: pendingEventData.count, duration: duration, success: true)
+            }
             await ErrorReportingService.logSyncComplete(
                 syncId: syncId,
                 duration: duration,
@@ -906,7 +958,9 @@ actor SyncManager {
                 "limit": Self.pullBatchSize
             ])
 
+            let pullPageStart = Date()
             let (data, response) = try await syncSession.data(for: request)
+            let pullPageDuration = Date().timeIntervalSince(pullPageStart)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 os_log("[Sync] Pull failed: Invalid response type")
@@ -914,6 +968,18 @@ actor SyncManager {
             }
 
             os_log("[Sync] Pull response status: \(httpResponse.statusCode)")
+
+            // Log every pull network request for observability (DEQ-246/247)
+            await MainActor.run {
+                ErrorReportingService.logSyncNetworkRequest(
+                    method: "POST",
+                    url: pullURL.absoluteString,
+                    statusCode: httpResponse.statusCode,
+                    responseSize: data.count,
+                    duration: pullPageDuration,
+                    error: httpResponse.statusCode >= 400 ? String(data: data, encoding: .utf8) : nil
+                )
+            }
 
             var pullData: Data
             if httpResponse.statusCode == 401 {

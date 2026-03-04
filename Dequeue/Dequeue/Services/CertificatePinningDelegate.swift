@@ -167,6 +167,13 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate, Sendable {
             )
             onPinningFailure(failureInfo)
 
+            // DEQ-246: Log cert pinning results to Sentry for remote observability
+            ErrorReportingService.logCertPinningResult(
+                domain: host,
+                matched: false,
+                hashes: actualHashes
+            )
+
             if configuration.enforced {
                 Self.pinLogger.error("Certificate pinning FAILED for \(host) — connection rejected")
                 completionHandler(.cancelAuthenticationChallenge, nil)

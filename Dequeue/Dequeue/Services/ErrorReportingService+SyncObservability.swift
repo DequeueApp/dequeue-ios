@@ -1,0 +1,329 @@
+//
+//  ErrorReportingService+SyncObservability.swift
+//  Dequeue
+//
+//  Remote observability for sync operations. Provides structured Sentry breadcrumbs
+//  and error events so sync failures can be diagnosed without Xcode console logs.
+//
+//  DEQ-246: Structured Sentry breadcrumbs for all sync & network operations
+//  DEQ-247: Fire Sentry error events on critical API failures (4xx/5xx)
+//
+
+import Foundation
+import Sentry
+
+// MARK: - Sync State Observability
+
+extension ErrorReportingService {
+    /// Log a sync state transition (e.g., disconnected → connecting → connected)
+    static func logSyncStateTransition(from: String, to: String, trigger: String? = nil) {
+        var data: [String: Any] = [
+            "from": from,
+            "to": to
+        ]
+        if let trigger { data["trigger"] = trigger }
+
+        addBreadcrumb(
+            category: "sync.state",
+            message: "Sync state: \(from) → \(to)",
+            data: data
+        )
+    }
+
+    /// Log WebSocket connection attempt
+    static func logWebSocketConnecting(url: String) {
+        addBreadcrumb(
+            category: "sync.websocket",
+            message: "WebSocket connecting",
+            data: [
+                "url": redactToken(in: url)
+            ]
+        )
+    }
+
+    /// Log WebSocket connected successfully
+    static func logWebSocketConnected() {
+        addBreadcrumb(
+            category: "sync.websocket",
+            message: "WebSocket connected",
+            level: .info
+        )
+    }
+
+    /// Log WebSocket disconnection
+    static func logWebSocketDisconnected(reason: String, code: Int? = nil) {
+        var data: [String: Any] = ["reason": reason]
+        if let code { data["closeCode"] = code }
+
+        addBreadcrumb(
+            category: "sync.websocket",
+            message: "WebSocket disconnected",
+            level: .warning,
+            data: data
+        )
+    }
+
+    /// Log WebSocket error — fires a Sentry error event for alerting
+    static func logWebSocketError(_ error: Error, reconnectAttempt: Int) {
+        let errorMessage = truncateErrorMessage(error.localizedDescription)
+
+        addBreadcrumb(
+            category: "sync.websocket",
+            message: "WebSocket error",
+            level: .error,
+            data: [
+                "error": errorMessage,
+                "reconnectAttempt": reconnectAttempt
+            ]
+        )
+
+        // Fire Sentry error event on repeated failures (3+)
+        if reconnectAttempt >= 3 {
+            SentrySDK.capture(message: "WebSocket connection failing repeatedly") { scope in
+                scope.setLevel(.error)
+                scope.setTag(value: "websocket_failure", key: "sync_error_type")
+                scope.setExtra(value: reconnectAttempt, key: "reconnect_attempt")
+                scope.setExtra(value: errorMessage, key: "last_error")
+            }
+        }
+    }
+
+    // MARK: - Network Request Observability
+
+    /// Log an HTTP request to sync/API endpoints with full context
+    static func logSyncNetworkRequest(
+        method: String,
+        url: String,
+        statusCode: Int,
+        responseSize: Int?,
+        duration: TimeInterval,
+        error: String? = nil
+    ) {
+        let redactedURL = redactToken(in: url)
+
+        var data: [String: Any] = [
+            "method": method,
+            "url": redactedURL,
+            "statusCode": statusCode,
+            "durationMs": Int(duration * 1_000)
+        ]
+        if let responseSize { data["responseSize"] = responseSize }
+        if let error { data["error"] = truncateErrorMessage(error) }
+
+        let level: SentryLevel
+        switch statusCode {
+        case 200...299:
+            level = .info
+        case 400...499:
+            level = .warning
+        case 500...599:
+            level = .error
+        default:
+            level = .warning
+        }
+
+        addBreadcrumb(
+            category: "sync.http",
+            message: "\(method) \(redactedURL) → \(statusCode)",
+            level: level,
+            data: data
+        )
+
+        // DEQ-247: Fire Sentry error events on critical failures
+        if statusCode >= 400 {
+            fireSyncNetworkError(
+                method: method,
+                url: redactedURL,
+                statusCode: statusCode,
+                error: error,
+                duration: duration
+            )
+        }
+    }
+
+    /// Log a sync pull operation (event replay from stacks-sync)
+    static func logSyncPull(eventCount: Int, duration: TimeInterval, checkpoint: String?) {
+        addBreadcrumb(
+            category: "sync.pull",
+            message: "Pulled \(eventCount) events",
+            data: [
+                "eventCount": eventCount,
+                "durationMs": Int(duration * 1_000),
+                "checkpoint": checkpoint ?? "none"
+            ]
+        )
+    }
+
+    /// Log a sync push operation (sending local events to stacks-sync)
+    static func logSyncPush(eventCount: Int, duration: TimeInterval, success: Bool) {
+        addBreadcrumb(
+            category: "sync.push",
+            message: success ? "Pushed \(eventCount) events" : "Push failed (\(eventCount) events)",
+            level: success ? .info : .warning,
+            data: [
+                "eventCount": eventCount,
+                "durationMs": Int(duration * 1_000),
+                "success": success
+            ]
+        )
+    }
+
+    // MARK: - Projection Sync Observability
+
+    /// Log projection sync start
+    static func logProjectionSyncStart() {
+        addBreadcrumb(
+            category: "sync.projection",
+            message: "Projection sync started",
+            data: [:]
+        )
+    }
+
+    /// Log projection sync completion with entity counts
+    static func logProjectionSyncComplete(
+        stacks: Int,
+        tasks: Int,
+        arcs: Int,
+        tags: Int,
+        reminders: Int,
+        duration: TimeInterval
+    ) {
+        addBreadcrumb(
+            category: "sync.projection",
+            message: "Projection sync complete",
+            data: [
+                "stacks": stacks,
+                "tasks": tasks,
+                "arcs": arcs,
+                "tags": tags,
+                "reminders": reminders,
+                "totalEntities": stacks + tasks + arcs + tags + reminders,
+                "durationMs": Int(duration * 1_000)
+            ]
+        )
+    }
+
+    /// Log projection sync failure
+    static func logProjectionSyncFailed(error: Error, duration: TimeInterval) {
+        let errorMessage = truncateErrorMessage(error.localizedDescription)
+
+        addBreadcrumb(
+            category: "sync.projection",
+            message: "Projection sync failed",
+            level: .error,
+            data: [
+                "error": errorMessage,
+                "durationMs": Int(duration * 1_000)
+            ]
+        )
+
+        // Fire Sentry error event — projection sync failure is critical
+        SentrySDK.capture(error: error) { scope in
+            scope.setTag(value: "projection_sync_failure", key: "sync_error_type")
+            scope.setExtra(value: Int(duration * 1_000), key: "duration_ms")
+        }
+    }
+
+    // MARK: - Auth Observability
+
+    /// Log auth token refresh
+    static func logAuthTokenRefresh(success: Bool, error: String? = nil) {
+        var data: [String: Any] = ["success": success]
+        if let error { data["error"] = truncateErrorMessage(error) }
+
+        addBreadcrumb(
+            category: "sync.auth",
+            message: success ? "Token refresh succeeded" : "Token refresh failed",
+            level: success ? .info : .error,
+            data: data
+        )
+
+        // Fire Sentry error on auth failure — means sync will break
+        if !success {
+            SentrySDK.capture(message: "Auth token refresh failed") { scope in
+                scope.setLevel(.error)
+                scope.setTag(value: "auth_failure", key: "sync_error_type")
+                if let error { scope.setExtra(value: error, key: "error") }
+            }
+        }
+    }
+
+    // MARK: - Certificate Pinning Observability
+
+    /// Log certificate pinning validation result.
+    /// nonisolated because CertificatePinningDelegate calls this from a nonisolated URLSession delegate context.
+    nonisolated static func logCertPinningResult(domain: String, matched: Bool, hashes: [String]) {
+        // Dispatch to MainActor since addBreadcrumb and SentrySDK are MainActor-isolated
+        Task { @MainActor in
+            addBreadcrumb(
+                category: "sync.tls",
+                message: matched ? "Cert pinning passed for \(domain)" : "Cert pinning FAILED for \(domain)",
+                level: matched ? .info : .error,
+                data: [
+                    "domain": domain,
+                    "matched": matched,
+                    "actualHashes": hashes.joined(separator: ", ")
+                ]
+            )
+
+            if !matched {
+                SentrySDK.capture(message: "Certificate pinning validation failed") { scope in
+                    scope.setLevel(.error)
+                    scope.setTag(value: "cert_pinning_failure", key: "sync_error_type")
+                    scope.setTag(value: domain, key: "domain")
+                    scope.setExtra(value: hashes, key: "actual_hashes")
+                }
+            }
+        }
+    }
+
+    // MARK: - Private Helpers
+
+    /// Fire a Sentry error event for critical API failures
+    private static func fireSyncNetworkError(
+        method: String,
+        url: String,
+        statusCode: Int,
+        error: String?,
+        duration: TimeInterval
+    ) {
+        let severity: SentryLevel
+        let errorType: String
+
+        switch statusCode {
+        case 401:
+            severity = .error
+            errorType = "auth_rejected"
+        case 404:
+            severity = .error
+            errorType = "endpoint_not_found"
+        case 500...599:
+            severity = .error
+            errorType = "server_error"
+        default:
+            severity = .warning
+            errorType = "client_error_\(statusCode)"
+        }
+
+        SentrySDK.capture(message: "Sync API error: \(method) \(url) → \(statusCode)") { scope in
+            scope.setLevel(severity)
+            scope.setTag(value: errorType, key: "sync_error_type")
+            scope.setTag(value: "\(statusCode)", key: "http_status")
+            scope.setTag(value: method, key: "http_method")
+            scope.setExtra(value: url, key: "url")
+            scope.setExtra(value: Int(duration * 1_000), key: "duration_ms")
+            if let error { scope.setExtra(value: error, key: "response_body") }
+        }
+    }
+
+    /// Redact auth tokens from URLs for safe logging
+    private static func redactToken(in url: String) -> String {
+        // Redact token= query parameter
+        guard let range = url.range(of: "token=") else { return url }
+        let afterToken = url[range.upperBound...]
+        if let ampersand = afterToken.firstIndex(of: "&") {
+            return String(url[..<range.upperBound]) + "[REDACTED]" + String(url[ampersand...])
+        }
+        return String(url[..<range.upperBound]) + "[REDACTED]"
+    }
+}
