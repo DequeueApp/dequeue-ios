@@ -144,12 +144,24 @@ enum ErrorReportingService {
             options.enableAppHangTracking = true
             options.appHangTimeoutInterval = 2.0        // Report hangs > 2 seconds
 
-            // Capture HTTP errors.
+            // Capture HTTP errors — scoped to our own API endpoints only.
+            //
+            // Without failedRequestTargets, Sentry captures ALL failed HTTP requests,
+            // including those made by third-party SDKs (e.g. Clerk's *.clerk.accounts.dev
+            // token endpoint returning intermittent 500s). This generated 3,500+ spurious
+            // events (DEQUEUE-APP-12) that are outside our control and can't be fixed.
+            //
+            // Restrict to our own backends so only actionable failures are captured.
+            //
             // Exclude 401 (Unauthorized): the app explicitly handles 401s with a
             // force-refresh retry (SearchService, SyncManager). A persistent 401 after
             // retry throws SearchError.notAuthenticated which triggers the re-auth alert.
             // Auto-capturing 401s only floods Sentry with noise for broken sessions.
             options.enableCaptureFailedRequests = true
+            options.failedRequestTargets = [
+                "api.dequeue.app",      // Dequeue REST API
+                "sync.ardonos.com"      // stacks-sync WebSocket/HTTP backend
+            ]
             options.failedRequestStatusCodes = [
                 HttpStatusCodeRange(min: 400, max: 400),  // 400 Bad Request
                 HttpStatusCodeRange(min: 402, max: 599)   // 402–599 (skip 401 Unauthorized)

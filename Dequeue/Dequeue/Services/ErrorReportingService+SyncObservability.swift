@@ -131,8 +131,11 @@ extension ErrorReportingService {
             data: data
         )
 
-        // DEQ-247: Fire Sentry error events on critical failures
-        if statusCode >= 400 {
+        // DEQ-247: Fire Sentry error events on critical failures.
+        // Exclude 401 Unauthorized — the app handles 401s with a force-refresh retry;
+        // a persistent 401 surfaces as AuthError.notAuthenticated elsewhere.
+        // Capturing 401s here only floods Sentry with noise (DEQUEUE-APP-1).
+        if statusCode >= 400 && statusCode != 401 {
             fireSyncNetworkError(
                 method: method,
                 url: redactedURL,
