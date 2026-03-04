@@ -34,24 +34,32 @@ nonisolated struct CertificatePinningConfiguration: Sendable {
 }
 
 extension CertificatePinningConfiguration {
-    /// Default configuration with production pins
-    /// TEMPORARILY DISABLED (2026-03-03): Cert pinning blocking all connections.
-    /// The pinning hashes were computed using raw key format (SecKeyCopyExternalRepresentation)
-    /// but may not match the actual certificate chain. Sync has been broken since Feb 20 when
-    /// pinning was enabled. Disabling until we can generate correct hashes and test properly.
+    /// Default configuration with production pins.
+    ///
+    /// Hashes are standard SubjectPublicKeyInfo (SPKI) SHA-256 pins, compatible with
+    /// openssl and TrustKit. Verified against live servers on 2026-03-04 (DEQ-249).
+    ///
+    /// We pin to intermediate CA keys (E5/E6/E7) rather than leaf certificates because
+    /// Let's Encrypt leaf certs rotate every 90 days. The ISRG root pins are included
+    /// as a fallback in case the root appears in the trust chain on some iOS versions.
+    ///
+    /// To verify these hashes:
+    ///   echo | openssl s_client -connect api.dequeue.app:443 -showcerts 2>/dev/null | \
+    ///     openssl x509 -pubkey -noout | openssl pkey -pubin -outform DER | \
+    ///     openssl dgst -sha256 -binary | base64
     nonisolated static let production = CertificatePinningConfiguration(
         pinnedDomains: [
             "api.dequeue.app",
             "sync.ardonos.com"
         ],
         pinnedPublicKeyHashes: [
-            "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=", // ISRG Root X1 (RSA) — Let's Encrypt root, very stable
-            "diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=", // ISRG Root X2 (ECDSA) — Let's Encrypt ECDSA root
-            "NYbU7PBwV4y9J67c4guWTki8FJ+uudrXL0a4V4aRcrg=", // Let's Encrypt E5 intermediate
-            "0Bbh/jEZSKymTy3kTOhsmlHKBB32EDu1KojrP3YfV9c=", // Let's Encrypt E6 intermediate
-            "y7xVm0TVJNahMr2sZydE2jQH8SquXV9yLF9seROHHHU="  // Let's Encrypt E7 intermediate (currently active)
+            "C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=", // ISRG Root X1 (RSA 4096) — Let's Encrypt root
+            "diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=", // ISRG Root X2 (EC P-384) — Let's Encrypt ECDSA root
+            "NYbU7PBwV4y9J67c4guWTki8FJ+uudrXL0a4V4aRcrg=", // Let's Encrypt E5 intermediate (EC P-384)
+            "0Bbh/jEZSKymTy3kTOhsmlHKBB32EDu1KojrP3YfV9c=", // Let's Encrypt E6 intermediate (EC P-384)
+            "y7xVm0TVJNahMr2sZydE2jQH8SquXV9yLF9seROHHHU="  // Let's Encrypt E7 intermediate (EC P-384, active)
         ],
-        enforced: false  // DISABLED: blocking all connections since Feb 20
+        enforced: true
     )
 
     /// Disabled configuration for testing — allows all connections
@@ -215,10 +223,58 @@ final class CertificatePinningDelegate: NSObject, URLSessionDelegate, Sendable {
 
     nonisolated private static func extractPublicKeyHash(from certificate: SecCertificate) -> String? {
         guard let publicKey = SecCertificateCopyKey(certificate),
-              let publicKeyData = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else {
+              let rawKeyData = SecKeyCopyExternalRepresentation(publicKey, nil) as Data?,
+              let header = spkiHeader(for: publicKey) else {
             return nil
         }
-        return sha256(data: publicKeyData).base64EncodedString()
+        // Prepend the SPKI header so the hash matches standard SPKI pins (openssl/TrustKit/HPKP).
+        // SecKeyCopyExternalRepresentation returns raw key bytes without the ASN.1 SPKI wrapper.
+        return sha256(data: header + rawKeyData).base64EncodedString()
+    }
+
+    /// Returns the SubjectPublicKeyInfo (SPKI) header bytes for a given key.
+    ///
+    /// When prepended to the raw key bytes from `SecKeyCopyExternalRepresentation`, the result
+    /// is the full SPKI DER encoding, whose SHA-256 hash matches standard certificate pins.
+    ///
+    /// Headers sourced from TrustKit and verified against live Let's Encrypt certificate chains.
+    nonisolated private static func spkiHeader(for key: SecKey) -> Data? {
+        guard let attributes = SecKeyCopyAttributes(key) as? [CFString: Any],
+              let keyType = attributes[kSecAttrKeyType] as? String,
+              let keySize = attributes[kSecAttrKeySizeInBits] as? Int else {
+            return nil
+        }
+        let rsaType = kSecAttrKeyTypeRSA as String
+        let ecType = kSecAttrKeyTypeEC as String
+        switch (keyType, keySize) {
+        case (rsaType, 2_048):
+            return Data([
+                0x30, 0x82, 0x01, 0x22, 0x30, 0x0d, 0x06, 0x09,
+                0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01,
+                0x01, 0x05, 0x00, 0x03, 0x82, 0x01, 0x0f, 0x00
+            ])
+        case (rsaType, 4_096):
+            return Data([
+                0x30, 0x82, 0x02, 0x22, 0x30, 0x0d, 0x06, 0x09,
+                0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01,
+                0x01, 0x05, 0x00, 0x03, 0x82, 0x02, 0x0f, 0x00
+            ])
+        case (ecType, 256):
+            return Data([
+                0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86,
+                0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a,
+                0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03,
+                0x42, 0x00
+            ])
+        case (ecType, 384):
+            return Data([
+                0x30, 0x76, 0x30, 0x10, 0x06, 0x07, 0x2a, 0x86,
+                0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x05, 0x2b,
+                0x81, 0x04, 0x00, 0x22, 0x03, 0x62, 0x00
+            ])
+        default:
+            return nil
+        }
     }
 
     nonisolated private static func sha256(data: Data) -> Data {
@@ -390,13 +446,57 @@ nonisolated enum CertificatePinningValidator {
 
     nonisolated private static func extractHash(from certificate: SecCertificate) -> String? {
         guard let publicKey = SecCertificateCopyKey(certificate),
-              let data = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else {
+              let rawData = SecKeyCopyExternalRepresentation(publicKey, nil) as Data?,
+              let header = spkiHeader(for: publicKey) else {
             return nil
         }
+        // Prepend SPKI header so hash matches standard SPKI pins (same fix as CertificatePinningDelegate).
+        let spkiData = header + rawData
         var hash = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
-        data.withUnsafeBytes { buffer in
-            _ = CC_SHA256(buffer.baseAddress, CC_LONG(data.count), &hash)
+        spkiData.withUnsafeBytes { buffer in
+            _ = CC_SHA256(buffer.baseAddress, CC_LONG(spkiData.count), &hash)
         }
         return Data(hash).base64EncodedString()
+    }
+
+    /// Returns the SPKI header bytes to prepend to raw key data.
+    /// Mirrors CertificatePinningDelegate.spkiHeader — keep in sync.
+    nonisolated private static func spkiHeader(for key: SecKey) -> Data? {
+        guard let attributes = SecKeyCopyAttributes(key) as? [CFString: Any],
+              let keyType = attributes[kSecAttrKeyType] as? String,
+              let keySize = attributes[kSecAttrKeySizeInBits] as? Int else {
+            return nil
+        }
+        let rsaType = kSecAttrKeyTypeRSA as String
+        let ecType = kSecAttrKeyTypeEC as String
+        switch (keyType, keySize) {
+        case (rsaType, 2_048):
+            return Data([
+                0x30, 0x82, 0x01, 0x22, 0x30, 0x0d, 0x06, 0x09,
+                0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01,
+                0x01, 0x05, 0x00, 0x03, 0x82, 0x01, 0x0f, 0x00
+            ])
+        case (rsaType, 4_096):
+            return Data([
+                0x30, 0x82, 0x02, 0x22, 0x30, 0x0d, 0x06, 0x09,
+                0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01,
+                0x01, 0x05, 0x00, 0x03, 0x82, 0x02, 0x0f, 0x00
+            ])
+        case (ecType, 256):
+            return Data([
+                0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86,
+                0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a,
+                0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03,
+                0x42, 0x00
+            ])
+        case (ecType, 384):
+            return Data([
+                0x30, 0x76, 0x30, 0x10, 0x06, 0x07, 0x2a, 0x86,
+                0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x05, 0x2b,
+                0x81, 0x04, 0x00, 0x22, 0x03, 0x62, 0x00
+            ])
+        default:
+            return nil
+        }
     }
 }
