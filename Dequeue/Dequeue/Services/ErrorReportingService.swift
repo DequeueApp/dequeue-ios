@@ -83,39 +83,51 @@ enum ErrorReportingService {
 
     // MARK: - Crash Visibility
 
+    /// Exit state values stored in UserDefaults to detect dirty exits (crashes/kills).
+    private enum ExitState: String {
+        case launching
+        case clean
+        case firstLaunch = "first_launch"
+    }
+
     /// UserDefaults key for tracking clean/dirty exits.
-    /// Written to "launching" on startup, set to "clean" on graceful background.
-    /// If still "launching" on next boot, previous session crashed.
+    /// Written to `.launching` on startup, set to `.clean` on graceful background.
+    /// If still `.launching` on next boot, previous session crashed.
     private static let exitStateKey = "com.dequeue.lastExitState"
 
-    /// UserDefaults key for the last launch timestamp (ISO 8601).
+    /// UserDefaults key for the last launch timestamp (Unix milliseconds, Int64).
     private static let lastLaunchKey = "com.dequeue.lastLaunchTimestamp"
 
     /// Records that the app is launching. Called at the very start of `configure()`.
-    /// On next launch, if the exit state is still "launching", we know the previous
+    /// On next launch, if the exit state is still `.launching`, we know the previous
     /// session crashed (dirty exit).
     private static func markLaunching() {
         let defaults = UserDefaults.standard
-        let previousState = defaults.string(forKey: exitStateKey) ?? "first_launch"
-        let previousLaunch = defaults.string(forKey: lastLaunchKey) ?? "unknown"
+        let previousStateRaw = defaults.string(forKey: exitStateKey) ?? ExitState.firstLaunch.rawValue
+        let previousState = ExitState(rawValue: previousStateRaw) ?? .firstLaunch
+        let previousLaunchMs = defaults.object(forKey: lastLaunchKey) as? Int64 ?? -1
 
-        // Write "launching" immediately — if we crash, this will still be set on next boot
-        defaults.set("launching", forKey: exitStateKey)
-        defaults.set(ISO8601DateFormatter().string(from: Date()), forKey: lastLaunchKey)
-        defaults.synchronize()  // Force write to disk NOW, before anything else
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1_000)
+
+        // Write state immediately — if we crash, this will still be set on next boot
+        defaults.set(ExitState.launching.rawValue, forKey: exitStateKey)
+        defaults.set(nowMs, forKey: lastLaunchKey)
+        // Note: synchronize() is deprecated on iOS 12+ and is effectively a no-op.
+        // UserDefaults persists automatically; we rely on that behavior here.
+        // There is an inherent race between a crash and persistence, which is
+        // acceptable — this detection is best-effort, not guaranteed.
+        defaults.synchronize()
 
         // Check if previous session was a dirty exit
-        if previousState == "launching" {
+        if previousState == .launching {
             // Previous session crashed — Sentry's crash handler may or may not have caught it.
             // Fire an explicit event so we always have visibility.
             SentrySDK.capture(message: "Dirty exit detected: previous session crashed") { scope in
                 scope.setLevel(.warning)
-                scope.setTag(value: previousState, key: "previous_exit_state")
-                scope.setTag(value: previousLaunch, key: "previous_launch_time")
                 scope.setContext(value: [
-                    "previous_exit_state": previousState,
-                    "previous_launch_time": previousLaunch,
-                    "current_launch_time": ISO8601DateFormatter().string(from: Date()),
+                    "previous_exit_state": previousState.rawValue,
+                    "previous_launch_time_ms": previousLaunchMs,
+                    "current_launch_time_ms": nowMs,
                     "explanation": "App did not record a clean exit before this launch. "
                         + "This indicates a crash, watchdog kill, or OOM termination."
                 ], key: "dirty_exit")
@@ -125,7 +137,9 @@ enum ErrorReportingService {
 
     /// Records a clean exit. Call when the app enters background gracefully.
     static func markCleanExit() {
-        UserDefaults.standard.set("clean", forKey: exitStateKey)
+        UserDefaults.standard.set(ExitState.clean.rawValue, forKey: exitStateKey)
+        // Note: synchronize() is deprecated on iOS 12+ and is effectively a no-op.
+        // UserDefaults persists automatically; we rely on that behavior here.
         UserDefaults.standard.synchronize()
     }
 
@@ -273,7 +287,7 @@ enum ErrorReportingService {
                 breadcrumb.message = "Previous session crashed — onCrashedLastRun fired"
                 breadcrumb.data = [
                     "crash_event_id": event.eventId.sentryIdString,
-                    "crash_timestamp": event.timestamp?.description ?? "unknown"
+                    "crash_timestamp_ms": event.timestamp.map { Int64($0.timeIntervalSince1970 * 1_000) } ?? -1
                 ]
                 SentrySDK.addBreadcrumb(breadcrumb)
             }
