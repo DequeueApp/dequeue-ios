@@ -535,10 +535,16 @@ struct RootView: View {
                 return // Success, exit retry loop
             } catch {
                 os_log("[Sync] Connection attempt \(attempt) failed: \(error.localizedDescription)")
-                ErrorReportingService.capture(
-                    error: error,
-                    context: ["source": "sync_connect", "attempt": attempt, "maxRetries": maxRetries]
-                )
+                // AuthError.notAuthenticated is expected at app startup before Clerk finishes
+                // loading — skip Sentry to avoid chronic noise (DEQUEUE-APP-10).
+                let isExpectedAuthError = (error as? AuthError) == .notAuthenticated
+                    || (error as? AuthError) == .noToken
+                if !isExpectedAuthError {
+                    ErrorReportingService.capture(
+                        error: error,
+                        context: ["source": "sync_connect", "attempt": attempt, "maxRetries": maxRetries]
+                    )
+                }
 
                 if attempt < maxRetries {
                     // Wait before retrying (exponential backoff: 1s, 2s, 4s)
