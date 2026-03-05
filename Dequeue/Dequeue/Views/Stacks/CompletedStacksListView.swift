@@ -60,18 +60,66 @@ struct CompletedStacksListView: View {
                 } label: {
                     HStack(spacing: 12) {
                         statusIndicator(for: stack)
-                        VStack(alignment: .leading) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(stack.title)
                                 .font(.headline)
-                            Text("Created \(stack.createdAt, style: .relative) ago")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            completionDetails(for: stack)
                         }
                     }
                 }
             }
         }
         .listStyle(.plain)
+    }
+
+    // MARK: - Completion Details
+
+    @ViewBuilder
+    private func completionDetails(for stack: Stack) -> some View {
+        if stack.isDeleted {
+            Text("Deleted \(stack.updatedAt, style: .relative) ago")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            // Show completion/close date (updatedAt is set when status changes)
+            let statusLabel = stack.status == .completed ? "Completed" : "Closed"
+            Text("\(statusLabel) \(stack.updatedAt, style: .relative) ago")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            // Show duration from creation to completion
+            let duration = stack.updatedAt.timeIntervalSince(stack.createdAt)
+            if duration > 0 {
+                Text(durationText(duration))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    /// Formats a time interval into a human-readable duration string
+    private func durationText(_ interval: TimeInterval) -> String {
+        let minutes = Int(interval) / 60
+        let hours = minutes / 60
+        let days = hours / 24
+
+        if days > 0 {
+            let remainingHours = hours % 24
+            if remainingHours > 0 {
+                return "\(days)d \(remainingHours)h to complete"
+            }
+            return "\(days)d to complete"
+        } else if hours > 0 {
+            let remainingMinutes = minutes % 60
+            if remainingMinutes > 0 {
+                return "\(hours)h \(remainingMinutes)m to complete"
+            }
+            return "\(hours)h to complete"
+        } else if minutes > 0 {
+            return "\(minutes)m to complete"
+        } else {
+            return "< 1m to complete"
+        }
     }
 
     // MARK: - Status Indicator
