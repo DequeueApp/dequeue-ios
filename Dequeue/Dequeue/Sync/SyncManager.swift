@@ -1654,6 +1654,13 @@ actor SyncManager {
                 do {
                     try await self.pushEvents()
                 } catch {
+                    // Auth errors are permanent — stop the loop to avoid spamming Sentry
+                    // (e.g. Clerk session revoked: repeating every 5s generates thousands of events)
+                    if await self.isAuthenticationError(error) {
+                        os_log("[Sync] Periodic push: auth failure, disconnecting to stop retry loop")
+                        await self.disconnect()
+                        break
+                    }
                     await MainActor.run {
                         ErrorReportingService.capture(error: error, context: ["source": "periodic_push"])
                     }
@@ -1675,12 +1682,33 @@ actor SyncManager {
                     os_log("[Sync] Fallback pull (safety net, every \(self.fallbackPullIntervalMinutes) minutes)")
                     try await self.pullEvents()
                 } catch {
+                    // Auth errors are permanent — stop the loop to avoid spamming Sentry
+                    if await self.isAuthenticationError(error) {
+                        os_log("[Sync] Fallback pull: auth failure, disconnecting to stop retry loop")
+                        await self.disconnect()
+                        break
+                    }
                     await MainActor.run {
                         ErrorReportingService.capture(error: error, context: ["source": "fallback_pull"])
                     }
                 }
             }
         }
+    }
+
+    /// Returns true if the error indicates a permanent authentication failure.
+    ///
+    /// When auth is permanently broken (e.g. Clerk session revoked/expired), periodic sync
+    /// loops should stop rather than retrying — each retry produces a Sentry event.
+    private func isAuthenticationError(_ error: Error) -> Bool {
+        if case SyncError.notAuthenticated = error { return true }
+        if case AuthError.notAuthenticated = error { return true }
+        // Clerk errors with authentication_invalid code are permanent (session revoked)
+        let description = error.localizedDescription
+        if description.contains("authentication_invalid") || description.contains("Unable to authenticate") {
+            return true
+        }
+        return false
     }
 
     // MARK: - Network Monitoring
