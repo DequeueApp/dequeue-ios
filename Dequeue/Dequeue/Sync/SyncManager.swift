@@ -19,6 +19,9 @@ actor SyncManager {
     private var deviceId: String?  // Cached at connection time to avoid actor hops
     private var isConnected = false
     private var isConnecting = false  // Guard against concurrent connection attempts
+    /// Set true when app enters background; prevents stale reconnect tasks from firing
+    /// Clerk token refreshes that then time out in background (DEQUEUE-APP-1).
+    private var isSuspendedForBackground = false
     private var reconnectAttempts = 0
     private let maxReconnectAttempts = 10
     private let baseReconnectDelay: TimeInterval = 1.0
@@ -259,6 +262,8 @@ actor SyncManager {
     // MARK: - Connection
 
     func connect(userId: String, token: String, getToken: @escaping @Sendable () async throws -> String) async throws {
+        // Clear background suspension so reconnect tasks can proceed (DEQUEUE-APP-1)
+        isSuspendedForBackground = false
         // Disconnect any existing connection first to ensure clean state
         if isConnected || webSocketTask != nil {
             os_log("[Sync] Disconnecting existing connection before reconnecting")
@@ -296,6 +301,8 @@ actor SyncManager {
         token: String,
         getToken: @escaping @Sendable () async throws -> String
     ) async throws {
+        // Clear background suspension so reconnect tasks can proceed (DEQUEUE-APP-1)
+        isSuspendedForBackground = false
         // Guard against concurrent connection attempts
         guard !isConnecting else {
             os_log("[Sync] Connection already in progress, skipping")
@@ -346,6 +353,7 @@ actor SyncManager {
     /// Stops all running tasks (heartbeat, listener, push/pull) and closes the
     /// WebSocket to reduce memory pressure and prevent iOS jetsam kills.
     func suspendForBackground() {
+        isSuspendedForBackground = true
         disconnectInternal()
         os_log("[Sync] Suspended for background — connection and tasks stopped, credentials preserved")
         Task { @MainActor in
@@ -435,8 +443,17 @@ actor SyncManager {
                 }
                 return newToken
             } catch {
+                // Capture suspension state before the MainActor hop so we can suppress
+                // noisy Sentry events caused by the DEQUEUE-APP-1 race: the app goes to
+                // background while Clerk's token refresh is in-flight, which causes the
+                // refresh to time out. This is expected behaviour, not a real auth failure.
+                let suspended = isSuspendedForBackground
                 await MainActor.run {
-                    ErrorReportingService.logAuthTokenRefresh(success: false, error: error.localizedDescription)
+                    ErrorReportingService.logAuthTokenRefresh(
+                        success: false,
+                        error: error.localizedDescription,
+                        isSuppressed: suspended
+                    )
                 }
                 throw error
             }
@@ -1531,6 +1548,15 @@ actor SyncManager {
         )
 
         try? await Task.sleep(for: .seconds(delay))
+
+        // Re-check after sleep: app may have backgrounded during the backoff delay.
+        // Without this guard, the backoff sleep completes while suspended and
+        // connectWebSocket() fires a Clerk token refresh that times out in background
+        // (DEQUEUE-APP-1 race: original guard at function entry doesn't cover this window).
+        guard !isSuspendedForBackground else {
+            os_log("[Sync] App backgrounded during reconnect backoff — aborting reconnect")
+            return
+        }
 
         do {
             try await connectWebSocket()
