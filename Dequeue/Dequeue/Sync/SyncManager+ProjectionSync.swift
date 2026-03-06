@@ -146,7 +146,11 @@ extension SyncManager {
                         syncStart: syncStart,
                         fetchDurationMs: Int(duration * 1_000),
                         populateDurationMs: 0,
-                        stacks: 0, tasks: 0, arcs: 0, tags: 0, reminders: 0,
+                        stacks: 0,
+                        tasks: 0,
+                        arcs: 0,
+                        tags: 0,
+                        reminders: 0,
                         success: false
                     )
                 )

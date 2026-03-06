@@ -376,7 +376,11 @@ actor SyncManager {
 
     private func connectWebSocket() async throws {
         await MainActor.run {
-            ErrorReportingService.logSyncStateTransition(from: "disconnected", to: "connecting", trigger: "connectWebSocket")
+            ErrorReportingService.logSyncStateTransition(
+                from: "disconnected",
+                to: "connecting",
+                trigger: "connectWebSocket"
+            )
         }
 
         guard let token = try await refreshToken() else {
