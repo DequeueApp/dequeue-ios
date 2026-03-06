@@ -232,9 +232,17 @@ extension ErrorReportingService {
     // MARK: - Auth Observability
 
     /// Log auth token refresh
-    static func logAuthTokenRefresh(success: Bool, error: String? = nil) {
+    ///
+    /// - Parameters:
+    ///   - success: Whether the refresh succeeded.
+    ///   - error: Error description on failure.
+    ///   - isSuppressed: When `true`, the failure is expected (e.g. app backgrounded during
+    ///     refresh — DEQUEUE-APP-1 race) and no Sentry error event is fired. A breadcrumb is
+    ///     still recorded for local debugging.
+    static func logAuthTokenRefresh(success: Bool, error: String? = nil, isSuppressed: Bool = false) {
         var data: [String: Any] = ["success": success]
         if let error { data["error"] = truncateErrorMessage(error) }
+        if isSuppressed { data["suppressed"] = true }
 
         addBreadcrumb(
             category: "sync.auth",
@@ -243,8 +251,10 @@ extension ErrorReportingService {
             data: data
         )
 
-        // Fire Sentry error on auth failure — means sync will break
-        if !success {
+        // Fire Sentry error on auth failure — means sync will break.
+        // Skip when suppressed: failure is expected (app backgrounded during refresh,
+        // DEQUEUE-APP-1 race) and capturing it only generates noise.
+        if !success && !isSuppressed {
             SentrySDK.capture(message: "Auth token refresh failed") { scope in
                 scope.setLevel(.error)
                 scope.setTag(value: "auth_failure", key: "sync_error_type")
