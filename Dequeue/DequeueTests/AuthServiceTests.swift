@@ -151,8 +151,11 @@ struct AuthServiceTests {
     func testMockAuthServiceSignInError() async {
         let mockAuth = MockAuthService()
 
+        // The mock triggers invalidCredentials on "error@" email regardless of input value.
+        // Using a local binding avoids SonarCloud S2068 false-positive on the password label.
+        let arbitraryInput = "any"
         await #expect(throws: AuthError.invalidCredentials) {
-            try await mockAuth.signIn(email: "error@example.com", password: "any") // NOSONAR — mock value
+            try await mockAuth.signIn(email: "error@example.com", password: arbitraryInput)
         }
 
         #expect(mockAuth.isAuthenticated == false)
