@@ -50,13 +50,8 @@ struct AuthServiceTests {
     func testMockAuthServiceTokenWhenNotAuthenticated() async {
         let mockAuth = MockAuthService()
 
-        do {
-            _ = try await mockAuth.getAuthToken()
-            #expect(Bool(false), "Should have thrown an error")
-        } catch let error as AuthError {
-            #expect(error == .notAuthenticated)
-        } catch {
-            #expect(Bool(false), "Wrong error type thrown")
+        await #expect(throws: AuthError.notAuthenticated) {
+            try await mockAuth.getAuthToken()
         }
     }
 
@@ -135,13 +130,8 @@ struct AuthServiceTests {
     func testMockAuthServiceForceRefreshTokenWhenNotAuthenticated() async {
         let mockAuth = MockAuthService()
 
-        do {
-            _ = try await mockAuth.forceRefreshAuthToken()
-            #expect(Bool(false), "Should have thrown an error")
-        } catch let error as AuthError {
-            #expect(error == .notAuthenticated)
-        } catch {
-            #expect(Bool(false), "Wrong error type thrown")
+        await #expect(throws: AuthError.notAuthenticated) {
+            try await mockAuth.forceRefreshAuthToken()
         }
     }
 
@@ -161,13 +151,8 @@ struct AuthServiceTests {
     func testMockAuthServiceSignInError() async {
         let mockAuth = MockAuthService()
 
-        do {
+        await #expect(throws: AuthError.invalidCredentials) {
             try await mockAuth.signIn(email: "error@example.com", password: "any")
-            #expect(Bool(false), "Should have thrown an error")
-        } catch let error as AuthError {
-            #expect(error == .invalidCredentials)
-        } catch {
-            #expect(Bool(false), "Wrong error type thrown")
         }
 
         #expect(mockAuth.isAuthenticated == false)
@@ -203,13 +188,8 @@ struct AuthServiceTests {
     func testMockAuthServiceVerifyEmailError() async {
         let mockAuth = MockAuthService()
 
-        do {
+        await #expect(throws: AuthError.verificationFailed) {
             try await mockAuth.verifyEmail(code: "000000")
-            #expect(Bool(false), "Should have thrown an error")
-        } catch let error as AuthError {
-            #expect(error == .verificationFailed)
-        } catch {
-            #expect(Bool(false), "Wrong error type thrown")
         }
     }
 
@@ -227,13 +207,8 @@ struct AuthServiceTests {
     func testMockAuthServiceVerify2FACodeError() async {
         let mockAuth = MockAuthService()
 
-        do {
+        await #expect(throws: AuthError.verificationFailed) {
             try await mockAuth.verify2FACode(code: "000000")
-            #expect(Bool(false), "Should have thrown an error")
-        } catch let error as AuthError {
-            #expect(error == .verificationFailed)
-        } catch {
-            #expect(Bool(false), "Wrong error type thrown")
         }
     }
 
@@ -303,14 +278,14 @@ struct AuthServiceTests {
         let change = await changesTask.value
 
         guard let change else {
-            #expect(Bool(false), "Expected to receive a session state change")
+            Issue.record("Expected to receive a session state change")
             return
         }
 
         if case .sessionInvalidated(let reason) = change {
             #expect(reason == .expired)
         } else {
-            #expect(Bool(false), "Expected sessionInvalidated event")
+            Issue.record("Expected sessionInvalidated event, got: \(change)")
         }
     }
 
@@ -337,14 +312,14 @@ struct AuthServiceTests {
         let change = await changesTask.value
 
         guard let change else {
-            #expect(Bool(false), "Expected to receive a session state change")
+            Issue.record("Expected to receive a session state change")
             return
         }
 
         if case .sessionRestored(let userId) = change {
             #expect(userId == "restored-user-789")
         } else {
-            #expect(Bool(false), "Expected sessionRestored event")
+            Issue.record("Expected sessionRestored event, got: \(change)")
         }
     }
 
@@ -371,6 +346,8 @@ struct AuthServiceTests {
 
         // Stream ended (signOut calls continuation?.finish())
         #expect(mockAuth.isAuthenticated == false)
+        // signOut finishes the stream without emitting a state-change event
+        #expect(receivedChanges.isEmpty, "Expected no state-change events during signOut")
     }
 
     // MARK: - ClerkAuthService Integration Test Notes

@@ -13,13 +13,12 @@ import Foundation
 
 @Suite("SyncManager Circuit Breaker Tests")
 struct SyncManagerCircuitBreakerTests {
-
     // MARK: - HTTP 530 (Cloudflare origin unreachable)
 
     @Test("HTTP 530 via status code string is a Clerk infra error")
     func testHttp530StatusCode() {
         let error = NSError(
-            domain: "NSURLErrorDomain",
+            domain: NSURLErrorDomain,
             code: -1,
             userInfo: [NSLocalizedDescriptionKey: "Request failed with status code: 530"]
         )
@@ -141,7 +140,7 @@ struct SyncManagerCircuitBreakerTests {
     @Test("Generic network error is NOT a Clerk infra error")
     func testGenericNetworkError() {
         let error = NSError(
-            domain: "NSURLErrorDomain",
+            domain: NSURLErrorDomain,
             code: NSURLErrorCannotConnectToHost,
             userInfo: [NSLocalizedDescriptionKey: "Could not connect to the server."]
         )

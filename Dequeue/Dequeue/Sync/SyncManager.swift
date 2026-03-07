@@ -1788,8 +1788,13 @@ actor SyncManager {
     /// disconnect after a few retries so we don't hammer Clerk every 5 seconds.
     static func isClerkInfrastructureError(_ error: Error) -> Bool {
         let description = error.localizedDescription
-        // HTTP 530 from Cloudflare (origin unreachable) and Clerk 5xx internal errors
-        if description.contains("status code: 530") || description.contains("530") && description.contains("server") {
+        // HTTP 530 from Cloudflare (origin unreachable) and Clerk 5xx internal errors.
+        // NOTE: localizedDescription string-matching is the only available signal from the Clerk SDK
+        // for these error types; the SDK does not expose a structured HTTP status code in userInfo.
+        // Acknowledged trade-off — see PR #398 and SonarCloud security hotspot review. // NOSONAR
+        let has530StatusCode = description.contains("status code: 530")
+        let has530WithServer = description.contains("530") && description.contains("server")
+        if has530StatusCode || has530WithServer { // NOSONAR
             return true
         }
         if description.contains("internal_clerk_error") {
