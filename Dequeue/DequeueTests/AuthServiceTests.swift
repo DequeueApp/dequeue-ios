@@ -120,6 +120,164 @@ struct AuthServiceTests {
         #expect(mockAuth.currentUserId == "restored-user-456")
     }
 
+    @Test("MockAuthService forceRefreshAuthToken returns token when authenticated")
+    func testMockAuthServiceForceRefreshTokenWhenAuthenticated() async throws {
+        let mockAuth = MockAuthService()
+
+        mockAuth.mockSignIn(userId: "test-user-123")
+
+        let token = try await mockAuth.forceRefreshAuthToken()
+
+        #expect(token.starts(with: "mock-token-"))
+    }
+
+    @Test("MockAuthService forceRefreshAuthToken throws when not authenticated")
+    func testMockAuthServiceForceRefreshTokenWhenNotAuthenticated() async {
+        let mockAuth = MockAuthService()
+
+        do {
+            _ = try await mockAuth.forceRefreshAuthToken()
+            #expect(Bool(false), "Should have thrown an error")
+        } catch let error as AuthError {
+            #expect(error == .notAuthenticated)
+        } catch {
+            #expect(Bool(false), "Wrong error type thrown")
+        }
+    }
+
+    // MARK: - Sign In / Sign Up Flow Tests
+
+    @Test("MockAuthService signIn with valid credentials succeeds")
+    func testMockAuthServiceSignInSuccess() async throws {
+        let mockAuth = MockAuthService()
+
+        try await mockAuth.signIn(email: "user@example.com", password: "password123")
+
+        #expect(mockAuth.isAuthenticated == true)
+        #expect(mockAuth.currentUserId != nil)
+    }
+
+    @Test("MockAuthService signIn with error credentials throws invalidCredentials")
+    func testMockAuthServiceSignInError() async {
+        let mockAuth = MockAuthService()
+
+        do {
+            try await mockAuth.signIn(email: "error@example.com", password: "any")
+            #expect(Bool(false), "Should have thrown an error")
+        } catch let error as AuthError {
+            #expect(error == .invalidCredentials)
+        } catch {
+            #expect(Bool(false), "Wrong error type thrown")
+        }
+
+        #expect(mockAuth.isAuthenticated == false)
+    }
+
+    @Test("MockAuthService signUp does not auto-sign-in (requires verification)")
+    func testMockAuthServiceSignUpDoesNotAutoSignIn() async throws {
+        let mockAuth = MockAuthService()
+
+        // signUp should not throw, and should NOT auto-authenticate —
+        // email verification is required before the session is created.
+        try await mockAuth.signUp(email: "new@example.com", password: "password123")
+
+        #expect(mockAuth.isAuthenticated == false)
+    }
+
+    @Test("MockAuthService verifyEmail with valid code completes sign-up and signs in")
+    func testMockAuthServiceVerifyEmailSuccess() async throws {
+        let mockAuth = MockAuthService()
+
+        // First sign up to initialize pending state
+        try await mockAuth.signUp(email: "new@example.com", password: "password123")
+        #expect(mockAuth.isAuthenticated == false)
+
+        // Verify with any non-error code
+        try await mockAuth.verifyEmail(code: "123456")
+
+        #expect(mockAuth.isAuthenticated == true)
+        #expect(mockAuth.currentUserId != nil)
+    }
+
+    @Test("MockAuthService verifyEmail with error code '000000' throws verificationFailed")
+    func testMockAuthServiceVerifyEmailError() async {
+        let mockAuth = MockAuthService()
+
+        do {
+            try await mockAuth.verifyEmail(code: "000000")
+            #expect(Bool(false), "Should have thrown an error")
+        } catch let error as AuthError {
+            #expect(error == .verificationFailed)
+        } catch {
+            #expect(Bool(false), "Wrong error type thrown")
+        }
+    }
+
+    @Test("MockAuthService verify2FACode with valid code signs in")
+    func testMockAuthServiceVerify2FACodeSuccess() async throws {
+        let mockAuth = MockAuthService()
+
+        try await mockAuth.verify2FACode(code: "654321")
+
+        #expect(mockAuth.isAuthenticated == true)
+        #expect(mockAuth.currentUserId != nil)
+    }
+
+    @Test("MockAuthService verify2FACode with error code '000000' throws verificationFailed")
+    func testMockAuthServiceVerify2FACodeError() async {
+        let mockAuth = MockAuthService()
+
+        do {
+            try await mockAuth.verify2FACode(code: "000000")
+            #expect(Bool(false), "Should have thrown an error")
+        } catch let error as AuthError {
+            #expect(error == .verificationFailed)
+        } catch {
+            #expect(Bool(false), "Wrong error type thrown")
+        }
+    }
+
+    // MARK: - AuthError Description Tests
+
+    @Test("AuthError.notAuthenticated has descriptive message")
+    func testAuthErrorNotAuthenticatedDescription() {
+        let error = AuthError.notAuthenticated
+        #expect(error.errorDescription != nil)
+        #expect(error.errorDescription?.isEmpty == false)
+    }
+
+    @Test("AuthError.noToken has descriptive message")
+    func testAuthErrorNoTokenDescription() {
+        let error = AuthError.noToken
+        #expect(error.errorDescription != nil)
+        #expect(error.errorDescription?.isEmpty == false)
+    }
+
+    @Test("AuthError.invalidCredentials has descriptive message")
+    func testAuthErrorInvalidCredentialsDescription() {
+        let error = AuthError.invalidCredentials
+        #expect(error.errorDescription != nil)
+        #expect(error.errorDescription?.isEmpty == false)
+    }
+
+    @Test("AuthError.twoFactorRequired mentions verification")
+    func testAuthErrorTwoFactorRequiredDescription() {
+        let error = AuthError.twoFactorRequired
+        #expect(error.errorDescription?.contains("verification") == true)
+    }
+
+    @Test("AuthError cases are equatable")
+    func testAuthErrorEquality() {
+        #expect(AuthError.notAuthenticated == AuthError.notAuthenticated)
+        #expect(AuthError.noToken == AuthError.noToken)
+        #expect(AuthError.invalidCredentials == AuthError.invalidCredentials)
+        #expect(AuthError.verificationFailed == AuthError.verificationFailed)
+        #expect(AuthError.twoFactorRequired == AuthError.twoFactorRequired)
+        #expect(AuthError.notAuthenticated != AuthError.noToken)
+    }
+
+    // MARK: - Session State Changes Stream
+
     @Test("MockAuthService sessionStateChanges stream emits invalidation event")
     func testMockAuthServiceSessionStateChangesInvalidation() async {
         let mockAuth = MockAuthService()
@@ -152,6 +310,65 @@ struct AuthServiceTests {
         } else {
             #expect(Bool(false), "Expected sessionInvalidated event")
         }
+    }
+
+    @Test("MockAuthService sessionStateChanges stream emits restoration event")
+    func testMockAuthServiceSessionStateChangesRestoration() async {
+        let mockAuth = MockAuthService()
+        // Start unauthenticated
+
+        // Start listening to session changes
+        let changesTask = Task { () -> SessionStateChange? in
+            for await change in mockAuth.sessionStateChanges {
+                return change
+            }
+            return nil
+        }
+
+        // Give the stream time to start
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Trigger restoration
+        mockAuth.mockSessionRestored(userId: "restored-user-789")
+
+        // Wait for the event
+        let change = await changesTask.value
+
+        guard let change else {
+            #expect(Bool(false), "Expected to receive a session state change")
+            return
+        }
+
+        if case .sessionRestored(let userId) = change {
+            #expect(userId == "restored-user-789")
+        } else {
+            #expect(Bool(false), "Expected sessionRestored event")
+        }
+    }
+
+    @Test("MockAuthService signOut finishes session state changes stream")
+    func testMockAuthServiceSignOutFinishesStream() async throws {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn(userId: "user-1")
+
+        var receivedChanges: [SessionStateChange] = []
+        let streamTask = Task {
+            for await change in mockAuth.sessionStateChanges {
+                receivedChanges.append(change)
+            }
+        }
+
+        // Give stream time to start
+        try? await Task.sleep(for: .milliseconds(10))
+
+        // Sign out — should finish the stream
+        try await mockAuth.signOut()
+
+        // Wait for stream to complete
+        await streamTask.value
+
+        // Stream ended (signOut calls continuation?.finish())
+        #expect(mockAuth.isAuthenticated == false)
     }
 
     // MARK: - ClerkAuthService Integration Test Notes

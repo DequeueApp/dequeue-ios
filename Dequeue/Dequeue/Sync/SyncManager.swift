@@ -1786,7 +1786,7 @@ actor SyncManager {
     ///
     /// Periodic sync loops should stop reporting these to Sentry (they're noise) and
     /// disconnect after a few retries so we don't hammer Clerk every 5 seconds.
-    private static func isClerkInfrastructureError(_ error: Error) -> Bool {
+    static func isClerkInfrastructureError(_ error: Error) -> Bool {
         let description = error.localizedDescription
         // HTTP 530 from Cloudflare (origin unreachable) and Clerk 5xx internal errors
         if description.contains("status code: 530") || description.contains("530") && description.contains("server") {
