@@ -152,7 +152,7 @@ struct AuthServiceTests {
         let mockAuth = MockAuthService()
 
         await #expect(throws: AuthError.invalidCredentials) {
-            try await mockAuth.signIn(email: "error@example.com", password: "any")
+            try await mockAuth.signIn(email: "error@example.com", password: "any") // NOSONAR — mock value
         }
 
         #expect(mockAuth.isAuthenticated == false)
