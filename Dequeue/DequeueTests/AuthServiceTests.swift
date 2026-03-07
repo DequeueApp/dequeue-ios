@@ -266,14 +266,16 @@ struct AuthServiceTests {
         #expect(error.errorDescription?.contains("verification") == true)
     }
 
-    @Test("AuthError cases are equatable")
+    @Test("AuthError cases are distinct from each other")
     func testAuthErrorEquality() {
-        #expect(AuthError.notAuthenticated == AuthError.notAuthenticated)
-        #expect(AuthError.noToken == AuthError.noToken)
-        #expect(AuthError.invalidCredentials == AuthError.invalidCredentials)
-        #expect(AuthError.verificationFailed == AuthError.verificationFailed)
-        #expect(AuthError.twoFactorRequired == AuthError.twoFactorRequired)
+        // Verify each case is distinguishable from the others (enum Equatable semantics)
         #expect(AuthError.notAuthenticated != AuthError.noToken)
+        #expect(AuthError.notAuthenticated != AuthError.invalidCredentials)
+        #expect(AuthError.notAuthenticated != AuthError.verificationFailed)
+        #expect(AuthError.notAuthenticated != AuthError.twoFactorRequired)
+        #expect(AuthError.noToken != AuthError.invalidCredentials)
+        #expect(AuthError.invalidCredentials != AuthError.verificationFailed)
+        #expect(AuthError.verificationFailed != AuthError.twoFactorRequired)
     }
 
     // MARK: - Session State Changes Stream
