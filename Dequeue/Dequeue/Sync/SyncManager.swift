@@ -1676,6 +1676,7 @@ actor SyncManager {
         // This is a fallback for edge cases; immediate push after save is the common path.
         // Does NOT pull - WebSocket handles incoming events in real-time.
         periodicPushTask = Task { [weak self] in
+            var consecutiveFailures = 0
             while let self = self, await self.isConnected {
                 try? await Task.sleep(for: .seconds(self.periodicPushIntervalSeconds))
 
@@ -1683,6 +1684,7 @@ actor SyncManager {
 
                 do {
                     try await self.pushEvents()
+                    consecutiveFailures = 0 // Reset on success
                 } catch {
                     // Auth errors are permanent — stop the loop to avoid spamming Sentry
                     // (e.g. Clerk session revoked: repeating every 5s generates thousands of events)
@@ -1691,8 +1693,42 @@ actor SyncManager {
                         await self.disconnect()
                         break
                     }
+
+                    consecutiveFailures += 1
+
+                    // Clerk infrastructure / Cloudflare errors (e.g. HTTP 530 — origin unreachable)
+                    // are transient but outside our control. Don't report them to Sentry since they
+                    // flood the quota. Disconnect after 3 consecutive failures so we're not
+                    // hammering Clerk every 5 seconds indefinitely.
+                    let isClerkInfraError = Self.isClerkInfrastructureError(error)
+                    if isClerkInfraError {
+                        if consecutiveFailures >= 3 {
+                            os_log(
+                                "[Sync] Periodic push: %d consecutive Clerk infra errors (e.g. 530), disconnecting",
+                                consecutiveFailures
+                            )
+                            await self.disconnect()
+                            break
+                        }
+                        // Don't report Clerk infra errors to Sentry — they're noise, not bugs
+                        continue
+                    }
+
+                    // For all other errors: report to Sentry, but circuit-break after
+                    // 3 consecutive failures to avoid runaway event production.
                     await MainActor.run {
-                        ErrorReportingService.capture(error: error, context: ["source": "periodic_push"])
+                        ErrorReportingService.capture(error: error, context: [
+                            "source": "periodic_push",
+                            "consecutiveFailures": consecutiveFailures
+                        ])
+                    }
+                    if consecutiveFailures >= 3 {
+                        os_log(
+                            "[Sync] Periodic push: %d consecutive errors, disconnecting to prevent Sentry flood",
+                            consecutiveFailures
+                        )
+                        await self.disconnect()
+                        break
                     }
                 }
             }
@@ -1736,6 +1772,33 @@ actor SyncManager {
         // Clerk errors with authentication_invalid code are permanent (session revoked)
         let description = error.localizedDescription
         if description.contains("authentication_invalid") || description.contains("Unable to authenticate") {
+            return true
+        }
+        return false
+    }
+
+    /// Returns true if the error originates from Clerk or Cloudflare infrastructure —
+    /// not a bug in our code, and not a permanent auth failure.
+    ///
+    /// These include:
+    /// - HTTP 530: Cloudflare can't reach Clerk's origin server
+    /// - `internal_clerk_error`: Clerk backend returning 500-class responses
+    ///
+    /// Periodic sync loops should stop reporting these to Sentry (they're noise) and
+    /// disconnect after a few retries so we don't hammer Clerk every 5 seconds.
+    private static func isClerkInfrastructureError(_ error: Error) -> Bool {
+        let description = error.localizedDescription
+        // HTTP 530 from Cloudflare (origin unreachable) and Clerk 5xx internal errors
+        if description.contains("status code: 530") || description.contains("530") && description.contains("server") {
+            return true
+        }
+        if description.contains("internal_clerk_error") {
+            return true
+        }
+        // NSURLErrorDomain -1 (NSURLErrorUnknown) cascading from a 530 token-refresh failure
+        // is identified by the NSError domain and code
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == -1 {
             return true
         }
         return false

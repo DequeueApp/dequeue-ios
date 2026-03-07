@@ -7,7 +7,7 @@
 
 import SwiftUI
 import SwiftData
-import Clerk
+import ClerkKit
 import CoreSpotlight
 import UserNotifications
 import WidgetKit
@@ -248,7 +248,6 @@ struct DequeueApp: App {
             } else {
                 RootView(syncManager: syncManager, showSyncError: $showSyncError)
                     .environment(\.authService, authService)
-                    .environment(\.clerk, Clerk.shared)
                     .environment(\.syncManager, syncManager)
                     .environment(\.attachmentSettings, attachmentSettings)
                     .environment(\.searchService, SearchService(authService: authService))

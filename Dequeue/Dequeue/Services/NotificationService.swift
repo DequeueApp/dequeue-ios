@@ -8,7 +8,7 @@
 import Foundation
 import SwiftData
 import UserNotifications
-import Clerk
+import ClerkKit
 
 // MARK: - Notification Constants
 

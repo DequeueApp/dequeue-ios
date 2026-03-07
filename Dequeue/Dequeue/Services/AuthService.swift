@@ -7,7 +7,7 @@
 
 import Foundation
 import SwiftUI
-import Clerk
+import ClerkKit
 
 // MARK: - Session State Change
 
@@ -104,7 +104,7 @@ final class ClerkAuthService: AuthServiceProtocol {
     @MainActor
     func configure() async {
         // Step 1: Configure SDK (no network call)
-        Clerk.shared.configure(publishableKey: Configuration.clerkPublishableKey)
+        Clerk.configure(publishableKey: Configuration.clerkPublishableKey)
 
         // Step 2: Check cached session immediately (no network call)
         // Clerk SDK may have persisted session from previous app launch
@@ -151,13 +151,13 @@ final class ClerkAuthService: AuthServiceProtocol {
         // This validates the session is still valid and refreshes tokens
         var refreshError: Error?
         do {
-            try await Clerk.shared.load()
+            try await Clerk.shared.refreshClient()
         } catch {
             refreshError = error
             // Only report unexpected errors to Sentry — not 401s or Clerk internal errors.
             //
             // 401 Unauthorized: When a Clerk session is revoked server-side,
-            // `Clerk.shared.load()` throws an HTTPClientError with status 401.
+            // `Clerk.shared.refreshClient()` throws an HTTPClientError with status 401.
             // This is *expected* behaviour: handled gracefully below (session invalidation
             // breadcrumb + stream emit). Capturing 401s here bypasses the
             // `failedRequestStatusCodes = [402-599]` filter and floods Sentry.
@@ -241,7 +241,7 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     @MainActor
     func signOut() async throws {
-        try await Clerk.shared.signOut()
+        try await Clerk.shared.auth.signOut()
         isAuthenticated = false
         currentUserId = nil
         ErrorReportingService.clearUser()
@@ -258,7 +258,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         }
         // Use a 30-second expiration buffer (vs the default 10s) to preemptively
         // refresh tokens before they expire during in-flight requests.
-        guard let token = try await session.getToken(.init(expirationBuffer: 30))?.jwt else {
+        guard let token = try await session.getToken(.init(expirationBuffer: 30)) else {
             throw AuthError.noToken
         }
         return token
@@ -272,7 +272,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         }
         // Skip the cache entirely — forces a fresh JWT from Clerk's servers.
         // Use this after receiving a 401 to recover from revoked/expired sessions.
-        guard let token = try await session.getToken(.init(skipCache: true))?.jwt else {
+        guard let token = try await session.getToken(.init(skipCache: true)) else {
             throw AuthError.noToken
         }
         return token
@@ -282,11 +282,11 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     @MainActor
     func signIn(email: String, password: String) async throws {
-        currentSignIn = try await SignIn.create(strategy: .identifier(email, password: password))
+        currentSignIn = try await Clerk.shared.auth.signInWithPassword(identifier: email, password: password)
 
         // Check if sign-in is complete
         if let sessionId = currentSignIn?.createdSessionId {
-            try await Clerk.shared.setActive(sessionId: sessionId)
+            try await Clerk.shared.auth.setActive(sessionId: sessionId)
             updateAuthState()
             currentSignIn = nil
             return
@@ -305,7 +305,7 @@ final class ClerkAuthService: AuthServiceProtocol {
                 for factor in factors {
                     if let safeIdentifier = factor.safeIdentifier, safeIdentifier.contains("@"),
                        let emailId = factor.emailAddressId {
-                        _ = try? await signIn.prepareSecondFactor(strategy: .emailCode(emailAddressId: emailId))
+                        _ = try? await signIn.sendMfaEmailCode(emailAddressId: emailId)
                         break
                     }
                 }
@@ -327,23 +327,21 @@ final class ClerkAuthService: AuthServiceProtocol {
             throw AuthError.verificationFailed
         }
 
-        let result = try await signIn.attemptSecondFactor(strategy: .emailCode(code: code))
+        let result = try await signIn.verifyMfaCode(code, type: .emailCode)
 
         guard let sessionId = result.createdSessionId else {
             throw AuthError.verificationFailed
         }
 
-        try await Clerk.shared.setActive(sessionId: sessionId)
+        try await Clerk.shared.auth.setActive(sessionId: sessionId)
         currentSignIn = nil
         updateAuthState()
     }
 
     @MainActor
     func signUp(email: String, password: String) async throws {
-        currentSignUp = try await SignUp.create(
-            strategy: .standard(emailAddress: email, password: password)
-        )
-        try await currentSignUp?.prepareVerification(strategy: .emailCode)
+        currentSignUp = try await Clerk.shared.auth.signUp(emailAddress: email, password: password)
+        try await currentSignUp?.sendEmailCode()
     }
 
     @MainActor
@@ -351,9 +349,9 @@ final class ClerkAuthService: AuthServiceProtocol {
         guard let signUp = currentSignUp else {
             throw AuthError.verificationFailed
         }
-        let result = try await signUp.attemptVerification(strategy: .emailCode(code: code))
+        let result = try await signUp.verifyEmailCode(code)
         if let sessionId = result.createdSessionId {
-            try await Clerk.shared.setActive(sessionId: sessionId)
+            try await Clerk.shared.auth.setActive(sessionId: sessionId)
         }
         currentSignUp = nil
         updateAuthState()
