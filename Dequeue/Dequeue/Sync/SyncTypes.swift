@@ -241,6 +241,9 @@ enum SyncError: LocalizedError {
     case pushFailed
     case pullFailed
     case connectionLost
+    /// Clerk infrastructure is in cooldown due to repeated HTTP 530 / infra errors.
+    /// Token refresh is skipped until the cooldown expires (exponential backoff).
+    case clerkInCooldown
 
     var errorDescription: String? {
         switch self {
@@ -254,6 +257,8 @@ enum SyncError: LocalizedError {
             return "Failed to pull events from server"
         case .connectionLost:
             return "Sync connection lost"
+        case .clerkInCooldown:
+            return "Clerk infrastructure is temporarily unavailable — retrying after cooldown"
         }
     }
 }
