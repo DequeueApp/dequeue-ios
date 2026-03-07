@@ -7,7 +7,7 @@
 
 import SwiftUI
 import Sentry
-import Clerk
+import ClerkKit
 
 struct SettingsView: View {
     @Environment(\.authService) private var authService

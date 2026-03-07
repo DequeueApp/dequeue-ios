@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		447446C2A4518A48E7E09010 /* WidgetDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10C44498BBEAD07FF44EB39D /* WidgetDataService.swift */; };
-		57916B252EF87D1000A9AF45 /* Clerk in Frameworks */ = {isa = PBXBuildFile; productRef = 57916B242EF87D1000A9AF45 /* Clerk */; };
+		57916B252EF87D1000A9AF45 /* ClerkKit in Frameworks */ = {isa = PBXBuildFile; productRef = 57916B242EF87D1000A9AF45 /* ClerkKit */; };
 		57916B2C2EF8855F00A9AF45 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 57916B2B2EF8855F00A9AF45 /* Sentry */; };
 		5C6C426B9E10BC3678DE5C7B /* WidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC954C37A675A1A3F5102CBD /* WidgetModels.swift */; };
 		A7C4ED9BD9AEAFCE8C4F6F6C /* SmartNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BF5794EE4C310F08AEB623 /* SmartNotificationService.swift */; };
@@ -59,7 +59,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				57916B252EF87D1000A9AF45 /* Clerk in Frameworks */,
+				57916B252EF87D1000A9AF45 /* ClerkKit in Frameworks */,
 				57916B2C2EF8855F00A9AF45 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -131,7 +131,7 @@
 			);
 			name = Dequeue;
 			packageProductDependencies = (
-				57916B242EF87D1000A9AF45 /* Clerk */,
+				57916B242EF87D1000A9AF45 /* ClerkKit */,
 				57916B2B2EF8855F00A9AF45 /* Sentry */,
 			);
 			productName = Dequeue;
@@ -684,7 +684,7 @@
 			repositoryURL = "https://github.com/clerk/clerk-ios";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.71.4;
+				minimumVersion = 1.0.4;
 			};
 		};
 		57916B2A2EF8855F00A9AF45 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
@@ -698,10 +698,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		57916B242EF87D1000A9AF45 /* Clerk */ = {
+		57916B242EF87D1000A9AF45 /* ClerkKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 57916AE02EF86E3000A9AF45 /* XCRemoteSwiftPackageReference "clerk-ios" */;
-			productName = Clerk;
+			productName = ClerkKit;
 		};
 		57916B2B2EF8855F00A9AF45 /* Sentry */ = {
 			isa = XCSwiftPackageProductDependency;

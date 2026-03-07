@@ -7,7 +7,7 @@
 
 import SwiftUI
 import SwiftData
-import Clerk
+import ClerkKit
 import CoreSpotlight
 import UserNotifications
 import WidgetKit
@@ -66,11 +66,16 @@ struct DequeueApp: App {
         // issues (wrong keys, HTTP URLs in production, etc.) are captured.
         StartupValidator.validate(configuration: EnvironmentManager.shared.configuration)
 
-        // Use mock auth service for UI tests to bypass Clerk authentication
-        if Self.isRunningUITests {
+        // Use mock auth service for UI tests and unit tests to bypass Clerk SDK.
+        // Clerk 1.0.4 added a fatalError guard on Clerk.shared: accessing it before
+        // Clerk.configure() crashes the process. Unit tests run the app as TEST_HOST,
+        // so the app's .task { await authService.configure() } fires asynchronously —
+        // but the scene lifecycle can race with Clerk.shared access before configure()
+        // completes. Using MockAuthService eliminates all Clerk SDK usage during tests.
+        if Self.isRunningUITests || Self.isRunningTests {
             let mockAuth = MockAuthService()
-            // Only auto-sign in if NOT explicitly testing unauthenticated flow
-            if !ProcessInfo.processInfo.arguments.contains("--unauthenticated") {
+            // Only auto-sign in for UI tests (unit tests start unauthenticated)
+            if Self.isRunningUITests && !ProcessInfo.processInfo.arguments.contains("--unauthenticated") {
                 mockAuth.mockSignIn(userId: "ui-test-user")
             }
             authService = mockAuth
@@ -248,7 +253,6 @@ struct DequeueApp: App {
             } else {
                 RootView(syncManager: syncManager, showSyncError: $showSyncError)
                     .environment(\.authService, authService)
-                    .environment(\.clerk, Clerk.shared)
                     .environment(\.syncManager, syncManager)
                     .environment(\.attachmentSettings, attachmentSettings)
                     .environment(\.searchService, SearchService(authService: authService))
