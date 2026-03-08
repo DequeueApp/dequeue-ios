@@ -64,6 +64,27 @@ actor SyncManager {
     private let maxConsecutiveHeartbeatFailures = 3
     private var lastSuccessfulHeartbeat: Date?
 
+    // MARK: - Clerk Infrastructure Backoff
+
+    /// Tracks Clerk infrastructure health for backoff.
+    /// When set to a future date, token refresh attempts are skipped (Clerk is assumed down).
+    private var clerkCooldownUntil: Date?
+
+    /// Number of consecutive Clerk infrastructure errors (for exponential backoff calculation).
+    private var clerkInfraFailureCount: Int = 0
+
+    /// Reason for the most recent disconnect — used by network monitor to decide whether
+    /// to attempt immediate reconnection.
+    private enum DisconnectReason {
+        case none
+        case networkLoss
+        case clerkInfraError
+        case authFailure
+        case background
+        case manual
+    }
+    private var lastDisconnectReason: DisconnectReason = .none
+
     // Initial sync tracking (internal for SyncManager+ProjectionSync.swift extension access)
     var isInitialSyncActive = false
     var syncEventsProcessed = 0
@@ -264,6 +285,8 @@ actor SyncManager {
     func connect(userId: String, token: String, getToken: @escaping @Sendable () async throws -> String) async throws {
         // Clear background suspension so reconnect tasks can proceed (DEQUEUE-APP-1)
         isSuspendedForBackground = false
+        // Reset disconnect reason on explicit reconnect
+        lastDisconnectReason = .none
         // Disconnect any existing connection first to ensure clean state
         if isConnected || webSocketTask != nil {
             os_log("[Sync] Disconnecting existing connection before reconnecting")
@@ -303,6 +326,8 @@ actor SyncManager {
     ) async throws {
         // Clear background suspension so reconnect tasks can proceed (DEQUEUE-APP-1)
         isSuspendedForBackground = false
+        // Reset disconnect reason on explicit reconnect (caller decided to reconnect)
+        lastDisconnectReason = .none
         // Guard against concurrent connection attempts
         guard !isConnecting else {
             os_log("[Sync] Connection already in progress, skipping")
@@ -353,6 +378,7 @@ actor SyncManager {
     /// Stops all running tasks (heartbeat, listener, push/pull) and closes the
     /// WebSocket to reduce memory pressure and prevent iOS jetsam kills.
     func suspendForBackground() {
+        lastDisconnectReason = .background
         isSuspendedForBackground = true
         disconnectInternal()
         os_log("[Sync] Suspended for background — connection and tasks stopped, credentials preserved")
@@ -434,15 +460,30 @@ actor SyncManager {
 
     // Internal for SyncManager+ProjectionSync.swift extension access
     func refreshToken() async throws -> String? {
+        // Skip Clerk API call if infrastructure is in cooldown (DEQUEUE-APP-12)
+        if isClerkInCooldown {
+            os_log(
+                "[Sync] Skipping token refresh — Clerk cooldown active until %{public}@",
+                clerkCooldownUntil?.description ?? "unknown"
+            )
+            throw SyncError.clerkInCooldown
+        }
+
         if let getToken = getTokenFunction {
             do {
                 let newToken = try await getToken()
                 self.token = newToken
+                // Reset cooldown on successful token refresh (Clerk is healthy again)
+                resetClerkCooldown()
                 await MainActor.run {
                     ErrorReportingService.logAuthTokenRefresh(success: true)
                 }
                 return newToken
             } catch {
+                // Record Clerk infra failures for exponential backoff (DEQUEUE-APP-12)
+                if Self.isClerkInfrastructureError(error) {
+                    recordClerkInfraFailure()
+                }
                 // Capture suspension state before the MainActor hop so we can suppress
                 // noisy Sentry events caused by the DEQUEUE-APP-1 race: the app goes to
                 // background while Clerk's token refresh is in-flight, which causes the
@@ -1513,6 +1554,10 @@ actor SyncManager {
 
     private func handleDisconnect() async {
         isConnected = false
+        // Normal WebSocket disconnect → network loss; network monitor can reconnect quickly
+        if lastDisconnectReason == .none {
+            lastDisconnectReason = .networkLoss
+        }
 
         let currentAttempts = reconnectAttempts
         guard currentAttempts < maxReconnectAttempts,
@@ -1629,6 +1674,41 @@ actor SyncManager {
         lastSuccessfulHeartbeat = Date()
     }
 
+    // MARK: - Clerk Cooldown Helpers
+
+    /// Whether Clerk is currently in cooldown (infrastructure errors detected).
+    private var isClerkInCooldown: Bool {
+        guard let cooldownUntil = clerkCooldownUntil else { return false }
+        return Date() < cooldownUntil
+    }
+
+    /// Record a Clerk infrastructure failure and set exponential backoff.
+    /// Backoff schedule: 15s → 30s → 60s → 120s → 300s (cap at 5 minutes).
+    /// Also marks the disconnect reason so the network monitor can skip reconnection during cooldown.
+    private func recordClerkInfraFailure() {
+        clerkInfraFailureCount += 1
+        let delays: [TimeInterval] = [15, 30, 60, 120, 300]
+        let index = min(clerkInfraFailureCount - 1, delays.count - 1)
+        let delay = delays[index]
+        clerkCooldownUntil = Date().addingTimeInterval(delay)
+        lastDisconnectReason = .clerkInfraError
+        os_log("[Sync] Clerk infra error #%d — cooldown for %.0fs", clerkInfraFailureCount, delay)
+    }
+
+    /// Reset Clerk cooldown after a successful token refresh.
+    private func resetClerkCooldown() {
+        if clerkInfraFailureCount > 0 {
+            os_log("[Sync] Clerk recovered — cooldown reset after %d failures", clerkInfraFailureCount)
+        }
+        clerkInfraFailureCount = 0
+        clerkCooldownUntil = nil
+    }
+
+    /// Reset the disconnect reason to `.none` once a reconnection is successfully initiated.
+    private func resetDisconnectReason() {
+        lastDisconnectReason = .none
+    }
+
     // MARK: - Sync Tasks
 
     /// Performs the initial pull when connecting, handling both fresh device and incremental sync cases.
@@ -1702,6 +1782,10 @@ actor SyncManager {
                     // hammering Clerk every 5 seconds indefinitely.
                     let isClerkInfraError = Self.isClerkInfrastructureError(error)
                     if isClerkInfraError {
+                        // Record failure for exponential backoff (DEQUEUE-APP-12).
+                        // recordClerkInfraFailure() also sets lastDisconnectReason = .clerkInfraError
+                        // so the network monitor will not immediately reconnect during cooldown.
+                        await self.recordClerkInfraFailure()
                         if consecutiveFailures >= 3 {
                             os_log(
                                 "[Sync] Periodic push: %d consecutive Clerk infra errors (e.g. 530), disconnecting",
@@ -1753,6 +1837,12 @@ actor SyncManager {
                         os_log("[Sync] Fallback pull: auth failure, disconnecting to stop retry loop")
                         await self.disconnect()
                         break
+                    }
+                    // Clerk infra errors (e.g. 530) — record for backoff, don't send to Sentry (DEQUEUE-APP-12)
+                    if Self.isClerkInfrastructureError(error) {
+                        await self.recordClerkInfraFailure()
+                        os_log("[Sync] Fallback pull: Clerk infra error, cooldown set")
+                        continue
                     }
                     await MainActor.run {
                         ErrorReportingService.capture(error: error, context: ["source": "fallback_pull"])
@@ -1829,18 +1919,29 @@ actor SyncManager {
                 if isConnected && !wasConnected {
                     os_log("[Sync] Network became available - checking if reconnection needed")
 
-                    let shouldReconnect = await !self.isHealthyConnection
+                    // Don't immediately reconnect if we disconnected due to Clerk infra errors
+                    // and the cooldown is still active (DEQUEUE-APP-12).
+                    let disconnectReason = await self.lastDisconnectReason
+                    let clerkInCooldown = await self.isClerkInCooldown
+                    let clerkStillDown = disconnectReason == .clerkInfraError && clerkInCooldown
+                    if clerkStillDown {
+                        os_log("[Sync] Skipping reconnect — Clerk cooldown still active")
+                    } else {
+                        let shouldReconnect = await !self.isHealthyConnection
 
-                    if shouldReconnect,
-                       let userId = await self.userId,
-                       let token = await self.token,
-                       let getToken = await self.getTokenFunction {
-                        os_log("[Sync] Attempting reconnection after network recovery")
-                        try? await self.ensureConnected(
-                            userId: userId,
-                            token: token,
-                            getToken: getToken
-                        )
+                        if shouldReconnect,
+                           let userId = await self.userId,
+                           let token = await self.token,
+                           let getToken = await self.getTokenFunction {
+                            os_log("[Sync] Attempting reconnection after network recovery")
+                            // Reset reason before reconnecting
+                            await self.resetDisconnectReason()
+                            try? await self.ensureConnected(
+                                userId: userId,
+                                token: token,
+                                getToken: getToken
+                            )
+                        }
                     }
                 }
 
@@ -1899,9 +2000,20 @@ actor SyncManager {
     /// Marked nonisolated since it only spawns an actor-isolated Task internally.
     nonisolated func triggerImmediatePush() {
         Task {
+            // Skip if not connected — no point attempting push (DEQUEUE-APP-12)
+            guard await self.isConnected else { return }
+            // Skip if Clerk is in cooldown — prevents 50+ callsites from generating
+            // redundant token-refresh requests during Clerk infrastructure outages.
+            let clerkCooling = await self.isClerkInCooldown
+            guard !clerkCooling else {
+                os_log("[Sync] triggerImmediatePush: skipped — Clerk cooldown active")
+                return
+            }
             do {
                 try await pushEvents()
             } catch {
+                // Don't log Clerk infra errors to Sentry — they're noise (DEQUEUE-APP-12)
+                if Self.isClerkInfrastructureError(error) { return }
                 os_log("[Sync] Immediate push failed: \(error.localizedDescription)")
                 // Don't propagate error - periodic sync will retry
             }
