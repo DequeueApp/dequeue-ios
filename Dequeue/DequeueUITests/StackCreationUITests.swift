@@ -96,7 +96,14 @@ final class StackCreationUITests: XCTestCase {
         // Verify stack created
         XCTAssertTrue(app.staticTexts["Active Stack Test"].waitForExistence(timeout: 3))
 
-        // TODO: Verify stack is actually active (check banner or indicator)
+        // Verify stack is actually active — star indicator should appear in the list row
+        // StackRowView renders Image(systemName: "star.fill").accessibilityLabel("Active stack")
+        // when stack.isActive == true
+        let activeIndicator = app.images["Active stack"]
+        XCTAssertTrue(
+            activeIndicator.waitForExistence(timeout: 2),
+            "Active stack should display star indicator in the list row"
+        )
     }
 
     // MARK: - Stack Creation with Dates
