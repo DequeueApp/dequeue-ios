@@ -347,6 +347,12 @@ struct RootView: View {
     @State private var showNewStackSheet = false
     @State private var showSearchView = false
 
+    /// When true, a solid overlay hides all @Query-backed views.
+    /// This prevents SwiftData `performAndWait` reentrancy during
+    /// the iOS app-switcher snapshot, which otherwise crashes with
+    /// an assertion failure inside SwiftData's fetch pipeline.
+    @State private var showSnapshotOverlay = false
+
     private var notificationService: NotificationService {
         NotificationService(modelContext: modelContext)
     }
@@ -364,6 +370,55 @@ struct RootView: View {
                 AuthView()
             }
         }
+        // MARK: Snapshot crash prevention
+        // When the app moves to background, iOS takes a snapshot for the
+        // app switcher. During that snapshot render, SwiftUI evaluates
+        // @Query views which call SwiftData's performAndWait. This causes
+        // an assertion failure deep inside SwiftData/CoreData (30+ frames).
+        //
+        // The fix: cover the entire view hierarchy with an opaque overlay
+        // BEFORE the snapshot renders. We listen at the UIKit level via
+        // willResignActiveNotification (fires before scenePhase changes)
+        // so the overlay is already in the view tree when iOS snapshots.
+        .overlay {
+            if showSnapshotOverlay {
+                ZStack {
+                    #if os(iOS)
+                    Color(.systemBackground)
+                        .ignoresSafeArea()
+                    #else
+                    Color(nsColor: .windowBackgroundColor)
+                        .ignoresSafeArea()
+                    #endif
+                    Image(systemName: "tray.full.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.tertiary)
+                }
+                .transition(.identity) // No animation — must be instant
+            }
+        }
+        #if os(iOS)
+        .task {
+            // UIApplication notifications only work in the actual app, not in test runners
+            guard !ProcessInfo.processInfo.environment.keys.contains("XCTestConfigurationFilePath") else {
+                return
+            }
+
+            // Listen for UIKit-level notifications (fire before scenePhase changes)
+            for await _ in NotificationCenter.default.notifications(named: UIApplication.willResignActiveNotification) {
+                showSnapshotOverlay = true
+            }
+        }
+        .task {
+            guard !ProcessInfo.processInfo.environment.keys.contains("XCTestConfigurationFilePath") else {
+                return
+            }
+
+            for await _ in NotificationCenter.default.notifications(named: UIApplication.didBecomeActiveNotification) {
+                showSnapshotOverlay = false
+            }
+        }
+        #endif
         .task {
             // Initialize sync status view model early to track initial sync progress.
             // This reactive approach avoids polling - the view model tracks sync state changes.
@@ -412,6 +467,12 @@ struct RootView: View {
                         QuickActionService.shared.updateShortcutItems(activeStackName: activeStackName)
                         #endif
                     }
+
+                    // Update widget data when returning to foreground.
+                    // This is safe here because we're already active.
+                    // (Moved from .inactive to avoid SwiftData queries during
+                    // the background transition snapshot.)
+                    WidgetDataService.updateAllWidgets(context: modelContext)
                 }
             case .background:
                 // ⚠️ DO NOT perform synchronous SwiftData queries here.
@@ -427,11 +488,9 @@ struct RootView: View {
                     ErrorReportingService.prepareForBackground()
                 }
             case .inactive:
-                // Update widget data when going inactive (before .background).
-                // This runs before iOS takes the app switcher snapshot, avoiding
-                // the NSManagedObjectContext reentrancy crash that occurs when
-                // synchronous SwiftData queries run during snapshot rendering.
-                WidgetDataService.updateAllWidgets(context: modelContext)
+                // Widget update moved to .active handler (below) to avoid any
+                // SwiftData queries during the background transition.
+                break
             @unknown default:
                 break
             }
