@@ -544,58 +544,15 @@ actor SyncManager {
             eventDeviceId = await DeviceService.shared.getDeviceId()
         }
 
-        let syncEvents = pendingEventData.map { eventData -> [String: Any] in
-            let payload: Any
-            if let payloadDict = try? JSONSerialization.jsonObject(with: eventData.payload) {
-                payload = payloadDict
-            } else {
-                payload = [:]
-            }
-
-            // Use stored userId/deviceId/appId from the event (captured at creation time)
-            // Fall back to cached values for backward compatibility
-            let eventUserId = !eventData.userId.isEmpty ? eventData.userId : (self.userId ?? "")
-            let eventDeviceIdToUse = !eventData.deviceId.isEmpty ? eventData.deviceId : eventDeviceId
-
-            // Build event dict with required fields
-            var eventDict: [String: Any] = [
-                "id": eventData.id,
-                "user_id": eventUserId,
-                "device_id": eventDeviceIdToUse,
-                "app_id": eventData.appId,
-                "ts": SyncManager.iso8601WithFractionalSeconds.string(from: eventData.timestamp),
-                "type": eventData.type,
-                "payload": payload,
-                "payload_version": eventData.payloadVersion
-            ]
-
-            // DEQ-55: Include actor metadata if present
-            Self.addActorMetadata(from: eventData.metadata, to: &eventDict)
-
-            return eventDict
-        }
+        let syncEvents = buildSyncEventDicts(
+            from: pendingEventData,
+            fallbackUserId: userId ?? "",
+            fallbackDeviceId: eventDeviceId
+        )
 
         // Send via WebSocket for immediate delivery to other devices (fire-and-forget optimization).
-        // This runs concurrently with HTTP push - WebSocket provides low-latency broadcast while
-        // HTTP remains authoritative for acknowledgment. Backend deduplicates by event ID.
-        // Uses utility priority since this is a background optimization, not critical path.
-        // Note: We serialize to Data here (before Task) because Data is Sendable, while [[String: Any]] is not.
-        if webSocketPushEnabled && isConnected {
-            let eventCount = syncEvents.count
-            // Serialize before Task to avoid data race - Data is Sendable, [[String: Any]] is not
-            if let wsPayloadData = try? JSONSerialization.data(withJSONObject: ["events": syncEvents]) {
-                Task(priority: .utility) { [weak self, wsPayloadData] in
-                    guard let self = self else { return }
-                    do {
-                        try await self.sendViaWebSocket(data: wsPayloadData)
-                        os_log("[Sync] Sent \(eventCount) events via WebSocket (optimistic)")
-                    } catch {
-                        // Fire-and-forget: log but don't fail - HTTP will handle it
-                        os_log("[Sync] WebSocket send failed for \(eventCount) events (HTTP will handle): \(error)")
-                    }
-                }
-            }
-        }
+        // Runs concurrently with HTTP push; backend deduplicates by event ID.
+        fireWebSocketPushIfEnabled(syncEvents: syncEvents)
 
         // Always send via HTTP for authoritative acknowledgment and sync state management
         let pushURL = await MainActor.run { Configuration.syncAPIBaseURL.appendingPathComponent("sync/push") }
@@ -722,6 +679,62 @@ actor SyncManager {
                 }
             }
             throw error
+        }
+    }
+
+    /// Converts an EventData array into the JSON-serialisable dict format expected by the sync API.
+    /// Accepts fallback userId/deviceId for events that pre-date per-event identity capture.
+    private func buildSyncEventDicts(
+        from eventData: [EventData],
+        fallbackUserId: String,
+        fallbackDeviceId: String
+    ) -> [[String: Any]] {
+        eventData.map { event -> [String: Any] in
+            let payload: Any
+            if let payloadDict = try? JSONSerialization.jsonObject(with: event.payload) {
+                payload = payloadDict
+            } else {
+                payload = [:]
+            }
+
+            // Use identity captured at event creation time; fall back for backward compat.
+            let eventUserId = !event.userId.isEmpty ? event.userId : fallbackUserId
+            let eventDeviceId = !event.deviceId.isEmpty ? event.deviceId : fallbackDeviceId
+
+            var eventDict: [String: Any] = [
+                "id": event.id,
+                "user_id": eventUserId,
+                "device_id": eventDeviceId,
+                "app_id": event.appId,
+                "ts": SyncManager.iso8601WithFractionalSeconds.string(from: event.timestamp),
+                "type": event.type,
+                "payload": payload,
+                "payload_version": event.payloadVersion
+            ]
+
+            // DEQ-55: Include actor metadata if present
+            Self.addActorMetadata(from: event.metadata, to: &eventDict)
+
+            return eventDict
+        }
+    }
+
+    /// Fire-and-forget WebSocket push optimisation. Serialises syncEvents to Data (Sendable)
+    /// before spawning the Task to avoid data races on [[String: Any]].
+    private func fireWebSocketPushIfEnabled(syncEvents: [[String: Any]]) {
+        guard webSocketPushEnabled && isConnected else { return }
+        let eventCount = syncEvents.count
+        // Serialize before Task to avoid data race — Data is Sendable, [[String: Any]] is not
+        guard let wsPayloadData = try? JSONSerialization.data(withJSONObject: ["events": syncEvents]) else { return }
+        Task(priority: .utility) { [weak self, wsPayloadData] in
+            guard let self else { return }
+            do {
+                try await self.sendViaWebSocket(data: wsPayloadData)
+                os_log("[Sync] Sent \(eventCount) events via WebSocket (optimistic)")
+            } catch {
+                // Fire-and-forget: log but don't fail - HTTP will handle it
+                os_log("[Sync] WebSocket send failed for \(eventCount) events (HTTP will handle): \(error)")
+            }
         }
     }
 
