@@ -1903,6 +1903,13 @@ actor SyncManager {
         if description.contains("internal_clerk_error") {
             return true
         }
+        // HTTP 429 (Too Many Requests) from Clerk's token endpoint.
+        // Without cooldown, the sync loop retries immediately and generates a feedback loop
+        // (DEQUEUE-APP-12). Treat 429 as a transient infrastructure error so exponential
+        // backoff kicks in and stops the hammering. // NOSONAR
+        if description.contains("status code: 429") { // NOSONAR
+            return true
+        }
         // NSURLErrorDomain -1 (NSURLErrorUnknown) cascading from a 530 token-refresh failure
         // is identified by the NSError domain and code
         let nsError = error as NSError
