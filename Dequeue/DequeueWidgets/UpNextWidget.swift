@@ -20,22 +20,31 @@ struct UpNextProvider: TimelineProvider {
             data: WidgetUpNextData(
                 upcomingTasks: [
                     WidgetTaskItem(
-                        id: "1", title: "Review pull request",
-                        stackTitle: "Sprint", stackId: "s1",
+                        id: "1",
+                        title: "Review pull request",
+                        stackTitle: "Sprint",
+                        stackId: "s1",
                         dueDate: Calendar.current.date(byAdding: .hour, value: 1, to: Date()),
-                        priority: 3, isOverdue: false
+                        priority: 3,
+                        isOverdue: false
                     ),
                     WidgetTaskItem(
-                        id: "2", title: "Update documentation",
-                        stackTitle: "Docs", stackId: "s2",
+                        id: "2",
+                        title: "Update documentation",
+                        stackTitle: "Docs",
+                        stackId: "s2",
                         dueDate: Calendar.current.date(byAdding: .hour, value: 3, to: Date()),
-                        priority: 2, isOverdue: false
+                        priority: 2,
+                        isOverdue: false
                     ),
                     WidgetTaskItem(
-                        id: "3", title: "Team standup prep",
-                        stackTitle: "Daily", stackId: "s3",
+                        id: "3",
+                        title: "Team standup prep",
+                        stackTitle: "Daily",
+                        stackId: "s3",
                         dueDate: Calendar.current.date(byAdding: .day, value: 1, to: Date()),
-                        priority: nil, isOverdue: false
+                        priority: nil,
+                        isOverdue: false
                     )
                 ],
                 overdueCount: 0
@@ -309,22 +318,31 @@ struct PriorityDot: View {
         data: WidgetUpNextData(
             upcomingTasks: [
                 WidgetTaskItem(
-                    id: "1", title: "Review PR #314",
-                    stackTitle: "Sprint Tasks", stackId: "s1",
+                    id: "1",
+                    title: "Review PR #314",
+                    stackTitle: "Sprint Tasks",
+                    stackId: "s1",
                     dueDate: Calendar.current.date(byAdding: .hour, value: -1, to: Date()),
-                    priority: 3, isOverdue: true
+                    priority: 3,
+                    isOverdue: true
                 ),
                 WidgetTaskItem(
-                    id: "2", title: "Deploy API changes",
-                    stackTitle: "DevOps", stackId: "s2",
+                    id: "2",
+                    title: "Deploy API changes",
+                    stackTitle: "DevOps",
+                    stackId: "s2",
                     dueDate: Calendar.current.date(byAdding: .hour, value: 2, to: Date()),
-                    priority: 2, isOverdue: false
+                    priority: 2,
+                    isOverdue: false
                 ),
                 WidgetTaskItem(
-                    id: "3", title: "Write documentation",
-                    stackTitle: "Docs", stackId: "s3",
+                    id: "3",
+                    title: "Write documentation",
+                    stackTitle: "Docs",
+                    stackId: "s3",
                     dueDate: Calendar.current.date(byAdding: .day, value: 1, to: Date()),
-                    priority: nil, isOverdue: false
+                    priority: nil,
+                    isOverdue: false
                 )
             ],
             overdueCount: 1
@@ -340,28 +358,40 @@ struct PriorityDot: View {
         data: WidgetUpNextData(
             upcomingTasks: [
                 WidgetTaskItem(
-                    id: "1", title: "Morning standup",
-                    stackTitle: "Daily", stackId: "s1",
+                    id: "1",
+                    title: "Morning standup",
+                    stackTitle: "Daily",
+                    stackId: "s1",
                     dueDate: Calendar.current.date(byAdding: .hour, value: 1, to: Date()),
-                    priority: nil, isOverdue: false
+                    priority: nil,
+                    isOverdue: false
                 ),
                 WidgetTaskItem(
-                    id: "2", title: "Review database migration",
-                    stackTitle: "Backend", stackId: "s2",
+                    id: "2",
+                    title: "Review database migration",
+                    stackTitle: "Backend",
+                    stackId: "s2",
                     dueDate: Calendar.current.date(byAdding: .hour, value: 3, to: Date()),
-                    priority: 3, isOverdue: false
+                    priority: 3,
+                    isOverdue: false
                 ),
                 WidgetTaskItem(
-                    id: "3", title: "Update API docs",
-                    stackTitle: "Documentation", stackId: "s3",
+                    id: "3",
+                    title: "Update API docs",
+                    stackTitle: "Documentation",
+                    stackId: "s3",
                     dueDate: Calendar.current.date(byAdding: .day, value: 1, to: Date()),
-                    priority: 2, isOverdue: false
+                    priority: 2,
+                    isOverdue: false
                 ),
                 WidgetTaskItem(
-                    id: "4", title: "Fix lint warnings",
-                    stackTitle: "Code Quality", stackId: "s4",
+                    id: "4",
+                    title: "Fix lint warnings",
+                    stackTitle: "Code Quality",
+                    stackId: "s4",
                     dueDate: Calendar.current.date(byAdding: .day, value: 2, to: Date()),
-                    priority: 1, isOverdue: false
+                    priority: 1,
+                    isOverdue: false
                 )
             ],
             overdueCount: 0
