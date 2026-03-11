@@ -238,4 +238,154 @@ struct QueueTaskTests {
 
         #expect(task.stack?.id == stack.id)
     }
+
+    // MARK: - isRecurring Tests
+
+    @Test("isRecurring is false when recurrenceRuleData is nil")
+    func isRecurringFalseWhenNil() {
+        let task = QueueTask(title: "Non-recurring")
+        #expect(task.isRecurring == false)
+    }
+
+    @Test("isRecurring is true when recurrenceRuleData is set")
+    func isRecurringTrueWhenSet() {
+        let task = QueueTask(title: "Recurring Task")
+        let rule = RecurrenceRule.daily
+        task.recurrenceRuleData = try? JSONEncoder().encode(rule)
+        #expect(task.isRecurring == true)
+    }
+
+    // MARK: - recurrenceRule Computed Property Tests
+
+    @Test("recurrenceRule getter returns nil when no data stored")
+    func recurrenceRuleNilWhenNoData() {
+        let task = QueueTask(title: "No Rule")
+        #expect(task.recurrenceRule == nil)
+    }
+
+    @Test("recurrenceRule setter encodes and getter decodes round-trip")
+    func recurrenceRuleRoundTrip() async throws {
+        let container = try makeTaskTestContainer()
+        let context = container.mainContext
+
+        let task = QueueTask(title: "Recurring Task")
+        context.insert(task)
+
+        let rule = RecurrenceRule(frequency: .weekly, interval: 2, daysOfWeek: [.monday, .wednesday])
+        task.recurrenceRule = rule
+
+        try context.save()
+
+        let retrieved = task.recurrenceRule
+        #expect(retrieved?.frequency == .weekly)
+        #expect(retrieved?.interval == 2)
+        #expect(retrieved?.daysOfWeek == [.monday, .wednesday])
+    }
+
+    @Test("recurrenceRule setter with nil clears recurrenceRuleData")
+    func recurrenceRuleSetterNilClears() async throws {
+        let container = try makeTaskTestContainer()
+        let context = container.mainContext
+
+        let task = QueueTask(title: "Clearing Recurrence")
+        context.insert(task)
+
+        // Set a rule first
+        task.recurrenceRule = RecurrenceRule.daily
+        #expect(task.isRecurring == true)
+
+        // Clear it
+        task.recurrenceRule = nil
+        #expect(task.isRecurring == false)
+        #expect(task.recurrenceRule == nil)
+    }
+
+    // MARK: - activeReminders Tests (with reminders present)
+
+    @Test("activeReminders returns only active non-deleted reminders")
+    func activeRemindersFiltersCorrectly() {
+        let task = QueueTask(title: "Task with reminders")
+        let futureDate = Date().addingTimeInterval(3600)
+
+        // Active, non-deleted — should appear
+        let active = Reminder(
+            parentId: task.id,
+            parentType: .task,
+            status: .active,
+            remindAt: futureDate
+        )
+        task.reminders.append(active)
+
+        // Fired — excluded by status
+        let fired = Reminder(
+            parentId: task.id,
+            parentType: .task,
+            status: .fired,
+            remindAt: futureDate
+        )
+        task.reminders.append(fired)
+
+        // Soft-deleted active — excluded by isDeleted
+        let deleted = Reminder(
+            parentId: task.id,
+            parentType: .task,
+            status: .active,
+            remindAt: futureDate,
+            isDeleted: true
+        )
+        task.reminders.append(deleted)
+
+        #expect(task.activeReminders.count == 1)
+        #expect(task.activeReminders.first?.id == active.id)
+    }
+
+    @Test("activeReminders returns empty when all reminders are fired or deleted")
+    func activeRemindersEmptyWhenAllInactive() {
+        let task = QueueTask(title: "Task inactive reminders")
+        let futureDate = Date().addingTimeInterval(3600)
+
+        let fired = Reminder(
+            parentId: task.id,
+            parentType: .task,
+            status: .fired,
+            remindAt: futureDate
+        )
+        task.reminders.append(fired)
+
+        let deleted = Reminder(
+            parentId: task.id,
+            parentType: .task,
+            status: .active,
+            remindAt: futureDate,
+            isDeleted: true
+        )
+        task.reminders.append(deleted)
+
+        #expect(task.activeReminders.isEmpty)
+    }
+
+    @Test("activeReminders returns multiple active reminders")
+    func activeRemindersMultiple() {
+        let task = QueueTask(title: "Task multi reminders")
+        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate2 = Date().addingTimeInterval(7200)
+
+        let first = Reminder(
+            parentId: task.id,
+            parentType: .task,
+            status: .active,
+            remindAt: futureDate
+        )
+        task.reminders.append(first)
+
+        let second = Reminder(
+            parentId: task.id,
+            parentType: .task,
+            status: .active,
+            remindAt: futureDate2
+        )
+        task.reminders.append(second)
+
+        #expect(task.activeReminders.count == 2)
+    }
 }
