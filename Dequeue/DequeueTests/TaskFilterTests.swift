@@ -195,6 +195,83 @@ struct DateRangeFilterTests {
         #expect(range.end == nil)
     }
 
+    @Test("Tomorrow range covers 24 hours starting from tomorrow")
+    func tomorrowRange() {
+        let now = Date()
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: now)
+        let range = DateRangeFilter.tomorrow.dateRange(from: now)
+
+        let expectedStart = calendar.date(byAdding: .day, value: 1, to: startOfToday)
+        let expectedEnd = calendar.date(byAdding: .day, value: 2, to: startOfToday)
+
+        #expect(range.start == expectedStart)
+        #expect(range.end == expectedEnd)
+
+        // Exactly 24 hours
+        if let start = range.start, let end = range.end {
+            let diff = end.timeIntervalSince(start)
+            #expect(abs(diff - 86400) < 1)
+        }
+    }
+
+    @Test("Next week covers days 7-14 from today")
+    func nextWeekRange() {
+        let now = Date()
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: now)
+        let range = DateRangeFilter.nextWeek.dateRange(from: now)
+
+        let expectedStart = calendar.date(byAdding: .day, value: 7, to: startOfToday)
+        let expectedEnd = calendar.date(byAdding: .day, value: 14, to: startOfToday)
+
+        #expect(range.start == expectedStart)
+        #expect(range.end == expectedEnd)
+
+        // Exactly 7 days span
+        if let start = range.start, let end = range.end {
+            let diff = end.timeIntervalSince(start)
+            #expect(abs(diff - 7 * 86400) < 1)
+        }
+    }
+
+    @Test("This month covers start of today to 1 month out")
+    func thisMonthRange() {
+        let now = Date()
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: now)
+        let range = DateRangeFilter.thisMonth.dateRange(from: now)
+
+        let expectedEnd = calendar.date(byAdding: .month, value: 1, to: startOfToday)
+
+        #expect(range.start == startOfToday)
+        #expect(range.end == expectedEnd)
+        #expect(range.end != nil)
+    }
+
+    @Test("Custom returns nil bounds (handled separately)")
+    func customRange() {
+        let range = DateRangeFilter.custom.dateRange()
+        #expect(range.start == nil)
+        #expect(range.end == nil)
+    }
+
+    @Test("Overdue end equals start of today")
+    func overdueEndIsStartOfToday() {
+        let now = Date()
+        let startOfToday = Calendar.current.startOfDay(for: now)
+        let range = DateRangeFilter.overdue.dateRange(from: now)
+        #expect(range.start == nil)
+        #expect(range.end == startOfToday)
+    }
+
+    @Test("DateRangeFilter id equals rawValue")
+    func idEqualsRawValue() {
+        for filter in DateRangeFilter.allCases {
+            #expect(filter.id == filter.rawValue)
+        }
+    }
+
     @Test("All cases have display names")
     func displayNames() {
         for range in DateRangeFilter.allCases {
