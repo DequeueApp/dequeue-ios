@@ -282,7 +282,20 @@ struct AppGroupConfigContextTests {
 
 // MARK: - IntentEventHelper Tests
 
-@Suite("IntentEventHelper")
+/// In the unit-test environment the App Group entitlement is unavailable, so
+/// AppGroupConfig.sharedDefaults returns nil and IntentEventHelper.userContext()
+/// always returns nil.  These tests verify that every record* method handles
+/// the nil-context guard gracefully (no crash, no event inserted).
+
+private func makeIntentTestContainer() throws -> ModelContainer {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    return try ModelContainer(
+        for: Event.self, Stack.self, QueueTask.self, Reminder.self, Attachment.self, Tag.self, Arc.self,
+        configurations: config
+    )
+}
+
+@Suite("IntentEventHelper", .serialized)
 @MainActor
 struct IntentEventHelperTests {
     @Test("userContext returns value or nil gracefully")
@@ -290,5 +303,72 @@ struct IntentEventHelperTests {
         // This tests that the method doesn't crash regardless of app group state
         let result = IntentEventHelper.userContext()
         _ = result  // May be nil if no user is stored
+    }
+
+    @Test("appId is non-empty")
+    func appIdNonEmpty() {
+        #expect(!IntentEventHelper.appId.isEmpty)
+    }
+
+    // MARK: - Nil-userContext guard paths
+
+    @Test("recordTaskCreated inserts no event when userContext is nil")
+    func recordTaskCreatedNoContext() throws {
+        let container = try makeIntentTestContainer()
+        let context = container.mainContext
+        let task = QueueTask(title: "Test Task")
+        context.insert(task)
+
+        IntentEventHelper.recordTaskCreated(task, context: context)
+
+        #expect(try context.fetchCount(FetchDescriptor<Event>()) == 0)
+    }
+
+    @Test("recordTaskCompleted inserts no event when userContext is nil")
+    func recordTaskCompletedNoContext() throws {
+        let container = try makeIntentTestContainer()
+        let context = container.mainContext
+        let task = QueueTask(title: "Finished Task", status: .completed)
+        context.insert(task)
+
+        IntentEventHelper.recordTaskCompleted(task, context: context)
+
+        #expect(try context.fetchCount(FetchDescriptor<Event>()) == 0)
+    }
+
+    @Test("recordStackCompleted inserts no event when userContext is nil")
+    func recordStackCompletedNoContext() throws {
+        let container = try makeIntentTestContainer()
+        let context = container.mainContext
+        let stack = Stack(title: "Done Stack")
+        context.insert(stack)
+
+        IntentEventHelper.recordStackCompleted(stack, context: context)
+
+        #expect(try context.fetchCount(FetchDescriptor<Event>()) == 0)
+    }
+
+    @Test("recordStackActivated inserts no event when userContext is nil")
+    func recordStackActivatedNoContext() throws {
+        let container = try makeIntentTestContainer()
+        let context = container.mainContext
+        let stack = Stack(title: "Active Stack", isActive: true)
+        context.insert(stack)
+
+        IntentEventHelper.recordStackActivated(stack, context: context)
+
+        #expect(try context.fetchCount(FetchDescriptor<Event>()) == 0)
+    }
+
+    @Test("recordStackDeactivated inserts no event when userContext is nil")
+    func recordStackDeactivatedNoContext() throws {
+        let container = try makeIntentTestContainer()
+        let context = container.mainContext
+        let stack = Stack(title: "Idle Stack")
+        context.insert(stack)
+
+        IntentEventHelper.recordStackDeactivated(stack, context: context)
+
+        #expect(try context.fetchCount(FetchDescriptor<Event>()) == 0)
     }
 }
