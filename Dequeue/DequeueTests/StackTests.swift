@@ -269,4 +269,196 @@ struct StackTests {
             #expect(task.title == "Task \(index + 1)")
         }
     }
+
+    // MARK: - activeTask with explicit activeTaskId
+
+    @Test("activeTask returns task matching activeTaskId when valid")
+    @MainActor
+    func activeTaskReturnsExplicitActiveTask() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+
+        let task1 = QueueTask(title: "First", status: .pending, sortOrder: 0)
+        context.insert(task1)
+        stack.tasks.append(task1)
+
+        let task2 = QueueTask(title: "Second", status: .pending, sortOrder: 1)
+        context.insert(task2)
+        stack.tasks.append(task2)
+
+        // Explicitly set activeTaskId to the second task
+        stack.activeTaskId = task2.id
+
+        try context.save()
+
+        // Should return task2, not task1 (which would be first by sortOrder)
+        #expect(stack.activeTask?.title == "Second")
+    }
+
+    @Test("activeTask falls back to first pending when activeTaskId points to deleted task")
+    @MainActor
+    func activeTaskFallsBackWhenActiveTaskIdIsDeleted() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+
+        let deletedTask = QueueTask(title: "Deleted", status: .pending, sortOrder: 0, isDeleted: true)
+        context.insert(deletedTask)
+        stack.tasks.append(deletedTask)
+
+        let aliveTask = QueueTask(title: "Alive", status: .pending, sortOrder: 1)
+        context.insert(aliveTask)
+        stack.tasks.append(aliveTask)
+
+        // Point activeTaskId to the deleted task
+        stack.activeTaskId = deletedTask.id
+
+        try context.save()
+
+        // Should fall back to the alive pending task (deleted task is excluded)
+        #expect(stack.activeTask?.title == "Alive")
+    }
+
+    @Test("activeTask falls back to first pending when activeTaskId points to completed task")
+    @MainActor
+    func activeTaskFallsBackWhenActiveTaskIdIsCompleted() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+
+        let completedTask = QueueTask(title: "Completed", status: .completed, sortOrder: 0)
+        context.insert(completedTask)
+        stack.tasks.append(completedTask)
+
+        let pendingTask = QueueTask(title: "Pending", status: .pending, sortOrder: 1)
+        context.insert(pendingTask)
+        stack.tasks.append(pendingTask)
+
+        // Point activeTaskId to the completed task
+        stack.activeTaskId = completedTask.id
+
+        try context.save()
+
+        // Should fall back to the pending task (completed task is excluded)
+        #expect(stack.activeTask?.title == "Pending")
+    }
+
+    @Test("activeTask is nil when stack has no pending tasks")
+    @MainActor
+    func activeTaskIsNilWithNoPendingTasks() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+
+        let completedTask = QueueTask(title: "Done", status: .completed, sortOrder: 0)
+        context.insert(completedTask)
+        stack.tasks.append(completedTask)
+
+        try context.save()
+
+        #expect(stack.activeTask == nil)
+    }
+
+    // MARK: - activeReminders
+
+    @Test("activeReminders returns only non-deleted active reminders")
+    @MainActor
+    func activeRemindersFiltersCorrectly() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+
+        let activeReminder = Reminder(parentId: stack.id, parentType: .stack, status: .active, remindAt: Date())
+        context.insert(activeReminder)
+        stack.reminders.append(activeReminder)
+
+        let firedReminder = Reminder(parentId: stack.id, parentType: .stack, status: .fired, remindAt: Date())
+        context.insert(firedReminder)
+        stack.reminders.append(firedReminder)
+
+        let deletedReminder = Reminder(
+            parentId: stack.id, parentType: .stack, status: .active,
+            remindAt: Date(), isDeleted: true
+        )
+        context.insert(deletedReminder)
+        stack.reminders.append(deletedReminder)
+
+        let snoozedReminder = Reminder(parentId: stack.id, parentType: .stack, status: .snoozed, remindAt: Date())
+        context.insert(snoozedReminder)
+        stack.reminders.append(snoozedReminder)
+
+        try context.save()
+
+        #expect(stack.activeReminders.count == 1)
+        #expect(stack.activeReminders.first?.status == .active)
+    }
+
+    @Test("activeReminders is empty when stack has no reminders")
+    @MainActor
+    func activeRemindersEmptyForStackWithNoReminders() throws {
+        let stack = Stack(title: "Empty Stack")
+        #expect(stack.activeReminders.isEmpty)
+    }
+
+    // MARK: - tagNames
+
+    @Test("tagNames returns names of non-deleted tag objects")
+    @MainActor
+    func tagNamesReturnsNonDeletedTags() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+
+        let stack = Stack(title: "Test Stack")
+        context.insert(stack)
+
+        let tag1 = Tag(name: "work")
+        context.insert(tag1)
+        stack.tagObjects.append(tag1)
+
+        let tag2 = Tag(name: "urgent")
+        context.insert(tag2)
+        stack.tagObjects.append(tag2)
+
+        let deletedTag = Tag(name: "deleted-tag", isDeleted: true)
+        context.insert(deletedTag)
+        stack.tagObjects.append(deletedTag)
+
+        try context.save()
+
+        let names = stack.tagNames
+        #expect(names.count == 2)
+        #expect(names.contains("work"))
+        #expect(names.contains("urgent"))
+        #expect(!names.contains("deleted-tag"))
+    }
+
+    @Test("tagNames is empty when stack has no tag objects")
+    func tagNamesEmptyForStackWithNoTags() {
+        let stack = Stack(title: "No Tags Stack")
+        #expect(stack.tagNames.isEmpty)
+    }
+
+    // MARK: - status computed property
+
+    @Test("status rawValue round-trips correctly")
+    func statusRoundTrips() {
+        let stack = Stack(title: "Status Test", status: .completed)
+        #expect(stack.status == .completed)
+        #expect(stack.statusRawValue == StackStatus.completed.rawValue)
+
+        stack.status = .archived
+        #expect(stack.status == .archived)
+        #expect(stack.statusRawValue == StackStatus.archived.rawValue)
+    }
 }
