@@ -156,4 +156,62 @@ struct SyncManagerCircuitBreakerTests {
         )
         #expect(SyncManager.isClerkInfrastructureError(error) == false)
     }
+
+    // MARK: - HTTP 429 (Clerk rate-limiting) — added in PR #405 (DEQUEUE-APP-12)
+
+    @Test("HTTP 429 via status code string is a Clerk infra error")
+    func testHttp429StatusCode() {
+        // Clerk SDK surfaces 429 as "Request failed with status code: 429"
+        let error = NSError(
+            domain: "ClerkError",
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "Request failed with status code: 429"]
+        )
+        #expect(SyncManager.isClerkInfrastructureError(error) == true)
+    }
+
+    @Test("HTTP 429 with AlamoFire-style description is a Clerk infra error")
+    func testHttp429AlamofireStyle() {
+        // Some HTTP clients emit a slightly different message format
+        let error = NSError(
+            domain: NSURLErrorDomain,
+            code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "Response status code was unacceptable: status code: 429."]
+        )
+        #expect(SyncManager.isClerkInfrastructureError(error) == true)
+    }
+
+    @Test("HTTP 428 is NOT a Clerk infra error (adjacent code boundary check)")
+    func testHttp428NotInfra() {
+        let error = NSError(
+            domain: "HTTPError",
+            code: 428,
+            userInfo: [NSLocalizedDescriptionKey: "Request failed with status code: 428"]
+        )
+        #expect(SyncManager.isClerkInfrastructureError(error) == false)
+    }
+
+    @Test("HTTP 430 is NOT a Clerk infra error (adjacent code boundary check)")
+    func testHttp430NotInfra() {
+        let error = NSError(
+            domain: "HTTPError",
+            code: 430,
+            userInfo: [NSLocalizedDescriptionKey: "Request failed with status code: 430"]
+        )
+        #expect(SyncManager.isClerkInfrastructureError(error) == false)
+    }
+
+    @Test("Error description mentioning 429 without 'status code:' prefix is NOT matched")
+    func testHttp429WithoutStatusCodePrefix() {
+        // The classifier only matches "status code: 429" — bare "429" should not trigger it
+        let error = NSError(
+            domain: "SomeError",
+            code: 429,
+            userInfo: [NSLocalizedDescriptionKey: "Too many requests (429) — please retry later"]
+        )
+        // This error does NOT contain "status code: 429" so the 429 branch should not fire.
+        // However it IS NSURLErrorDomain/-1 which would still catch it if domain/code matched.
+        // With domain "SomeError" and code 429, neither branch fires → false.
+        #expect(SyncManager.isClerkInfrastructureError(error) == false)
+    }
 }
