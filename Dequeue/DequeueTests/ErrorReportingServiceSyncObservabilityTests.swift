@@ -254,24 +254,22 @@ struct ErrorReportingServiceSyncObservabilityTests {
 
     // MARK: - logProjectionSyncFailed
 
-    @Test("logProjectionSyncFailed unsuppressed fires Sentry event and does not crash")
-    func testLogProjectionSyncFailedUnsuppressed() {
+    @Test("logProjectionSyncFailed fires Sentry event and does not crash")
+    func testLogProjectionSyncFailedServerError() {
         let error = NSError(domain: "SyncError", code: 500, userInfo: [
             NSLocalizedDescriptionKey: "Projection sync failed: server returned 500"
         ])
         ErrorReportingService.logProjectionSyncFailed(error: error, duration: 2.5)
     }
 
-    @Test("logProjectionSyncFailed suppressed skips Sentry event and does not crash")
-    func testLogProjectionSyncFailedSuppressed() {
-        // isSuppressed=true → guard !isSuppressed else { return } fires.
-        // Breadcrumb still written; Sentry capture skipped.
+    @Test("logProjectionSyncFailed with URL error does not crash")
+    func testLogProjectionSyncFailedURLError() {
         let error = NSError(
             domain: NSURLErrorDomain,
-            code: -1,
-            userInfo: [NSLocalizedDescriptionKey: "Request failed with status code: 429"]
+            code: NSURLErrorNetworkConnectionLost,
+            userInfo: [NSLocalizedDescriptionKey: "The network connection was lost."]
         )
-        ErrorReportingService.logProjectionSyncFailed(error: error, duration: 0.3, isSuppressed: true)
+        ErrorReportingService.logProjectionSyncFailed(error: error, duration: 0.3)
     }
 
     @Test("logProjectionSyncFailed with long error message does not crash")
