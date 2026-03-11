@@ -598,10 +598,14 @@ struct RootView: View {
                 return // Success, exit retry loop
             } catch {
                 os_log("[Sync] Connection attempt \(attempt) failed: \(error.localizedDescription)")
-                // AuthError.notAuthenticated is expected at app startup before Clerk finishes
-                // loading — skip Sentry to avoid chronic noise (DEQUEUE-APP-10).
+                // AuthError.notAuthenticated/.noToken is expected at app startup before Clerk
+                // finishes loading — skip Sentry to avoid chronic noise (DEQUEUE-APP-10).
+                // ClerkAPIError with authentication_invalid is also expected: iOS fires background
+                // tasks to sync while the Clerk session is inactive (app in background). This is
+                // normal iOS behaviour, not a code bug — suppress to avoid noise (DEQUEUE-APP-1A).
                 let isExpectedAuthError = (error as? AuthError) == .notAuthenticated
                     || (error as? AuthError) == .noToken
+                    || error.localizedDescription.contains("authentication_invalid")
                 if !isExpectedAuthError {
                     ErrorReportingService.capture(
                         error: error,
