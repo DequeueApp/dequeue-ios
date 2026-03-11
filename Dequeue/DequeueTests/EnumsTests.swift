@@ -419,3 +419,48 @@ struct EventTypeTests {
         #expect(EventType(rawValue: "stack") == nil)
     }
 }
+
+// MARK: - TaskPriorityLevel Tests
+
+@Suite("TaskPriorityLevel Tests")
+@MainActor
+struct TaskPriorityLevelTests {
+    @Test("TaskPriorityLevel has correct Int raw values")
+    func taskPriorityLevelRawValues() {
+        #expect(TaskPriorityLevel.none.rawValue == 0)
+        #expect(TaskPriorityLevel.low.rawValue == 1)
+        #expect(TaskPriorityLevel.medium.rawValue == 2)
+        #expect(TaskPriorityLevel.high.rawValue == 3)
+    }
+
+    @Test("TaskPriorityLevel can be created from valid Int raw values")
+    func taskPriorityLevelFromRawValue() {
+        // Use explicit type to avoid `.none` being interpreted as Optional.none
+        #expect(TaskPriorityLevel(rawValue: 0) == TaskPriorityLevel.none)
+        #expect(TaskPriorityLevel(rawValue: 1) == TaskPriorityLevel.low)
+        #expect(TaskPriorityLevel(rawValue: 2) == TaskPriorityLevel.medium)
+        #expect(TaskPriorityLevel(rawValue: 3) == TaskPriorityLevel.high)
+    }
+
+    @Test("TaskPriorityLevel returns nil for out-of-range raw values")
+    func taskPriorityLevelInvalidRawValue() {
+        #expect(TaskPriorityLevel(rawValue: -1) == nil)
+        #expect(TaskPriorityLevel(rawValue: 4) == nil)
+        #expect(TaskPriorityLevel(rawValue: 99) == nil)
+    }
+
+    @Test("TaskPriorityLevel raw values are strictly ascending")
+    func taskPriorityLevelOrdering() {
+        #expect(TaskPriorityLevel.none.rawValue < TaskPriorityLevel.low.rawValue)
+        #expect(TaskPriorityLevel.low.rawValue < TaskPriorityLevel.medium.rawValue)
+        #expect(TaskPriorityLevel.medium.rawValue < TaskPriorityLevel.high.rawValue)
+    }
+
+    @Test("TaskPriorityLevel none is the default (rawValue 0)")
+    func taskPriorityLevelNoneIsZero() {
+        // Used in LocalStatsService as the fallback when priority is nil
+        // Use explicit type to avoid `.none` being interpreted as Optional.none
+        let fallback = TaskPriorityLevel(rawValue: TaskPriorityLevel.none.rawValue)
+        #expect(fallback == TaskPriorityLevel.none)
+    }
+}
