@@ -193,4 +193,174 @@ struct EventTests {
         // Without metadata, isFromAI returns false (safe default)
         #expect(event.isFromAI == false)
     }
+
+    // MARK: - decodePayload Wrapper Format Tests (sync protocol)
+
+    @Test("decodePayload handles 'state' wrapper (used by *.created events)")
+    func decodePayloadStateWrapper() throws {
+        struct TestPayload: Codable, Equatable {
+            let id: String
+            let name: String
+        }
+
+        // Simulate a sync event that wraps the payload under "state"
+        let wrapped: [String: Any] = ["state": ["id": "stack-1", "name": "My Stack"]]
+        let payload = try JSONSerialization.data(withJSONObject: wrapped)
+
+        let event = Event(
+            eventType: .stackCreated,
+            payload: payload,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+
+        let decoded = try event.decodePayload(TestPayload.self)
+        #expect(decoded == TestPayload(id: "stack-1", name: "My Stack"))
+    }
+
+    @Test("decodePayload handles 'fullState' wrapper (used by *.updated events)")
+    func decodePayloadFullStateWrapper() throws {
+        struct TestPayload: Codable, Equatable {
+            let id: String
+            let title: String
+        }
+
+        // Simulate a sync event that wraps the payload under "fullState"
+        let wrapped: [String: Any] = ["fullState": ["id": "task-abc", "title": "Do the thing"]]
+        let payload = try JSONSerialization.data(withJSONObject: wrapped)
+
+        let event = Event(
+            eventType: .taskUpdated,
+            payload: payload,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+
+        let decoded = try event.decodePayload(TestPayload.self)
+        #expect(decoded == TestPayload(id: "task-abc", title: "Do the thing"))
+    }
+
+    @Test("decodePayload throws when payload is incompatible with all formats")
+    func decodePayloadThrowsOnBadPayload() throws {
+        struct TestPayload: Codable {
+            let requiredField: String
+        }
+
+        // JSON that has no matching key in flat, state, or fullState format
+        let incompatible = try JSONEncoder().encode(["wrongKey": "wrongValue"])
+        let event = Event(
+            eventType: .stackCreated,
+            payload: incompatible,
+            userId: "test-user",
+            deviceId: "test-device",
+            appId: "test-app"
+        )
+
+        #expect(throws: (any Error).self) {
+            try event.decodePayload(TestPayload.self)
+        }
+    }
+
+    // MARK: - decodeMetadata Tests
+
+    @Test("decodeMetadata returns nil when metadata is nil")
+    func decodeMetadataNilReturnsNil() throws {
+        struct TestMeta: Codable { let label: String }
+
+        let event = Event(
+            eventType: .stackCreated,
+            payload: Data(),
+            metadata: nil,
+            userId: "u",
+            deviceId: "d",
+            appId: "a"
+        )
+
+        let result = try event.decodeMetadata(TestMeta.self)
+        #expect(result == nil)
+    }
+
+    @Test("decodeMetadata decodes present metadata")
+    func decodeMetadataPresentDecodes() throws {
+        struct TestMeta: Codable, Equatable { let label: String }
+
+        let original = TestMeta(label: "agent-run-42")
+        let metadata = try JSONEncoder().encode(original)
+
+        let event = Event(
+            eventType: .stackCreated,
+            payload: Data(),
+            metadata: metadata,
+            userId: "u",
+            deviceId: "d",
+            appId: "a"
+        )
+
+        let result = try event.decodeMetadata(TestMeta.self)
+        #expect(result == original)
+    }
+
+    // MARK: - Event Field Tests
+
+    @Test("Event stores entityId correctly")
+    func eventStoresEntityId() throws {
+        let event = Event(
+            eventType: .stackCreated,
+            payload: Data(),
+            entityId: "stack-xyz",
+            userId: "u",
+            deviceId: "d",
+            appId: "a"
+        )
+
+        #expect(event.entityId == "stack-xyz")
+    }
+
+    @Test("Event payloadVersion defaults to 2 (currentPayloadVersion)")
+    func eventPayloadVersionDefault() throws {
+        let event = Event(
+            eventType: .stackCreated,
+            payload: Data(),
+            userId: "u",
+            deviceId: "d",
+            appId: "a"
+        )
+
+        #expect(event.payloadVersion == Event.currentPayloadVersion)
+        #expect(event.payloadVersion == 2)
+    }
+
+    @Test("Event isSynced starts false and syncedAt starts nil")
+    func eventIsSyncedInitialState() throws {
+        let event = Event(
+            eventType: .taskCompleted,
+            payload: Data(),
+            userId: "u",
+            deviceId: "d",
+            appId: "a"
+        )
+
+        #expect(event.isSynced == false)
+        #expect(event.syncedAt == nil)
+    }
+
+    @Test("Event isSynced and syncedAt can be updated after sync")
+    func eventIsSyncedTransition() throws {
+        let event = Event(
+            eventType: .taskCompleted,
+            payload: Data(),
+            userId: "u",
+            deviceId: "d",
+            appId: "a"
+        )
+
+        let syncTime = Date()
+        event.isSynced = true
+        event.syncedAt = syncTime
+
+        #expect(event.isSynced == true)
+        #expect(event.syncedAt == syncTime)
+    }
 }
