@@ -193,7 +193,7 @@ struct SyncManagerDateParsersTests {
             let sm = try SyncManagerDateParsersTests.makeSyncManager()
             // Build the expected date from components to avoid hardcoding a timestamp.
             var cal = Calendar(identifier: .gregorian)
-            cal.timeZone = TimeZone(identifier: "UTC")!
+            cal.timeZone = try #require(TimeZone(identifier: "UTC"))
             let comps = DateComponents(year: 2024, month: 1, day: 15, hour: 10, minute: 30, second: 45)
             let expected = try #require(cal.date(from: comps))
             let result = sm.parseISO8601("2024-01-15T10:30:45Z")
