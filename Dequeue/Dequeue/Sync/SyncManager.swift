@@ -489,11 +489,16 @@ actor SyncManager {
                 // background while Clerk's token refresh is in-flight, which causes the
                 // refresh to time out. This is expected behaviour, not a real auth failure.
                 let suspended = isSuspendedForBackground
+                // Also suppress authentication_invalid: fired when a Clerk session is revoked
+                // or expired — handled downstream by the session-invalidation flow (sign-out /
+                // re-login prompt), not a sync code bug. Reporting here generates DEQUEUE-APP-1
+                // noise identical to the background-task race (DEQUEUE-APP-1A).
+                let isAuthInvalid = Self.isAuthenticationError(error)
                 await MainActor.run {
                     ErrorReportingService.logAuthTokenRefresh(
                         success: false,
                         error: error.localizedDescription,
-                        isSuppressed: suspended
+                        isSuppressed: suspended || isAuthInvalid
                     )
                 }
                 throw error
@@ -1749,7 +1754,13 @@ actor SyncManager {
             if needsInitialSync {
                 isInitialSyncActive = false
             }
-            await ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
+            // Auth errors (e.g. authentication_invalid) are handled by the session-invalidation
+            // flow — no need to flood Sentry with them here. Clerk infra errors (530,
+            // internal_clerk_error, 429) are already handled via cooldown backoff.
+            // Only report genuinely unexpected errors that warrant investigation.
+            if !Self.isAuthenticationError(error) && !Self.isClerkInfrastructureError(error) {
+                await ErrorReportingService.capture(error: error, context: ["source": "initial_pull"])
+            }
         }
     }
 
@@ -1781,7 +1792,7 @@ actor SyncManager {
                 } catch {
                     // Auth errors are permanent — stop the loop to avoid spamming Sentry
                     // (e.g. Clerk session revoked: repeating every 5s generates thousands of events)
-                    if await self.isAuthenticationError(error) {
+                    if SyncManager.isAuthenticationError(error) {
                         os_log("[Sync] Periodic push: auth failure, disconnecting to stop retry loop")
                         await self.disconnect()
                         break
@@ -1846,7 +1857,7 @@ actor SyncManager {
                     try await self.pullEvents()
                 } catch {
                     // Auth errors are permanent — stop the loop to avoid spamming Sentry
-                    if await self.isAuthenticationError(error) {
+                    if SyncManager.isAuthenticationError(error) {
                         os_log("[Sync] Fallback pull: auth failure, disconnecting to stop retry loop")
                         await self.disconnect()
                         break
@@ -1869,12 +1880,26 @@ actor SyncManager {
     ///
     /// When auth is permanently broken (e.g. Clerk session revoked/expired), periodic sync
     /// loops should stop rather than retrying — each retry produces a Sentry event.
-    private func isAuthenticationError(_ error: Error) -> Bool {
+    static func isAuthenticationError(_ error: Error) -> Bool {
         if case SyncError.notAuthenticated = error { return true }
         if case AuthError.notAuthenticated = error { return true }
-        // Clerk errors with authentication_invalid code are permanent (session revoked)
-        let description = error.localizedDescription
-        if description.contains("authentication_invalid") || description.contains("Unable to authenticate") {
+        // Clerk errors with authentication_invalid code are permanent (session revoked).
+        //
+        // IMPORTANT: Clerk SDK's `localizedDescription` returns the human-readable `message`
+        // field ("Invalid authentication") — NOT the machine-readable `code` field
+        // ("authentication_invalid"). We must check BOTH `localizedDescription` and
+        // `String(describing:)` because the full ClerkAPIError struct representation
+        // (which includes the code) only appears in the latter.
+        //
+        // This was the root cause of DEQUEUE-APP-T (2,200+ Sentry events): the auth check
+        // returned false because localizedDescription lacked "authentication_invalid",
+        // so the error fell through to the generic Sentry capture in the periodic push loop.
+        let localizedDesc = error.localizedDescription
+        let fullDesc = String(describing: error)
+        if localizedDesc.contains("authentication_invalid")
+            || localizedDesc.contains("Unable to authenticate")
+            || fullDesc.contains("authentication_invalid")
+            || fullDesc.contains("Unable to authenticate") {
             return true
         }
         return false
