@@ -603,9 +603,15 @@ struct RootView: View {
                 // ClerkAPIError with authentication_invalid is also expected: iOS fires background
                 // tasks to sync while the Clerk session is inactive (app in background). This is
                 // normal iOS behaviour, not a code bug — suppress to avoid noise (DEQUEUE-APP-1A).
+                //
+                // Use SyncManager.isAuthenticationError which checks BOTH localizedDescription
+                // AND String(describing:) — Clerk's localizedDescription returns the human-readable
+                // message ("Invalid authentication"), NOT the machine-readable code
+                // ("authentication_invalid"), so a localizedDescription-only check misses events.
+                // This was the root cause of DEQUEUE-APP-1A leaking into Sentry.
                 let isExpectedAuthError = (error as? AuthError) == .notAuthenticated
                     || (error as? AuthError) == .noToken
-                    || error.localizedDescription.contains("authentication_invalid")
+                    || SyncManager.isAuthenticationError(error)
                 if !isExpectedAuthError {
                     ErrorReportingService.capture(
                         error: error,
