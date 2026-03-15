@@ -272,7 +272,7 @@ jobs:
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: dequeue-ios
+          SENTRY_PROJECT: dequeue-app
         with:
           environment: production
           version: ${{ github.sha }}
@@ -286,4 +286,4 @@ jobs:
           curl -sL https://sentry.io/get-cli/ | bash
 
           # Upload dSYMs
-          sentry-cli debug-files upload --org $SENTRY_ORG --project dequeue-ios ${{ runner.temp }}/dSYMs || true
+          sentry-cli debug-files upload --org $SENTRY_ORG --project dequeue-app ${{ runner.temp }}/dSYMs || true
