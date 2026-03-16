@@ -74,6 +74,15 @@ jobs:
           CHANGELOG: ${{ github.event.inputs.changelog || 'Bug fixes and improvements' }}
         run: bundle exec fastlane beta
 
+      - name: Upload dSYMs to Sentry
+        if: success()
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+        run: |
+          curl -sL https://sentry.io/get-cli/ | bash
+          sentry-cli debug-files upload --org "$SENTRY_ORG" --project dequeue-app build/ || true
+
       - name: Upload IPA Artifact
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
