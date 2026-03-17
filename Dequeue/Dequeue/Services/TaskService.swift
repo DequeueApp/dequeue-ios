@@ -12,11 +12,13 @@ import SwiftData
 final class TaskService {
     private let modelContext: ModelContext
     private let eventService: EventService
+    private let notificationService: NotificationService
     private let syncManager: SyncManager?
 
     init(modelContext: ModelContext, userId: String, deviceId: String, syncManager: SyncManager? = nil) {
         self.modelContext = modelContext
         self.eventService = EventService(modelContext: modelContext, userId: userId, deviceId: deviceId)
+        self.notificationService = NotificationService(modelContext: modelContext)
         self.syncManager = syncManager
     }
 
@@ -85,7 +87,6 @@ final class TaskService {
 
         // Auto-dismiss any active or snoozed reminders for this task (DEQ-212)
         // When a task is completed, its reminders should no longer appear as overdue/snoozed
-        let notificationService = NotificationService(modelContext: modelContext)
         for reminder in task.reminders where !reminder.isDeleted {
             if reminder.status == .active || reminder.status == .snoozed {
                 reminder.status = .fired
@@ -142,7 +143,6 @@ final class TaskService {
         task.syncState = .pending
 
         // Remove both pending and delivered notifications (DEQ-257)
-        let notificationService = NotificationService(modelContext: modelContext)
         notificationService.dismissNotifications(for: task.reminders)
 
         try await eventService.recordTaskUpdated(task)
@@ -173,7 +173,6 @@ final class TaskService {
 
     func deleteTask(_ task: QueueTask) async throws {
         // Remove both pending and delivered notifications before deletion (DEQ-257)
-        let notificationService = NotificationService(modelContext: modelContext)
         notificationService.dismissNotifications(for: task.reminders)
 
         task.isDeleted = true

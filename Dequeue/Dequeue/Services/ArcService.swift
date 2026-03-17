@@ -27,6 +27,7 @@ private let maxActiveArcs = 5
 final class ArcService {
     let modelContext: ModelContext
     let eventService: EventService
+    private let notificationService: NotificationService
     private let userId: String?
     let deviceId: String
     private(set) weak var syncManager: SyncManager?
@@ -47,6 +48,7 @@ final class ArcService {
         self.userId = userId
         self.deviceId = deviceId
         self.eventService = EventService(modelContext: modelContext, userId: userId ?? "", deviceId: deviceId)
+        self.notificationService = NotificationService(modelContext: modelContext)
         self.syncManager = syncManager
     }
 
@@ -225,7 +227,6 @@ final class ArcService {
     /// - Parameter arc: The arc to delete
     func deleteArc(_ arc: Arc) async throws {
         // Remove both pending and delivered notifications before deletion (DEQ-257)
-        let notificationService = NotificationService(modelContext: modelContext)
         notificationService.dismissNotifications(for: arc.reminders)
 
         let arcId = arc.id
@@ -268,7 +269,6 @@ final class ArcService {
         arc.revision += 1
 
         // Remove both pending and delivered notifications (DEQ-257)
-        let notificationService = NotificationService(modelContext: modelContext)
         notificationService.dismissNotifications(for: arc.reminders)
 
         try await eventService.recordArcCompleted(arc)
@@ -326,7 +326,6 @@ final class ArcService {
         arc.revision += 1
 
         // Remove both pending and delivered notifications (DEQ-257)
-        let notificationService = NotificationService(modelContext: modelContext)
         notificationService.dismissNotifications(for: arc.reminders)
 
         try await eventService.recordArcDeactivated(arc)
