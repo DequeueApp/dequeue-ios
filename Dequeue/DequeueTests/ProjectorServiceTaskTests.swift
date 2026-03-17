@@ -4,7 +4,7 @@
 //
 //  Tests for ProjectorService task event projection:
 //  taskCreated, taskUpdated, taskDeleted, taskCompleted, taskActivated, taskClosed,
-//  taskReordered, taskDelegatedToAI
+//  taskReordered, taskDelegatedToAI, taskAICompleted
 //
 
 import Testing
@@ -902,5 +902,146 @@ struct ProjectorServiceTaskTests {
         // delegatedToAI should remain false — deleted task is skipped
         #expect(task.delegatedToAI == false)
         #expect(task.isDeleted == true)
+    }
+
+    // MARK: - taskAICompleted Tests
+
+    private func makeAICompletedPayload(
+        taskId: String,
+        stackId: String = "stack1",
+        aiAgentId: String = "agent-ada",
+        aiAgentName: String? = "Ada",
+        resultSummary: String? = nil,
+        updatedAt: Date = Date()
+    ) throws -> Data {
+        var fullState = makeTaskState(
+            id: taskId,
+            stackId: stackId,
+            status: "completed",
+            delegatedToAI: false,
+            aiAgentId: aiAgentId,
+            updatedAt: Int64(updatedAt.timeIntervalSince1970 * 1_000)
+        )
+        fullState["delegatedToAI"] = false
+
+        var payloadDict: [String: Any] = [
+            "taskId": taskId,
+            "stackId": stackId,
+            "aiAgentId": aiAgentId,
+            "fullState": fullState
+        ]
+        if let name = aiAgentName { payloadDict["aiAgentName"] = name }
+        if let summary = resultSummary { payloadDict["resultSummary"] = summary }
+        return try JSONSerialization.data(withJSONObject: payloadDict)
+    }
+
+    @Test("taskAICompleted: marks task as completed and clears delegatedToAI")
+    func aiCompletedMarksTaskDone() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let taskId = CUID.generate()
+        let oldDate = Date(timeIntervalSinceNow: -200)
+        let task = QueueTask(id: taskId, title: "AI work item", status: .pending, updatedAt: oldDate)
+        task.delegatedToAI = true
+        task.aiAgentId = "agent-ada"
+        context.insert(task)
+        try context.save()
+
+        let payload = try makeAICompletedPayload(taskId: taskId, aiAgentId: "agent-ada")
+        let event = Event(
+            eventType: .taskAICompleted,
+            payload: payload,
+            entityId: taskId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        event.timestamp = Date()
+        context.insert(event)
+
+        try await ProjectorService.apply(event: event, context: context)
+
+        #expect(task.status == .completed)
+        #expect(task.delegatedToAI == false)
+        #expect(task.aiAgentId == "agent-ada")
+        #expect(task.syncState == .synced)
+        #expect(task.lastSyncedAt != nil)
+    }
+
+    @Test("taskAICompleted: LWW skips stale completion event")
+    func aiCompletedLwwSkipsStale() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let taskId = CUID.generate()
+        // Local task is very recent — stale event should be ignored
+        let futureDate = Date(timeIntervalSinceNow: 500)
+        let task = QueueTask(id: taskId, title: "Fresh Task", status: .pending, updatedAt: futureDate)
+        task.delegatedToAI = true
+        context.insert(task)
+        try context.save()
+
+        let payload = try makeAICompletedPayload(taskId: taskId)
+        let event = Event(
+            eventType: .taskAICompleted,
+            payload: payload,
+            entityId: taskId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        // Older event — should be skipped via LWW
+        event.timestamp = Date(timeIntervalSinceNow: -50)
+        context.insert(event)
+
+        try await ProjectorService.apply(event: event, context: context)
+
+        // Task should remain pending — stale event was dropped
+        #expect(task.status == .pending)
+        #expect(task.delegatedToAI == true)
+    }
+
+    @Test("taskAICompleted: ignores completion for deleted task")
+    func aiCompletedIgnoresDeleted() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let taskId = CUID.generate()
+        let baseTime = Date(timeIntervalSinceNow: -100)
+
+        // Create and then delete the task
+        let createPayload = try makeTaskPayload(id: taskId, title: "Ghost Task")
+        let createEvent = Event(
+            eventType: .taskCreated, payload: createPayload,
+            timestamp: baseTime, entityId: taskId, userId: "u", deviceId: "d", appId: "a"
+        )
+        context.insert(createEvent)
+        try await ProjectorService.apply(event: createEvent, context: context)
+
+        let deletePayload = try JSONSerialization.data(withJSONObject: ["id": taskId] as [String: Any])
+        let deleteEvent = Event(
+            eventType: .taskDeleted, payload: deletePayload,
+            timestamp: baseTime.addingTimeInterval(10), entityId: taskId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        context.insert(deleteEvent)
+        try await ProjectorService.apply(event: deleteEvent, context: context)
+
+        // Now try to AI-complete the deleted task
+        let aiPayload = try makeAICompletedPayload(taskId: taskId)
+        let aiEvent = Event(
+            eventType: .taskAICompleted,
+            payload: aiPayload,
+            entityId: taskId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        aiEvent.timestamp = Date()
+        context.insert(aiEvent)
+
+        try await ProjectorService.apply(event: aiEvent, context: context)
+
+        let predicate = #Predicate<QueueTask> { $0.id == taskId }
+        let tasks = try context.fetch(FetchDescriptor<QueueTask>(predicate: predicate))
+        let fetchedTask = try #require(tasks.first)
+        // Task is deleted — status should NOT be changed to completed
+        #expect(fetchedTask.isDeleted == true)
+        #expect(fetchedTask.status != .completed)
     }
 }
