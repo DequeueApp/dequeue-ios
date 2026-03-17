@@ -41,6 +41,10 @@ final class MockSmartNotificationCenter: NotificationCenterProtocol, @unchecked 
         scheduledRequests.removeAll { identifiers.contains($0.identifier) }
     }
 
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
+        removedIdentifiers.append(contentsOf: identifiers)
+    }
+
     func removeAllPendingNotificationRequests() {
         allPendingRemoved = true
         scheduledRequests.removeAll()

@@ -341,9 +341,10 @@ final class StackService {
                 reminder.status = .fired
                 reminder.updatedAt = Date()
                 reminder.syncState = .pending
-                notificationService.cancelNotification(for: reminder)
             }
         }
+        // Remove both pending and delivered notifications (DEQ-257)
+        notificationService.dismissNotifications(for: stack.reminders)
 
         try await eventService.recordStackCompleted(stack)
         try modelContext.save()
@@ -430,6 +431,10 @@ final class StackService {
         stack.updatedAt = Date()
         stack.syncState = .pending
 
+        // Remove both pending and delivered notifications (DEQ-257)
+        let notificationService = NotificationService(modelContext: modelContext)
+        notificationService.dismissNotifications(for: stack.reminders)
+
         try await eventService.recordStackUpdated(stack)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
@@ -438,6 +443,10 @@ final class StackService {
     // MARK: - Delete
 
     func deleteStack(_ stack: Stack) async throws {
+        // Remove both pending and delivered notifications before deletion (DEQ-257)
+        let notificationService = NotificationService(modelContext: modelContext)
+        notificationService.dismissNotifications(for: stack.reminders)
+
         stack.isDeleted = true
         stack.updatedAt = Date()
         stack.syncState = .pending

@@ -20,6 +20,7 @@ final class MockNotificationCenter: NotificationCenterProtocol, @unchecked Senda
     var authorizationStatus: UNAuthorizationStatus = .notDetermined
     var addedRequests: [UNNotificationRequest] = []
     var removedIdentifiers: [String] = []
+    var removedDeliveredIdentifiers: [String] = []
     var allPendingRemoved = false
     var pendingRequests: [UNNotificationRequest] = []
 
@@ -37,6 +38,10 @@ final class MockNotificationCenter: NotificationCenterProtocol, @unchecked Senda
     func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
         removedIdentifiers.append(contentsOf: identifiers)
         pendingRequests.removeAll { identifiers.contains($0.identifier) }
+    }
+
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
+        removedDeliveredIdentifiers.append(contentsOf: identifiers)
     }
 
     func removeAllPendingNotificationRequests() {
@@ -617,5 +622,75 @@ struct NotificationServiceTests {
         #expect(userInfo?[NotificationConstants.UserInfoKey.reminderId] as? String == reminder.id)
         #expect(userInfo?[NotificationConstants.UserInfoKey.parentType] as? String == ParentType.task.rawValue)
         #expect(userInfo?[NotificationConstants.UserInfoKey.parentId] as? String == task.id)
+    }
+
+    // MARK: - Dismiss Notifications Tests (DEQ-257)
+
+    @Test("dismissNotifications removes both pending and delivered notifications")
+    @MainActor
+    func dismissNotificationsRemovesBothPendingAndDelivered() async throws {
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let reminder1 = ctx.createStackReminder(stack: stack)
+        let reminder2 = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(7_200))
+        try ctx.save()
+
+        ctx.service.dismissNotifications(for: [reminder1, reminder2])
+
+        // Should remove pending notifications
+        #expect(ctx.mockCenter.removedIdentifiers.contains(reminder1.id))
+        #expect(ctx.mockCenter.removedIdentifiers.contains(reminder2.id))
+        // Should also remove delivered notifications
+        #expect(ctx.mockCenter.removedDeliveredIdentifiers.contains(reminder1.id))
+        #expect(ctx.mockCenter.removedDeliveredIdentifiers.contains(reminder2.id))
+    }
+
+    @Test("dismissNotifications skips deleted reminders")
+    @MainActor
+    func dismissNotificationsSkipsDeletedReminders() async throws {
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let activeReminder = ctx.createStackReminder(stack: stack)
+        let deletedReminder = ctx.createStackReminder(stack: stack, remindAt: Date().addingTimeInterval(7_200))
+        try ctx.save()
+
+        // Mark as deleted without saving to avoid SwiftData removing the object
+        deletedReminder.isDeleted = true
+
+        ctx.service.dismissNotifications(for: [activeReminder, deletedReminder])
+
+        // Only the active reminder should be dismissed
+        #expect(ctx.mockCenter.removedIdentifiers.contains(activeReminder.id))
+        #expect(!ctx.mockCenter.removedIdentifiers.contains(deletedReminder.id))
+        #expect(ctx.mockCenter.removedDeliveredIdentifiers.contains(activeReminder.id))
+        #expect(!ctx.mockCenter.removedDeliveredIdentifiers.contains(deletedReminder.id))
+    }
+
+    @Test("dismissNotifications does nothing for empty reminders list")
+    @MainActor
+    func dismissNotificationsDoesNothingForEmpty() async throws {
+        let ctx = try TestContext()
+
+        ctx.service.dismissNotifications(for: [])
+
+        #expect(ctx.mockCenter.removedIdentifiers.isEmpty)
+        #expect(ctx.mockCenter.removedDeliveredIdentifiers.isEmpty)
+    }
+
+    @Test("dismissNotifications does nothing when all reminders are deleted")
+    @MainActor
+    func dismissNotificationsDoesNothingWhenAllDeleted() async throws {
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let reminder = ctx.createStackReminder(stack: stack)
+        try ctx.save()
+
+        // Mark as deleted without saving to avoid SwiftData removing the object
+        reminder.isDeleted = true
+
+        ctx.service.dismissNotifications(for: [reminder])
+
+        #expect(ctx.mockCenter.removedIdentifiers.isEmpty)
+        #expect(ctx.mockCenter.removedDeliveredIdentifiers.isEmpty)
     }
 }

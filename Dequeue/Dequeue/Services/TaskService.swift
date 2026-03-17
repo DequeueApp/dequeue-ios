@@ -91,9 +91,10 @@ final class TaskService {
                 reminder.status = .fired
                 reminder.updatedAt = Date()
                 reminder.syncState = .pending
-                notificationService.cancelNotification(for: reminder)
             }
         }
+        // Remove both pending and delivered notifications (DEQ-257)
+        notificationService.dismissNotifications(for: task.reminders)
 
         try await eventService.recordTaskCompleted(task)
         try modelContext.save()
@@ -140,6 +141,10 @@ final class TaskService {
         task.updatedAt = Date()
         task.syncState = .pending
 
+        // Remove both pending and delivered notifications (DEQ-257)
+        let notificationService = NotificationService(modelContext: modelContext)
+        notificationService.dismissNotifications(for: task.reminders)
+
         try await eventService.recordTaskUpdated(task)
         try modelContext.save()
         syncManager?.triggerImmediatePush()
@@ -167,6 +172,10 @@ final class TaskService {
     // MARK: - Delete
 
     func deleteTask(_ task: QueueTask) async throws {
+        // Remove both pending and delivered notifications before deletion (DEQ-257)
+        let notificationService = NotificationService(modelContext: modelContext)
+        notificationService.dismissNotifications(for: task.reminders)
+
         task.isDeleted = true
         task.updatedAt = Date()
         task.syncState = .pending
