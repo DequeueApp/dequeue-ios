@@ -3,7 +3,8 @@
 //  DequeueTests
 //
 //  Tests for ProjectorService task event projection:
-//  taskCreated, taskUpdated, taskDeleted, taskCompleted, taskActivated, taskClosed
+//  taskCreated, taskUpdated, taskDeleted, taskCompleted, taskActivated, taskClosed,
+//  taskReordered, taskDelegatedToAI
 //
 
 import Testing
@@ -599,5 +600,307 @@ struct ProjectorServiceTaskTests {
         try await ProjectorService.apply(event: event, context: context)
 
         #expect(existingTask.status == .pending)
+    }
+
+    // MARK: - taskReordered Tests
+
+    @Test("taskReordered: updates sortOrder for all tasks in payload")
+    func reordersMultipleTasks() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let oldDate = Date(timeIntervalSinceNow: -200)
+        let id1 = CUID.generate()
+        let id2 = CUID.generate()
+        let id3 = CUID.generate()
+
+        let task1 = QueueTask(id: id1, title: "Task 1", updatedAt: oldDate)
+        task1.sortOrder = 0
+        let task2 = QueueTask(id: id2, title: "Task 2", updatedAt: oldDate)
+        task2.sortOrder = 1
+        let task3 = QueueTask(id: id3, title: "Task 3", updatedAt: oldDate)
+        task3.sortOrder = 2
+        context.insert(task1)
+        context.insert(task2)
+        context.insert(task3)
+        try context.save()
+
+        // Reverse order: task3 → 0, task2 → 1, task1 → 2
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "taskIds": [id3, id2, id1],
+            "sortOrders": [0, 1, 2]
+        ] as [String: Any])
+
+        let event = Event(
+            eventType: .taskReordered,
+            payload: payload,
+            entityId: id1,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        event.timestamp = Date()
+        context.insert(event)
+
+        try await ProjectorService.apply(event: event, context: context)
+
+        #expect(task1.sortOrder == 2)
+        #expect(task2.sortOrder == 1)
+        #expect(task3.sortOrder == 0)
+        #expect(task1.syncState == .synced)
+    }
+
+    @Test("taskReordered: LWW skips task whose local timestamp is newer")
+    func reorderLwwSkipsNewerTask() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let id1 = CUID.generate()
+        let id2 = CUID.generate()
+
+        // task1 has a future timestamp (local is newer)
+        let task1 = QueueTask(id: id1, title: "Task 1", updatedAt: Date(timeIntervalSinceNow: 500))
+        task1.sortOrder = 0
+        // task2 has an old timestamp (event is newer)
+        let task2 = QueueTask(id: id2, title: "Task 2", updatedAt: Date(timeIntervalSinceNow: -200))
+        task2.sortOrder = 1
+        context.insert(task1)
+        context.insert(task2)
+        try context.save()
+
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "taskIds": [id1, id2],
+            "sortOrders": [99, 88]
+        ] as [String: Any])
+
+        let event = Event(
+            eventType: .taskReordered,
+            payload: payload,
+            entityId: id1,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        event.timestamp = Date()
+        context.insert(event)
+
+        try await ProjectorService.apply(event: event, context: context)
+
+        // task1 should NOT be updated (local is newer)
+        #expect(task1.sortOrder == 0)
+        // task2 SHOULD be updated (event is newer)
+        #expect(task2.sortOrder == 88)
+    }
+
+    @Test("taskReordered: skips deleted tasks silently")
+    func reorderSkipsDeletedTask() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let oldDate = Date(timeIntervalSinceNow: -200)
+        let taskId = CUID.generate()
+
+        // Create then soft-delete the task via event sourcing
+        let createPayload = try makeTaskPayload(id: taskId, title: "Deleted Task")
+        let createEvent = Event(
+            eventType: .taskCreated, payload: createPayload,
+            timestamp: oldDate, entityId: taskId, userId: "u", deviceId: "d", appId: "a"
+        )
+        context.insert(createEvent)
+        try await ProjectorService.apply(event: createEvent, context: context)
+
+        let deletePayload = try JSONSerialization.data(withJSONObject: ["id": taskId] as [String: Any])
+        let deleteEvent = Event(
+            eventType: .taskDeleted, payload: deletePayload,
+            timestamp: oldDate.addingTimeInterval(10), entityId: taskId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        context.insert(deleteEvent)
+        try await ProjectorService.apply(event: deleteEvent, context: context)
+
+        // Now try to reorder the deleted task
+        let reorderPayload = try JSONSerialization.data(withJSONObject: [
+            "taskIds": [taskId],
+            "sortOrders": [42]
+        ] as [String: Any])
+
+        let reorderEvent = Event(
+            eventType: .taskReordered,
+            payload: reorderPayload,
+            entityId: taskId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        reorderEvent.timestamp = Date()
+        context.insert(reorderEvent)
+        try await ProjectorService.apply(event: reorderEvent, context: context)
+
+        let predicate = #Predicate<QueueTask> { $0.id == taskId }
+        let tasks = try context.fetch(FetchDescriptor<QueueTask>(predicate: predicate))
+        let task = try #require(tasks.first)
+        // sortOrder should NOT be 42 — deleted task reorder is skipped
+        #expect(task.sortOrder != 42)
+        #expect(task.isDeleted == true)
+    }
+
+    // MARK: - taskDelegatedToAI Tests
+
+    private func makeTaskState(
+        id: String,
+        stackId: String = "stack1",
+        title: String = "Test Task",
+        status: String = "pending",
+        delegatedToAI: Bool = false,
+        aiAgentId: String? = nil,
+        aiDelegatedAt: Int64? = nil,
+        updatedAt: Int64? = nil
+    ) -> [String: Any] {
+        var state: [String: Any] = [
+            "id": id,
+            "stackId": stackId,
+            "title": title,
+            "status": status,
+            "sortOrder": 0,
+            "createdAt": Int64(Date(timeIntervalSinceNow: -100).timeIntervalSince1970 * 1_000),
+            "updatedAt": updatedAt ?? Int64(Date().timeIntervalSince1970 * 1_000),
+            "deleted": false,
+            "delegatedToAI": delegatedToAI
+        ]
+        if let aiAgentId { state["aiAgentId"] = aiAgentId }
+        if let aiDelegatedAt { state["aiDelegatedAt"] = aiDelegatedAt }
+        return state
+    }
+
+    @Test("taskDelegatedToAI: sets delegatedToAI, aiAgentId, and aiDelegatedAt on task")
+    func delegatesToAI() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let taskId = CUID.generate()
+        let oldDate = Date(timeIntervalSinceNow: -100)
+        let task = QueueTask(id: taskId, title: "Automate me", status: .pending, updatedAt: oldDate)
+        task.delegatedToAI = false
+        context.insert(task)
+        try context.save()
+
+        let delegatedAtMs = Int64(Date().timeIntervalSince1970 * 1_000)
+        let fullState = makeTaskState(
+            id: taskId,
+            delegatedToAI: true,
+            aiAgentId: "agent-xyz",
+            aiDelegatedAt: delegatedAtMs
+        )
+
+        let payloadDict: [String: Any] = [
+            "taskId": taskId,
+            "stackId": "stack1",
+            "status": "pending",
+            "fullState": fullState
+        ]
+        let payload = try JSONSerialization.data(withJSONObject: payloadDict)
+
+        let event = Event(
+            eventType: .taskDelegatedToAI,
+            payload: payload,
+            entityId: taskId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        event.timestamp = Date()
+        context.insert(event)
+
+        try await ProjectorService.apply(event: event, context: context)
+
+        #expect(task.delegatedToAI == true)
+        #expect(task.aiAgentId == "agent-xyz")
+        #expect(task.aiDelegatedAt != nil)
+        #expect(task.syncState == .synced)
+    }
+
+    @Test("taskDelegatedToAI: LWW skips stale delegation event")
+    func delegateToAILwwSkipsStale() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let taskId = CUID.generate()
+        // Task has a future updatedAt — local is newer
+        let futureDate = Date(timeIntervalSinceNow: 500)
+        let task = QueueTask(id: taskId, title: "Modern Task", status: .pending, updatedAt: futureDate)
+        task.delegatedToAI = false
+        context.insert(task)
+        try context.save()
+
+        let fullState = makeTaskState(id: taskId, delegatedToAI: true, aiAgentId: "agent-abc")
+        let payloadDict: [String: Any] = [
+            "taskId": taskId,
+            "stackId": "stack1",
+            "status": "pending",
+            "fullState": fullState
+        ]
+        let payload = try JSONSerialization.data(withJSONObject: payloadDict)
+
+        let event = Event(
+            eventType: .taskDelegatedToAI,
+            payload: payload,
+            entityId: taskId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        // Event is older than local state
+        event.timestamp = Date(timeIntervalSinceNow: -50)
+        context.insert(event)
+
+        try await ProjectorService.apply(event: event, context: context)
+
+        // Should not be updated — event is stale
+        #expect(task.delegatedToAI == false)
+        #expect(task.aiAgentId == nil)
+    }
+
+    @Test("taskDelegatedToAI: ignores delegation for deleted task")
+    func delegateToAIIgnoresDeleted() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let taskId = CUID.generate()
+        let baseTime = Date(timeIntervalSinceNow: -100)
+
+        // Create then delete the task
+        let createPayload = try makeTaskPayload(id: taskId, title: "Doomed Task")
+        let createEvent = Event(
+            eventType: .taskCreated, payload: createPayload,
+            timestamp: baseTime, entityId: taskId, userId: "u", deviceId: "d", appId: "a"
+        )
+        context.insert(createEvent)
+        try await ProjectorService.apply(event: createEvent, context: context)
+
+        let deletePayload = try JSONSerialization.data(withJSONObject: ["id": taskId] as [String: Any])
+        let deleteEvent = Event(
+            eventType: .taskDeleted, payload: deletePayload,
+            timestamp: baseTime.addingTimeInterval(10), entityId: taskId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        context.insert(deleteEvent)
+        try await ProjectorService.apply(event: deleteEvent, context: context)
+
+        // Now try to delegate deleted task to AI
+        let fullState = makeTaskState(id: taskId, delegatedToAI: true, aiAgentId: "agent-xyz")
+        let payloadDict: [String: Any] = [
+            "taskId": taskId,
+            "stackId": "stack1",
+            "status": "pending",
+            "fullState": fullState
+        ]
+        let payload = try JSONSerialization.data(withJSONObject: payloadDict)
+
+        let delegateEvent = Event(
+            eventType: .taskDelegatedToAI,
+            payload: payload,
+            entityId: taskId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        delegateEvent.timestamp = Date()
+        context.insert(delegateEvent)
+        try await ProjectorService.apply(event: delegateEvent, context: context)
+
+        let predicate = #Predicate<QueueTask> { $0.id == taskId }
+        let tasks = try context.fetch(FetchDescriptor<QueueTask>(predicate: predicate))
+        let task = try #require(tasks.first)
+        // delegatedToAI should remain false — deleted task is skipped
+        #expect(task.delegatedToAI == false)
+        #expect(task.isDeleted == true)
     }
 }
