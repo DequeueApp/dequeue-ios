@@ -4,6 +4,12 @@
 //
 //  Handles sync with the backend via WebSocket and HTTP
 //
+//  Static utilities extracted to:
+//    - SyncManager+DateParsing.swift (ISO8601 parsing, event helpers)
+//    - SyncManager+ErrorClassification.swift (auth/infra error classification)
+//
+
+// swiftlint:disable file_length
 
 import Foundation
 import SwiftData
@@ -121,139 +127,6 @@ actor SyncManager {
 
     // Key for storing last sync checkpoint in UserDefaults (shared constant from DequeueApp)
     private let lastSyncCheckpointKey = DequeueApp.lastSyncCheckpointKey
-
-    // ISO8601 formatter that supports fractional seconds (Go's RFC3339Nano format)
-    // Note: ISO8601DateFormatter is thread-safe but not marked Sendable in current SDK
-    nonisolated(unsafe) static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    // Standard ISO8601 formatter without fractional seconds
-    // Note: ISO8601DateFormatter is thread-safe but not marked Sendable in current SDK
-    nonisolated(unsafe) static let iso8601Standard: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
-    // Pre-compiled regex patterns for timestamp parsing (compiled once, reused for performance)
-    // SAFETY: Force unwrap is safe because:
-    // 1. Patterns are compile-time constants (hardcoded string literals)
-    // 2. Patterns are valid regex syntax (verified by tests and manual inspection)
-    // 3. Compilation only happens once at static initialization, not at runtime
-    // swiftlint:disable force_try
-    private static let nanosecondsRegex: NSRegularExpression = {
-        // Matches ISO8601 timestamps with nanosecond precision, captures first 3 decimal places
-        try! NSRegularExpression(pattern: #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d{3})\d*(Z|[+-]\d{2}:\d{2})"#)
-    }()
-
-    private static let fractionalSecondsRegex: NSRegularExpression = {
-        // Matches ISO8601 timestamps with any fractional seconds (for removal)
-        try! NSRegularExpression(pattern: #"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.\d+(Z|[+-]\d{2}:\d{2})"#)
-    }()
-    // swiftlint:enable force_try
-
-    /// Adds actor metadata fields (actor_type, actor_id) to an event dictionary (DEQ-55).
-    /// Extracts from the encoded EventMetadata Data, mapping camelCase to snake_case for the server.
-    static func addActorMetadata(from metadata: Data?, to eventDict: inout [String: Any]) {
-        guard let metadata,
-              let metadataDict = try? JSONSerialization.jsonObject(with: metadata) as? [String: Any],
-              let actorType = metadataDict["actorType"] as? String else { return }
-        eventDict["actor_type"] = actorType
-        if let actorId = metadataDict["actorId"] as? String {
-            eventDict["actor_id"] = actorId
-        }
-    }
-
-    /// Generates a short sync ID for tracking sync operations in logs.
-    /// Uses first 8 characters of a UUID for brevity while maintaining uniqueness.
-    static func generateSyncId() -> String {
-        String(UUID().uuidString.prefix(8))
-    }
-
-    /// Parses ISO8601 timestamp, handling Go's RFC3339Nano format with nanosecond precision.
-    /// Go sends timestamps like "2024-01-15T10:30:45.123456789Z" but Swift's ISO8601DateFormatter
-    /// only handles milliseconds (3 decimal places). We truncate to milliseconds for parsing.
-    private static func parseISO8601(_ string: String) -> Date? {
-        // First, try parsing as-is with fractional seconds
-        if let date = iso8601WithFractionalSeconds.date(from: string) {
-            return date
-        }
-
-        // If that fails, try truncating nanoseconds to milliseconds
-        // Go sends: "2024-01-15T10:30:45.123456789Z"
-        // Swift needs: "2024-01-15T10:30:45.123Z"
-        let truncated = truncateNanosecondsToMilliseconds(string)
-        if let date = iso8601WithFractionalSeconds.date(from: truncated) {
-            return date
-        }
-
-        // Fall back to standard format without fractional seconds
-        if let date = iso8601Standard.date(from: string) {
-            return date
-        }
-
-        // Last resort: try removing fractional seconds entirely
-        let withoutFractional = removeFractionalSeconds(string)
-        return iso8601Standard.date(from: withoutFractional)
-    }
-
-    /// Truncates nanosecond precision to millisecond precision for ISO8601 parsing
-    /// Input:  "2024-01-15T10:30:45.123456789Z"
-    /// Output: "2024-01-15T10:30:45.123Z"
-    private static func truncateNanosecondsToMilliseconds(_ string: String) -> String {
-        let range = NSRange(string.startIndex..., in: string)
-        return nanosecondsRegex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1.$2$3")
-    }
-
-    /// Removes fractional seconds entirely from ISO8601 timestamp
-    /// Input:  "2024-01-15T10:30:45.123456789Z"
-    /// Output: "2024-01-15T10:30:45Z"
-    private static func removeFractionalSeconds(_ string: String) -> String {
-        let range = NSRange(string.startIndex..., in: string)
-        return fractionalSecondsRegex.stringByReplacingMatches(in: string, range: range, withTemplate: "$1$2")
-    }
-
-    /// Extracts the entity ID from an event payload for history queries.
-    /// Returns the ID of the entity (stack, task, reminder, device) that this event relates to.
-    private static func extractEntityId(from payload: [String: Any], eventType: String) -> String? {
-        // Check for direct ID fields first (used in most payloads)
-        if eventType.hasPrefix("stack.") {
-            if let stackId = payload["stackId"] as? String {
-                return stackId
-            }
-        } else if eventType.hasPrefix("task.") {
-            if let taskId = payload["taskId"] as? String {
-                return taskId
-            }
-        } else if eventType.hasPrefix("reminder.") {
-            if let reminderId = payload["reminderId"] as? String {
-                return reminderId
-            }
-        } else if eventType.hasPrefix("device.") {
-            // Device events use state.id for entity ID (not deviceId which is the hardware ID)
-            if let state = payload["state"] as? [String: Any],
-               let entityId = state["id"] as? String {
-                return entityId
-            }
-        }
-
-        // Fallback: check for state.id (used in created/updated events)
-        if let state = payload["state"] as? [String: Any],
-           let entityId = state["id"] as? String {
-            return entityId
-        }
-
-        // Fallback: check for fullState.id (used in updated events)
-        if let fullState = payload["fullState"] as? [String: Any],
-           let entityId = fullState["id"] as? String {
-            return entityId
-        }
-
-        return nil
-    }
 
     init(modelContainer: ModelContainer) {
         self.syncModelContainer = modelContainer
@@ -1874,74 +1747,6 @@ actor SyncManager {
                 }
             }
         }
-    }
-
-    /// Returns true if the error indicates a permanent authentication failure.
-    ///
-    /// When auth is permanently broken (e.g. Clerk session revoked/expired), periodic sync
-    /// loops should stop rather than retrying — each retry produces a Sentry event.
-    static func isAuthenticationError(_ error: Error) -> Bool {
-        if case SyncError.notAuthenticated = error { return true }
-        if case AuthError.notAuthenticated = error { return true }
-        // Clerk errors with authentication_invalid code are permanent (session revoked).
-        //
-        // IMPORTANT: Clerk SDK's `localizedDescription` returns the human-readable `message`
-        // field ("Invalid authentication") — NOT the machine-readable `code` field
-        // ("authentication_invalid"). We must check BOTH `localizedDescription` and
-        // `String(describing:)` because the full ClerkAPIError struct representation
-        // (which includes the code) only appears in the latter.
-        //
-        // This was the root cause of DEQUEUE-APP-T (2,200+ Sentry events): the auth check
-        // returned false because localizedDescription lacked "authentication_invalid",
-        // so the error fell through to the generic Sentry capture in the periodic push loop.
-        let localizedDesc = error.localizedDescription
-        let fullDesc = String(describing: error)
-        if localizedDesc.contains("authentication_invalid")
-            || localizedDesc.contains("Unable to authenticate")
-            || fullDesc.contains("authentication_invalid")
-            || fullDesc.contains("Unable to authenticate") {
-            return true
-        }
-        return false
-    }
-
-    /// Returns true if the error originates from Clerk or Cloudflare infrastructure —
-    /// not a bug in our code, and not a permanent auth failure.
-    ///
-    /// These include:
-    /// - HTTP 530: Cloudflare can't reach Clerk's origin server
-    /// - `internal_clerk_error`: Clerk backend returning 500-class responses
-    ///
-    /// Periodic sync loops should stop reporting these to Sentry (they're noise) and
-    /// disconnect after a few retries so we don't hammer Clerk every 5 seconds.
-    static func isClerkInfrastructureError(_ error: Error) -> Bool {
-        let description = error.localizedDescription
-        // HTTP 530 from Cloudflare (origin unreachable) and Clerk 5xx internal errors.
-        // NOTE: localizedDescription string-matching is the only available signal from the Clerk SDK
-        // for these error types; the SDK does not expose a structured HTTP status code in userInfo.
-        // Acknowledged trade-off — see PR #398 and SonarCloud security hotspot review. // NOSONAR
-        let has530StatusCode = description.contains("status code: 530")
-        let has530WithServer = description.contains("530") && description.contains("server")
-        if has530StatusCode || has530WithServer { // NOSONAR
-            return true
-        }
-        if description.contains("internal_clerk_error") {
-            return true
-        }
-        // HTTP 429 (Too Many Requests) from Clerk's token endpoint.
-        // Without cooldown, the sync loop retries immediately and generates a feedback loop
-        // (DEQUEUE-APP-12). Treat 429 as a transient infrastructure error so exponential
-        // backoff kicks in and stops the hammering. // NOSONAR
-        if description.contains("status code: 429") { // NOSONAR
-            return true
-        }
-        // NSURLErrorDomain -1 (NSURLErrorUnknown) cascading from a 530 token-refresh failure
-        // is identified by the NSError domain and code
-        let nsError = error as NSError
-        if nsError.domain == NSURLErrorDomain && nsError.code == -1 {
-            return true
-        }
-        return false
     }
 
     // MARK: - Network Monitoring
