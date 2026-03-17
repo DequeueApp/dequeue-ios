@@ -606,6 +606,8 @@ enum ProjectorService {
             try applyTaskReordered(event: event, context: context, cache: cache)
         case .taskDelegatedToAI:
             try applyTaskDelegatedToAI(event: event, context: context, cache: cache)
+        case .taskAICompleted:
+            try applyTaskAICompleted(event: event, context: context, cache: cache)
         default:
             break
         }
@@ -1248,6 +1250,36 @@ enum ProjectorService {
         task.aiAgentId = payload.fullState.aiAgentId
         task.aiDelegatedAt = payload.fullState.aiDelegatedAt
             .map { Date(timeIntervalSince1970: TimeInterval($0) / 1_000) }
+        task.updatedAt = event.timestamp  // LWW: Use event timestamp
+        task.syncState = .synced
+        task.lastSyncedAt = Date()
+    }
+
+    private static func applyTaskAICompleted(
+        event: Event,
+        context: ModelContext,
+        cache: EntityLookupCache
+    ) throws {
+        let payload = try event.decodePayload(TaskAICompletedPayload.self)
+        guard let task = try findTask(id: payload.taskId, context: context, cache: cache) else { return }
+
+        // LWW: Skip updates to deleted entities
+        guard !task.isDeleted else { return }
+
+        // LWW: Only apply if this event is newer than current state
+        guard shouldApplyEvent(
+            eventTimestamp: event.timestamp,
+            localTimestamp: task.updatedAt,
+            entityType: .task,
+            entityId: payload.taskId,
+            conflictType: .statusChange,
+            context: context
+        ) else { return }
+
+        // Mark the task as completed by the AI agent
+        task.status = .completed
+        task.delegatedToAI = false       // AI is done; no longer pending delegation
+        task.aiAgentId = payload.aiAgentId  // Record which agent completed it
         task.updatedAt = event.timestamp  // LWW: Use event timestamp
         task.syncState = .synced
         task.lastSyncedAt = Date()
