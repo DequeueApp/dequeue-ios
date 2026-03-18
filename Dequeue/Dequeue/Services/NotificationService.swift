@@ -316,7 +316,12 @@ final class NotificationService: NSObject {
 
     private func formatReminderBody(for reminder: Reminder, parentTitle: String?) -> String {
         let timeString = reminder.remindAt.formatted(date: .omitted, time: .shortened)
-        let typeLabel = reminder.parentType == .task ? "Task" : "Stack"
+        let typeLabel: String
+        switch reminder.parentType {
+        case .task: typeLabel = "Task"
+        case .stack: typeLabel = "Stack"
+        case .arc: typeLabel = "Arc"
+        }
 
         if let title = parentTitle {
             return "\(typeLabel): \(title) at \(timeString)"

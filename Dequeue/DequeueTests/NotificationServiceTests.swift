@@ -139,6 +139,20 @@ private struct TestContext {
         createReminder(parentId: task.id, parentType: .task, status: status, remindAt: remindAt)
     }
 
+    func createArc(title: String = "Test Arc") -> Arc {
+        let arc = Arc(title: title)
+        context.insert(arc)
+        return arc
+    }
+
+    func createArcReminder(
+        arc: Arc,
+        status: ReminderStatus = .active,
+        remindAt: Date = Date().addingTimeInterval(3_600)
+    ) -> Reminder {
+        createReminder(parentId: arc.id, parentType: .arc, status: status, remindAt: remindAt)
+    }
+
     func save() throws {
         try context.save()
     }
@@ -428,6 +442,19 @@ struct NotificationServiceTests {
         try await ctx.service.scheduleNotification(for: reminder)
 
         #expect(ctx.mockCenter.addedRequests.first?.content.body.contains("Task:") == true)
+    }
+
+    @Test("notification body includes type label for arc")
+    @MainActor
+    func notificationBodyIncludesArcLabel() async throws {
+        let ctx = try TestContext()
+        let arc = ctx.createArc(title: "Test Arc")
+        let reminder = ctx.createArcReminder(arc: arc)
+        try ctx.save()
+
+        try await ctx.service.scheduleNotification(for: reminder)
+
+        #expect(ctx.mockCenter.addedRequests.first?.content.body.contains("Arc:") == true)
     }
 
     @Test("notification uses fallback title when parent not found")
