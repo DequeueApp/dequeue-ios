@@ -46,6 +46,7 @@ protocol NotificationCenterProtocol {
     func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
     func add(_ request: UNNotificationRequest) async throws
     func removePendingNotificationRequests(withIdentifiers identifiers: [String])
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String])
     func removeAllPendingNotificationRequests()
     func pendingNotificationRequests() async -> [UNNotificationRequest]
     func getAuthorizationStatus() async -> UNAuthorizationStatus
@@ -223,6 +224,16 @@ final class NotificationService: NSObject {
     func cancelNotifications(for reminders: [Reminder]) {
         let identifiers = reminders.map(\.id)
         notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+
+    /// Removes both pending and delivered notifications for the given reminders.
+    /// Call this when a stack/task/arc is completed, closed, or deleted to clean up
+    /// the notification center. (DEQ-257)
+    func dismissNotifications(for reminders: [Reminder]) {
+        let identifiers = reminders.filter { !$0.isDeleted }.map(\.id)
+        guard !identifiers.isEmpty else { return }
+        notificationCenter.removePendingNotificationRequests(withIdentifiers: identifiers)
+        notificationCenter.removeDeliveredNotifications(withIdentifiers: identifiers)
     }
 
     // MARK: - Reschedule All

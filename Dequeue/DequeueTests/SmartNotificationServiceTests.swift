@@ -19,6 +19,7 @@ import SwiftData
 final class MockSmartNotificationCenter: NotificationCenterProtocol, @unchecked Sendable {
     var scheduledRequests: [UNNotificationRequest] = []
     var removedIdentifiers: [String] = []
+    var removedDeliveredIdentifiers: [String] = []
     var allPendingRemoved = false
     var authorizationStatus: UNAuthorizationStatus = .authorized
     var registeredCategories: Set<UNNotificationCategory> = []
@@ -39,6 +40,10 @@ final class MockSmartNotificationCenter: NotificationCenterProtocol, @unchecked 
     func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
         removedIdentifiers.append(contentsOf: identifiers)
         scheduledRequests.removeAll { identifiers.contains($0.identifier) }
+    }
+
+    func removeDeliveredNotifications(withIdentifiers identifiers: [String]) {
+        removedDeliveredIdentifiers.append(contentsOf: identifiers)
     }
 
     func removeAllPendingNotificationRequests() {
