@@ -510,6 +510,32 @@ struct DeliveryDetailView: View {
 
 // MARK: - Create Webhook View
 
+/// Groups related webhook event types under a single entity label.
+private struct WebhookEventGroup {
+    let entity: String
+    let icon: String
+    let events: [String]
+}
+
+private let webhookEventGroups: [WebhookEventGroup] = [
+    WebhookEventGroup(entity: "Tasks", icon: "checkmark.square", events: [
+        "task.created", "task.updated", "task.completed",
+        "task.uncompleted", "task.deleted", "task.moved"
+    ]),
+    WebhookEventGroup(entity: "Stacks", icon: "square.stack", events: [
+        "stack.created", "stack.updated", "stack.completed", "stack.deleted"
+    ]),
+    WebhookEventGroup(entity: "Arcs", icon: "arrow.trianglepath", events: [
+        "arc.created", "arc.updated", "arc.completed", "arc.deleted"
+    ]),
+    WebhookEventGroup(entity: "Reminders", icon: "bell", events: [
+        "reminder.created", "reminder.updated", "reminder.completed", "reminder.deleted"
+    ]),
+    WebhookEventGroup(entity: "Tags", icon: "tag", events: [
+        "tag.created", "tag.updated", "tag.deleted"
+    ])
+]
+
 struct CreateWebhookView: View {
     @Environment(\.webhookService) private var webhookService
     @Environment(\.dismiss) private var dismiss
@@ -523,21 +549,13 @@ struct CreateWebhookView: View {
     @State private var createdSecret: String?
     @State private var showSecret = false
 
-    private let availableEvents = [
-        "task.created",
-        "task.updated",
-        "task.completed",
-        "task.deleted",
-        "stack.created",
-        "stack.updated",
-        "stack.deleted"
-    ]
+    private var allLeafEvents: [String] { webhookEventGroups.flatMap(\.events) }
 
     var body: some View {
         NavigationStack {
             Form {
                 endpointSection
-                eventsSection
+                eventsSections
                 secretSection
             }
             .navigationTitle("New Webhook")
@@ -575,11 +593,20 @@ struct CreateWebhookView: View {
         }
     }
 
-    private var eventsSection: some View {
-        Section("Events") {
-            ForEach(Array(availableEvents), id: \.self) { (event: String) in
-                eventRow(event)
+    @ViewBuilder
+    private var eventsSections: some View {
+        ForEach(webhookEventGroups, id: \.entity) { group in
+            Section {
+                ForEach(group.events, id: \.self) { event in
+                    eventRow(event)
+                }
+                groupToggleButton(group)
+            } header: {
+                Label(group.entity, systemImage: group.icon)
             }
+        }
+
+        Section {
             toggleAllButton
         }
     }
@@ -595,6 +622,7 @@ struct CreateWebhookView: View {
             HStack {
                 Text(event)
                     .foregroundStyle(.primary)
+                    .font(.system(.subheadline, design: .monospaced))
                 Spacer()
                 if selectedEvents.contains(event) {
                     Image(systemName: "checkmark")
@@ -604,15 +632,31 @@ struct CreateWebhookView: View {
         }
     }
 
-    private var toggleAllButton: some View {
-        Button(selectedEvents.count == availableEvents.count ? "Deselect All" : "Select All") {
-            if selectedEvents.count == availableEvents.count {
-                selectedEvents.removeAll()
+    private func groupToggleButton(_ group: WebhookEventGroup) -> some View {
+        let groupSet = Set(group.events)
+        let allSelected = groupSet.isSubset(of: selectedEvents)
+        return Button(allSelected ? "Deselect All \(group.entity)" : "Select All \(group.entity)") {
+            if allSelected {
+                selectedEvents.subtract(groupSet)
             } else {
-                selectedEvents = Set(availableEvents)
+                selectedEvents.formUnion(groupSet)
             }
         }
         .font(.caption)
+        .foregroundStyle(Color.accentColor)
+    }
+
+    private var toggleAllButton: some View {
+        let all = Set(allLeafEvents)
+        let allSelected = all.isSubset(of: selectedEvents)
+        return Button(allSelected ? "Deselect All Events" : "Select All Events") {
+            if allSelected {
+                selectedEvents.removeAll()
+            } else {
+                selectedEvents = all
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
