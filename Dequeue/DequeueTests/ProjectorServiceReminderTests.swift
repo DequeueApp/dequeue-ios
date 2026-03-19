@@ -124,6 +124,65 @@ struct ProjectorServiceReminderTests {
         #expect(task.reminders.first?.id == remId)
     }
 
+    @Test("reminderCreated: creates reminder with arc parentType")
+    func createsReminderWithArcParentType() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let remId = CUID.generate()
+        let arcId = CUID.generate()
+        let remindAtMs: Int64 = 1_741_000_000_000
+
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "id": remId, "parentId": arcId, "parentType": "arc",
+            "status": "active", "remindAt": remindAtMs, "deleted": false
+        ] as [String: Any])
+
+        let event = Event(
+            eventType: .reminderCreated, payload: payload, entityId: remId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        context.insert(event)
+        try await ProjectorService.apply(event: event, context: context)
+
+        let predicate = #Predicate<Reminder> { $0.id == remId }
+        let reminders = try context.fetch(FetchDescriptor<Reminder>(predicate: predicate))
+        #expect(reminders.count == 1)
+        let rem = try #require(reminders.first)
+        #expect(rem.parentId == arcId)
+        #expect(rem.parentType == .arc)
+        #expect(rem.status == .active)
+    }
+
+    @Test("reminderCreated: links reminder to parent arc")
+    func linksReminderToParentArc() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+
+        let arc = Arc(title: "Parent Arc")
+        context.insert(arc)
+        try context.save()
+
+        let remId = CUID.generate()
+        let remindAtMs: Int64 = 1_741_000_000_000
+
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "id": remId, "parentId": arc.id, "parentType": "arc",
+            "status": "active", "remindAt": remindAtMs, "deleted": false
+        ] as [String: Any])
+
+        let event = Event(
+            eventType: .reminderCreated, payload: payload, entityId: remId,
+            userId: "u", deviceId: "d", appId: "a"
+        )
+        context.insert(event)
+        try await ProjectorService.apply(event: event, context: context)
+
+        #expect(arc.reminders.count == 1)
+        #expect(arc.reminders.first?.id == remId)
+        #expect(arc.reminders.first?.parentType == .arc)
+    }
+
     @Test("reminderCreated: LWW skips older event when reminder already exists with newer timestamp")
     func lwwSkipsOlderReminderCreated() async throws {
         let container = try makeContainer()
