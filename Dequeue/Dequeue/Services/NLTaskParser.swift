@@ -413,7 +413,7 @@ struct NLTaskParser: Sendable {
     }
 
     /// Extracts keyword dates: today, tonight, tomorrow, day after tomorrow,
-    /// next week, this weekend, eod, eow
+    /// next month, next week, this weekend, eod, eow, eom
     private func extractKeywordDate(
         from text: String,
         time resolvedTime: (hour: Int, minute: Int)
@@ -449,6 +449,14 @@ struct NLTaskParser: Sendable {
             }
         }
 
+        // "next month" (first day of next calendar month)
+        if let match = result.range(of: #"\b(?:by\s+)?next month\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = nextFirstOfMonth() {
+                return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
+            }
+        }
+
         // "next week" (next Monday)
         if let match = result.range(of: #"\b(?:by\s+)?next week\b"#, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
@@ -466,6 +474,17 @@ struct NLTaskParser: Sendable {
             }
         }
 
+        return extractEndOfKeywordDate(from: result, time: resolvedTime)
+    }
+
+    /// Extracts "end of X" shorthand keywords: eod, eow, eom and their long forms.
+    /// Extracted into a sub-helper to keep `extractKeywordDate` within complexity limits.
+    private func extractEndOfKeywordDate(
+        from text: String,
+        time resolvedTime: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
+
         // "end of day" / "eod"
         let eodPattern = #"\b(?:by\s+)?(?:end of day|eod)\b"#
         if let match = result.range(of: eodPattern, options: [.regularExpression, .caseInsensitive]) {
@@ -482,6 +501,15 @@ struct NLTaskParser: Sendable {
             }
         }
 
+        // "end of month" / "eom"
+        let eomPattern = #"\b(?:by\s+)?(?:end of month|eom)\b"#
+        if let match = result.range(of: eomPattern, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = lastDayOfMonth() {
+                return (result, dateWithTime(date, hour: 17, minute: 0))
+            }
+        }
+
         return nil
     }
 
@@ -492,7 +520,8 @@ struct NLTaskParser: Sendable {
     ) -> (String, Date?)? {
         var result = text
 
-        let inPattern = #"\bin\s+(\d+)\s+(minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks)\b"#
+        // swiftlint:disable:next line_length
+        let inPattern = #"\bin\s+(\d+)\s+(minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years)\b"#
         guard let regex = try? NSRegularExpression(pattern: inPattern, options: .caseInsensitive),
               let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
               let numRange = Range(match.range(at: 1), in: result),
@@ -519,6 +548,8 @@ struct NLTaskParser: Sendable {
         case "hour", "hours", "hr", "hrs": return .hour
         case "day", "days": return .day
         case "week", "weeks": return .weekOfYear
+        case "month", "months": return .month
+        case "year", "years": return .year
         default: return .hour
         }
     }
@@ -701,6 +732,27 @@ struct NLTaskParser: Sendable {
         components.minute = minute
         components.second = 0
         return calendar.date(from: components) ?? date
+    }
+
+    /// Returns the first day of next calendar month
+    private func nextFirstOfMonth() -> Date? {
+        let components = calendar.dateComponents([.year, .month], from: referenceDate)
+        guard let firstOfCurrentMonth = calendar.date(from: components),
+              let firstOfNextMonth = calendar.date(byAdding: .month, value: 1, to: firstOfCurrentMonth) else {
+            return nil
+        }
+        return firstOfNextMonth
+    }
+
+    /// Returns the last day of the current calendar month
+    private func lastDayOfMonth() -> Date? {
+        let components = calendar.dateComponents([.year, .month], from: referenceDate)
+        guard let firstOfCurrentMonth = calendar.date(from: components),
+              let firstOfNextMonth = calendar.date(byAdding: .month, value: 1, to: firstOfCurrentMonth),
+              let lastDay = calendar.date(byAdding: .day, value: -1, to: firstOfNextMonth) else {
+            return nil
+        }
+        return lastDay
     }
 
     /// Returns the next occurrence of the given weekday (always in the future)
