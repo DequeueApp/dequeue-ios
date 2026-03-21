@@ -927,6 +927,92 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(components.hour, 18)
     }
 
+    // MARK: - Tonight (compound keyword — explicit "at X" overrides 9 PM default)
+
+    func testTonightDefaultsToNinePM() {
+        // Reference: Feb 19; tonight → today at 9 PM
+        let result = parser.parse("Watch movie tonight")
+        XCTAssertEqual(result.title, "Watch movie")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19) // today
+        XCTAssertEqual(components.hour, 21) // 9 PM
+    }
+
+    func testTonightWithExplicitTimeOverride() {
+        // "tonight at 7pm" — explicit "at 7pm" should override the 9 PM default
+        let result = parser.parse("Dinner reservation tonight at 7pm")
+        XCTAssertEqual(result.title, "Dinner reservation")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19) // today
+        XCTAssertEqual(components.hour, 19) // 7 PM (explicit override)
+    }
+
+    func testByTonightDefaultsToNinePM() {
+        let result = parser.parse("Submit report by tonight")
+        XCTAssertEqual(result.title, "Submit report")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.hour, 21)
+    }
+
+    func testTonightAt1030PM() {
+        // "tonight at 10:30pm" — explicit time with minutes
+        let result = parser.parse("Late call tonight at 10:30pm")
+        XCTAssertEqual(result.title, "Late call")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.hour, 22)
+        XCTAssertEqual(components.minute, 30)
+    }
+
+    // MARK: - This Weekday ("this Friday", "this Monday", etc.)
+
+    func testThisFriday() {
+        // Reference: Wednesday Feb 19; "this Friday" → next Friday = Feb 20
+        let result = parser.parse("Team lunch this Friday")
+        XCTAssertEqual(result.title, "Team lunch")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 20) // Friday Feb 20
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.hour, 9) // default time
+    }
+
+    func testThisMonday() {
+        // Reference: Wednesday Feb 19; "this Monday" → next Monday = Feb 23
+        let result = parser.parse("Sprint planning this Monday")
+        XCTAssertEqual(result.title, "Sprint planning")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month], from: result.dueTime!)
+        XCTAssertEqual(components.day, 23) // Monday Feb 23
+        XCTAssertEqual(components.month, 2)
+    }
+
+    func testThisSaturday() {
+        // Reference: Wednesday Feb 19; "this Saturday" → Feb 21
+        let result = parser.parse("Groceries this Saturday")
+        XCTAssertEqual(result.title, "Groceries")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month], from: result.dueTime!)
+        XCTAssertEqual(components.day, 21) // Saturday Feb 21
+        XCTAssertEqual(components.month, 2)
+    }
+
+    func testThisWednesdayAtTime() {
+        // Reference: Wednesday Feb 19; "this Wednesday at 2pm" → next Wednesday = Feb 25 at 2 PM
+        let result = parser.parse("Review this Wednesday at 2pm")
+        XCTAssertEqual(result.title, "Review")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 25) // next Wednesday Feb 25
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.hour, 14) // 2 PM
+    }
+
     // MARK: - NLTaskParseResult
 
     func testHasStructuredDataWithDate() {
