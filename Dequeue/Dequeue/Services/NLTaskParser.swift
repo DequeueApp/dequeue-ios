@@ -54,8 +54,8 @@ struct NLTaskParseResult: Equatable, Sendable {
 /// Parses natural language task input into structured task data.
 ///
 /// Supports:
-/// - **Dates**: "today", "tomorrow", "next Monday", "in 2 hours", "by Friday at 3pm",
-///   "Jan 15", "1/15", "next week"
+/// - **Dates**: "today", "tomorrow", "next Monday", "in 2 hours", "in an hour", "in a day",
+///   "by Friday at 3pm", "Jan 15", "1/15", "next week"
 /// - **Times**: "at 3pm", "at 15:00", "at 3:30pm", "at noon", "at midnight"
 /// - **Priority**: "p:high", "p:urgent", "p:low", "p:med", "!!", "!!!", "p1"-"p4"
 /// - **Tags**: "#work", "#errands", "#home"
@@ -552,14 +552,30 @@ struct NLTaskParser: Sendable {
     }
 
     /// Extracts relative date expressions: "in X hours/minutes/days/weeks"
+    /// Supports both numeric ("in 3 days") and indefinite article forms ("in a day", "in an hour").
     private func extractRelativeDate(
         from text: String,
         time: (hour: Int, minute: Int)
     ) -> (String, Date?)? {
         var result = text
+        let units = #"minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years"#
 
-        // swiftlint:disable:next line_length
-        let inPattern = #"\bin\s+(\d+)\s+(minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years)\b"#
+        // "in a/an <unit>" — treat as "in 1 <unit>" (e.g. "in an hour", "in a day", "in a week")
+        let articlePattern = #"\bin\s+an?\s+("# + units + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: articlePattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let unitRange = Range(match.range(at: 1), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let unit = String(result[unitRange]).lowercased()
+            let component = calendarComponentForUnit(unit)
+            if let date = calendar.date(byAdding: component, value: 1, to: referenceDate) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
+            }
+        }
+
+        // "in <number> <unit>" — e.g. "in 3 days", "in 2 hours"
+        let inPattern = #"\bin\s+(\d+)\s+("# + units + #")\b"#
         guard let regex = try? NSRegularExpression(pattern: inPattern, options: .caseInsensitive),
               let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
               let numRange = Range(match.range(at: 1), in: result),
@@ -578,18 +594,6 @@ struct NLTaskParser: Sendable {
 
         result = result.replacingCharacters(in: fullRange, with: "")
         return (result, date)
-    }
-
-    private func calendarComponentForUnit(_ unit: String) -> Calendar.Component {
-        switch unit {
-        case "minute", "minutes", "min", "mins": return .minute
-        case "hour", "hours", "hr", "hrs": return .hour
-        case "day", "days": return .day
-        case "week", "weeks": return .weekOfYear
-        case "month", "months": return .month
-        case "year", "years": return .year
-        default: return .hour
-        }
     }
 
     /// Extracts named day expressions: "next Monday", "on Friday", bare "Saturday" at end
@@ -644,13 +648,6 @@ struct NLTaskParser: Sendable {
 
         result = result.replacingCharacters(in: fullRange, with: "")
         return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
-    }
-
-    private var allDayNames: [String] {
-        [
-            "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-            "mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"
-        ]
     }
 
     /// Extracts calendar dates: "Jan 15", "March 3rd", "3/15", "12-25"
@@ -848,38 +845,6 @@ struct NLTaskParser: Sendable {
         return calendar.date(byAdding: .day, value: daysToAdd, to: referenceDate)
     }
 
-    private func weekdayFromName(_ name: String) -> Weekday? {
-        switch name.lowercased() {
-        case "monday", "mon": return .monday
-        case "tuesday", "tue", "tues": return .tuesday
-        case "wednesday", "wed": return .wednesday
-        case "thursday", "thu", "thur", "thurs": return .thursday
-        case "friday", "fri": return .friday
-        case "saturday", "sat": return .saturday
-        case "sunday", "sun": return .sunday
-        default: return nil
-        }
-    }
-
-    private func monthFromName(_ name: String) -> Int? {
-        let lowered = name.lowercased()
-        let months = [
-            "jan": 1, "january": 1,
-            "feb": 2, "february": 2,
-            "mar": 3, "march": 3,
-            "apr": 4, "april": 4,
-            "may": 5,
-            "jun": 6, "june": 6,
-            "jul": 7, "july": 7,
-            "aug": 8, "august": 8,
-            "sep": 9, "sept": 9, "september": 9,
-            "oct": 10, "october": 10,
-            "nov": 11, "november": 11,
-            "dec": 12, "december": 12
-        ]
-        return months[lowered]
-    }
-
     /// Resolves a month/day pair to the next occurrence (future-biased)
     private func resolveMonthDay(month: Int, day: Int, time: (hour: Int, minute: Int)) -> Date? {
         let currentYear = calendar.component(.year, from: referenceDate)
@@ -917,6 +882,54 @@ struct NLTaskParser: Sendable {
         result = result.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return result
+    }
+}
+
+// MARK: - NLTaskParser Utility Helpers
+
+private extension NLTaskParser {
+    var allDayNames: [String] {
+        [
+            "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+            "mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"
+        ]
+    }
+
+    func calendarComponentForUnit(_ unit: String) -> Calendar.Component {
+        switch unit {
+        case "minute", "minutes", "min", "mins": return .minute
+        case "hour", "hours", "hr", "hrs": return .hour
+        case "day", "days": return .day
+        case "week", "weeks": return .weekOfYear
+        case "month", "months": return .month
+        case "year", "years": return .year
+        default: return .hour
+        }
+    }
+
+    func weekdayFromName(_ name: String) -> Weekday? {
+        switch name.lowercased() {
+        case "monday", "mon": return .monday
+        case "tuesday", "tue", "tues": return .tuesday
+        case "wednesday", "wed": return .wednesday
+        case "thursday", "thu", "thur", "thurs": return .thursday
+        case "friday", "fri": return .friday
+        case "saturday", "sat": return .saturday
+        case "sunday", "sun": return .sunday
+        default: return nil
+        }
+    }
+
+    func monthFromName(_ name: String) -> Int? {
+        let months: [String: Int] = [
+            "jan": 1, "january": 1, "feb": 2, "february": 2,
+            "mar": 3, "march": 3, "apr": 4, "april": 4,
+            "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
+            "aug": 8, "august": 8, "sep": 9, "sept": 9, "september": 9,
+            "oct": 10, "october": 10, "nov": 11, "november": 11,
+            "dec": 12, "december": 12
+        ]
+        return months[name.lowercased()]
     }
 }
 
