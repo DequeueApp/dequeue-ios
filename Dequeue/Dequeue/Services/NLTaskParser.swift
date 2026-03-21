@@ -578,6 +578,11 @@ struct NLTaskParser: Sendable {
             }
         }
 
+        // Informal spoken-number patterns: "a couple (of) days", "a few weeks", "in two months"
+        if let found = extractSpokenNumberDate(from: result, time: time) {
+            return found
+        }
+
         // "in <number> <unit>" — e.g. "in 3 days", "in 2 hours"
         let inPattern = #"\bin\s+(\d+)\s+("# + units + #")\b"#
         guard let regex = try? NSRegularExpression(pattern: inPattern, options: .caseInsensitive),
@@ -940,6 +945,72 @@ private extension NLTaskParser {
             "dec": 12, "december": 12
         ]
         return months[name.lowercased()]
+    }
+
+    /// Extracts informal spoken-number date expressions.
+    /// Handles "a couple (of) <unit>" → 2, "a few <unit>" → 3, and
+    /// "in <word> <unit>" → N (e.g. "in two weeks", "in three days").
+    func extractSpokenNumberDate(
+        from text: String,
+        time: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
+        let units = #"minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years"#
+
+        // "a couple (of) <unit>" / "in a couple (of) <unit>" — 2 units
+        let couplePattern = #"\b(?:in\s+)?a\s+couple(?:\s+of)?\s+("# + units + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: couplePattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let unitRange = Range(match.range(at: 1), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let component = calendarComponentForUnit(String(result[unitRange]).lowercased())
+            if let date = calendar.date(byAdding: component, value: 2, to: referenceDate) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
+            }
+        }
+
+        // "a few <unit>" / "in a few <unit>" — 3 units
+        let fewPattern = #"\b(?:in\s+)?a\s+few\s+("# + units + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: fewPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let unitRange = Range(match.range(at: 1), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let component = calendarComponentForUnit(String(result[unitRange]).lowercased())
+            if let date = calendar.date(byAdding: component, value: 3, to: referenceDate) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
+            }
+        }
+
+        // "in <spelled-out number> <unit>" — e.g. "in two weeks", "in three days"
+        let wordNums = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty"
+        let spelledPattern = #"\bin\s+("# + wordNums + #")\s+("# + units + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: spelledPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let wordRange = Range(match.range(at: 1), in: result),
+           let unitRange = Range(match.range(at: 2), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let component = calendarComponentForUnit(String(result[unitRange]).lowercased())
+            if let value = wordToNumber(String(result[wordRange]).lowercased()),
+               let date = calendar.date(byAdding: component, value: value, to: referenceDate) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
+            }
+        }
+
+        return nil
+    }
+
+    /// Converts a spelled-out number word to its integer value.
+    /// Supports one through twelve, plus fifteen, twenty, and thirty.
+    func wordToNumber(_ word: String) -> Int? {
+        let numberWords: [String: Int] = [
+            "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+            "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "thirty": 30
+        ]
+        return numberWords[word.lowercased()]
     }
 }
 
