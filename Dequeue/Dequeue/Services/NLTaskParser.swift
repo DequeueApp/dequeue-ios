@@ -54,9 +54,10 @@ struct NLTaskParseResult: Equatable, Sendable {
 /// Parses natural language task input into structured task data.
 ///
 /// Supports:
-/// - **Dates**: "today", "tomorrow", "next Monday", "in 2 hours", "in an hour", "in a day",
-///   "by Friday at 3pm", "Jan 15", "1/15", "next week"
-/// - **Times**: "at 3pm", "at 15:00", "at 3:30pm", "at noon", "at midnight"
+/// - **Dates**: "today", "tonight", "tomorrow", "next Monday", "this Friday",
+///   "in 2 hours", "in an hour", "in a day", "by Friday at 3pm", "Jan 15", "1/15", "next week"
+/// - **Times**: "at 3pm", "at 15:00", "at 3:30pm", "at noon", "at midnight";
+///   explicit "at X" always overrides a compound time-of-day (e.g., "tonight at 7pm" → 7 PM)
 /// - **Priority**: "p:high", "p:urgent", "p:low", "p:med", "!!", "!!!", "p1"-"p4"
 /// - **Tags**: "#work", "#errands", "#home"
 ///
@@ -329,6 +330,7 @@ struct NLTaskParser: Sendable {
     /// Extracts compound date+time-of-day phrases that encode both a day AND a time.
     ///
     /// Supported patterns (with optional "by " prefix):
+    /// - `tonight` → today 9 PM (explicit "at X" overrides the time)
     /// - `this morning` → today 9 AM
     /// - `this afternoon` → today 2 PM
     /// - `this evening` → today 6 PM
@@ -336,7 +338,8 @@ struct NLTaskParser: Sendable {
     /// - `<day> morning/afternoon/evening` (e.g., "Friday morning", "next Monday evening")
     ///
     /// These are extracted before the separate time/date extractors so tokens
-    /// like "morning" and "afternoon" aren't left as orphaned text.
+    /// like "morning", "afternoon", and "tonight" aren't left as orphaned text,
+    /// and so that explicit "at X" times override the baked-in time-of-day defaults.
     private func extractCompoundDateTimeKeywords(from text: String) -> (String, Date?) {
         var result = text
 
@@ -346,6 +349,13 @@ struct NLTaskParser: Sendable {
             "evening": (18, 0)
         ]
         let todPattern = "morning|afternoon|evening"
+
+        // "tonight" — today at 9 PM; explicit "at X" overrides the 9 PM default
+        let tonightPattern = #"\b(?:by\s+)?tonight\b"#
+        if let match = result.range(of: tonightPattern, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            return (result, dateWithTime(referenceDate, hour: 21, minute: 0))
+        }
 
         // "this morning/afternoon/evening"
         let thisTODPattern = #"\b(?:by\s+)?this\s+("# + todPattern + #")\b"#
@@ -436,12 +446,6 @@ struct NLTaskParser: Sendable {
         if let match = result.range(of: #"\b(?:by\s+)?today\b"#, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             return (result, dateWithTime(referenceDate, hour: resolvedTime.hour, minute: resolvedTime.minute))
-        }
-
-        // "tonight"
-        if let match = result.range(of: #"\b(?:by\s+)?tonight\b"#, options: [.regularExpression, .caseInsensitive]) {
-            result = result.replacingCharacters(in: match, with: "")
-            return (result, dateWithTime(referenceDate, hour: 21, minute: 0))
         }
 
         // "day after tomorrow" — must be checked before "tomorrow" to avoid partial match
@@ -596,7 +600,7 @@ struct NLTaskParser: Sendable {
         return (result, date)
     }
 
-    /// Extracts named day expressions: "next Monday", "on Friday", bare "Saturday" at end
+    /// Extracts named day expressions: "next Monday", "this Friday", "on Friday", bare "Saturday" at end
     private func extractNamedDayDate(
         from text: String,
         time resolvedTime: (hour: Int, minute: Int)
@@ -604,9 +608,15 @@ struct NLTaskParser: Sendable {
         var result = text
         let dayNamePattern = allDayNames.joined(separator: "|")
 
-        // "next Monday/Tuesday/..." or "on Monday/Tuesday/..."
+        // "next Monday/Tuesday/..." or "on/by Monday/Tuesday/..."
         let nextDayPattern = #"\b(?:next|on|by)\s+("# + dayNamePattern + #")\b"#
         if let found = extractDayNameMatch(from: result, pattern: nextDayPattern, time: resolvedTime) {
+            return found
+        }
+
+        // "this Monday/Tuesday/..." — next occurrence (same semantics as "on <day>")
+        let thisDayPattern = #"\bthis\s+("# + dayNamePattern + #")\b"#
+        if let found = extractDayNameMatch(from: result, pattern: thisDayPattern, time: resolvedTime) {
             return found
         }
 
