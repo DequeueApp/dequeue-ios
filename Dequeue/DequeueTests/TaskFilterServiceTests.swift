@@ -13,10 +13,13 @@ import Foundation
 
 // MARK: - Helpers (scoped to this file)
 
-// NOTE: Returns (container, context) — caller must retain `container` or it
-// will be deallocated and the ModelContext will become invalid.
+// Returns (context, service). The ModelContainer is retained implicitly by
+// ModelContext.container — callers must NOT hold a separate container reference.
+// Holding two explicit refs (container + context) to the same @MainActor object
+// causes a double-free SIGTRAP when both go out of scope together (Swift 6 bug,
+// rdar://FB15432891). Letting context be the sole strong holder avoids the crash.
 @MainActor
-private func makeServiceTestSetup() throws -> (ModelContainer, ModelContext, TaskFilterService) {
+private func makeServiceTestSetup() throws -> (ModelContext, TaskFilterService) {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(
         for: QueueTask.self, Stack.self, Tag.self, Reminder.self, Arc.self,
@@ -24,7 +27,7 @@ private func makeServiceTestSetup() throws -> (ModelContainer, ModelContext, Tas
     )
     let context = container.mainContext
     let service = TaskFilterService(modelContext: context)
-    return (container, context, service)
+    return (context, service)
 }
 
 @discardableResult
@@ -64,8 +67,7 @@ struct TaskFilterServicePriorityTests {
 
     @Test("Priority filter .low returns only low-priority tasks")
     func priorityLow() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let low = makeServiceTask(title: "Low", priority: 1, in: context)
         let med = makeServiceTask(title: "Medium", priority: 2, in: context)
@@ -81,8 +83,7 @@ struct TaskFilterServicePriorityTests {
 
     @Test("Priority filter .medium returns only medium-priority tasks")
     func priorityMedium() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let low = makeServiceTask(title: "Low", priority: 1, in: context)
         let med = makeServiceTask(title: "Medium", priority: 2, in: context)
@@ -98,8 +99,7 @@ struct TaskFilterServicePriorityTests {
 
     @Test("Priority filter .none returns tasks with priority = 0 or nil (both map to 0)")
     func priorityNoneIsZero() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let zeroPriority = makeServiceTask(title: "Zero", priority: 0, in: context)
         let nilPriority = makeServiceTask(title: "Nil", priority: nil, in: context)
@@ -120,8 +120,7 @@ struct TaskFilterServicePriorityTests {
 
     @Test("Priority filter .any returns all tasks regardless of priority")
     func priorityAny() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let low = makeServiceTask(title: "Low", priority: 1, in: context)
         let med = makeServiceTask(title: "Medium", priority: 2, in: context)
@@ -143,8 +142,7 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by sortOrder descending")
     func sortBySortOrderDesc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let first = makeServiceTask(title: "First", sortOrder: 0, in: context)
         let second = makeServiceTask(title: "Second", sortOrder: 1, in: context)
@@ -160,8 +158,7 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by createdAt ascending puts oldest first")
     func sortByCreatedAtAsc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let cal = Calendar.current
         let now = Date()
@@ -187,8 +184,7 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by createdAt descending puts newest first")
     func sortByCreatedAtDesc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let cal = Calendar.current
         let now = Date()
@@ -214,8 +210,7 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by updatedAt ascending puts least-recently-updated first")
     func sortByUpdatedAtAsc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let cal = Calendar.current
         let now = Date()
@@ -241,8 +236,7 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by updatedAt descending puts most-recently-updated first")
     func sortByUpdatedAtDesc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let cal = Calendar.current
         let now = Date()
@@ -268,8 +262,7 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by dueDate descending puts latest date first, nil last")
     func sortByDueDateDescNilLast() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let cal = Calendar.current
         let now = Date()
@@ -293,8 +286,7 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by priority ascending puts lowest numeric value first")
     func sortByPriorityAsc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let high = makeServiceTask(title: "High", priority: 3, in: context)
         let med = makeServiceTask(title: "Med", priority: 2, in: context)
@@ -317,8 +309,7 @@ struct TaskFilterServiceTagEdgeCaseTests {
 
     @Test("Tag filter with no tasks having the selected tag returns empty")
     func tagFilterNoMatchReturnsEmpty() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let t1 = makeServiceTask(title: "Work", tags: ["work"], in: context)
         let t2 = makeServiceTask(title: "Other", tags: ["other"], in: context)
@@ -332,8 +323,7 @@ struct TaskFilterServiceTagEdgeCaseTests {
 
     @Test("Tag filter uses OR logic across multiple selected tags")
     func tagFilterOrLogic() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let work = makeServiceTask(title: "Work Only", tags: ["work"], in: context)
         let personal = makeServiceTask(title: "Personal Only", tags: ["personal"], in: context)
@@ -354,8 +344,7 @@ struct TaskFilterServiceTagEdgeCaseTests {
 
     @Test("Task with empty tags array is excluded by tag filter")
     func taskWithNoTagsExcluded() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let (context, service) = try makeServiceTestSetup()
 
         let tagged = makeServiceTask(title: "Tagged", tags: ["work"], in: context)
         let untagged = makeServiceTask(title: "Untagged", tags: [], in: context)
