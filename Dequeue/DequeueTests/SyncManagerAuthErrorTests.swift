@@ -159,4 +159,36 @@ struct SyncManagerAuthErrorTests {
         let error = NSError(domain: "SomeError", code: 0, userInfo: [:])
         #expect(SyncManager.isAuthenticationError(error) == false)
     }
+
+    // MARK: - 422 Unprocessable Entity (DEQUEUE-APP-12)
+
+    /// Regression test for DEQUEUE-APP-12 (3,800+ Sentry events, Feb–Mar 2026).
+    ///
+    /// Clerk returns HTTP 422 when the session ID in the token URL is permanently invalid
+    /// and cannot be refreshed. Without this classification, the sync loop kept retrying
+    /// indefinitely and flooded Sentry on every app-foreground event.
+    @Test("HTTP 422 in localizedDescription is a permanent authentication error")
+    func test422InLocalizedDescriptionIsAuthError() {
+        let error = NSError(
+            domain: "ClerkKit.HTTPClientError",
+            code: 0,
+            userInfo: [NSLocalizedDescriptionKey: "HTTP Client Error with status code: 422"]
+        )
+        #expect(SyncManager.isAuthenticationError(error) == true)
+    }
+
+    @Test("NSError with code 422 is a permanent authentication error")
+    func test422NSErrorCodeIsAuthError() {
+        let error = NSError(domain: "ClerkKit.HTTPClientError", code: 422, userInfo: [:])
+        #expect(SyncManager.isAuthenticationError(error) == true)
+    }
+
+    @Test("HTTP 422 MockClerkAPIError is a permanent authentication error")
+    func test422MockClerkAPIErrorIsAuthError() {
+        let error = MockClerkAPIError(
+            code: "session_not_found",
+            message: "HTTP Client Error with status code: 422"
+        )
+        #expect(SyncManager.isAuthenticationError(error) == true)
+    }
 }

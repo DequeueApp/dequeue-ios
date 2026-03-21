@@ -37,6 +37,13 @@ extension SyncManager {
             || fullDesc.contains("Unable to authenticate") {
             return true
         }
+        // HTTP 422 from Clerk's token endpoint means the session ID is permanently
+        // invalid (cannot be refreshed). Treat as a permanent auth failure so sync
+        // loops stop retrying. AuthService.refreshSessionInBackground also handles
+        // 422 by force-signing out so the session guard fires on next foreground.
+        if localizedDesc.contains("status code: 422") || (error as NSError).code == 422 {
+            return true
+        }
         return false
     }
 
