@@ -1217,6 +1217,112 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(components.hour, 13) // 10 AM + 3 hours = 1 PM
     }
 
+    // MARK: - Bare AM/PM Time (no "at" prefix)
+
+    func testBareTomorrowWithAMPMHour() {
+        // "tomorrow 3pm" — bare AM/PM time without "at" prefix
+        // Reference: Wed Feb 19 → tomorrow = Thu Feb 20 at 15:00
+        let result = parser.parse("Call dentist tomorrow 3pm")
+        XCTAssertEqual(result.title, "Call dentist")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 20)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.hour, 15)
+        XCTAssertEqual(components.minute, 0)
+    }
+
+    func testBareNextDayNameWithAMPMHour() {
+        // "Friday 10am" — bare AM/PM time with day name
+        // Reference: Wed Feb 19 → next Friday = Feb 20... wait, Feb 19 is Wed.
+        // nextWeekday(.friday): currentWeekday=4 (Wed), targetWeekday=6 (Fri), daysToAdd=2 → Feb 21
+        let result = parser.parse("Team standup Friday 10am")
+        XCTAssertEqual(result.title, "Team standup")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 21) // Feb 21 (next Friday)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.hour, 10)
+        XCTAssertEqual(components.minute, 0)
+    }
+
+    func testBareTimeWithMinutesAndAMPM() {
+        // "9:30am Monday" — bare time with minutes, no "at" prefix
+        // Reference: Wed Feb 19 → next Monday = Feb 23 (4 days)
+        let result = parser.parse("Send invoice Monday 9:30am")
+        XCTAssertEqual(result.title, "Send invoice")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 23) // Feb 23 (next Monday)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.hour, 9)
+        XCTAssertEqual(components.minute, 30)
+    }
+
+    func testBareTimeWithTodayKeyword() {
+        // "5pm today" — bare AM/PM time with today keyword
+        // Reference: Feb 19 10:00 AM → today at 17:00
+        let result = parser.parse("Submit report 5pm today")
+        XCTAssertEqual(result.title, "Submit report")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.hour, 17)
+        XCTAssertEqual(components.minute, 0)
+    }
+
+    func testBareTimeOverridesCompoundTonightTime() {
+        // "tonight 11pm" — bare AM/PM should override compound 9 PM default
+        // Reference: Feb 19 → today at 23:00
+        let result = parser.parse("Lock up tonight 11pm")
+        XCTAssertEqual(result.title, "Lock up")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.hour, 23)
+        XCTAssertEqual(components.minute, 0)
+    }
+
+    func testBareTimeWithPM12Format() {
+        // "12pm tomorrow" — noon
+        let result = parser.parse("Lunch tomorrow 12pm")
+        XCTAssertEqual(result.title, "Lunch")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 20)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.hour, 12) // noon
+        XCTAssertEqual(components.minute, 0)
+    }
+
+    func testBareTimeWithMonthNameDate() {
+        // "March 5th 2pm" — month name date + bare AM/PM
+        // Mar 5 is in the future from Feb 19 → March 5 2026 at 14:00
+        let result = parser.parse("Board meeting March 5th 2pm")
+        XCTAssertEqual(result.title, "Board meeting")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 5)
+        XCTAssertEqual(components.month, 3)
+        XCTAssertEqual(components.hour, 14)
+        XCTAssertEqual(components.minute, 0)
+    }
+
+    func testAtPrefixStillTakesPriorityOverBareTime() {
+        // "at 3pm" — explicit "at" prefix should still work as before
+        // Reference: Feb 19 10:00 AM → today at 15:00
+        let result = parser.parse("Call at 3pm")
+        XCTAssertEqual(result.title, "Call")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.hour, 15)
+        XCTAssertEqual(components.minute, 0)
+    }
+
     // MARK: - NLTaskParseResult
 
     func testHasStructuredDataWithDate() {

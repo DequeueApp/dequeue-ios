@@ -308,21 +308,12 @@ struct NLTaskParser: Sendable {
             }
         }
 
-        return (result, nil)
-    }
+        // Fall through to bare AM/PM patterns (no "at" prefix required)
+        if let found = extractBareAMPMTime(from: result) {
+            return found
+        }
 
-    private func adjustHourForAMPM(hour: Int, ampm: String?) -> Int {
-        guard let ampm = ampm else {
-            // No AM/PM — if hour <= 12 and looks like 12h format, be smart
-            // Hours > 12 are 24h format
-            return hour
-        }
-        if ampm == "pm" && hour < 12 {
-            return hour + 12
-        } else if ampm == "am" && hour == 12 {
-            return 0
-        }
-        return hour
+        return (result, nil)
     }
 
     // MARK: - Compound Date+Time Keywords
@@ -1003,6 +994,65 @@ private extension NLTaskParser {
                 result = result.replacingCharacters(in: fullRange, with: "")
                 return (result, date)
             }
+        }
+
+        return nil
+    }
+
+    /// Adjusts a parsed hour value based on an optional AM/PM string.
+    func adjustHourForAMPM(hour: Int, ampm: String?) -> Int {
+        guard let ampm = ampm else {
+            // No AM/PM — hours > 12 are 24h format; 1-12 are interpreted as-is
+            return hour
+        }
+        if ampm == "pm" && hour < 12 {
+            return hour + 12
+        } else if ampm == "am" && hour == 12 {
+            return 0
+        }
+        return hour
+    }
+
+    /// Extracts bare AM/PM time expressions that have no "at" prefix.
+    ///
+    /// Matches:
+    /// - `3pm` / `10am` — hour + AM/PM suffix
+    /// - `3:30pm` / `10:00am` — hour:minute + AM/PM suffix
+    ///
+    /// AM/PM is **required** to avoid false positives on bare numbers.
+    func extractBareAMPMTime(from text: String) -> (String, (hour: Int, minute: Int)?)? {
+        var result = text
+
+        // "3:30pm" / "10:00am" — hour:minute + AM/PM
+        let bareTimeWithMinPattern = #"\b(\d{1,2}):(\d{2})\s*([aApP][mM])\b"#
+        if let regex = try? NSRegularExpression(pattern: bareTimeWithMinPattern),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let hourRange = Range(match.range(at: 1), in: result),
+           let minRange = Range(match.range(at: 2), in: result),
+           let ampmRange = Range(match.range(at: 3), in: result) {
+            var hour = Int(result[hourRange]) ?? 0
+            let minute = Int(result[minRange]) ?? 0
+            let ampm = String(result[ampmRange]).lowercased()
+            hour = adjustHourForAMPM(hour: hour, ampm: ampm)
+            if let fullRange = Range(match.range, in: result) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+            }
+            return (result, (hour, minute))
+        }
+
+        // "3pm" / "10am" — bare hour + AM/PM, no minutes
+        let bareTimePattern = #"\b(\d{1,2})\s*([aApP][mM])\b"#
+        if let regex = try? NSRegularExpression(pattern: bareTimePattern),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let hourRange = Range(match.range(at: 1), in: result),
+           let ampmRange = Range(match.range(at: 2), in: result) {
+            var hour = Int(result[hourRange]) ?? 0
+            let ampm = String(result[ampmRange]).lowercased()
+            hour = adjustHourForAMPM(hour: hour, ampm: ampm)
+            if let fullRange = Range(match.range, in: result) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+            }
+            return (result, (hour, 0))
         }
 
         return nil
