@@ -103,21 +103,44 @@ struct NLTaskParser: Sendable {
         var extractedStartDate: Date?
         var extractedTime: (hour: Int, minute: Int)?
 
+        // 0. Extract compound date+time phrases first — these must run before the
+        //    separate time and date extractors so "tomorrow morning" isn't split
+        //    into bare "tomorrow" + orphaned "morning".
+        //    e.g., "tomorrow morning", "this afternoon", "Friday evening"
+        var compoundDueDate: Date?
+        (working, compoundDueDate) = extractCompoundDateTimeKeywords(from: working)
+
         // 1. Extract priority markers (do first — they're unambiguous)
         (working, extractedPriority) = extractPriority(from: working)
 
         // 2. Extract tags (#word)
         (working, extractedTags) = extractTags(from: working)
 
-        // 3. Extract time expressions ("at 3pm", "at 15:00")
+        // 3. Extract explicit time expressions ("at 3pm", "at 15:00").
+        //    Always run — an explicit "at X" overrides the time baked into a compound phrase.
         (working, extractedTime) = extractTime(from: working)
 
         // 4. Extract start date first — "from/starting <date>" is more specific
         //    than bare date keywords, so it must consume its tokens before due date extraction.
         (working, extractedStartDate) = extractStartDate(from: working, time: nil)
 
-        // 5. Extract due date expressions ("tomorrow", "next Monday", "Jan 15", etc.)
-        (working, extractedDueDate) = extractDueDate(from: working, time: extractedTime)
+        // 5. Extract due date expressions ("tomorrow", "next Monday", "Jan 15", etc.).
+        //    If a compound date was already found, use it (but let an explicit "at X" override
+        //    the baked-in time so "tomorrow morning at 10am" respects the 10 AM).
+        if let compound = compoundDueDate {
+            if let time = extractedTime {
+                // Explicit time overrides the time-of-day default
+                var comps = calendar.dateComponents([.year, .month, .day], from: compound)
+                comps.hour = time.hour
+                comps.minute = time.minute
+                comps.second = 0
+                extractedDueDate = calendar.date(from: comps) ?? compound
+            } else {
+                extractedDueDate = compound
+            }
+        } else {
+            (working, extractedDueDate) = extractDueDate(from: working, time: extractedTime)
+        }
 
         // 6. If we got a time but no due date, assume today
         if let time = extractedTime, extractedDueDate == nil {
@@ -299,6 +322,70 @@ struct NLTaskParser: Sendable {
             return 0
         }
         return hour
+    }
+
+    // MARK: - Compound Date+Time Keywords
+
+    /// Extracts compound date+time-of-day phrases that encode both a day AND a time.
+    ///
+    /// Supported patterns (with optional "by " prefix):
+    /// - `this morning` → today 9 AM
+    /// - `this afternoon` → today 2 PM
+    /// - `this evening` → today 6 PM
+    /// - `tomorrow morning/afternoon/evening` → tomorrow at corresponding time
+    /// - `<day> morning/afternoon/evening` (e.g., "Friday morning", "next Monday evening")
+    ///
+    /// These are extracted before the separate time/date extractors so tokens
+    /// like "morning" and "afternoon" aren't left as orphaned text.
+    private func extractCompoundDateTimeKeywords(from text: String) -> (String, Date?) {
+        var result = text
+
+        let timeOfDay: [String: (Int, Int)] = [
+            "morning": (9, 0),
+            "afternoon": (14, 0),
+            "evening": (18, 0)
+        ]
+        let todPattern = "morning|afternoon|evening"
+
+        // "this morning/afternoon/evening"
+        let thisTODPattern = #"\b(?:by\s+)?this\s+("# + todPattern + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: thisTODPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let todRange = Range(match.range(at: 1), in: result),
+           let fullRange = Range(match.range, in: result),
+           let time = timeOfDay[String(result[todRange]).lowercased()] {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, dateWithTime(referenceDate, hour: time.0, minute: time.1))
+        }
+
+        // "tomorrow morning/afternoon/evening" — must be before bare "tomorrow"
+        let tomorrowTODPattern = #"\b(?:by\s+)?tomorrow\s+("# + todPattern + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: tomorrowTODPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let todRange = Range(match.range(at: 1), in: result),
+           let fullRange = Range(match.range, in: result),
+           let time = timeOfDay[String(result[todRange]).lowercased()],
+           let tomorrow = calendar.date(byAdding: .day, value: 1, to: referenceDate) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, dateWithTime(tomorrow, hour: time.0, minute: time.1))
+        }
+
+        // "<day> morning/afternoon/evening" e.g. "Friday morning", "next Monday afternoon"
+        let dayNamePattern = allDayNames.joined(separator: "|")
+        let dayTODPattern = #"\b(?:(?:next|on|by)\s+)?("# + dayNamePattern + #")\s+("# + todPattern + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: dayTODPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let dayRange = Range(match.range(at: 1), in: result),
+           let todRange = Range(match.range(at: 2), in: result),
+           let fullRange = Range(match.range, in: result),
+           let time = timeOfDay[String(result[todRange]).lowercased()],
+           let weekday = weekdayFromName(String(result[dayRange]).lowercased()),
+           let date = nextWeekday(weekday) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, dateWithTime(date, hour: time.0, minute: time.1))
+        }
+
+        return (result, nil)
     }
 
     // MARK: - Due Date Extraction
