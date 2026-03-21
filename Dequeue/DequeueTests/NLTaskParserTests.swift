@@ -602,6 +602,118 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(components.day, 1)
     }
 
+    // MARK: - Date: Named Month ("next/this October")
+
+    func testNextMonthNameFuture() {
+        // "next October" from Feb 19 2026 → Oct 1, 2026
+        let result = parser.parse("Conference prep next October")
+        XCTAssertEqual(result.title, "Conference prep")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 10)
+        XCTAssertEqual(components.day, 1)
+    }
+
+    func testNextMonthNamePast() {
+        // "next January" from Feb 19 2026 → Jan 1, 2027 (Jan 2026 already passed)
+        let result = parser.parse("New year plan next January")
+        XCTAssertEqual(result.title, "New year plan")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.month, 1)
+        XCTAssertEqual(components.day, 1)
+    }
+
+    func testThisMonthNameFuture() {
+        // "this March" from Feb 19 2026 → Mar 1, 2026
+        let result = parser.parse("Spring cleanup this March")
+        XCTAssertEqual(result.title, "Spring cleanup")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 3)
+        XCTAssertEqual(components.day, 1)
+    }
+
+    func testByNextMonthName() {
+        // "by next July" from Feb 19 2026 → Jul 1, 2026
+        let result = parser.parse("Finish thesis by next July")
+        XCTAssertEqual(result.title, "Finish thesis")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 7)
+        XCTAssertEqual(components.day, 1)
+    }
+
+    func testNextMonthAbbreviated() {
+        // "next Sep" from Feb 19 2026 → Sep 1, 2026
+        let result = parser.parse("Budget review next Sep")
+        XCTAssertEqual(result.title, "Budget review")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 9)
+        XCTAssertEqual(components.day, 1)
+    }
+
+    // MARK: - Date: Ordinal Day-of-Month ("the 5th", "by the 22nd")
+
+    func testOrdinalDayFutureThisMonth() {
+        // "the 25th" from Feb 19 2026 → Feb 25, 2026 (future in current month)
+        let result = parser.parse("Pay rent the 25th")
+        XCTAssertEqual(result.title, "Pay rent")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.day, 25)
+    }
+
+    func testOrdinalDayPastRollsToNextMonth() {
+        // "the 5th" from Feb 19 2026 → Mar 5, 2026 (Feb 5 is in the past)
+        let result = parser.parse("Submit report the 5th")
+        XCTAssertEqual(result.title, "Submit report")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 3)
+        XCTAssertEqual(components.day, 5)
+    }
+
+    func testByOrdinalDay() {
+        // "by the 22nd" from Feb 19 2026 → Feb 22, 2026
+        let result = parser.parse("Finish draft by the 22nd")
+        XCTAssertEqual(result.title, "Finish draft")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.day, 22)
+    }
+
+    func testOnOrdinalDay() {
+        // "on the 1st" from Feb 19 2026 → Mar 1, 2026 (Feb 1 is in the past)
+        let result = parser.parse("Team sync on the 1st")
+        XCTAssertEqual(result.title, "Team sync")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 3)
+        XCTAssertEqual(components.day, 1)
+    }
+
     // MARK: - Time Parsing
 
     func testAtTimePM() {

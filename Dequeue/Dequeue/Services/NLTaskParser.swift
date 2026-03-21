@@ -670,6 +670,12 @@ struct NLTaskParser: Sendable {
         from text: String,
         time resolvedTime: (hour: Int, minute: Int)
     ) -> (String, Date?)? {
+        if let found = extractNextNamedMonthDate(from: text, time: resolvedTime) {
+            return found
+        }
+        if let found = extractOrdinalDayDate(from: text, time: resolvedTime) {
+            return found
+        }
         if let found = extractMonthNameDate(from: text, time: resolvedTime) {
             return found
         }
@@ -1011,6 +1017,82 @@ private extension NLTaskParser {
             "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "thirty": 30
         ]
         return numberWords[word.lowercased()]
+    }
+
+    /// Extracts "next <month>" / "this <month>" expressions.
+    /// Examples: "next October", "this July", "by next March"
+    /// Resolves to the 1st of the named month, next occurrence in time.
+    func extractNextNamedMonthDate(
+        from text: String,
+        time resolvedTime: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
+        // swiftlint:disable:next line_length
+        let monthNames = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+        let pattern = #"\b(?:by\s+)?(?:next|this)\s+("# + monthNames + #")\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+              let monthRange = Range(match.range(at: 1), in: result),
+              let fullRange = Range(match.range, in: result) else {
+            return nil
+        }
+
+        let monthStr = String(result[monthRange]).lowercased()
+        guard let month = monthFromName(monthStr),
+              let date = resolveMonthDay(month: month, day: 1, time: resolvedTime) else {
+            return nil
+        }
+
+        result = result.replacingCharacters(in: fullRange, with: "")
+        return (result, date)
+    }
+
+    /// Extracts ordinal day-of-month expressions: "the 5th", "the 15th", "by the 22nd"
+    /// Resolves to that day of the current month if in the future, otherwise next month.
+    func extractOrdinalDayDate(
+        from text: String,
+        time resolvedTime: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
+        let pattern = #"\b(?:by\s+|on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+              let dayRange = Range(match.range(at: 1), in: result),
+              let fullRange = Range(match.range, in: result) else {
+            return nil
+        }
+
+        let day = Int(result[dayRange]) ?? 1
+        guard day >= 1, day <= 31 else { return nil }
+
+        let currentMonth = calendar.component(.month, from: referenceDate)
+        let currentYear = calendar.component(.year, from: referenceDate)
+
+        var comps = DateComponents()
+        comps.day = day
+        comps.hour = resolvedTime.hour
+        comps.minute = resolvedTime.minute
+        comps.second = 0
+
+        // Try this month first
+        comps.year = currentYear
+        comps.month = currentMonth
+        if let date = calendar.date(from: comps), date > referenceDate {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, date)
+        }
+
+        // Otherwise next month
+        if let nextMonthDate = calendar.date(byAdding: .month, value: 1, to: referenceDate) {
+            comps.year = calendar.component(.year, from: nextMonthDate)
+            comps.month = calendar.component(.month, from: nextMonthDate)
+            if let date = calendar.date(from: comps) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
+            }
+        }
+
+        return nil
     }
 }
 
