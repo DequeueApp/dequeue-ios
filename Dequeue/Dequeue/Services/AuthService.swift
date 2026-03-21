@@ -154,7 +154,7 @@ final class ClerkAuthService: AuthServiceProtocol {
             try await Clerk.shared.refreshClient()
         } catch {
             refreshError = error
-            // Only report unexpected errors to Sentry — not 401s or Clerk internal errors.
+            // Only report unexpected errors to Sentry — not 401s, 422s, or Clerk internal errors.
             //
             // 401 Unauthorized: When a Clerk session is revoked server-side,
             // `Clerk.shared.refreshClient()` throws an HTTPClientError with status 401.
@@ -162,19 +162,38 @@ final class ClerkAuthService: AuthServiceProtocol {
             // breadcrumb + stream emit). Capturing 401s here bypasses the
             // `failedRequestStatusCodes = [402-599]` filter and floods Sentry.
             //
+            // 422 Unprocessable Entity: Clerk returns this when the session ID in the token
+            // URL is permanently invalid and cannot be refreshed (distinct from a transient
+            // 401). The session must be cleared and the user re-authenticated.
+            // Without this guard the app retried on every app-foreground event, flooding
+            // Sentry with 3,800+ identical events (DEQUEUE-APP-12, Feb–Mar 2026).
+            //
             // internal_clerk_error: Clerk's own backend occasionally returns 500s
             // (POST /v1/client/sessions/.../tokens) with code "internal_clerk_error".
             // These are transient Clerk infrastructure failures entirely outside our
             // control — capturing them only generates noise (DEQUEUE-APP-T, 1,900+ events).
             let isExpected401 = error.localizedDescription.contains("401")
                 || (error as NSError).code == 401
+            let isExpected422 = error.localizedDescription.contains("status code: 422")
+                || (error as NSError).code == 422
             let isClerkInternalError = error.localizedDescription.contains("internal_clerk_error")
                 || (error as NSError).domain == "Clerk.ClerkAPIError"
-            if !isExpected401 && !isClerkInternalError {
+            if !isExpected401 && !isExpected422 && !isClerkInternalError {
                 ErrorReportingService.capture(
                     error: error,
                     context: ["source": "session_refresh", "offline_mode": !NetworkMonitor.shared.isConnected]
                 )
+            }
+            // Force sign-out when Clerk returns 422 so `Clerk.shared.session` becomes nil.
+            // This prevents the guard at the top of this function from ever passing again
+            // for the revoked session, stopping the indefinite retry loop.
+            if isExpected422 {
+                ErrorReportingService.addBreadcrumb(
+                    category: "auth",
+                    message: "Session permanently invalidated (422) — forcing sign-out",
+                    data: ["source": "refreshSessionInBackground"]
+                )
+                try? await Clerk.shared.auth.signOut()
             }
         }
 
