@@ -291,6 +291,80 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(components.day, 19)
     }
 
+    // MARK: - Date: Indefinite Article "in a/an"
+
+    func testInAnHour() {
+        // Reference: Feb 19, 2026 at 10:00 AM → 11:00 AM same day
+        let result = parser.parse("Quick call in an hour")
+        XCTAssertEqual(result.title, "Quick call")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.hour, 11) // 10 AM + 1 hr
+    }
+
+    func testInADay() {
+        // Reference: Feb 19, 2026 → Feb 20, 2026
+        let result = parser.parse("Follow up in a day")
+        XCTAssertEqual(result.title, "Follow up")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.day, 20)
+    }
+
+    func testInAWeek() {
+        // Reference: Feb 19, 2026 → Feb 26, 2026
+        let result = parser.parse("Check status in a week")
+        XCTAssertEqual(result.title, "Check status")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.day, 26)
+    }
+
+    func testInAMonth() {
+        // Reference: Feb 19, 2026 → March 19, 2026
+        let result = parser.parse("Review proposal in a month")
+        XCTAssertEqual(result.title, "Review proposal")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 3)
+        XCTAssertEqual(components.day, 19)
+    }
+
+    func testInAYear() {
+        // Reference: Feb 19, 2026 → Feb 19, 2027
+        let result = parser.parse("Renew license in a year")
+        XCTAssertEqual(result.title, "Renew license")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.day, 19)
+    }
+
+    func testInAMinute() {
+        // Reference: Feb 19, 2026 at 10:00 → 10:01
+        let result = parser.parse("Send the ping in a minute")
+        XCTAssertEqual(result.title, "Send the ping")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.hour, 10)
+        XCTAssertEqual(components.minute, 1)
+    }
+
     func testNextMonth() {
         // Reference: Feb 19, 2026 → March 1, 2026 at defaultTime (9 AM)
         let result = parser.parse("Budget review next month")
