@@ -358,6 +358,18 @@ struct NLTaskParser: Sendable {
             return (result, dateWithTime(referenceDate, hour: time.0, minute: time.1))
         }
 
+        // "day after tomorrow morning/afternoon/evening" — must be before "tomorrow" to avoid partial match
+        let datTODPattern = #"\b(?:by\s+)?day after tomorrow\s+("# + todPattern + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: datTODPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let todRange = Range(match.range(at: 1), in: result),
+           let fullRange = Range(match.range, in: result),
+           let time = timeOfDay[String(result[todRange]).lowercased()],
+           let dat = calendar.date(byAdding: .day, value: 2, to: referenceDate) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, dateWithTime(dat, hour: time.0, minute: time.1))
+        }
+
         // "tomorrow morning/afternoon/evening" — must be before bare "tomorrow"
         let tomorrowTODPattern = #"\b(?:by\s+)?tomorrow\s+("# + todPattern + #")\b"#
         if let regex = try? NSRegularExpression(pattern: tomorrowTODPattern, options: .caseInsensitive),
@@ -457,6 +469,14 @@ struct NLTaskParser: Sendable {
             }
         }
 
+        // "next year" (January 1 of next calendar year)
+        if let match = result.range(of: #"\b(?:by\s+)?next year\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = firstDayOfNextYear() {
+                return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
+            }
+        }
+
         // "next week" (next Monday)
         if let match = result.range(of: #"\b(?:by\s+)?next week\b"#, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
@@ -506,6 +526,24 @@ struct NLTaskParser: Sendable {
         if let match = result.range(of: eomPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = lastDayOfMonth() {
+                return (result, dateWithTime(date, hour: 17, minute: 0))
+            }
+        }
+
+        // "end of quarter" / "eoq"
+        let eoqPattern = #"\b(?:by\s+)?(?:end of quarter|eoq)\b"#
+        if let match = result.range(of: eoqPattern, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = lastDayOfQuarter() {
+                return (result, dateWithTime(date, hour: 17, minute: 0))
+            }
+        }
+
+        // "end of year" / "eoy"
+        let eoyPattern = #"\b(?:by\s+)?(?:end of year|eoy)\b"#
+        if let match = result.range(of: eoyPattern, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = lastDayOfYear() {
                 return (result, dateWithTime(date, hour: 17, minute: 0))
             }
         }
@@ -753,6 +791,48 @@ struct NLTaskParser: Sendable {
             return nil
         }
         return lastDay
+    }
+
+    /// Returns the last day of the current calendar quarter (Q1=Mar 31, Q2=Jun 30, Q3=Sep 30, Q4=Dec 31)
+    private func lastDayOfQuarter() -> Date? {
+        let month = calendar.component(.month, from: referenceDate)
+        let year = calendar.component(.year, from: referenceDate)
+        // Determine last month of the current quarter
+        let lastQuarterMonth: Int
+        switch month {
+        case 1...3: lastQuarterMonth = 3
+        case 4...6: lastQuarterMonth = 6
+        case 7...9: lastQuarterMonth = 9
+        default: lastQuarterMonth = 12
+        }
+        // Last day of lastQuarterMonth = first of (lastQuarterMonth + 1) minus 1 day
+        var components = DateComponents()
+        components.year = year
+        components.month = lastQuarterMonth + 1 > 12 ? 1 : lastQuarterMonth + 1
+        components.day = 1
+        if lastQuarterMonth == 12 { components.year = year + 1 }
+        guard let firstOfNextMonth = calendar.date(from: components) else { return nil }
+        return calendar.date(byAdding: .day, value: -1, to: firstOfNextMonth)
+    }
+
+    /// Returns the last day of the current calendar year (December 31)
+    private func lastDayOfYear() -> Date? {
+        let year = calendar.component(.year, from: referenceDate)
+        var components = DateComponents()
+        components.year = year
+        components.month = 12
+        components.day = 31
+        return calendar.date(from: components)
+    }
+
+    /// Returns the first day of the next calendar year (January 1)
+    private func firstDayOfNextYear() -> Date? {
+        let year = calendar.component(.year, from: referenceDate)
+        var components = DateComponents()
+        components.year = year + 1
+        components.month = 1
+        components.day = 1
+        return calendar.date(from: components)
     }
 
     /// Returns the next occurrence of the given weekday (always in the future)

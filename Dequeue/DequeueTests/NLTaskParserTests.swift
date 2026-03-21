@@ -329,6 +329,82 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(components.hour, 17)
     }
 
+    // MARK: - Date: Quarter/Year
+
+    func testEndOfQuarter() {
+        // Reference: Feb 19, 2026 → Q1 ends Mar 31, 2026 at 17:00
+        let result = parser.parse("Finish Q1 goals end of quarter")
+        XCTAssertEqual(result.title, "Finish Q1 goals")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 3)
+        XCTAssertEqual(components.day, 31)
+        XCTAssertEqual(components.hour, 17)
+    }
+
+    func testEOQ() {
+        // Reference: Feb 19, 2026 → Q1 ends Mar 31, 2026 at 17:00
+        let result = parser.parse("Submit OKRs eoq")
+        XCTAssertEqual(result.title, "Submit OKRs")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.month, .day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.month, 3)
+        XCTAssertEqual(components.day, 31)
+        XCTAssertEqual(components.hour, 17)
+    }
+
+    func testEndOfYear() {
+        // Reference: Feb 19, 2026 → Dec 31, 2026 at 17:00
+        let result = parser.parse("Annual review end of year")
+        XCTAssertEqual(result.title, "Annual review")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 12)
+        XCTAssertEqual(components.day, 31)
+        XCTAssertEqual(components.hour, 17)
+    }
+
+    func testEOY() {
+        // Reference: Feb 19, 2026 → Dec 31, 2026 at 17:00
+        let result = parser.parse("File taxes eoy")
+        XCTAssertEqual(result.title, "File taxes")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.month, .day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.month, 12)
+        XCTAssertEqual(components.day, 31)
+        XCTAssertEqual(components.hour, 17)
+    }
+
+    func testNextYear() {
+        // Reference: Feb 19, 2026 → Jan 1, 2027
+        let result = parser.parse("Plan vacation next year")
+        XCTAssertEqual(result.title, "Plan vacation")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.month, 1)
+        XCTAssertEqual(components.day, 1)
+    }
+
+    func testByNextYear() {
+        // Reference: Feb 19, 2026 → Jan 1, 2027
+        let result = parser.parse("Launch v2 by next year")
+        XCTAssertEqual(result.title, "Launch v2")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.month, 1)
+        XCTAssertEqual(components.day, 1)
+    }
+
     // MARK: - Date: Day Names
 
     func testNextMonday() {
@@ -745,6 +821,36 @@ final class NLTaskParserTests: XCTestCase {
         let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
         XCTAssertEqual(components.day, 20)
         XCTAssertEqual(components.hour, 9)
+    }
+
+    func testDayAfterTomorrowMorning() {
+        // Reference: Feb 19 → day after tomorrow = Feb 21 at 9 AM
+        let result = parser.parse("Team offsite day after tomorrow morning")
+        XCTAssertEqual(result.title, "Team offsite")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 21)
+        XCTAssertEqual(components.hour, 9)
+    }
+
+    func testDayAfterTomorrowAfternoon() {
+        // Reference: Feb 19 → day after tomorrow = Feb 21 at 2 PM
+        let result = parser.parse("Dentist day after tomorrow afternoon")
+        XCTAssertEqual(result.title, "Dentist")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 21)
+        XCTAssertEqual(components.hour, 14)
+    }
+
+    func testDayAfterTomorrowEvening() {
+        // Reference: Feb 19 → day after tomorrow = Feb 21 at 6 PM
+        let result = parser.parse("Dinner with parents day after tomorrow evening")
+        XCTAssertEqual(result.title, "Dinner with parents")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 21)
+        XCTAssertEqual(components.hour, 18)
     }
 
     // MARK: - NLTaskParseResult
