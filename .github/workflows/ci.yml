@@ -256,6 +256,22 @@ jobs:
             fi
           fi
 
+          # 1b. Parse Swift Testing output format (Xcode 16+ swift-testing framework)
+          #    Format: "✔ Test run with N tests in M suites passed after T seconds."
+          #    Failure markers: "✗ Test "name" failed after T seconds."
+          if [ -z "$PASSED_COUNT" ]; then
+            ST_RUN_LINE=$(grep -E "Test run with [0-9]+ tests in [0-9]+ suites passed" "$LOGFILE" | tail -1 || true)
+            if [ -n "$ST_RUN_LINE" ]; then
+              ST_TOTAL=$(echo "$ST_RUN_LINE" | grep -oE '[0-9]+ tests' | grep -oE '[0-9]+' | head -1)
+              ST_FAILS=$(grep -cE "✗ Test .* failed" "$LOGFILE" 2>/dev/null || echo "0")
+              if [ -n "$ST_TOTAL" ]; then
+                FAILED_COUNT="$ST_FAILS"
+                PASSED_COUNT=$((ST_TOTAL - ST_FAILS))
+                echo "Swift Testing format detected: $ST_TOTAL total, $ST_FAILS failed"
+              fi
+            fi
+          fi
+
           # 2. Fallback: try xcresult bundle if we couldn't parse from output
           if [ -z "$PASSED_COUNT" ] && [ -d "UnitTestResults.xcresult" ]; then
             echo "Parsing xcresult bundle as fallback..."
@@ -295,7 +311,10 @@ jobs:
 
           # Exit code 65 with no failures = test runner crash, not test failure
           # But only trust this if we actually parsed some test output (avoid hiding build failures)
-          if [ "$XCODEBUILD_EXIT" = "65" ] && grep -q "Executed [0-9]* test" "$LOGFILE" 2>/dev/null; then
+          # Check both XCTest format ("Executed N tests") and Swift Testing format ("Test run with N tests")
+          if [ "$XCODEBUILD_EXIT" = "65" ] && \
+             (grep -q "Executed [0-9]* test" "$LOGFILE" 2>/dev/null || \
+              grep -qE "Test run with [0-9]+ tests in [0-9]+ suites passed" "$LOGFILE" 2>/dev/null); then
             echo "::warning::xcodebuild returned exit code 65 but no test failures detected (crash during teardown)"
             exit 0
           fi
