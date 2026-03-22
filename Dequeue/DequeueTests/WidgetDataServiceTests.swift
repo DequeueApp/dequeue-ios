@@ -37,7 +37,12 @@ private func makeTestContainer() throws -> ModelContainer {
 @MainActor
 private func makeIsolatedDefaults() -> UserDefaults {
     let suite = "com.dequeue.tests.widgets.\(UUID().uuidString)"
-    return UserDefaults(suiteName: suite)!
+    // UserDefaults(suiteName:) only returns nil for NSGlobalDomain;
+    // a UUID-based suite name always succeeds.
+    guard let defaults = UserDefaults(suiteName: suite) else {
+        preconditionFailure("Failed to create isolated UserDefaults with suite: \(suite)")
+    }
+    return defaults
 }
 
 /// Reads decoded widget data from UserDefaults
@@ -256,7 +261,8 @@ struct WidgetDataServiceUpNextTests {
 
         let data = readDefaults(defaults, key: AppGroupConfig.upNextKey, as: WidgetUpNextData.self)
         #expect(data != nil)
-        #expect(data!.upcomingTasks.count <= 10)
+        let taskData = try #require(data)
+        #expect(taskData.upcomingTasks.count <= 10)
     }
 
     @Test("excludes tasks without due dates")
@@ -355,10 +361,12 @@ struct WidgetDataServiceStatsTests {
             status: .completed, sortOrder: 1, updatedAt: Date(), stack: stack
         ))
         // Completed yesterday
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())
+            ?? Date(timeIntervalSinceNow: -86_400)
         context.insert(QueueTask(
             id: "task-yesterday", title: "Done Yesterday",
             status: .completed, sortOrder: 2,
-            updatedAt: Calendar.current.date(byAdding: .day, value: -1, to: Date())!,
+            updatedAt: yesterday,
             stack: stack
         ))
         // Pending
