@@ -50,6 +50,27 @@ private func makeMockSession() -> URLSession {
     return URLSession(configuration: config)
 }
 
+/// URLSession moves httpBody to httpBodyStream when routing through URLProtocol.
+/// This helper reads body data from either source.
+private func readBodyData(from request: URLRequest) -> Data? {
+    if let body = request.httpBody {
+        return body
+    }
+    guard let stream = request.httpBodyStream else { return nil }
+    stream.open()
+    defer { stream.close() }
+    var data = Data()
+    let bufferSize = 4096
+    let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+    defer { buffer.deallocate() }
+    while stream.hasBytesAvailable {
+        let read = stream.read(buffer, maxLength: bufferSize)
+        guard read > 0 else { break }
+        data.append(buffer, count: read)
+    }
+    return data
+}
+
 // MARK: - Webhook Service Tests
 
 @Suite("WebhookService")
@@ -171,7 +192,9 @@ struct WebhookServiceTests {
 
         WebhookMockURLProtocolStorage.shared.requestHandler = { request in
             #expect(request.httpMethod == "POST")
-            let body = try JSONDecoder().decode(CreateWebhookRequest.self, from: request.httpBody!)
+            let rawBody = readBodyData(from: request)
+            #expect(rawBody != nil)
+            let body = try JSONDecoder().decode(CreateWebhookRequest.self, from: rawBody ?? Data())
             #expect(body.url == "https://example.com/hook")
             #expect(body.events == ["task.created"])
             let response = HTTPURLResponse(
