@@ -782,10 +782,12 @@ struct NLTaskParser: Sendable {
 
         return (result, nil)
     }
+}
 
-    // MARK: - Date Helpers
+// MARK: - NLTaskParser Date Helpers
 
-    private func dateWithTime(_ date: Date, hour: Int, minute: Int) -> Date {
+private extension NLTaskParser {
+    func dateWithTime(_ date: Date, hour: Int, minute: Int) -> Date {
         var components = calendar.dateComponents([.year, .month, .day], from: date)
         components.hour = hour
         components.minute = minute
@@ -794,7 +796,7 @@ struct NLTaskParser: Sendable {
     }
 
     /// Returns the first day of next calendar month
-    private func nextFirstOfMonth() -> Date? {
+    func nextFirstOfMonth() -> Date? {
         let components = calendar.dateComponents([.year, .month], from: referenceDate)
         guard let firstOfCurrentMonth = calendar.date(from: components),
               let firstOfNextMonth = calendar.date(byAdding: .month, value: 1, to: firstOfCurrentMonth) else {
@@ -804,7 +806,7 @@ struct NLTaskParser: Sendable {
     }
 
     /// Returns the last day of the current calendar month
-    private func lastDayOfMonth() -> Date? {
+    func lastDayOfMonth() -> Date? {
         let components = calendar.dateComponents([.year, .month], from: referenceDate)
         guard let firstOfCurrentMonth = calendar.date(from: components),
               let firstOfNextMonth = calendar.date(byAdding: .month, value: 1, to: firstOfCurrentMonth),
@@ -815,7 +817,7 @@ struct NLTaskParser: Sendable {
     }
 
     /// Returns the last day of the current calendar quarter (Q1=Mar 31, Q2=Jun 30, Q3=Sep 30, Q4=Dec 31)
-    private func lastDayOfQuarter() -> Date? {
+    func lastDayOfQuarter() -> Date? {
         let month = calendar.component(.month, from: referenceDate)
         let year = calendar.component(.year, from: referenceDate)
         // Determine last month of the current quarter
@@ -837,7 +839,7 @@ struct NLTaskParser: Sendable {
     }
 
     /// Returns the last day of the current calendar year (December 31)
-    private func lastDayOfYear() -> Date? {
+    func lastDayOfYear() -> Date? {
         let year = calendar.component(.year, from: referenceDate)
         var components = DateComponents()
         components.year = year
@@ -847,7 +849,7 @@ struct NLTaskParser: Sendable {
     }
 
     /// Returns the first day of the next calendar year (January 1)
-    private func firstDayOfNextYear() -> Date? {
+    func firstDayOfNextYear() -> Date? {
         let year = calendar.component(.year, from: referenceDate)
         var components = DateComponents()
         components.year = year + 1
@@ -857,7 +859,7 @@ struct NLTaskParser: Sendable {
     }
 
     /// Returns the next occurrence of the given weekday (always in the future)
-    private func nextWeekday(_ target: Weekday) -> Date? {
+    func nextWeekday(_ target: Weekday) -> Date? {
         let currentWeekday = calendar.component(.weekday, from: referenceDate)
         let targetWeekday = target.calendarValue
 
@@ -870,7 +872,7 @@ struct NLTaskParser: Sendable {
     }
 
     /// Resolves a month/day pair to the next occurrence (future-biased)
-    private func resolveMonthDay(month: Int, day: Int, time: (hour: Int, minute: Int)) -> Date? {
+    func resolveMonthDay(month: Int, day: Int, time: (hour: Int, minute: Int)) -> Date? {
         let currentYear = calendar.component(.year, from: referenceDate)
 
         var components = DateComponents()
@@ -890,10 +892,12 @@ struct NLTaskParser: Sendable {
         components.year = currentYear + 1
         return calendar.date(from: components)
     }
+}
 
-    // MARK: - Title Cleanup
+// MARK: - NLTaskParser Title Cleanup
 
-    private func cleanTitle(_ text: String) -> String {
+private extension NLTaskParser {
+    func cleanTitle(_ text: String) -> String {
         var result = text
 
         // Remove leading "by" if it's left over
