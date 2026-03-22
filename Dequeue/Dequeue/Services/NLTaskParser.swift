@@ -1233,6 +1233,13 @@ private extension NLTaskParser {
             return (result, RecurrenceRule(frequency: .weekly, daysOfWeek: RecurrenceDay.weekends))
         }
 
+        // "every Monday and Wednesday" / "every Mon, Wed, Fri" — two or more named days.
+        // Must run BEFORE single-named-day check so "every Monday and Wednesday" isn't
+        // partially matched as "every Monday" (leaving " and Wednesday" as stray text).
+        if let extracted = extractMultiDayWeeklyRule(from: result) {
+            return extracted
+        }
+
         // "every Monday" / "every Friday" / … → weekly on that day
         let namedDayPattern = #"\bevery\s+("# + dayNames + #")\b"#
         if let regex = try? NSRegularExpression(pattern: namedDayPattern, options: .caseInsensitive),
@@ -1325,21 +1332,80 @@ private extension NLTaskParser {
             return (result, .biweekly)
         }
 
+        // "quarterly" / "every quarter" → monthly, interval 3
+        let quarterlyPattern = #"\b(?:quarterly|every\s+quarter)\b"#
+        if let regex = try? NSRegularExpression(pattern: quarterlyPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, RecurrenceRule(frequency: .monthly, interval: 3))
+        }
+
+        // "bimonthly" → every 2 months
+        // Note: in English "bimonthly" is ambiguous (twice-a-month vs every-two-months);
+        // we follow the same convention as "biweekly" and treat it as "every two months".
+        if let match = result.range(of: #"\bbimonthly\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            return (result, RecurrenceRule(frequency: .monthly, interval: 2))
+        }
+
         return nil
     }
 
     // swiftlint:enable cyclomatic_complexity
 
+    /// Extracts multi-day weekly recurrence from phrases like "every Monday and Wednesday"
+    /// or "every Mon, Wed, Fri". Returns the cleaned text and rule, or nil if no match.
+    ///
+    /// Supports:
+    /// - Two days: `every Tuesday and Thursday`
+    /// - Three or more: `every Mon, Wed, Fri`
+    /// - Oxford comma: `every Monday, Wednesday, and Friday`
+    /// - Abbreviations: `Mon`, `Tue`, `Wed`, `Thu`, `Fri`, `Sat`, `Sun` (and variants)
+    func extractMultiDayWeeklyRule(from text: String) -> (String, RecurrenceRule?)? {
+        let allDayPat = allDayNames.joined(separator: "|")
+        // Separator: comma (with optional "and") OR bare "and" with surrounding spaces
+        let sep = #"(?:\s*,\s*(?:and\s*)?|\s+and\s+)"#
+        // Full phrase: "every <day> (<sep> <day>)+" — must have at least two days
+        let pattern = #"\bevery\s+(?:"# + allDayPat + #")(?:"# + sep + #"(?:"# + allDayPat + #"))+\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let fullRange = Range(match.range, in: text) else {
+            return nil
+        }
+        let matchedText = String(text[fullRange])
+        guard let dayRegex = try? NSRegularExpression(
+            pattern: "\\b(" + allDayPat + ")\\b",
+            options: .caseInsensitive
+        ) else {
+            return nil
+        }
+        let dayMatches = dayRegex.matches(
+            in: matchedText,
+            range: NSRange(matchedText.startIndex..., in: matchedText)
+        )
+        let extractedDays = dayMatches.compactMap { mch -> RecurrenceDay? in
+            guard let rng = Range(mch.range(at: 1), in: matchedText) else { return nil }
+            return recurrenceDayFromName(String(matchedText[rng]))
+        }
+        let daySet = Set(extractedDays)
+        guard daySet.count >= 2 else { return nil }
+        var result = text
+        result = result.replacingCharacters(in: fullRange, with: "")
+        return (result, RecurrenceRule(frequency: .weekly, daysOfWeek: daySet))
+    }
+
     /// Maps a day name string (case-insensitive) to a `RecurrenceDay`.
+    /// Supports both full names ("monday") and common abbreviations ("mon", "tue", etc.).
     func recurrenceDayFromName(_ name: String) -> RecurrenceDay? {
         switch name.lowercased() {
-        case "monday": return .monday
-        case "tuesday": return .tuesday
-        case "wednesday": return .wednesday
-        case "thursday": return .thursday
-        case "friday": return .friday
-        case "saturday": return .saturday
-        case "sunday": return .sunday
+        case "monday", "mon": return .monday
+        case "tuesday", "tue", "tues": return .tuesday
+        case "wednesday", "wed": return .wednesday
+        case "thursday", "thu", "thur", "thurs": return .thursday
+        case "friday", "fri": return .friday
+        case "saturday", "sat": return .saturday
+        case "sunday", "sun": return .sunday
         default: return nil
         }
     }
