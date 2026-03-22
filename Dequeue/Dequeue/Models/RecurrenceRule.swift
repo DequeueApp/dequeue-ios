@@ -156,6 +156,11 @@ struct RecurrenceRule: Codable, Sendable, Equatable {
         RecurrenceRule(frequency: .weekly, interval: 2)
     }
 
+    /// Every 3 months (quarterly)
+    static var quarterly: RecurrenceRule {
+        RecurrenceRule(frequency: .monthly, interval: 3)
+    }
+
     // MARK: - Display
 
     /// Human-readable description of the recurrence pattern
@@ -238,6 +243,7 @@ struct RecurrenceRule: Codable, Sendable, Equatable {
             ("Weekly", .weekly),
             ("Biweekly", .biweekly),
             ("Monthly", .monthly),
+            ("Quarterly", .quarterly),
             ("Yearly", .yearly)
         ]
     }
