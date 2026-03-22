@@ -1177,6 +1177,8 @@ private extension NLTaskParser {
     /// - `every 2 days` / `every 3 weeks` / `every 6 months` → interval-based rule
     /// - `every other day/week/month/year` → interval: 2
     /// - `biweekly` / `fortnightly` → every 2 weeks
+    /// - `semiannually` / `semi-annually` → every 6 months
+    /// - `biennial` / `biennially` → every 2 years
     func extractRecurrenceRule(from text: String) -> (String, RecurrenceRule?)? {
         var result = text
         let dayNames = "monday|tuesday|wednesday|thursday|friday|saturday|sunday"
@@ -1351,6 +1353,18 @@ private extension NLTaskParser {
         if let match = result.range(of: #"\bbimonthly\b"#, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             return (result, RecurrenceRule(frequency: .monthly, interval: 2))
+        }
+
+        // "semiannually" / "semi-annually" → every 6 months (twice a year)
+        if let match = result.range(of: #"\bsemi-?annually\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            return (result, RecurrenceRule(frequency: .monthly, interval: 6))
+        }
+
+        // "biennial" / "biennially" → every 2 years
+        if let match = result.range(of: #"\bbiennially?\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            return (result, RecurrenceRule(frequency: .yearly, interval: 2))
         }
 
         return nil
