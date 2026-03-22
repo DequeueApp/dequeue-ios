@@ -185,7 +185,7 @@ jobs:
           #
           # TODO: Remove this workaround once Apple fixes swift_task_deinitOnExecutorImpl
           # double-free (rdar://FB15432891).
-          MAX_WAIT=900  # 15 minutes (tests take ~30s, build ~4min)
+          MAX_WAIT=1800  # 30 minutes (build can take 14+ min on slow CI runners; tests add ~5 min)
           SECONDS=0     # reset bash built-in elapsed-time counter
           LOGFILE="xcodebuild-test.log"
 
