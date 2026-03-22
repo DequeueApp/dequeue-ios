@@ -248,8 +248,8 @@ jobs:
           PASSED_COUNT=""
           FAILED_COUNT=""
           if [ -n "$EXECUTED_LINE" ]; then
-            TOTAL=$(echo "$EXECUTED_LINE" | grep -oE 'Executed [0-9]+' | grep -oE '[0-9]+')
-            FAILURES=$(echo "$EXECUTED_LINE" | grep -oE 'with [0-9]+ failures' | grep -oE '[0-9]+')
+            TOTAL=$(echo "$EXECUTED_LINE" | grep -oE 'Executed [0-9]+' | grep -oE '[0-9]+' || true)
+            FAILURES=$(echo "$EXECUTED_LINE" | grep -oE 'with [0-9]+ failures' | grep -oE '[0-9]+' || true)
             if [ -n "$TOTAL" ] && [ -n "$FAILURES" ]; then
               FAILED_COUNT="$FAILURES"
               PASSED_COUNT=$((TOTAL - FAILURES))
@@ -326,9 +326,9 @@ jobs:
           if [ "$TIMED_OUT" = "true" ]; then
             echo "Timed out without Executed summary — checking for suite-level pass..."
             PRE_RESTART=$(awk '/Restarting after unexpected exit/{exit}1' "$LOGFILE" || true)
-            SUITE_PASSES=$(echo "$PRE_RESTART" | grep -c "Test Suite '.*' passed" || echo "0")
-            SUITE_FAILS=$(echo "$PRE_RESTART" | grep -c "Test Suite '.*' failed" || echo "0")
-            CASE_FAILS=$(echo "$PRE_RESTART" | grep -c "Test Case '.*' failed" || echo "0")
+            SUITE_PASSES=$(echo "$PRE_RESTART" | grep -c "Test Suite '.*' passed" || true)
+            SUITE_FAILS=$(echo "$PRE_RESTART" | grep -c "Test Suite '.*' failed" || true)
+            CASE_FAILS=$(echo "$PRE_RESTART" | grep -c "Test Case '.*' failed" || true)
             echo "Suite passes: $SUITE_PASSES, suite fails: $SUITE_FAILS, case fails: $CASE_FAILS"
             if [ "$SUITE_PASSES" -gt 0 ] && [ "$SUITE_FAILS" -eq 0 ] && [ "$CASE_FAILS" -eq 0 ]; then
               echo "::warning::All test suites passed before crash-restart loop (Swift 6 deinit crash during teardown, not a test failure)"
