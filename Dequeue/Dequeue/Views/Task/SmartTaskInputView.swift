@@ -130,6 +130,15 @@ struct SmartTaskInputView: View {
                     )
                 }
 
+                // Recurrence
+                if let rule = result.recurrenceRule {
+                    previewChip(
+                        icon: "repeat",
+                        text: rule.shortText,
+                        color: .orange
+                    )
+                }
+
                 // Tags
                 ForEach(result.tags, id: \.self) { tag in
                     previewChip(
