@@ -1234,13 +1234,13 @@ final class NLTaskParserTests: XCTestCase {
 
     func testBareNextDayNameWithAMPMHour() {
         // "Friday 10am" — bare AM/PM time with day name
-        // Reference: Wed Feb 19 → next Friday = Feb 20... wait, Feb 19 is Wed.
-        // nextWeekday(.friday): currentWeekday=4 (Wed), targetWeekday=6 (Fri), daysToAdd=2 → Feb 21
+        // Reference: Thu Feb 19, 2026. nextWeekday(.friday): currentWeekday=5 (Thu),
+        // targetWeekday=6 (Fri), daysToAdd=1 → Feb 20, 2026
         let result = parser.parse("Team standup Friday 10am")
         XCTAssertEqual(result.title, "Team standup")
         XCTAssertNotNil(result.dueTime)
         let components = calendar.dateComponents([.day, .month, .hour, .minute], from: result.dueTime!)
-        XCTAssertEqual(components.day, 21) // Feb 21 (next Friday)
+        XCTAssertEqual(components.day, 20) // Feb 20 (next Friday from Thursday Feb 19)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.hour, 10)
         XCTAssertEqual(components.minute, 0)
@@ -1343,5 +1343,183 @@ final class NLTaskParserTests: XCTestCase {
     func testNoStructuredDataPlainText() {
         let result = parser.parse("Just a plain task")
         XCTAssertFalse(result.hasStructuredData)
+    }
+
+    // MARK: - Recurrence Parsing
+
+    func testEveryDay() {
+        let result = parser.parse("Water plants every day")
+        XCTAssertEqual(result.title, "Water plants")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .daily)
+        XCTAssertEqual(result.recurrenceRule?.interval, 1)
+        XCTAssertTrue(result.hasStructuredData)
+    }
+
+    func testDaily() {
+        let result = parser.parse("Morning run daily")
+        XCTAssertEqual(result.title, "Morning run")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .daily)
+        XCTAssertEqual(result.recurrenceRule?.interval, 1)
+    }
+
+    func testEveryWeek() {
+        let result = parser.parse("Team sync every week")
+        XCTAssertEqual(result.title, "Team sync")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 1)
+    }
+
+    func testWeekly() {
+        let result = parser.parse("Review backlog weekly")
+        XCTAssertEqual(result.title, "Review backlog")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+    }
+
+    func testEveryWeekday() {
+        let result = parser.parse("Standup every weekday at 9am")
+        XCTAssertEqual(result.title, "Standup")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.daysOfWeek, RecurrenceDay.weekdays)
+    }
+
+    func testEveryWeekdays() {
+        // Plural form
+        let result = parser.parse("Check email every weekdays")
+        XCTAssertEqual(result.recurrenceRule?.daysOfWeek, RecurrenceDay.weekdays)
+    }
+
+    func testEveryWeekend() {
+        let result = parser.parse("Hiking every weekend")
+        XCTAssertEqual(result.title, "Hiking")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.daysOfWeek, RecurrenceDay.weekends)
+    }
+
+    func testEveryWeekends() {
+        // Plural form
+        let result = parser.parse("Meal prep every weekends")
+        XCTAssertEqual(result.recurrenceRule?.daysOfWeek, RecurrenceDay.weekends)
+    }
+
+    func testEveryMonday() {
+        let result = parser.parse("Team standup every Monday")
+        XCTAssertEqual(result.title, "Team standup")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.daysOfWeek, [RecurrenceDay.monday])
+        XCTAssertNil(result.dueTime) // "Monday" should not produce a due date
+    }
+
+    func testEveryFriday() {
+        let result = parser.parse("Gym every Friday 6am")
+        XCTAssertEqual(result.title, "Gym")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.daysOfWeek, [RecurrenceDay.friday])
+    }
+
+    func testEverySunday() {
+        let result = parser.parse("Meal planning every Sunday")
+        XCTAssertEqual(result.recurrenceRule?.daysOfWeek, [RecurrenceDay.sunday])
+    }
+
+    func testEveryMonth() {
+        let result = parser.parse("Pay rent every month")
+        XCTAssertEqual(result.title, "Pay rent")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .monthly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 1)
+    }
+
+    func testMonthly() {
+        let result = parser.parse("Budget review monthly")
+        XCTAssertEqual(result.title, "Budget review")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .monthly)
+    }
+
+    func testEveryYear() {
+        let result = parser.parse("Renew passport every year")
+        XCTAssertEqual(result.title, "Renew passport")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .yearly)
+    }
+
+    func testYearly() {
+        let result = parser.parse("Tax filing yearly")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .yearly)
+    }
+
+    func testAnnually() {
+        let result = parser.parse("Car service annually")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .yearly)
+    }
+
+    func testEvery2Days() {
+        let result = parser.parse("Take medication every 2 days")
+        XCTAssertEqual(result.title, "Take medication")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .daily)
+        XCTAssertEqual(result.recurrenceRule?.interval, 2)
+    }
+
+    func testEvery3Weeks() {
+        let result = parser.parse("Deep clean every 3 weeks")
+        XCTAssertEqual(result.title, "Deep clean")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 3)
+    }
+
+    func testEvery6Months() {
+        let result = parser.parse("Dentist every 6 months")
+        XCTAssertEqual(result.title, "Dentist")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .monthly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 6)
+    }
+
+    func testEveryOtherDay() {
+        let result = parser.parse("Weights every other day")
+        XCTAssertEqual(result.title, "Weights")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .daily)
+        XCTAssertEqual(result.recurrenceRule?.interval, 2)
+    }
+
+    func testEveryOtherWeek() {
+        let result = parser.parse("Sprint planning every other week")
+        XCTAssertEqual(result.title, "Sprint planning")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 2)
+    }
+
+    func testBiweekly() {
+        let result = parser.parse("1:1 with manager biweekly")
+        XCTAssertEqual(result.title, "1:1 with manager")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 2)
+    }
+
+    func testFortnightly() {
+        let result = parser.parse("Newsletter fortnightly")
+        XCTAssertEqual(result.title, "Newsletter")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 2)
+    }
+
+    func testNoRecurrenceForPlainTask() {
+        let result = parser.parse("Buy groceries tomorrow")
+        XCTAssertNil(result.recurrenceRule)
+    }
+
+    func testHasStructuredDataWithRecurrence() {
+        let result = parser.parse("Standup daily")
+        XCTAssertTrue(result.hasStructuredData)
+    }
+
+    func testRecurrenceCombinedWithPriorityAndTag() {
+        let result = parser.parse("Code review every Monday p:high #work")
+        XCTAssertEqual(result.title, "Code review")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.daysOfWeek, [RecurrenceDay.monday])
+        XCTAssertEqual(result.priority, 2)
+        XCTAssertEqual(result.tags, ["work"])
+    }
+
+    func testEveryMondayCaseInsensitive() {
+        let result = parser.parse("Meeting EVERY MONDAY")
+        XCTAssertEqual(result.recurrenceRule?.daysOfWeek, [RecurrenceDay.monday])
     }
 }

@@ -43,9 +43,12 @@ struct NLTaskParseResult: Equatable, Sendable {
     /// Extracted tag names (without the # prefix)
     let tags: [String]
 
+    /// Extracted recurrence rule, if any "every …" / "daily" / "weekly" etc. pattern was found
+    let recurrenceRule: RecurrenceRule?
+
     /// Whether any structured data was extracted (beyond just the title)
     var hasStructuredData: Bool {
-        dueTime != nil || startTime != nil || priority != nil || !tags.isEmpty
+        dueTime != nil || startTime != nil || priority != nil || !tags.isEmpty || recurrenceRule != nil
     }
 }
 
@@ -94,7 +97,9 @@ struct NLTaskParser: Sendable {
     func parse(_ input: String) -> NLTaskParseResult {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return NLTaskParseResult(title: "", dueTime: nil, startTime: nil, priority: nil, tags: [])
+            return NLTaskParseResult(
+                title: "", dueTime: nil, startTime: nil, priority: nil, tags: [], recurrenceRule: nil
+            )
         }
 
         var working = trimmed
@@ -103,29 +108,35 @@ struct NLTaskParser: Sendable {
         var extractedDueDate: Date?
         var extractedStartDate: Date?
         var extractedTime: (hour: Int, minute: Int)?
+        var extractedRecurrenceRule: RecurrenceRule?
 
-        // 0. Extract compound date+time phrases first — these must run before the
+        // 0. Extract recurrence patterns first so "every Monday at 9am" doesn't lose "Monday".
+        if let (remaining, rule) = extractRecurrenceRule(from: working) {
+            (working, extractedRecurrenceRule) = (remaining, rule)
+        }
+
+        // 1. Extract compound date+time phrases first — these must run before the
         //    separate time and date extractors so "tomorrow morning" isn't split
         //    into bare "tomorrow" + orphaned "morning".
         //    e.g., "tomorrow morning", "this afternoon", "Friday evening"
         var compoundDueDate: Date?
         (working, compoundDueDate) = extractCompoundDateTimeKeywords(from: working)
 
-        // 1. Extract priority markers (do first — they're unambiguous)
+        // 2. Extract priority markers (do first — they're unambiguous)
         (working, extractedPriority) = extractPriority(from: working)
 
-        // 2. Extract tags (#word)
+        // 3. Extract tags (#word)
         (working, extractedTags) = extractTags(from: working)
 
-        // 3. Extract explicit time expressions ("at 3pm", "at 15:00").
+        // 4. Extract explicit time expressions ("at 3pm", "at 15:00").
         //    Always run — an explicit "at X" overrides the time baked into a compound phrase.
         (working, extractedTime) = extractTime(from: working)
 
-        // 4. Extract start date first — "from/starting <date>" is more specific
+        // 5. Extract start date first — "from/starting <date>" is more specific
         //    than bare date keywords, so it must consume its tokens before due date extraction.
         (working, extractedStartDate) = extractStartDate(from: working, time: nil)
 
-        // 5. Extract due date expressions ("tomorrow", "next Monday", "Jan 15", etc.).
+        // 6. Extract due date expressions ("tomorrow", "next Monday", "Jan 15", etc.).
         //    If a compound date was already found, use it (but let an explicit "at X" override
         //    the baked-in time so "tomorrow morning at 10am" respects the 10 AM).
         if let compound = compoundDueDate {
@@ -143,7 +154,7 @@ struct NLTaskParser: Sendable {
             (working, extractedDueDate) = extractDueDate(from: working, time: extractedTime)
         }
 
-        // 6. If we got a time but no due date, assume today
+        // 7. If we got a time but no due date, assume today
         if let time = extractedTime, extractedDueDate == nil {
             var components = calendar.dateComponents([.year, .month, .day], from: referenceDate)
             components.hour = time.hour
@@ -157,7 +168,7 @@ struct NLTaskParser: Sendable {
             }
         }
 
-        // 7. Clean up title
+        // 8. Clean up title
         let title = cleanTitle(working)
 
         return NLTaskParseResult(
@@ -165,7 +176,8 @@ struct NLTaskParser: Sendable {
             dueTime: extractedDueDate,
             startTime: extractedStartDate,
             priority: extractedPriority,
-            tags: extractedTags
+            tags: extractedTags,
+            recurrenceRule: extractedRecurrenceRule
         )
     }
 
@@ -1143,6 +1155,193 @@ private extension NLTaskParser {
         }
 
         return nil
+    }
+
+    // MARK: - Recurrence Extraction
+
+    // swiftlint:disable cyclomatic_complexity
+    /// Extracts recurring task patterns from text, returning the cleaned string and rule.
+    ///
+    /// Supported patterns:
+    /// - `every day` / `daily` → `.daily`
+    /// - `every week` / `weekly` → `.weekly`
+    /// - `every weekday` / `every weekdays` → `.weekdays`
+    /// - `every weekend` / `every weekends` → weekly on Sat+Sun
+    /// - `every Monday` (any named day) → weekly on that day
+    /// - `every month` / `monthly` → `.monthly`
+    /// - `every year` / `yearly` / `annually` → `.yearly`
+    /// - `every 2 days` / `every 3 weeks` / `every 6 months` → interval-based rule
+    /// - `every other day/week/month/year` → interval: 2
+    /// - `biweekly` / `fortnightly` → every 2 weeks
+    func extractRecurrenceRule(from text: String) -> (String, RecurrenceRule?)? {
+        var result = text
+        let dayNames = "monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+
+        // "every 2 days/weeks/months/years" — interval-based (must run before single-unit checks)
+        let intervalPattern = #"\bevery\s+(\d+)\s+(day|days|week|weeks|month|months|year|years)\b"#
+        if let regex = try? NSRegularExpression(pattern: intervalPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let numRange = Range(match.range(at: 1), in: result),
+           let unitRange = Range(match.range(at: 2), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let interval = Int(result[numRange]) ?? 1
+            let unit = String(result[unitRange]).lowercased()
+            let frequency: RecurrenceFrequency
+            switch unit {
+            case "week", "weeks": frequency = .weekly
+            case "month", "months": frequency = .monthly
+            case "year", "years": frequency = .yearly
+            default: frequency = .daily
+            }
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, RecurrenceRule(frequency: frequency, interval: interval))
+        }
+
+        // "every other day/week/month/year" → interval: 2
+        let otherPattern = #"\bevery\s+other\s+(day|week|month|year)\b"#
+        if let regex = try? NSRegularExpression(pattern: otherPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let unitRange = Range(match.range(at: 1), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let unit = String(result[unitRange]).lowercased()
+            let frequency: RecurrenceFrequency
+            switch unit {
+            case "week": frequency = .weekly
+            case "month": frequency = .monthly
+            case "year": frequency = .yearly
+            default: frequency = .daily
+            }
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, RecurrenceRule(frequency: frequency, interval: 2))
+        }
+
+        // "every weekday(s)" — Mon–Fri
+        let weekdayPattern = #"\bevery\s+weekdays?\b"#
+        if let regex = try? NSRegularExpression(pattern: weekdayPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, .weekdays)
+        }
+
+        // "every weekend(s)" — Sat+Sun
+        let weekendPattern = #"\bevery\s+weekends?\b"#
+        if let regex = try? NSRegularExpression(pattern: weekendPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, RecurrenceRule(frequency: .weekly, daysOfWeek: RecurrenceDay.weekends))
+        }
+
+        // "every Monday" / "every Friday" / … → weekly on that day
+        let namedDayPattern = #"\bevery\s+("# + dayNames + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: namedDayPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let dayRange = Range(match.range(at: 1), in: result),
+           let fullRange = Range(match.range, in: result),
+           let recDay = recurrenceDayFromName(String(result[dayRange])) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, RecurrenceRule(frequency: .weekly, daysOfWeek: [recDay]))
+        }
+
+        // "every day"
+        let everyDayPattern = #"\bevery\s+day\b"#
+        if let regex = try? NSRegularExpression(pattern: everyDayPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, .daily)
+        }
+
+        // "every week"
+        let everyWeekPattern = #"\bevery\s+week\b"#
+        if let regex = try? NSRegularExpression(pattern: everyWeekPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, .weekly)
+        }
+
+        // "every month"
+        let everyMonthPattern = #"\bevery\s+month\b"#
+        if let regex = try? NSRegularExpression(pattern: everyMonthPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, .monthly)
+        }
+
+        // "every year"
+        let everyYearPattern = #"\bevery\s+year\b"#
+        if let regex = try? NSRegularExpression(pattern: everyYearPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, .yearly)
+        }
+
+        // "daily"
+        let dailyPattern = #"\bdaily\b"#
+        if let regex = try? NSRegularExpression(pattern: dailyPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, .daily)
+        }
+
+        // "weekly"
+        let weeklyPattern = #"\bweekly\b"#
+        if let regex = try? NSRegularExpression(pattern: weeklyPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, .weekly)
+        }
+
+        // "monthly"
+        let monthlyPattern = #"\bmonthly\b"#
+        if let regex = try? NSRegularExpression(pattern: monthlyPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, .monthly)
+        }
+
+        // "yearly" / "annually"
+        let yearlyPattern = #"\b(?:yearly|annually)\b"#
+        if let regex = try? NSRegularExpression(pattern: yearlyPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, .yearly)
+        }
+
+        // "biweekly" / "fortnightly"
+        let biweeklyPattern = #"\b(?:biweekly|fortnightly)\b"#
+        if let regex = try? NSRegularExpression(pattern: biweeklyPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let fullRange = Range(match.range, in: result) {
+            result = result.replacingCharacters(in: fullRange, with: "")
+            return (result, .biweekly)
+        }
+
+        return nil
+    }
+
+    // swiftlint:enable cyclomatic_complexity
+
+    /// Maps a day name string (case-insensitive) to a `RecurrenceDay`.
+    func recurrenceDayFromName(_ name: String) -> RecurrenceDay? {
+        switch name.lowercased() {
+        case "monday": return .monday
+        case "tuesday": return .tuesday
+        case "wednesday": return .wednesday
+        case "thursday": return .thursday
+        case "friday": return .friday
+        case "saturday": return .saturday
+        case "sunday": return .sunday
+        default: return nil
+        }
     }
 }
 
