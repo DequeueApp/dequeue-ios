@@ -263,7 +263,7 @@ jobs:
             ST_RUN_LINE=$(grep -E "Test run with [0-9]+ tests in [0-9]+ suites passed" "$LOGFILE" | tail -1 || true)
             if [ -n "$ST_RUN_LINE" ]; then
               ST_TOTAL=$(echo "$ST_RUN_LINE" | grep -oE '[0-9]+ tests' | grep -oE '[0-9]+' | head -1)
-              ST_FAILS=$(grep -cE "✗ Test .* failed" "$LOGFILE" 2>/dev/null || echo "0")
+              ST_FAILS=$(grep -cE "✗ Test .* failed" "$LOGFILE" 2>/dev/null || :)
               if [ -n "$ST_TOTAL" ]; then
                 FAILED_COUNT="$ST_FAILS"
                 PASSED_COUNT=$((ST_TOTAL - ST_FAILS))
