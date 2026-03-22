@@ -11,16 +11,48 @@ import SwiftData
 
 @testable import Dequeue
 
+// MARK: - Shared Container (file-scoped)
+//
+// Several test suites in this file create ModelContainers for TaskFilterService tests.
+// Swift 6 has a @MainActor deinit bug (swift_task_deinitOnExecutorImpl double-free,
+// rdar://FB15432891): when a ModelContainer is released while its mainContext is
+// alive, the teardown crashes and xcodebuild enters a crash-restart loop.
+//
+// Fix: use ONE long-lived shared container (never released); wipe all data before
+// each test so each test still sees a fresh, isolated context.
+//
+// Suites that use this context MUST be marked .serialized to prevent concurrent
+// tests from interfering with each other's cleanup/insert cycle.
+//
+// nonisolated(unsafe) is required for a mutable global in Swift 6 strict concurrency.
+nonisolated(unsafe) private var _sharedFilterTestContainer: ModelContainer?
+
 // MARK: - Test Helpers
 
 @MainActor
 private func makeFilterTestContext() throws -> ModelContext {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try ModelContainer(
-        for: QueueTask.self, Stack.self, Tag.self, Reminder.self, Arc.self,
-        configurations: config
-    )
-    return container.mainContext
+    if _sharedFilterTestContainer == nil {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        _sharedFilterTestContainer = try ModelContainer(
+            for: QueueTask.self, Stack.self, Tag.self, Reminder.self, Arc.self,
+            configurations: config
+        )
+    }
+    let context = _sharedFilterTestContainer!.mainContext
+    // Wipe all existing data so each test starts with a clean, isolated context.
+    //
+    // Use fetch-and-delete-individually rather than context.delete(model:) batch
+    // delete. Batch delete bypasses the in-memory object graph and can fail with
+    // "mandatory OTO nullify inverse" errors when QueueTask→Stack relationships
+    // still exist in CoreData's internal bookkeeping. Individual deletes properly
+    // update the in-memory relationship graph before persisting.
+    for task in try context.fetch(FetchDescriptor<QueueTask>()) { context.delete(task) }
+    try context.save()
+    for stack in try context.fetch(FetchDescriptor<Stack>()) { context.delete(stack) }
+    for reminder in try context.fetch(FetchDescriptor<Reminder>()) { context.delete(reminder) }
+    for arc in try context.fetch(FetchDescriptor<Arc>()) { context.delete(arc) }
+    try context.save()
+    return context
 }
 
 @MainActor
@@ -309,7 +341,7 @@ struct TaskSortOptionTests {
 
 // MARK: - TaskFilterService Tests
 
-@Suite("TaskFilterService")
+@Suite("TaskFilterService", .serialized)
 @MainActor
 struct TaskFilterServiceTests {
     @Test("Apply with default filter returns all non-deleted tasks")
@@ -519,7 +551,7 @@ struct TaskFilterServiceTests {
 
 // MARK: - FilterPreset Tests
 
-@Suite("FilterPreset")
+@Suite("FilterPreset", .serialized)
 @MainActor
 struct FilterPresetTests {
     @Test("Built-in presets have names and icons")

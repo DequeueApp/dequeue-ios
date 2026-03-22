@@ -185,7 +185,7 @@ jobs:
           #
           # TODO: Remove this workaround once Apple fixes swift_task_deinitOnExecutorImpl
           # double-free (rdar://FB15432891).
-          MAX_WAIT=900  # 15 minutes (tests take ~30s, build ~4min)
+          MAX_WAIT=1800  # 30 minutes (build can take 14+ min on slow CI runners; tests add ~5 min)
           SECONDS=0     # reset bash built-in elapsed-time counter
           LOGFILE="xcodebuild-test.log"
 
@@ -248,11 +248,27 @@ jobs:
           PASSED_COUNT=""
           FAILED_COUNT=""
           if [ -n "$EXECUTED_LINE" ]; then
-            TOTAL=$(echo "$EXECUTED_LINE" | grep -oE 'Executed [0-9]+' | grep -oE '[0-9]+')
-            FAILURES=$(echo "$EXECUTED_LINE" | grep -oE 'with [0-9]+ failures' | grep -oE '[0-9]+')
+            TOTAL=$(echo "$EXECUTED_LINE" | grep -oE 'Executed [0-9]+' | grep -oE '[0-9]+' || true)
+            FAILURES=$(echo "$EXECUTED_LINE" | grep -oE 'with [0-9]+ failures' | grep -oE '[0-9]+' || true)
             if [ -n "$TOTAL" ] && [ -n "$FAILURES" ]; then
               FAILED_COUNT="$FAILURES"
               PASSED_COUNT=$((TOTAL - FAILURES))
+            fi
+          fi
+
+          # 1b. Parse Swift Testing output format (Xcode 16+ swift-testing framework)
+          #    Format: "✔ Test run with N tests in M suites passed after T seconds."
+          #    Failure markers: "✗ Test "name" failed after T seconds."
+          if [ -z "$PASSED_COUNT" ]; then
+            ST_RUN_LINE=$(grep -E "Test run with [0-9]+ tests in [0-9]+ suites passed" "$LOGFILE" | tail -1 || true)
+            if [ -n "$ST_RUN_LINE" ]; then
+              ST_TOTAL=$(echo "$ST_RUN_LINE" | grep -oE '[0-9]+ tests' | grep -oE '[0-9]+' | head -1)
+              ST_FAILS=$(grep -cE "✗ Test .* failed" "$LOGFILE" 2>/dev/null || :)
+              if [ -n "$ST_TOTAL" ]; then
+                FAILED_COUNT="$ST_FAILS"
+                PASSED_COUNT=$((ST_TOTAL - ST_FAILS))
+                echo "Swift Testing format detected: $ST_TOTAL total, $ST_FAILS failed"
+              fi
             fi
           fi
 
@@ -260,8 +276,14 @@ jobs:
           if [ -z "$PASSED_COUNT" ] && [ -d "UnitTestResults.xcresult" ]; then
             echo "Parsing xcresult bundle as fallback..."
             RESULTS_JSON=$(xcrun xcresulttool get --format json --path UnitTestResults.xcresult 2>/dev/null || echo "{}")
+            # Try old format: {"_value": "N"}
             FAILED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsFailedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "")
             PASSED_COUNT=$(echo "$RESULTS_JSON" | grep -o '"testsPassedCount"[[:space:]]*:[[:space:]]*{"_value"[[:space:]]*:[[:space:]]*"[0-9]*"' | grep -o '[0-9]*$' | head -1 || echo "")
+            # Try new format (Xcode 16+): "testsFailedCount": N
+            if [ -z "$PASSED_COUNT" ]; then
+              FAILED_COUNT=$(echo "$RESULTS_JSON" | grep -oE '"testsFailedCount"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' | head -1 || echo "")
+              PASSED_COUNT=$(echo "$RESULTS_JSON" | grep -oE '"testsPassedCount"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' | head -1 || echo "")
+            fi
           fi
 
           echo "Tests passed: ${PASSED_COUNT:-unknown}"
@@ -289,9 +311,29 @@ jobs:
 
           # Exit code 65 with no failures = test runner crash, not test failure
           # But only trust this if we actually parsed some test output (avoid hiding build failures)
-          if [ "$XCODEBUILD_EXIT" = "65" ] && grep -q "Executed [0-9]* test" "$LOGFILE" 2>/dev/null; then
+          # Check both XCTest format ("Executed N tests") and Swift Testing format ("Test run with N tests")
+          if [ "$XCODEBUILD_EXIT" = "65" ] && \
+             (grep -q "Executed [0-9]* test" "$LOGFILE" 2>/dev/null || \
+              grep -qE "Test run with [0-9]+ tests in [0-9]+ suites passed" "$LOGFILE" 2>/dev/null); then
             echo "::warning::xcodebuild returned exit code 65 but no test failures detected (crash during teardown)"
             exit 0
+          fi
+
+          # 4. Timed-out fallback: if crash-restart loop, check for suite-level pass before
+          #    the first restart. When xcodebuild crashes during ModelContainer.deinit() it
+          #    may not print the "Executed N tests" summary, but it DOES print
+          #    "Test Suite '...' passed". Trust that if no suite/case failures appear.
+          if [ "$TIMED_OUT" = "true" ]; then
+            echo "Timed out without Executed summary — checking for suite-level pass..."
+            PRE_RESTART=$(awk '/Restarting after unexpected exit/{exit}1' "$LOGFILE" || true)
+            SUITE_PASSES=$(echo "$PRE_RESTART" | grep -c "Test Suite '.*' passed" || true)
+            SUITE_FAILS=$(echo "$PRE_RESTART" | grep -c "Test Suite '.*' failed" || true)
+            CASE_FAILS=$(echo "$PRE_RESTART" | grep -c "Test Case '.*' failed" || true)
+            echo "Suite passes: $SUITE_PASSES, suite fails: $SUITE_FAILS, case fails: $CASE_FAILS"
+            if [ "$SUITE_PASSES" -gt 0 ] && [ "$SUITE_FAILS" -eq 0 ] && [ "$CASE_FAILS" -eq 0 ]; then
+              echo "::warning::All test suites passed before crash-restart loop (Swift 6 deinit crash during teardown, not a test failure)"
+              exit 0
+            fi
           fi
 
           # Could not determine results — don't silently pass

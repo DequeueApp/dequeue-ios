@@ -11,21 +11,46 @@ import SwiftData
 import Foundation
 @testable import Dequeue
 
-// MARK: - Helpers (scoped to this file)
+// MARK: - Shared Container (file-scoped)
+//
+// TaskFilterService.apply(filter:to:) never touches modelContext — it operates
+// purely on the [QueueTask] array passed in. We still need a ModelContext for
+// TaskFilterService.init, so we create ONE shared container for the entire file
+// and reuse its mainContext across all tests.
+//
+// Why not a per-test container? Swift 6 has a @MainActor deinit bug
+// (swift_task_deinitOnExecutorImpl double-free, rdar://FB15432891): when a
+// ModelContainer is released while its mainContext is still alive, the teardown
+// crashes and xcodebuild enters a crash-restart loop. Using a single long-lived
+// container avoids all per-test teardown entirely.
+//
+// nonisolated(unsafe) is required for a mutable global in Swift 6 strict concurrency.
+nonisolated(unsafe) private var _sharedFilterServiceContainer: ModelContainer?
 
-// NOTE: Returns (container, context) — caller must retain `container` or it
-// will be deallocated and the ModelContext will become invalid.
 @MainActor
-private func makeServiceTestSetup() throws -> (ModelContainer, ModelContext, TaskFilterService) {
+private func sharedFilterServiceContext() throws -> ModelContext {
+    if let existing = _sharedFilterServiceContainer {
+        return existing.mainContext
+    }
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try ModelContainer(
         for: QueueTask.self, Stack.self, Tag.self, Reminder.self, Arc.self,
         configurations: config
     )
-    let context = container.mainContext
-    let service = TaskFilterService(modelContext: context)
-    return (container, context, service)
+    _sharedFilterServiceContainer = container
+    return container.mainContext
 }
+
+@MainActor
+private func makeFilterService() throws -> TaskFilterService {
+    let context = try sharedFilterServiceContext()
+    return TaskFilterService(modelContext: context)
+}
+
+// MARK: - Task Factory
+//
+// Tasks are created as plain instances — NOT inserted into any context.
+// apply(filter:to:) only reads task properties; no persistence needed.
 
 @discardableResult
 @MainActor
@@ -38,10 +63,9 @@ private func makeServiceTask(
     stack: Stack? = nil,
     sortOrder: Int = 0,
     createdAt: Date = Date(),
-    updatedAt: Date = Date(),
-    in context: ModelContext
+    updatedAt: Date = Date()
 ) -> QueueTask {
-    let task = QueueTask(
+    QueueTask(
         title: title,
         dueTime: dueTime,
         tags: tags,
@@ -52,8 +76,6 @@ private func makeServiceTask(
         updatedAt: updatedAt,
         stack: stack
     )
-    context.insert(task)
-    return task
 }
 
 // MARK: - Priority Filter — All Variants
@@ -64,12 +86,11 @@ struct TaskFilterServicePriorityTests {
 
     @Test("Priority filter .low returns only low-priority tasks")
     func priorityLow() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
-        let low = makeServiceTask(title: "Low", priority: 1, in: context)
-        let med = makeServiceTask(title: "Medium", priority: 2, in: context)
-        let high = makeServiceTask(title: "High", priority: 3, in: context)
+        let low = makeServiceTask(title: "Low", priority: 1)
+        let med = makeServiceTask(title: "Medium", priority: 2)
+        let high = makeServiceTask(title: "High", priority: 3)
 
         var filter = TaskFilter()
         filter.priorityFilter = .low
@@ -81,12 +102,11 @@ struct TaskFilterServicePriorityTests {
 
     @Test("Priority filter .medium returns only medium-priority tasks")
     func priorityMedium() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
-        let low = makeServiceTask(title: "Low", priority: 1, in: context)
-        let med = makeServiceTask(title: "Medium", priority: 2, in: context)
-        let high = makeServiceTask(title: "High", priority: 3, in: context)
+        let low = makeServiceTask(title: "Low", priority: 1)
+        let med = makeServiceTask(title: "Medium", priority: 2)
+        let high = makeServiceTask(title: "High", priority: 3)
 
         var filter = TaskFilter()
         filter.priorityFilter = .medium
@@ -98,12 +118,11 @@ struct TaskFilterServicePriorityTests {
 
     @Test("Priority filter .none returns tasks with priority = 0 or nil (both map to 0)")
     func priorityNoneIsZero() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
-        let zeroPriority = makeServiceTask(title: "Zero", priority: 0, in: context)
-        let nilPriority = makeServiceTask(title: "Nil", priority: nil, in: context)
-        let lowPriority = makeServiceTask(title: "Low", priority: 1, in: context)
+        let zeroPriority = makeServiceTask(title: "Zero", priority: 0)
+        let nilPriority = makeServiceTask(title: "Nil", priority: nil)
+        let lowPriority = makeServiceTask(title: "Low", priority: 1)
 
         var filter = TaskFilter()
         filter.priorityFilter = .none
@@ -120,12 +139,11 @@ struct TaskFilterServicePriorityTests {
 
     @Test("Priority filter .any returns all tasks regardless of priority")
     func priorityAny() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
-        let low = makeServiceTask(title: "Low", priority: 1, in: context)
-        let med = makeServiceTask(title: "Medium", priority: 2, in: context)
-        let noPriority = makeServiceTask(title: "None", priority: nil, in: context)
+        let low = makeServiceTask(title: "Low", priority: 1)
+        let med = makeServiceTask(title: "Medium", priority: 2)
+        let noPriority = makeServiceTask(title: "None", priority: nil)
 
         var filter = TaskFilter()
         filter.priorityFilter = .any
@@ -143,12 +161,11 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by sortOrder descending")
     func sortBySortOrderDesc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
-        let first = makeServiceTask(title: "First", sortOrder: 0, in: context)
-        let second = makeServiceTask(title: "Second", sortOrder: 1, in: context)
-        let third = makeServiceTask(title: "Third", sortOrder: 2, in: context)
+        let first = makeServiceTask(title: "First", sortOrder: 0)
+        let second = makeServiceTask(title: "Second", sortOrder: 1)
+        let third = makeServiceTask(title: "Third", sortOrder: 2)
 
         var filter = TaskFilter()
         filter.sortBy = .sortOrder
@@ -160,22 +177,19 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by createdAt ascending puts oldest first")
     func sortByCreatedAtAsc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
         let cal = Calendar.current
         let now = Date()
         let oldest = makeServiceTask(
             title: "Oldest",
-            createdAt: cal.date(byAdding: .day, value: -2, to: now)!,
-            in: context
+            createdAt: cal.date(byAdding: .day, value: -2, to: now)!
         )
         let middle = makeServiceTask(
             title: "Middle",
-            createdAt: cal.date(byAdding: .day, value: -1, to: now)!,
-            in: context
+            createdAt: cal.date(byAdding: .day, value: -1, to: now)!
         )
-        let newest = makeServiceTask(title: "Newest", createdAt: now, in: context)
+        let newest = makeServiceTask(title: "Newest", createdAt: now)
 
         var filter = TaskFilter()
         filter.sortBy = .createdAt
@@ -187,22 +201,19 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by createdAt descending puts newest first")
     func sortByCreatedAtDesc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
         let cal = Calendar.current
         let now = Date()
         let oldest = makeServiceTask(
             title: "Oldest",
-            createdAt: cal.date(byAdding: .day, value: -2, to: now)!,
-            in: context
+            createdAt: cal.date(byAdding: .day, value: -2, to: now)!
         )
         let middle = makeServiceTask(
             title: "Middle",
-            createdAt: cal.date(byAdding: .day, value: -1, to: now)!,
-            in: context
+            createdAt: cal.date(byAdding: .day, value: -1, to: now)!
         )
-        let newest = makeServiceTask(title: "Newest", createdAt: now, in: context)
+        let newest = makeServiceTask(title: "Newest", createdAt: now)
 
         var filter = TaskFilter()
         filter.sortBy = .createdAt
@@ -214,22 +225,19 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by updatedAt ascending puts least-recently-updated first")
     func sortByUpdatedAtAsc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
         let cal = Calendar.current
         let now = Date()
         let stale = makeServiceTask(
             title: "Stale",
-            updatedAt: cal.date(byAdding: .day, value: -3, to: now)!,
-            in: context
+            updatedAt: cal.date(byAdding: .day, value: -3, to: now)!
         )
         let recent = makeServiceTask(
             title: "Recent",
-            updatedAt: cal.date(byAdding: .hour, value: -1, to: now)!,
-            in: context
+            updatedAt: cal.date(byAdding: .hour, value: -1, to: now)!
         )
-        let fresh = makeServiceTask(title: "Fresh", updatedAt: now, in: context)
+        let fresh = makeServiceTask(title: "Fresh", updatedAt: now)
 
         var filter = TaskFilter()
         filter.sortBy = .updatedAt
@@ -241,22 +249,19 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by updatedAt descending puts most-recently-updated first")
     func sortByUpdatedAtDesc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
         let cal = Calendar.current
         let now = Date()
         let stale = makeServiceTask(
             title: "Stale",
-            updatedAt: cal.date(byAdding: .day, value: -3, to: now)!,
-            in: context
+            updatedAt: cal.date(byAdding: .day, value: -3, to: now)!
         )
         let recent = makeServiceTask(
             title: "Recent",
-            updatedAt: cal.date(byAdding: .hour, value: -1, to: now)!,
-            in: context
+            updatedAt: cal.date(byAdding: .hour, value: -1, to: now)!
         )
-        let fresh = makeServiceTask(title: "Fresh", updatedAt: now, in: context)
+        let fresh = makeServiceTask(title: "Fresh", updatedAt: now)
 
         var filter = TaskFilter()
         filter.sortBy = .updatedAt
@@ -268,16 +273,15 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by dueDate descending puts latest date first, nil last")
     func sortByDueDateDescNilLast() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
         let cal = Calendar.current
         let now = Date()
         let tomorrow = cal.date(byAdding: .day, value: 1, to: now)!
 
-        let noDue = makeServiceTask(title: "No Due", dueTime: nil, in: context)
-        let dueNow = makeServiceTask(title: "Due Now", dueTime: now, in: context)
-        let dueTomorrow = makeServiceTask(title: "Due Tomorrow", dueTime: tomorrow, in: context)
+        let noDue = makeServiceTask(title: "No Due", dueTime: nil)
+        let dueNow = makeServiceTask(title: "Due Now", dueTime: now)
+        let dueTomorrow = makeServiceTask(title: "Due Tomorrow", dueTime: tomorrow)
 
         var filter = TaskFilter()
         filter.sortBy = .dueDate
@@ -293,12 +297,11 @@ struct TaskFilterServiceSortTests {
 
     @Test("Sort by priority ascending puts lowest numeric value first")
     func sortByPriorityAsc() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
-        let high = makeServiceTask(title: "High", priority: 3, in: context)
-        let med = makeServiceTask(title: "Med", priority: 2, in: context)
-        let low = makeServiceTask(title: "Low", priority: 1, in: context)
+        let high = makeServiceTask(title: "High", priority: 3)
+        let med = makeServiceTask(title: "Med", priority: 2)
+        let low = makeServiceTask(title: "Low", priority: 1)
 
         var filter = TaskFilter()
         filter.sortBy = .priority
@@ -317,11 +320,10 @@ struct TaskFilterServiceTagEdgeCaseTests {
 
     @Test("Tag filter with no tasks having the selected tag returns empty")
     func tagFilterNoMatchReturnsEmpty() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
-        let t1 = makeServiceTask(title: "Work", tags: ["work"], in: context)
-        let t2 = makeServiceTask(title: "Other", tags: ["other"], in: context)
+        let t1 = makeServiceTask(title: "Work", tags: ["work"])
+        let t2 = makeServiceTask(title: "Other", tags: ["other"])
 
         var filter = TaskFilter()
         filter.selectedTagIds = ["personal"]
@@ -332,13 +334,12 @@ struct TaskFilterServiceTagEdgeCaseTests {
 
     @Test("Tag filter uses OR logic across multiple selected tags")
     func tagFilterOrLogic() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
-        let work = makeServiceTask(title: "Work Only", tags: ["work"], in: context)
-        let personal = makeServiceTask(title: "Personal Only", tags: ["personal"], in: context)
-        let both = makeServiceTask(title: "Both", tags: ["work", "personal"], in: context)
-        let neither = makeServiceTask(title: "Neither", tags: ["other"], in: context)
+        let work = makeServiceTask(title: "Work Only", tags: ["work"])
+        let personal = makeServiceTask(title: "Personal Only", tags: ["personal"])
+        let both = makeServiceTask(title: "Both", tags: ["work", "personal"])
+        let neither = makeServiceTask(title: "Neither", tags: ["other"])
 
         var filter = TaskFilter()
         filter.selectedTagIds = ["work", "personal"]
@@ -354,11 +355,10 @@ struct TaskFilterServiceTagEdgeCaseTests {
 
     @Test("Task with empty tags array is excluded by tag filter")
     func taskWithNoTagsExcluded() throws {
-        let (container, context, service) = try makeServiceTestSetup()
-        _ = container // retain
+        let service = try makeFilterService()
 
-        let tagged = makeServiceTask(title: "Tagged", tags: ["work"], in: context)
-        let untagged = makeServiceTask(title: "Untagged", tags: [], in: context)
+        let tagged = makeServiceTask(title: "Tagged", tags: ["work"])
+        let untagged = makeServiceTask(title: "Untagged", tags: [])
 
         var filter = TaskFilter()
         filter.selectedTagIds = ["work"]
