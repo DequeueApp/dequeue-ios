@@ -1700,13 +1700,13 @@ final class NLTaskParserTests: XCTestCase {
     }
 
     func testBiennialDistinctFromAnnually() {
-        // Biennial → yearly interval 2; annually → yearly interval 1
+        // Biennial → yearly interval 2; annually → yearly interval 1 (default)
         let bie = parser.parse("Task biennial")
         let ann = parser.parse("Task annually")
         XCTAssertEqual(bie.recurrenceRule?.frequency, .yearly)
         XCTAssertEqual(bie.recurrenceRule?.interval, 2)
         XCTAssertEqual(ann.recurrenceRule?.frequency, .yearly)
-        XCTAssertNil(ann.recurrenceRule?.interval)
+        XCTAssertEqual(ann.recurrenceRule?.interval, 1)
     }
 
     func testHasStructuredDataWithBiennial() {

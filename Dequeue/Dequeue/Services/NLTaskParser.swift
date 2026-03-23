@@ -1320,6 +1320,23 @@ private extension NLTaskParser {
             return (result, .monthly)
         }
 
+        // "semiannually" / "semi-annually" → every 6 months (twice a year)
+        // Must be checked BEFORE the "annually" pattern below, because \bannually\b
+        // would match the "annually" suffix of "semi-annually" and consume it first.
+        if let match = result.range(of: #"\bsemi-?annually\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            return (result, RecurrenceRule(frequency: .monthly, interval: 6))
+        }
+
+        // "biennial" / "biennially" → every 2 years
+        // Must be checked BEFORE the "yearly/annually" pattern to prevent the
+        // "annually" suffix from being consumed independently.
+        // Regex: biennial (8 chars, single-l) with optional "ly" suffix.
+        if let match = result.range(of: #"\bbiennial(?:ly)?\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            return (result, RecurrenceRule(frequency: .yearly, interval: 2))
+        }
+
         // "yearly" / "annually"
         let yearlyPattern = #"\b(?:yearly|annually)\b"#
         if let regex = try? NSRegularExpression(pattern: yearlyPattern, options: .caseInsensitive),
@@ -1353,18 +1370,6 @@ private extension NLTaskParser {
         if let match = result.range(of: #"\bbimonthly\b"#, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             return (result, RecurrenceRule(frequency: .monthly, interval: 2))
-        }
-
-        // "semiannually" / "semi-annually" → every 6 months (twice a year)
-        if let match = result.range(of: #"\bsemi-?annually\b"#, options: [.regularExpression, .caseInsensitive]) {
-            result = result.replacingCharacters(in: match, with: "")
-            return (result, RecurrenceRule(frequency: .monthly, interval: 6))
-        }
-
-        // "biennial" / "biennially" → every 2 years
-        if let match = result.range(of: #"\bbiennially?\b"#, options: [.regularExpression, .caseInsensitive]) {
-            result = result.replacingCharacters(in: match, with: "")
-            return (result, RecurrenceRule(frequency: .yearly, interval: 2))
         }
 
         return nil
