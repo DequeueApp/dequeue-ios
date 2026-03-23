@@ -129,6 +129,13 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(result.priority, 2)
     }
 
+    func testPriorityColonNone() {
+        // p:none is a valid label that explicitly sets priority to 0 (not nil)
+        let result = parser.parse("Background cleanup p:none")
+        XCTAssertEqual(result.title, "Background cleanup")
+        XCTAssertEqual(result.priority, 0)
+    }
+
     // MARK: - Tag Parsing
 
     func testSingleTag() {
@@ -196,6 +203,18 @@ final class NLTaskParserTests: XCTestCase {
 
         let components = calendar.dateComponents([.hour], from: result.dueTime!)
         XCTAssertEqual(components.hour, 21) // 9 PM
+    }
+
+    func testByTodayParsing() {
+        // "by today" — same as "today" but with the optional "by" prefix
+        let result = parser.parse("Submit invoice by today")
+        XCTAssertEqual(result.title, "Submit invoice")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.day, 19)
     }
 
     func testByTomorrowParsing() {
@@ -1169,6 +1188,41 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(comps.day, 20)
     }
 
+    func testStartColonNextYear() {
+        // "start: next year" → January 1, 2027
+        let result = parser.parse("Annual audit start: next year")
+        XCTAssertEqual(result.title, "Annual audit")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.year, 2027)
+        XCTAssertEqual(comps.month, 1)
+        XCTAssertEqual(comps.day, 1)
+    }
+
+    func testStartColonInAWeek() {
+        // "start: in a week" → indefinite article form → +1 week from Feb 19 = Feb 26
+        let result = parser.parse("Gym challenge start: in a week")
+        XCTAssertEqual(result.title, "Gym challenge")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 26)
+    }
+
+    func testStartColonInAnHour() {
+        // "start: in an hour" → indefinite article form → +1 hour from 10:00 AM = 11:00 AM Feb 19
+        let result = parser.parse("Pomodoro session start: in an hour")
+        XCTAssertEqual(result.title, "Pomodoro session")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day, .hour], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 19)
+        XCTAssertEqual(comps.hour, 11)
+    }
+
     // MARK: - Start Date + Recurrence Combinations
 
     func testStartColonWithDailyRecurrence() {
@@ -1758,6 +1812,17 @@ final class NLTaskParserTests: XCTestCase {
     func testNoStructuredDataPlainText() {
         let result = parser.parse("Just a plain task")
         XCTAssertFalse(result.hasStructuredData)
+    }
+
+    func testHasStructuredDataWithStartTimeOnly() {
+        // startTime alone (no dueTime, priority, tags, or recurrence) counts as structured data
+        let result = parser.parse("Project starting tomorrow")
+        XCTAssertNil(result.dueTime)
+        XCTAssertNil(result.priority)
+        XCTAssertTrue(result.tags.isEmpty)
+        XCTAssertNil(result.recurrenceRule)
+        XCTAssertNotNil(result.startTime)
+        XCTAssertTrue(result.hasStructuredData)
     }
 
     // MARK: - Recurrence Parsing
