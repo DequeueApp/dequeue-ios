@@ -498,6 +498,114 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(components.day, 1)
     }
 
+    // MARK: - Date: "by" prefix with keyword dates
+
+    func testByNextWeek() {
+        // "by next week" → next Monday (Feb 23, 2026); ref = Thursday Feb 19
+        let result = parser.parse("Finish report by next week")
+        XCTAssertEqual(result.title, "Finish report")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.day, 23)
+    }
+
+    func testByNextMonth() {
+        // "by next month" → first day of next calendar month (March 1, 2026)
+        let result = parser.parse("Submit proposal by next month")
+        XCTAssertEqual(result.title, "Submit proposal")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 3)
+        XCTAssertEqual(components.day, 1)
+    }
+
+    func testByThisWeekend() {
+        // "by this weekend" → next Saturday (Feb 21, 2026); ref = Thursday Feb 19
+        let result = parser.parse("Clean garage by this weekend")
+        XCTAssertEqual(result.title, "Clean garage")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.month, .day], from: result.dueTime!)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.day, 21)
+    }
+
+    func testByEOD() {
+        // "by eod" → same day 5 PM; ref = Feb 19 at 10 AM
+        let result = parser.parse("Send invoice by eod")
+        XCTAssertEqual(result.title, "Send invoice")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.hour, 17)
+    }
+
+    func testByEndOfDay() {
+        // "by end of day" → same as "by eod", just long form
+        let result = parser.parse("Submit timesheet by end of day")
+        XCTAssertEqual(result.title, "Submit timesheet")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.hour, 17)
+    }
+
+    func testByEOW() {
+        // "by eow" → end of week = Friday Feb 20 at 5 PM; ref = Thursday Feb 19
+        let result = parser.parse("Deploy hotfix by eow")
+        XCTAssertEqual(result.title, "Deploy hotfix")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 20)
+        XCTAssertEqual(components.hour, 17)
+    }
+
+    func testByEOM() {
+        // "by eom" → last day of Feb 2026 = Feb 28 at 5 PM
+        let result = parser.parse("Close out sprint by eom")
+        XCTAssertEqual(result.title, "Close out sprint")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.day, 28)
+        XCTAssertEqual(components.hour, 17)
+    }
+
+    func testByEOQ() {
+        // "by eoq" → Q1 2026 ends March 31 at 5 PM
+        let result = parser.parse("Complete OKRs by eoq")
+        XCTAssertEqual(result.title, "Complete OKRs")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 3)
+        XCTAssertEqual(components.day, 31)
+        XCTAssertEqual(components.hour, 17)
+    }
+
+    func testByEOY() {
+        // "by eoy" → Dec 31, 2026 at 5 PM
+        let result = parser.parse("File taxes by eoy")
+        XCTAssertEqual(result.title, "File taxes")
+        XCTAssertNotNil(result.dueTime)
+
+        let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 12)
+        XCTAssertEqual(components.day, 31)
+        XCTAssertEqual(components.hour, 17)
+    }
+
     // MARK: - Date: Day Names
 
     func testNextMonday() {
