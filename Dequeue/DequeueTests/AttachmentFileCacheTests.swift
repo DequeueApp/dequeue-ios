@@ -34,10 +34,16 @@ struct AttachmentFileCacheTests {
 
     @Test("FileCacheError equality works correctly")
     func errorEquality() {
-        #expect(FileCacheError.invalidPath == FileCacheError.invalidPath)
-        #expect(FileCacheError.fileNotFound(path: "/a") == FileCacheError.fileNotFound(path: "/a"))
+        let invalidPathA = FileCacheError.invalidPath
+        let invalidPathB = FileCacheError.invalidPath
+        #expect(invalidPathA == invalidPathB)
+        let notFoundA = FileCacheError.fileNotFound(path: "/a")
+        let notFoundA2 = FileCacheError.fileNotFound(path: "/a")
+        #expect(notFoundA == notFoundA2)
         #expect(FileCacheError.fileNotFound(path: "/a") != FileCacheError.fileNotFound(path: "/b"))
-        #expect(FileCacheError.copyFailed("a") == FileCacheError.copyFailed("a"))
+        let copyFailedA = FileCacheError.copyFailed("a")
+        let copyFailedA2 = FileCacheError.copyFailed("a")
+        #expect(copyFailedA == copyFailedA2)
         #expect(FileCacheError.invalidPath != FileCacheError.copyFailed("error"))
     }
 

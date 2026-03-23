@@ -14,7 +14,6 @@ import Foundation
 @Suite("EnvironmentConfiguration.validate()")
 @MainActor
 struct EnvironmentValidationTests {
-
     // MARK: - Helpers
 
     /// Minimal valid development configuration — should produce zero issues.
@@ -25,7 +24,6 @@ struct EnvironmentValidationTests {
         syncURL: String = "https://sync.ardonos.com",
         syncAppId: String = "dequeue-development"
     ) -> EnvironmentConfiguration {
-        // swiftlint:disable:next force_unwrapping
         EnvironmentConfiguration(
             environment: .development,
             clerkPublishableKey: clerkKey,
@@ -186,7 +184,6 @@ struct EnvironmentValidationTests {
 @Suite("StartupValidator")
 @MainActor
 struct StartupValidatorTests {
-
     @Test("Returns empty array for valid configuration")
     func returnsEmptyForValidConfig() {
         let config = EnvironmentConfiguration(
