@@ -920,6 +920,154 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(comps.minute, 0)
     }
 
+    func testFromThisWeekday() {
+        // "from this Friday" — reference is Thursday Feb 19, so this Friday = Feb 20
+        let result = parser.parse("New routine from this Friday")
+        XCTAssertEqual(result.title, "New routine")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 20)
+    }
+
+    func testStartingThisMonday() {
+        // "starting this Monday" — reference is Thursday Feb 19, so next Monday = Feb 23
+        // Note: avoid "Weekly" in title since it triggers the recurrence extractor (\bweekly\b)
+        let result = parser.parse("Team standup starting this Monday")
+        XCTAssertEqual(result.title, "Team standup")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 23)
+    }
+
+    func testStartingNextWeek() {
+        // "starting next week" → next Monday (Feb 23, 2026; reference = Thu Feb 19)
+        let result = parser.parse("Gym plan starting next week")
+        XCTAssertEqual(result.title, "Gym plan")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 23)
+    }
+
+    func testFromNextWeek() {
+        // "from next week" variant
+        let result = parser.parse("New schedule from next week")
+        XCTAssertEqual(result.title, "New schedule")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 23)
+    }
+
+    func testStartingNextMonth() {
+        // "starting next month" → March 1, 2026 (first day of next calendar month)
+        let result = parser.parse("Budget review starting next month")
+        XCTAssertEqual(result.title, "Budget review")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.year, 2026)
+        XCTAssertEqual(comps.month, 3)
+        XCTAssertEqual(comps.day, 1)
+    }
+
+    func testFromNextMonth() {
+        // "from next month" variant
+        let result = parser.parse("Subscription from next month")
+        XCTAssertEqual(result.title, "Subscription")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 3)
+        XCTAssertEqual(comps.day, 1)
+    }
+
+    func testStartingNextYear() {
+        // "starting next year" → January 1, 2027
+        let result = parser.parse("New habits starting next year")
+        XCTAssertEqual(result.title, "New habits")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.year, 2027)
+        XCTAssertEqual(comps.month, 1)
+        XCTAssertEqual(comps.day, 1)
+    }
+
+    func testFromNextYear() {
+        // "from next year" variant
+        let result = parser.parse("Long-term plan from next year")
+        XCTAssertEqual(result.title, "Long-term plan")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.year, 2027)
+        XCTAssertEqual(comps.month, 1)
+        XCTAssertEqual(comps.day, 1)
+    }
+
+    func testStartingInDays() {
+        // "starting in 3 days" → Feb 22, 2026 (3 days from Thu Feb 19)
+        let result = parser.parse("Project kick-off starting in 3 days")
+        XCTAssertEqual(result.title, "Project kick-off")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 22)
+    }
+
+    func testStartingInWeeks() {
+        // "starting in 2 weeks" → March 5, 2026 (14 days from Feb 19)
+        let result = parser.parse("Training program starting in 2 weeks")
+        XCTAssertEqual(result.title, "Training program")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 3)
+        XCTAssertEqual(comps.day, 5)
+    }
+
+    func testStartingInMonths() {
+        // "starting in 1 month" → March 19, 2026
+        let result = parser.parse("New semester starting in 1 month")
+        XCTAssertEqual(result.title, "New semester")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.year, 2026)
+        XCTAssertEqual(comps.month, 3)
+        XCTAssertEqual(comps.day, 19)
+    }
+
+    func testStartingInAnHour() {
+        // "starting in an hour" → reference + 1 hour
+        let result = parser.parse("Call starting in an hour")
+        XCTAssertEqual(result.title, "Call")
+        XCTAssertNotNil(result.startTime)
+
+        // Should be exactly 1 hour after reference date
+        let expectedDate = calendar.date(byAdding: .hour, value: 1, to: referenceDate)!
+        XCTAssertEqual(result.startTime, expectedDate)
+    }
+
+    func testStartingInAWeek() {
+        // "starting in a week" → reference + 7 days = Feb 26, 2026
+        let result = parser.parse("Internship starting in a week")
+        XCTAssertEqual(result.title, "Internship")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 26)
+    }
+
     // MARK: - Combined Parsing
 
     func testFullCombinedInput() {
