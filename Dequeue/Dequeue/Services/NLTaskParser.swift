@@ -739,7 +739,7 @@ struct NLTaskParser: Sendable {
 
     // MARK: - Start Date Extraction
 
-    /// Extracts start date: "from Monday", "starting tomorrow", "start: Jan 15"
+    /// Extracts start date: "from Monday", "starting tomorrow", "start: Jan 15", "from 3/15"
     private func extractStartDate(from text: String, time: (hour: Int, minute: Int)?) -> (String, Date?) {
         var result = text
         let resolvedTime = time ?? defaultTime
@@ -777,6 +777,41 @@ struct NLTaskParser: Sendable {
                     result = result.replacingCharacters(in: fullRange, with: "")
                     return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
                 }
+            }
+        }
+
+        // "from Jan 15" / "starting March 1st" / "start: December 25th"
+        // swiftlint:disable:next line_length
+        let monthNames = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
+        let startMonthDayPattern =
+            #"\b(?:from|starting|start:?)\s+("# + monthNames + #")\s+(\d{1,2})(?:st|nd|rd|th)?\b"#
+        if let regex = try? NSRegularExpression(pattern: startMonthDayPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let monthRange = Range(match.range(at: 1), in: result),
+           let dayRange = Range(match.range(at: 2), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let monthStr = String(result[monthRange]).lowercased()
+            let day = Int(result[dayRange]) ?? 1
+            if let month = monthFromName(monthStr),
+               let date = resolveMonthDay(month: month, day: day, time: resolvedTime) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
+            }
+        }
+
+        // "from 3/15" / "starting 12-25" (M/D or M-D numeric notation)
+        let startSlashDatePattern = #"\b(?:from|starting|start:?)\s+(\d{1,2})[/-](\d{1,2})\b"#
+        if let regex = try? NSRegularExpression(pattern: startSlashDatePattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let monthRange = Range(match.range(at: 1), in: result),
+           let dayRange = Range(match.range(at: 2), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let month = Int(result[monthRange]) ?? 1
+            let day = Int(result[dayRange]) ?? 1
+            if month >= 1, month <= 12, day >= 1, day <= 31,
+               let date = resolveMonthDay(month: month, day: day, time: resolvedTime) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
             }
         }
 

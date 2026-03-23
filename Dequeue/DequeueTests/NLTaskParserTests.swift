@@ -816,6 +816,110 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(components.day, 23) // next Monday
     }
 
+    func testFromCalendarDateFuture() {
+        // "from March 1st" — March 1, 2026 is in the future (ref = Feb 19)
+        let result = parser.parse("Gym membership from March 1st")
+        XCTAssertEqual(result.title, "Gym membership")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.year, 2026)
+        XCTAssertEqual(comps.month, 3)
+        XCTAssertEqual(comps.day, 1)
+    }
+
+    func testStartingMonthDay() {
+        // "starting Dec 25th" — Dec 25, 2026 (future)
+        let result = parser.parse("Holiday party starting Dec 25th")
+        XCTAssertEqual(result.title, "Holiday party")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 12)
+        XCTAssertEqual(comps.day, 25)
+    }
+
+    func testFromCalendarDatePastRollsToNextYear() {
+        // "from Jan 15" — Jan 15, 2026 is in the past (ref = Feb 19), so rolls to 2027
+        let result = parser.parse("Annual review from Jan 15")
+        XCTAssertEqual(result.title, "Annual review")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.year, 2027)
+        XCTAssertEqual(comps.month, 1)
+        XCTAssertEqual(comps.day, 15)
+    }
+
+    func testFromSlashDate() {
+        // "from 3/15" — March 15, 2026 is in the future
+        let result = parser.parse("New contract from 3/15")
+        XCTAssertEqual(result.title, "New contract")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 3)
+        XCTAssertEqual(comps.day, 15)
+    }
+
+    func testStartingSlashDate() {
+        // "starting 12/25" — Dec 25, 2026
+        let result = parser.parse("Project kickoff starting 12/25")
+        XCTAssertEqual(result.title, "Project kickoff")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 12)
+        XCTAssertEqual(comps.day, 25)
+    }
+
+    func testFromDashDate() {
+        // "from 6-1" (hyphen notation)
+        let result = parser.parse("Summer schedule from 6-1")
+        XCTAssertEqual(result.title, "Summer schedule")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 6)
+        XCTAssertEqual(comps.day, 1)
+    }
+
+    func testFromCalendarDateCaseInsensitive() {
+        // "FROM march 1st" — case should not matter
+        let result = parser.parse("Workout FROM march 1st")
+        XCTAssertEqual(result.title, "Workout")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 3)
+        XCTAssertEqual(comps.day, 1)
+    }
+
+    func testFromCalendarDateWithDueDate() {
+        // Should extract both start date and due date independently
+        let result = parser.parse("Subscription from March 1st by April 30th")
+        XCTAssertNotNil(result.startTime)
+        XCTAssertNotNil(result.dueTime)
+
+        let startComps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(startComps.month, 3)
+        XCTAssertEqual(startComps.day, 1)
+
+        let dueComps = calendar.dateComponents([.month, .day], from: result.dueTime!)
+        XCTAssertEqual(dueComps.month, 4)
+        XCTAssertEqual(dueComps.day, 30)
+    }
+
+    func testFromCalendarDateDefaultTimeApplied() {
+        // Default time (9:00) should be applied when no time is specified
+        let result = parser.parse("Sprint from March 1st")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.hour, .minute], from: result.startTime!)
+        XCTAssertEqual(comps.hour, 9)
+        XCTAssertEqual(comps.minute, 0)
+    }
+
     // MARK: - Combined Parsing
 
     func testFullCombinedInput() {
