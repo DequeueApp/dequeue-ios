@@ -103,11 +103,12 @@ struct AttachmentUploadServiceTests {
 
     @Test("AttachmentUploadError equality works correctly")
     func errorEqualityWorks() {
-        #expect(AttachmentUploadError.notAuthenticated == AttachmentUploadError.notAuthenticated)
-        #expect(
-            AttachmentUploadError.quotaExceeded(usedBytes: 100, limitBytes: 50)
-            == AttachmentUploadError.quotaExceeded(usedBytes: 100, limitBytes: 50)
-        )
+        let notAuthA = AttachmentUploadError.notAuthenticated
+        let notAuthB = AttachmentUploadError.notAuthenticated
+        #expect(notAuthA == notAuthB)
+        let quotaA = AttachmentUploadError.quotaExceeded(usedBytes: 100, limitBytes: 50)
+        let quotaA2 = AttachmentUploadError.quotaExceeded(usedBytes: 100, limitBytes: 50)
+        #expect(quotaA == quotaA2)
         #expect(
             AttachmentUploadError.quotaExceeded(usedBytes: 100, limitBytes: 50)
             != AttachmentUploadError.quotaExceeded(usedBytes: 200, limitBytes: 50)

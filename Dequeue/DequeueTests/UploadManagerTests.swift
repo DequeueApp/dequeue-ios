@@ -68,10 +68,16 @@ struct UploadManagerTests {
 
     @Test("UploadError equality works correctly")
     func errorEquality() {
-        #expect(UploadError.uploadCancelled == UploadError.uploadCancelled)
-        #expect(UploadError.fileNotFound(path: "/a") == UploadError.fileNotFound(path: "/a"))
+        let cancelledA = UploadError.uploadCancelled
+        let cancelledB = UploadError.uploadCancelled
+        #expect(cancelledA == cancelledB)
+        let notFoundA = UploadError.fileNotFound(path: "/a")
+        let notFoundA2 = UploadError.fileNotFound(path: "/a")
+        #expect(notFoundA == notFoundA2)
         #expect(UploadError.fileNotFound(path: "/a") != UploadError.fileNotFound(path: "/b"))
-        #expect(UploadError.serverError(statusCode: 500) == UploadError.serverError(statusCode: 500))
+        let server500A = UploadError.serverError(statusCode: 500)
+        let server500B = UploadError.serverError(statusCode: 500)
+        #expect(server500A == server500B)
         #expect(UploadError.serverError(statusCode: 500) != UploadError.serverError(statusCode: 404))
         #expect(UploadError.uploadCancelled != UploadError.invalidResponse)
     }

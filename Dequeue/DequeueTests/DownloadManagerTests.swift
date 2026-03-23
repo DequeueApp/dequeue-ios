@@ -71,10 +71,16 @@ struct DownloadManagerTests {
 
     @Test("DownloadError equality works correctly")
     func errorEquality() {
-        #expect(DownloadError.downloadCancelled == DownloadError.downloadCancelled)
-        #expect(DownloadError.networkError("a") == DownloadError.networkError("a"))
+        let cancelledA = DownloadError.downloadCancelled
+        let cancelledB = DownloadError.downloadCancelled
+        #expect(cancelledA == cancelledB)
+        let networkA = DownloadError.networkError("a")
+        let networkA2 = DownloadError.networkError("a")
+        #expect(networkA == networkA2)
         #expect(DownloadError.networkError("a") != DownloadError.networkError("b"))
-        #expect(DownloadError.serverError(statusCode: 500) == DownloadError.serverError(statusCode: 500))
+        let server500A = DownloadError.serverError(statusCode: 500)
+        let server500B = DownloadError.serverError(statusCode: 500)
+        #expect(server500A == server500B)
         #expect(DownloadError.serverError(statusCode: 500) != DownloadError.serverError(statusCode: 404))
         #expect(DownloadError.downloadCancelled != DownloadError.invalidResponse)
     }
