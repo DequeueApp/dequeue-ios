@@ -58,7 +58,8 @@ struct NLTaskParseResult: Equatable, Sendable {
 ///
 /// Supports:
 /// - **Dates**: "today", "tonight", "tomorrow", "next Monday", "this Friday",
-///   "in 2 hours", "in an hour", "in a day", "by Friday at 3pm", "Jan 15", "1/15", "next week"
+///   "in 2 hours", "in an hour", "in a day", "by Friday at 3pm", "due Friday", "due tomorrow",
+///   "Jan 15", "1/15", "next week"
 /// - **Times**: "at 3pm", "at 15:00", "at 3:30pm", "at noon", "at midnight";
 ///   explicit "at X" always overrides a compound time-of-day (e.g., "tonight at 7pm" → 7 PM)
 /// - **Priority**: "p:high", "p:urgent", "p:low", "p:med", "!!", "!!!", "p1"-"p4"
@@ -354,14 +355,14 @@ struct NLTaskParser: Sendable {
         let todPattern = "morning|afternoon|evening"
 
         // "tonight" — today at 9 PM; explicit "at X" overrides the 9 PM default
-        let tonightPattern = #"\b(?:by\s+)?tonight\b"#
+        let tonightPattern = #"\b(?:(?:by|due)\s+)?tonight\b"#
         if let match = result.range(of: tonightPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             return (result, dateWithTime(referenceDate, hour: 21, minute: 0))
         }
 
         // "this morning/afternoon/evening"
-        let thisTODPattern = #"\b(?:by\s+)?this\s+("# + todPattern + #")\b"#
+        let thisTODPattern = #"\b(?:(?:by|due)\s+)?this\s+("# + todPattern + #")\b"#
         if let regex = try? NSRegularExpression(pattern: thisTODPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
            let todRange = Range(match.range(at: 1), in: result),
@@ -372,7 +373,7 @@ struct NLTaskParser: Sendable {
         }
 
         // "day after tomorrow morning/afternoon/evening" — must be before "tomorrow" to avoid partial match
-        let datTODPattern = #"\b(?:by\s+)?day after tomorrow\s+("# + todPattern + #")\b"#
+        let datTODPattern = #"\b(?:(?:by|due)\s+)?day after tomorrow\s+("# + todPattern + #")\b"#
         if let regex = try? NSRegularExpression(pattern: datTODPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
            let todRange = Range(match.range(at: 1), in: result),
@@ -384,7 +385,7 @@ struct NLTaskParser: Sendable {
         }
 
         // "tomorrow morning/afternoon/evening" — must be before bare "tomorrow"
-        let tomorrowTODPattern = #"\b(?:by\s+)?tomorrow\s+("# + todPattern + #")\b"#
+        let tomorrowTODPattern = #"\b(?:(?:by|due)\s+)?tomorrow\s+("# + todPattern + #")\b"#
         if let regex = try? NSRegularExpression(pattern: tomorrowTODPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
            let todRange = Range(match.range(at: 1), in: result),
@@ -397,7 +398,7 @@ struct NLTaskParser: Sendable {
 
         // "<day> morning/afternoon/evening" e.g. "Friday morning", "next Monday afternoon"
         let dayNamePattern = allDayNames.joined(separator: "|")
-        let dayTODPattern = #"\b(?:(?:next|on|by)\s+)?("# + dayNamePattern + #")\s+("# + todPattern + #")\b"#
+        let dayTODPattern = #"\b(?:(?:next|on|by|due)\s+)?("# + dayNamePattern + #")\s+("# + todPattern + #")\b"#
         if let regex = try? NSRegularExpression(pattern: dayTODPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
            let dayRange = Range(match.range(at: 1), in: result),
@@ -446,13 +447,13 @@ struct NLTaskParser: Sendable {
         var result = text
 
         // "today"
-        if let match = result.range(of: #"\b(?:by\s+)?today\b"#, options: [.regularExpression, .caseInsensitive]) {
+        if let match = result.range(of: #"\b(?:(?:by|due)\s+)?today\b"#, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             return (result, dateWithTime(referenceDate, hour: resolvedTime.hour, minute: resolvedTime.minute))
         }
 
         // "day after tomorrow" — must be checked before "tomorrow" to avoid partial match
-        let dayAfterTomorrowPattern = #"\b(?:by\s+)?day after tomorrow\b"#
+        let dayAfterTomorrowPattern = #"\b(?:(?:by|due)\s+)?day after tomorrow\b"#
         if let match = result.range(of: dayAfterTomorrowPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = calendar.date(byAdding: .day, value: 2, to: referenceDate) {
@@ -461,7 +462,7 @@ struct NLTaskParser: Sendable {
         }
 
         // "tomorrow"
-        if let match = result.range(of: #"\b(?:by\s+)?tomorrow\b"#, options: [.regularExpression, .caseInsensitive]) {
+        if let match = result.range(of: #"\b(?:(?:by|due)\s+)?tomorrow\b"#, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let tomorrow = calendar.date(byAdding: .day, value: 1, to: referenceDate) {
                 return (result, dateWithTime(tomorrow, hour: resolvedTime.hour, minute: resolvedTime.minute))
@@ -469,7 +470,7 @@ struct NLTaskParser: Sendable {
         }
 
         // "next month" (first day of next calendar month)
-        if let match = result.range(of: #"\b(?:by\s+)?next month\b"#, options: [.regularExpression, .caseInsensitive]) {
+        if let match = result.range(of: #"\b(?:(?:by|due)\s+)?next month\b"#, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = nextFirstOfMonth() {
                 return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
@@ -477,7 +478,7 @@ struct NLTaskParser: Sendable {
         }
 
         // "next year" (January 1 of next calendar year)
-        if let match = result.range(of: #"\b(?:by\s+)?next year\b"#, options: [.regularExpression, .caseInsensitive]) {
+        if let match = result.range(of: #"\b(?:(?:by|due)\s+)?next year\b"#, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = firstDayOfNextYear() {
                 return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
@@ -485,7 +486,7 @@ struct NLTaskParser: Sendable {
         }
 
         // "next week" (next Monday)
-        if let match = result.range(of: #"\b(?:by\s+)?next week\b"#, options: [.regularExpression, .caseInsensitive]) {
+        if let match = result.range(of: #"\b(?:(?:by|due)\s+)?next week\b"#, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = nextWeekday(.monday) {
                 return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
@@ -493,7 +494,7 @@ struct NLTaskParser: Sendable {
         }
 
         // "this weekend" (Saturday)
-        let thisWeekendPattern = #"\b(?:by\s+)?this weekend\b"#
+        let thisWeekendPattern = #"\b(?:(?:by|due)\s+)?this weekend\b"#
         if let match = result.range(of: thisWeekendPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = nextWeekday(.saturday) {
@@ -513,14 +514,14 @@ struct NLTaskParser: Sendable {
         var result = text
 
         // "end of day" / "eod"
-        let eodPattern = #"\b(?:by\s+)?(?:end of day|eod)\b"#
+        let eodPattern = #"\b(?:(?:by|due)\s+)?(?:end of day|eod)\b"#
         if let match = result.range(of: eodPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             return (result, dateWithTime(referenceDate, hour: 17, minute: 0))
         }
 
         // "end of week" / "eow"
-        let eowPattern = #"\b(?:by\s+)?(?:end of week|eow)\b"#
+        let eowPattern = #"\b(?:(?:by|due)\s+)?(?:end of week|eow)\b"#
         if let match = result.range(of: eowPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = nextWeekday(.friday) {
@@ -529,7 +530,7 @@ struct NLTaskParser: Sendable {
         }
 
         // "end of month" / "eom"
-        let eomPattern = #"\b(?:by\s+)?(?:end of month|eom)\b"#
+        let eomPattern = #"\b(?:(?:by|due)\s+)?(?:end of month|eom)\b"#
         if let match = result.range(of: eomPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = lastDayOfMonth() {
@@ -538,7 +539,7 @@ struct NLTaskParser: Sendable {
         }
 
         // "end of quarter" / "eoq"
-        let eoqPattern = #"\b(?:by\s+)?(?:end of quarter|eoq)\b"#
+        let eoqPattern = #"\b(?:(?:by|due)\s+)?(?:end of quarter|eoq)\b"#
         if let match = result.range(of: eoqPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = lastDayOfQuarter() {
@@ -547,7 +548,7 @@ struct NLTaskParser: Sendable {
         }
 
         // "end of year" / "eoy"
-        let eoyPattern = #"\b(?:by\s+)?(?:end of year|eoy)\b"#
+        let eoyPattern = #"\b(?:(?:by|due)\s+)?(?:end of year|eoy)\b"#
         if let match = result.range(of: eoyPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = lastDayOfYear() {
@@ -616,14 +617,14 @@ struct NLTaskParser: Sendable {
         var result = text
         let dayNamePattern = allDayNames.joined(separator: "|")
 
-        // "next Monday/Tuesday/..." or "on/by Monday/Tuesday/..."
-        let nextDayPattern = #"\b(?:next|on|by)\s+("# + dayNamePattern + #")\b"#
+        // "next Monday/Tuesday/..." or "on/by/due Monday/Tuesday/..."
+        let nextDayPattern = #"\b(?:next|on|by|due)\s+("# + dayNamePattern + #")\b"#
         if let found = extractDayNameMatch(from: result, pattern: nextDayPattern, time: resolvedTime) {
             return found
         }
 
-        // "this Monday/Tuesday/..." — next occurrence (same semantics as "on <day>")
-        let thisDayPattern = #"\bthis\s+("# + dayNamePattern + #")\b"#
+        // "this Monday/Tuesday/..." / "due this Monday/..." — next occurrence (same semantics as "on <day>")
+        let thisDayPattern = #"\b(?:due\s+)?this\s+("# + dayNamePattern + #")\b"#
         if let found = extractDayNameMatch(from: result, pattern: thisDayPattern, time: resolvedTime) {
             return found
         }
@@ -692,7 +693,7 @@ struct NLTaskParser: Sendable {
         var result = text
         // swiftlint:disable:next line_length
         let monthNames = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
-        let monthDayPattern = #"\b(?:by\s+|on\s+)?("# + monthNames + #")\s+(\d{1,2})(?:st|nd|rd|th)?\b"#
+        let monthDayPattern = #"\b(?:by\s+|on\s+|due\s+)?("# + monthNames + #")\s+(\d{1,2})(?:st|nd|rd|th)?\b"#
         guard let regex = try? NSRegularExpression(pattern: monthDayPattern, options: .caseInsensitive),
               let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
               let monthRange = Range(match.range(at: 1), in: result),
@@ -717,7 +718,7 @@ struct NLTaskParser: Sendable {
         time resolvedTime: (hour: Int, minute: Int)
     ) -> (String, Date?)? {
         var result = text
-        let slashDatePattern = #"\b(?:by\s+|on\s+)?(\d{1,2})[/-](\d{1,2})\b"#
+        let slashDatePattern = #"\b(?:by\s+|on\s+|due\s+)?(\d{1,2})[/-](\d{1,2})\b"#
         guard let regex = try? NSRegularExpression(pattern: slashDatePattern, options: .caseInsensitive),
               let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
               let monthRange = Range(match.range(at: 1), in: result),
@@ -1018,7 +1019,7 @@ private extension NLTaskParser {
     func cleanTitle(_ text: String) -> String {
         var result = text
 
-        // Remove leading "by" if it's left over
+        // Remove leading "by" if it's left over after date extraction (e.g. "by this Friday" → "by" orphan)
         result = result.replacingOccurrences(of: #"^\s*by\s+"#, with: "", options: .regularExpression)
 
         // Collapse multiple spaces
@@ -1213,7 +1214,7 @@ private extension NLTaskParser {
         var result = text
         // swiftlint:disable:next line_length
         let monthNames = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
-        let pattern = #"\b(?:by\s+)?(?:next|this)\s+("# + monthNames + #")\b"#
+        let pattern = #"\b(?:(?:by|due)\s+)?(?:next|this)\s+("# + monthNames + #")\b"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
               let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
               let monthRange = Range(match.range(at: 1), in: result),
@@ -1238,7 +1239,7 @@ private extension NLTaskParser {
         time resolvedTime: (hour: Int, minute: Int)
     ) -> (String, Date?)? {
         var result = text
-        let pattern = #"\b(?:by\s+|on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b"#
+        let pattern = #"\b(?:by\s+|on\s+|due\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
               let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
               let dayRange = Range(match.range(at: 1), in: result),

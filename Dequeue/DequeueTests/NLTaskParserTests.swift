@@ -2414,4 +2414,173 @@ final class NLTaskParserTests: XCTestCase {
         let result = parser.parse("Review biennial")
         XCTAssertTrue(result.hasStructuredData)
     }
+
+    // MARK: - "due" prefix for due-date keywords
+
+    // The parser accepts "due" as a natural synonym for "by", allowing phrases like
+    // "Task due tomorrow", "Task due Friday", "Task due EOD", etc.
+    // In all cases "due" is consumed as part of the date token and the title is clean.
+
+    func testDueTodayKeyword() {
+        // Reference: Feb 19, 2026 10:00 AM; "due today" → today at default time (9 AM)
+        let result = parser.parse("Send invoice due today")
+        XCTAssertEqual(result.title, "Send invoice")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month, .year], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 19)
+        XCTAssertEqual(comps.month, 2)
+    }
+
+    func testDueTomorrowKeyword() {
+        // Reference: Feb 19; "due tomorrow" → Feb 20 at default time
+        let result = parser.parse("Submit report due tomorrow")
+        XCTAssertEqual(result.title, "Submit report")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 20)
+        XCTAssertEqual(comps.month, 2)
+    }
+
+    func testDueNamedDay() {
+        // Reference: Wednesday Feb 19; "due Friday" → next Friday = Feb 20
+        let result = parser.parse("Expense report due Friday")
+        XCTAssertEqual(result.title, "Expense report")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 20)
+        XCTAssertEqual(comps.month, 2)
+    }
+
+    func testDueMonday() {
+        // Reference: Wednesday Feb 19; "due Monday" → next Monday = Feb 23
+        let result = parser.parse("Fix bug due Monday")
+        XCTAssertEqual(result.title, "Fix bug")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 23)
+        XCTAssertEqual(comps.month, 2)
+    }
+
+    func testDueNextWeek() {
+        // Reference: Feb 19 (Wednesday); "due next week" → next Monday = Feb 23 at default time
+        let result = parser.parse("Team meeting due next week")
+        XCTAssertEqual(result.title, "Team meeting")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 23)
+        XCTAssertEqual(comps.month, 2)
+    }
+
+    func testDueThisWeekend() {
+        // Reference: Feb 19 (Wednesday); "due this weekend" → Saturday Feb 21 at default time
+        let result = parser.parse("Clean garage due this weekend")
+        XCTAssertEqual(result.title, "Clean garage")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 21)
+        XCTAssertEqual(comps.month, 2)
+    }
+
+    func testDueEOD() {
+        // "due EOD" → today at 5:00 PM
+        let result = parser.parse("Review PR due EOD")
+        XCTAssertEqual(result.title, "Review PR")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 19)
+        XCTAssertEqual(comps.hour, 17)
+        XCTAssertEqual(comps.minute, 0)
+    }
+
+    func testDueEndOfWeek() {
+        // Reference: Feb 19 (Wednesday); "due EOW" → next Friday Feb 20 at 5 PM
+        let result = parser.parse("Ship feature due EOW")
+        XCTAssertEqual(result.title, "Ship feature")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month, .hour], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 20)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.hour, 17)
+    }
+
+    func testDueEndOfMonth() {
+        // "due end of month" / "due EOM" → last day of Feb 2026 = Feb 28 at 5 PM
+        let result = parser.parse("Billing report due end of month")
+        XCTAssertEqual(result.title, "Billing report")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month, .hour], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 28)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.hour, 17)
+    }
+
+    func testDueCalendarDate() {
+        // "due March 1st" → March 1, 2026 at default time
+        let result = parser.parse("Tax filing due March 1st")
+        XCTAssertEqual(result.title, "Tax filing")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month, .year], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 1)
+        XCTAssertEqual(comps.month, 3)
+        XCTAssertEqual(comps.year, 2026)
+    }
+
+    func testDueSlashDate() {
+        // "due 3/15" → March 15, 2026 at default time
+        let result = parser.parse("License renewal due 3/15")
+        XCTAssertEqual(result.title, "License renewal")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 15)
+        XCTAssertEqual(comps.month, 3)
+    }
+
+    func testDueThisFriday() {
+        // "due this Friday" — "due this <day>" is fully consumed; title is clean
+        // Reference: Wednesday Feb 19 → next Friday = Feb 20
+        let result = parser.parse("Code review due this Friday")
+        XCTAssertEqual(result.title, "Code review")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 20)
+        XCTAssertEqual(comps.month, 2)
+    }
+
+    func testDueNextMonth() {
+        // "due next month" → first day of next calendar month (March 1, 2026)
+        let result = parser.parse("Strategy review due next month")
+        XCTAssertEqual(result.title, "Strategy review")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 1)
+        XCTAssertEqual(comps.month, 3)
+    }
+
+    func testDueTonightKeyword() {
+        // "due tonight" → today at 9 PM
+        let result = parser.parse("Finish slides due tonight")
+        XCTAssertEqual(result.title, "Finish slides")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 19)
+        XCTAssertEqual(comps.hour, 21)
+    }
+
+    func testDueTomorrowMorning() {
+        // "due tomorrow morning" → compound phrase: Feb 20 at 9 AM
+        let result = parser.parse("Call client due tomorrow morning")
+        XCTAssertEqual(result.title, "Call client")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.day, .month, .hour], from: result.dueTime!)
+        XCTAssertEqual(comps.day, 20)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.hour, 9)
+    }
+
+    func testDuePrefixNoFalsePositive() {
+        // "Due diligence report" — "due" is NOT followed by a date keyword → title preserved
+        let result = parser.parse("Due diligence report")
+        XCTAssertEqual(result.title, "Due diligence report")
+        XCTAssertNil(result.dueTime)
+    }
 }
