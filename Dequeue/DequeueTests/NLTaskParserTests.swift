@@ -1603,6 +1603,119 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(components.hour, 18)
     }
 
+    // MARK: - "by" prefix with compound time-of-day phrases
+
+    func testByThisMorning() {
+        // "by this morning" → today (Feb 19) at 9 AM
+        let result = parser.parse("Submit work by this morning")
+        XCTAssertEqual(result.title, "Submit work")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.hour, 9)
+        XCTAssertEqual(components.minute, 0)
+    }
+
+    func testByThisAfternoon() {
+        // "by this afternoon" → today (Feb 19) at 2 PM
+        let result = parser.parse("Finish review by this afternoon")
+        XCTAssertEqual(result.title, "Finish review")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.hour, 14)
+    }
+
+    func testByThisEvening() {
+        // "by this evening" → today (Feb 19) at 6 PM
+        let result = parser.parse("Return call by this evening")
+        XCTAssertEqual(result.title, "Return call")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 19)
+        XCTAssertEqual(components.hour, 18)
+    }
+
+    func testByTomorrowAfternoon() {
+        // "by tomorrow afternoon" → tomorrow (Feb 20) at 2 PM
+        let result = parser.parse("Send draft by tomorrow afternoon")
+        XCTAssertEqual(result.title, "Send draft")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 20)
+        XCTAssertEqual(components.hour, 14)
+    }
+
+    func testByTomorrowEvening() {
+        // "by tomorrow evening" → tomorrow (Feb 20) at 6 PM
+        let result = parser.parse("Wrap up by tomorrow evening")
+        XCTAssertEqual(result.title, "Wrap up")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 20)
+        XCTAssertEqual(components.hour, 18)
+    }
+
+    func testByDayAfterTomorrowMorning() {
+        // "by day after tomorrow morning" → Feb 21 at 9 AM
+        let result = parser.parse("File report by day after tomorrow morning")
+        XCTAssertEqual(result.title, "File report")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 21)
+        XCTAssertEqual(components.hour, 9)
+    }
+
+    func testByDayAfterTomorrowAfternoon() {
+        // "by day after tomorrow afternoon" → Feb 21 at 2 PM
+        let result = parser.parse("Submit proposal by day after tomorrow afternoon")
+        XCTAssertEqual(result.title, "Submit proposal")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 21)
+        XCTAssertEqual(components.hour, 14)
+    }
+
+    func testByDayAfterTomorrowEvening() {
+        // "by day after tomorrow evening" → Feb 21 at 6 PM
+        let result = parser.parse("Pack bags by day after tomorrow evening")
+        XCTAssertEqual(result.title, "Pack bags")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 21)
+        XCTAssertEqual(components.hour, 18)
+    }
+
+    func testOnDayNameMorning() {
+        // "on Friday morning" — ref = Wed Feb 19; next Friday = Feb 20 at 9 AM
+        let result = parser.parse("Presentation on Friday morning")
+        XCTAssertEqual(result.title, "Presentation")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 20) // next Friday
+        XCTAssertEqual(components.hour, 9)
+    }
+
+    func testByDayNameAfternoon() {
+        // "by Monday afternoon" — ref = Wed Feb 19; next Monday = Feb 23 at 2 PM
+        let result = parser.parse("Submit report by Monday afternoon")
+        XCTAssertEqual(result.title, "Submit report")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 23) // next Monday
+        XCTAssertEqual(components.hour, 14)
+    }
+
+    func testByDayNameEvening() {
+        // "by Wednesday evening" — ref = Wed Feb 19; next Wednesday = Feb 25 at 6 PM
+        let result = parser.parse("Review contracts by Wednesday evening")
+        XCTAssertEqual(result.title, "Review contracts")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .hour], from: result.dueTime!)
+        XCTAssertEqual(components.day, 25) // next Wednesday
+        XCTAssertEqual(components.hour, 18)
+    }
+
     // MARK: - Tonight (compound keyword — explicit "at X" overrides 9 PM default)
 
     func testTonightDefaultsToNinePM() {
