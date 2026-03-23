@@ -760,13 +760,13 @@ struct NLTaskParser: Sendable {
             return (result, dateWithTime(referenceDate, hour: resolvedTime.hour, minute: resolvedTime.minute))
         }
 
-        // "from Monday" / "starting next Wednesday"
+        // "from Monday" / "starting next Wednesday" / "from this Friday"
         let dayNames = [
             "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
             "mon", "tue", "tues", "wed", "thu", "thur", "thurs", "fri", "sat", "sun"
         ]
         let dayNamePattern = dayNames.joined(separator: "|")
-        let startDayPattern = #"\b(?:from|starting|start:?)\s+(?:next\s+)?("# + dayNamePattern + #")\b"#
+        let startDayPattern = #"\b(?:from|starting|start:?)\s+(?:(?:next|this)\s+)?("# + dayNamePattern + #")\b"#
         if let regex = try? NSRegularExpression(pattern: startDayPattern, options: .caseInsensitive),
            let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)) {
             if let dayRange = Range(match.range(at: 1), in: result) {
@@ -777,6 +777,64 @@ struct NLTaskParser: Sendable {
                     result = result.replacingCharacters(in: fullRange, with: "")
                     return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
                 }
+            }
+        }
+
+        // "starting next week" / "from next week" → next Monday
+        let startNextWeekPattern = #"\b(?:from|starting|start:?)\s+next\s+week\b"#
+        if let match = result.range(of: startNextWeekPattern, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = nextWeekday(.monday) {
+                return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
+            }
+        }
+
+        // "starting next month" / "from next month" → first day of next calendar month
+        let startNextMonthPattern = #"\b(?:from|starting|start:?)\s+next\s+month\b"#
+        if let match = result.range(of: startNextMonthPattern, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = nextFirstOfMonth() {
+                return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
+            }
+        }
+
+        // "starting next year" / "from next year" → January 1 of next year
+        let startNextYearPattern = #"\b(?:from|starting|start:?)\s+next\s+year\b"#
+        if let match = result.range(of: startNextYearPattern, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = firstDayOfNextYear() {
+                return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
+            }
+        }
+
+        // "starting in a/an <unit>" — treat as "starting in 1 <unit>" (e.g. "starting in an hour")
+        let units = #"minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years"#
+        let startInArticlePattern = #"\b(?:from|starting|start:?)\s+in\s+an?\s+("# + units + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: startInArticlePattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let unitRange = Range(match.range(at: 1), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let unit = String(result[unitRange]).lowercased()
+            let component = calendarComponentForUnit(unit)
+            if let date = calendar.date(byAdding: component, value: 1, to: referenceDate) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
+            }
+        }
+
+        // "starting in 3 days" / "from in 2 weeks" / "starting in 1 month"
+        let startInNumPattern = #"\b(?:from|starting|start:?)\s+in\s+(\d+)\s+("# + units + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: startInNumPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let numRange = Range(match.range(at: 1), in: result),
+           let unitRange = Range(match.range(at: 2), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let num = Int(result[numRange]) ?? 0
+            let unit = String(result[unitRange]).lowercased()
+            let component = calendarComponentForUnit(unit)
+            if let date = calendar.date(byAdding: component, value: num, to: referenceDate) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
             }
         }
 
