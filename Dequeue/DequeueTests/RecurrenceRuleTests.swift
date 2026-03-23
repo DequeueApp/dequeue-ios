@@ -256,7 +256,7 @@ final class RecurrenceRuleTests: XCTestCase {
 
     func testPresetsContainExpectedPresets() {
         let presets = RecurrenceRule.presets
-        XCTAssertEqual(presets.count, 6)
+        XCTAssertEqual(presets.count, 7)
 
         let names = presets.map { $0.name }
         XCTAssertTrue(names.contains("Daily"))
@@ -264,6 +264,7 @@ final class RecurrenceRuleTests: XCTestCase {
         XCTAssertTrue(names.contains("Weekly"))
         XCTAssertTrue(names.contains("Biweekly"))
         XCTAssertTrue(names.contains("Monthly"))
+        XCTAssertTrue(names.contains("Quarterly"))
         XCTAssertTrue(names.contains("Yearly"))
     }
 

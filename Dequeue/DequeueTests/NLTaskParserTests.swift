@@ -1641,4 +1641,76 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(biw.recurrenceRule?.frequency, .weekly)
         XCTAssertEqual(biw.recurrenceRule?.interval, 2)
     }
+
+    // MARK: - Semiannual Recurrence
+
+    func testSemiannually() {
+        let result = parser.parse("Review strategy semiannually")
+        XCTAssertEqual(result.title, "Review strategy")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .monthly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 6)
+    }
+
+    func testSemiAnnuallyHyphenated() {
+        let result = parser.parse("Tax review semi-annually")
+        XCTAssertEqual(result.title, "Tax review")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .monthly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 6)
+    }
+
+    func testSemiannuallyCaseInsensitive() {
+        let result = parser.parse("Check-in SEMIANNUALLY")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .monthly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 6)
+    }
+
+    func testSemiannuallyWithPriority() {
+        let result = parser.parse("Board review semiannually p:high")
+        XCTAssertEqual(result.title, "Board review")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .monthly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 6)
+        XCTAssertEqual(result.priority, 2)
+    }
+
+    func testHasStructuredDataWithSemiannually() {
+        let result = parser.parse("Review semiannually")
+        XCTAssertTrue(result.hasStructuredData)
+    }
+
+    // MARK: - Biennial Recurrence
+
+    func testBiennial() {
+        let result = parser.parse("Passport renewal biennial")
+        XCTAssertEqual(result.title, "Passport renewal")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .yearly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 2)
+    }
+
+    func testBiennially() {
+        let result = parser.parse("Driver's license biennially")
+        XCTAssertEqual(result.title, "Driver's license")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .yearly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 2)
+    }
+
+    func testBiennialCaseInsensitive() {
+        let result = parser.parse("Check BIENNIAL")
+        XCTAssertEqual(result.recurrenceRule?.frequency, .yearly)
+        XCTAssertEqual(result.recurrenceRule?.interval, 2)
+    }
+
+    func testBiennialDistinctFromAnnually() {
+        // Biennial → yearly interval 2; annually → yearly interval 1 (default)
+        let bie = parser.parse("Task biennial")
+        let ann = parser.parse("Task annually")
+        XCTAssertEqual(bie.recurrenceRule?.frequency, .yearly)
+        XCTAssertEqual(bie.recurrenceRule?.interval, 2)
+        XCTAssertEqual(ann.recurrenceRule?.frequency, .yearly)
+        XCTAssertEqual(ann.recurrenceRule?.interval, 1)
+    }
+
+    func testHasStructuredDataWithBiennial() {
+        let result = parser.parse("Review biennial")
+        XCTAssertTrue(result.hasStructuredData)
+    }
 }

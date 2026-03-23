@@ -1177,6 +1177,8 @@ private extension NLTaskParser {
     /// - `every 2 days` / `every 3 weeks` / `every 6 months` → interval-based rule
     /// - `every other day/week/month/year` → interval: 2
     /// - `biweekly` / `fortnightly` → every 2 weeks
+    /// - `semiannually` / `semi-annually` → every 6 months
+    /// - `biennial` / `biennially` → every 2 years
     func extractRecurrenceRule(from text: String) -> (String, RecurrenceRule?)? {
         var result = text
         let dayNames = "monday|tuesday|wednesday|thursday|friday|saturday|sunday"
@@ -1316,6 +1318,23 @@ private extension NLTaskParser {
            let fullRange = Range(match.range, in: result) {
             result = result.replacingCharacters(in: fullRange, with: "")
             return (result, .monthly)
+        }
+
+        // "semiannually" / "semi-annually" → every 6 months (twice a year)
+        // Must be checked BEFORE the "annually" pattern below, because \bannually\b
+        // would match the "annually" suffix of "semi-annually" and consume it first.
+        if let match = result.range(of: #"\bsemi-?annually\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            return (result, RecurrenceRule(frequency: .monthly, interval: 6))
+        }
+
+        // "biennial" / "biennially" → every 2 years
+        // Must be checked BEFORE the "yearly/annually" pattern to prevent the
+        // "annually" suffix from being consumed independently.
+        // Regex: biennial (8 chars, single-l) with optional "ly" suffix.
+        if let match = result.range(of: #"\bbiennial(?:ly)?\b"#, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            return (result, RecurrenceRule(frequency: .yearly, interval: 2))
         }
 
         // "yearly" / "annually"
