@@ -1068,6 +1068,107 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(comps.day, 26)
     }
 
+    // MARK: - "start:" Prefix Shorthand
+
+    func testStartColonToday() {
+        // "start: today" → start date = today (Feb 19)
+        let result = parser.parse("Meditation habit start: today")
+        XCTAssertEqual(result.title, "Meditation habit")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 19)
+    }
+
+    func testStartColonTomorrow() {
+        // "start: tomorrow" → start date = Feb 20
+        let result = parser.parse("New routine start: tomorrow")
+        XCTAssertEqual(result.title, "New routine")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 20)
+    }
+
+    func testStartColonNamedDay() {
+        // "start: Monday" — next Monday is Feb 23
+        let result = parser.parse("Sprint start: Monday")
+        XCTAssertEqual(result.title, "Sprint")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 23)
+    }
+
+    func testStartColonNextWeek() {
+        // "start: next week" → next Monday = Feb 23
+        let result = parser.parse("Onboarding start: next week")
+        XCTAssertEqual(result.title, "Onboarding")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 23)
+    }
+
+    func testStartColonNextMonth() {
+        // "start: next month" → March 1, 2026
+        let result = parser.parse("Gym membership start: next month")
+        XCTAssertEqual(result.title, "Gym membership")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 3)
+        XCTAssertEqual(comps.day, 1)
+    }
+
+    func testStartColonSlashDate() {
+        // "start: 3/15" → March 15, 2026
+        let result = parser.parse("Contract start: 3/15")
+        XCTAssertEqual(result.title, "Contract")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 3)
+        XCTAssertEqual(comps.day, 15)
+    }
+
+    func testStartColonMonthNameDate() {
+        // "start: April 1st" → April 1, 2026
+        let result = parser.parse("Q2 planning start: April 1st")
+        XCTAssertEqual(result.title, "Q2 planning")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 4)
+        XCTAssertEqual(comps.day, 1)
+    }
+
+    func testStartColonInDays() {
+        // "start: in 5 days" → Feb 24, 2026
+        let result = parser.parse("Challenge start: in 5 days")
+        XCTAssertEqual(result.title, "Challenge")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 24)
+    }
+
+    func testStartWithoutColonStillWorks() {
+        // Sanity: "start tomorrow" (no colon) still parsed correctly (regex: start:?)
+        let result = parser.parse("Habit start tomorrow")
+        XCTAssertEqual(result.title, "Habit")
+        XCTAssertNotNil(result.startTime)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 20)
+    }
+
     // MARK: - Combined Parsing
 
     func testFullCombinedInput() {
