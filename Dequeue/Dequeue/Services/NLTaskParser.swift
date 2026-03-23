@@ -780,62 +780,9 @@ struct NLTaskParser: Sendable {
             }
         }
 
-        // "starting next week" / "from next week" → next Monday
-        let startNextWeekPattern = #"\b(?:from|starting|start:?)\s+next\s+week\b"#
-        if let match = result.range(of: startNextWeekPattern, options: [.regularExpression, .caseInsensitive]) {
-            result = result.replacingCharacters(in: match, with: "")
-            if let date = nextWeekday(.monday) {
-                return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
-            }
-        }
-
-        // "starting next month" / "from next month" → first day of next calendar month
-        let startNextMonthPattern = #"\b(?:from|starting|start:?)\s+next\s+month\b"#
-        if let match = result.range(of: startNextMonthPattern, options: [.regularExpression, .caseInsensitive]) {
-            result = result.replacingCharacters(in: match, with: "")
-            if let date = nextFirstOfMonth() {
-                return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
-            }
-        }
-
-        // "starting next year" / "from next year" → January 1 of next year
-        let startNextYearPattern = #"\b(?:from|starting|start:?)\s+next\s+year\b"#
-        if let match = result.range(of: startNextYearPattern, options: [.regularExpression, .caseInsensitive]) {
-            result = result.replacingCharacters(in: match, with: "")
-            if let date = firstDayOfNextYear() {
-                return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
-            }
-        }
-
-        // "starting in a/an <unit>" — treat as "starting in 1 <unit>" (e.g. "starting in an hour")
-        let units = #"minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years"#
-        let startInArticlePattern = #"\b(?:from|starting|start:?)\s+in\s+an?\s+("# + units + #")\b"#
-        if let regex = try? NSRegularExpression(pattern: startInArticlePattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
-           let unitRange = Range(match.range(at: 1), in: result),
-           let fullRange = Range(match.range, in: result) {
-            let unit = String(result[unitRange]).lowercased()
-            let component = calendarComponentForUnit(unit)
-            if let date = calendar.date(byAdding: component, value: 1, to: referenceDate) {
-                result = result.replacingCharacters(in: fullRange, with: "")
-                return (result, date)
-            }
-        }
-
-        // "starting in 3 days" / "from in 2 weeks" / "starting in 1 month"
-        let startInNumPattern = #"\b(?:from|starting|start:?)\s+in\s+(\d+)\s+("# + units + #")\b"#
-        if let regex = try? NSRegularExpression(pattern: startInNumPattern, options: .caseInsensitive),
-           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
-           let numRange = Range(match.range(at: 1), in: result),
-           let unitRange = Range(match.range(at: 2), in: result),
-           let fullRange = Range(match.range, in: result) {
-            let num = Int(result[numRange]) ?? 0
-            let unit = String(result[unitRange]).lowercased()
-            let component = calendarComponentForUnit(unit)
-            if let date = calendar.date(byAdding: component, value: num, to: referenceDate) {
-                result = result.replacingCharacters(in: fullRange, with: "")
-                return (result, date)
-            }
+        // "starting next week/month/year" or "starting in N units"
+        if let (updatedText, date) = extractStartDateRelativeOffset(from: result, time: resolvedTime) {
+            return (updatedText, date)
         }
 
         // "from Jan 15" / "starting March 1st" / "start: December 25th"
@@ -874,6 +821,84 @@ struct NLTaskParser: Sendable {
         }
 
         return (result, nil)
+    }
+}
+
+// MARK: - NLTaskParser Start Date Offset Helpers
+
+private extension NLTaskParser {
+    /// Handles "starting next week/month/year" and "starting in (a|N) <unit>" patterns.
+    /// Returns `(updatedText, date)` when a pattern matches, or `nil` when nothing matches.
+    func extractStartDateRelativeOffset(
+        from text: String,
+        time: (hour: Int, minute: Int)
+    ) -> (String, Date?)? {
+        var result = text
+        let units = #"minute|minutes|min|mins|hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years"#
+
+        // "starting next week" / "from next week" → next Monday
+        let startNextWeekPattern = #"\b(?:from|starting|start:?)\s+next\s+week\b"#
+        if let match = result.range(of: startNextWeekPattern, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = nextWeekday(.monday) {
+                return (result, dateWithTime(date, hour: time.hour, minute: time.minute))
+            }
+            return (result, nil)
+        }
+
+        // "starting next month" / "from next month" → first day of next calendar month
+        let startNextMonthPattern = #"\b(?:from|starting|start:?)\s+next\s+month\b"#
+        if let match = result.range(of: startNextMonthPattern, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = nextFirstOfMonth() {
+                return (result, dateWithTime(date, hour: time.hour, minute: time.minute))
+            }
+            return (result, nil)
+        }
+
+        // "starting next year" / "from next year" → January 1 of next year
+        let startNextYearPattern = #"\b(?:from|starting|start:?)\s+next\s+year\b"#
+        if let match = result.range(of: startNextYearPattern, options: [.regularExpression, .caseInsensitive]) {
+            result = result.replacingCharacters(in: match, with: "")
+            if let date = firstDayOfNextYear() {
+                return (result, dateWithTime(date, hour: time.hour, minute: time.minute))
+            }
+            return (result, nil)
+        }
+
+        // "starting in a/an <unit>" — treat as "starting in 1 <unit>" (e.g. "starting in an hour")
+        let startInArticlePattern = #"\b(?:from|starting|start:?)\s+in\s+an?\s+("# + units + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: startInArticlePattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let unitRange = Range(match.range(at: 1), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let unit = String(result[unitRange]).lowercased()
+            let component = calendarComponentForUnit(unit)
+            if let date = calendar.date(byAdding: component, value: 1, to: referenceDate) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
+            }
+            return (result, nil)
+        }
+
+        // "starting in 3 days" / "from in 2 weeks" / "starting in 1 month"
+        let startInNumPattern = #"\b(?:from|starting|start:?)\s+in\s+(\d+)\s+("# + units + #")\b"#
+        if let regex = try? NSRegularExpression(pattern: startInNumPattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
+           let numRange = Range(match.range(at: 1), in: result),
+           let unitRange = Range(match.range(at: 2), in: result),
+           let fullRange = Range(match.range, in: result) {
+            let num = Int(result[numRange]) ?? 0
+            let unit = String(result[unitRange]).lowercased()
+            let component = calendarComponentForUnit(unit)
+            if let date = calendar.date(byAdding: component, value: num, to: referenceDate) {
+                result = result.replacingCharacters(in: fullRange, with: "")
+                return (result, date)
+            }
+            return (result, nil)
+        }
+
+        return nil
     }
 }
 
