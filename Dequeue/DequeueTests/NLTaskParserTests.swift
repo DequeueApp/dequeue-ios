@@ -1169,6 +1169,55 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(comps.day, 20)
     }
 
+    // MARK: - Start Date + Recurrence Combinations
+
+    func testStartColonWithDailyRecurrence() {
+        // "start: tomorrow every day" — start date + daily recurrence
+        // Recurrence extracted first (step 0), then start date (step 5)
+        let result = parser.parse("Morning run start: tomorrow every day")
+        XCTAssertEqual(result.title, "Morning run")
+        XCTAssertNotNil(result.startTime)
+        XCTAssertNotNil(result.recurrenceRule)
+        XCTAssertEqual(result.recurrenceRule?.frequency, .daily)
+        XCTAssertNil(result.dueTime) // no due date token in input
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 20) // tomorrow = Feb 20
+    }
+
+    func testStartColonWithWeeklyRecurrenceNamedDay() {
+        // "every Monday start: next week" — weekly recurrence + start date
+        // next week → next Monday = Feb 23, 2026
+        let result = parser.parse("Sprint planning every Monday start: next week")
+        XCTAssertEqual(result.title, "Sprint planning")
+        XCTAssertNotNil(result.startTime)
+        XCTAssertNotNil(result.recurrenceRule)
+        XCTAssertEqual(result.recurrenceRule?.frequency, .weekly)
+        XCTAssertEqual(result.recurrenceRule?.daysOfWeek, [RecurrenceDay.monday])
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 23) // next Monday from Feb 19
+    }
+
+    func testStartColonWithRecurrenceAndPriorityAndTag() {
+        // All four: start, recurrence, priority, tag — no due date
+        let result = parser.parse("Gym session start: Monday every day p:med #health")
+        XCTAssertEqual(result.title, "Gym session")
+        XCTAssertNotNil(result.startTime)
+        XCTAssertNotNil(result.recurrenceRule)
+        XCTAssertEqual(result.recurrenceRule?.frequency, .daily)
+        XCTAssertEqual(result.priority, 1) // medium
+        XCTAssertEqual(result.tags, ["health"])
+        XCTAssertNil(result.dueTime)
+        XCTAssertTrue(result.hasStructuredData)
+
+        let comps = calendar.dateComponents([.month, .day], from: result.startTime!)
+        XCTAssertEqual(comps.month, 2)
+        XCTAssertEqual(comps.day, 23) // next Monday = Feb 23
+    }
+
     // MARK: - Combined Parsing
 
     func testFullCombinedInput() {
@@ -1647,6 +1696,19 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(components.day, 20)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.hour, 12) // noon
+        XCTAssertEqual(components.minute, 0)
+    }
+
+    func testBareTimeWithAM12Format() {
+        // "12am tomorrow" — midnight edge case: adjustHourForAMPM(12, "am") → 0
+        // Reference: Feb 19 → tomorrow = Feb 20, hour 0 (midnight)
+        let result = parser.parse("Server deploy tomorrow 12am")
+        XCTAssertEqual(result.title, "Server deploy")
+        XCTAssertNotNil(result.dueTime)
+        let components = calendar.dateComponents([.day, .month, .hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(components.day, 20)
+        XCTAssertEqual(components.month, 2)
+        XCTAssertEqual(components.hour, 0) // midnight — 12am → hour 0
         XCTAssertEqual(components.minute, 0)
     }
 
