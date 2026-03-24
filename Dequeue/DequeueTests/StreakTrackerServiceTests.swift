@@ -247,4 +247,124 @@ final class StreakTrackerServiceTests: XCTestCase {
     func testMinimumTasksForStreak() {
         XCTAssertEqual(StreakTrackerService.minimumTasksForStreak, 1)
     }
+
+    // MARK: - Multi-Day Streak Scenarios
+
+    /// Seeds the shared `userDefaults` with active records for the given day offsets
+    /// (negative = past, e.g. -1 = yesterday) and reloads the existing service instance.
+    ///
+    /// We reload rather than recreate because creating short-lived `@MainActor` service
+    /// instances inside a test body triggers a Swift 6 deinit crash in
+    /// `swift_task_deinitOnExecutorImpl` (rdar://FB15432891).  `reloadFromStorage()`
+    /// re-reads the seeded `UserDefaults` and recalculates state on the existing object.
+    private func seedDays(_ offsets: [Int], tasksCompleted: Int = 1) throws {
+        var records: [String: DailyProductivityRecord] = [:]
+        let calendar = Calendar.current
+        let today = Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = calendar.timeZone
+
+        for offset in offsets {
+            guard let date = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
+            let key = formatter.string(from: date)
+            records[key] = DailyProductivityRecord(
+                dateString: key,
+                tasksCompleted: tasksCompleted,
+                tasksCreated: 0,
+                stacksCompleted: 0,
+                focusTimeSeconds: 0
+            )
+        }
+
+        let data = try JSONEncoder().encode(records)
+        userDefaults.set(data, forKey: "streakTrackerRecords")
+        // Reload the existing service instance (avoids deinit crash on ephemeral instances).
+        service.reloadFromStorage()
+    }
+
+    func testCurrentStreakIncludesPriorConsecutiveDays() throws {
+        // Seed yesterday and day-before-yesterday as active
+        try seedDays([-2, -1])
+        service.recordTaskCompletion()   // today → streak of 3
+        XCTAssertEqual(service.streakInfo.currentStreak, 3)
+    }
+
+    func testCurrentStreakBreaksAtGap() throws {
+        // Day-before-yesterday active, yesterday skipped → gap breaks the chain
+        try seedDays([-2])
+        service.recordTaskCompletion()   // today → only today counts
+        XCTAssertEqual(service.streakInfo.currentStreak, 1)
+    }
+
+    func testCurrentStreakZeroWhenOnlyYesterdayActiveAndNotToday() throws {
+        // Yesterday was active but nothing done today → streak resets to 0
+        try seedDays([-1])
+        XCTAssertEqual(service.streakInfo.currentStreak, 0)
+        XCTAssertFalse(service.streakInfo.isTodayActive)
+    }
+
+    func testLongestStreakBeatsByHistoricalRun() throws {
+        // 4-day consecutive streak ending last week, then a gap, then active today
+        try seedDays([-7, -6, -5, -4])
+        service.recordTaskCompletion()   // today: currentStreak = 1
+        XCTAssertEqual(service.streakInfo.longestStreak, 4)
+        XCTAssertEqual(service.streakInfo.currentStreak, 1)
+    }
+
+    func testLongestStreakEqualsCurrentWhenContinuing() throws {
+        // 3-day streak still running — longest should match current
+        try seedDays([-2, -1])
+        service.recordTaskCompletion()   // streak = 3 with no prior longer run
+        XCTAssertEqual(service.streakInfo.currentStreak, 3)
+        XCTAssertEqual(service.streakInfo.longestStreak, 3)
+    }
+
+    func testTotalActiveDaysCountsMultipleDays() throws {
+        // Two prior active days plus today = 3 total active days
+        try seedDays([-2, -1])
+        service.recordTaskCompletion()
+        XCTAssertEqual(service.streakInfo.totalActiveDays, 3)
+        XCTAssertEqual(service.streakInfo.totalTasksCompleted, 3)
+    }
+
+    func testMilestoneThreeDetectedOnThirdConsecutiveDay() throws {
+        // Reaching exactly a milestone value triggers recentMilestone
+        try seedDays([-2, -1])
+        service.recordTaskCompletion()   // streak hits 3 == StreakMilestone.three
+        XCTAssertEqual(service.streakInfo.currentStreak, 3)
+        XCTAssertEqual(service.recentMilestone, .three)
+    }
+
+    func testNoMilestoneWhenStreakIsNotAtMilestoneValue() throws {
+        // Streak of 2 is not a milestone value
+        try seedDays([-1])
+        service.recordTaskCompletion()   // streak = 2
+        XCTAssertEqual(service.streakInfo.currentStreak, 2)
+        XCTAssertNil(service.recentMilestone)
+    }
+
+    func testWeekActivityIncludesSeededPastDays() throws {
+        // Seed three consecutive past days — all should appear as active in weekActivity
+        try seedDays([-1, -2, -3])
+        let activeDays = service.streakInfo.weekActivity.filter(\.isActive)
+        XCTAssertEqual(activeDays.count, 3)
+    }
+
+    func testWeekActivityTodayReflectsCompletions() {
+        service.recordTaskCompletion()
+        let today = service.streakInfo.weekActivity.last
+        XCTAssertNotNil(today)
+        XCTAssertEqual(today?.tasksCompleted, 1)
+        XCTAssertTrue(today?.isActive ?? false)
+    }
+
+    func testMonthActivityTodayReflectsCompletions() {
+        service.recordTaskCompletion()
+        service.recordTaskCompletion()
+        let today = service.streakInfo.monthActivity.last
+        XCTAssertNotNil(today)
+        XCTAssertEqual(today?.tasksCompleted, 2)
+        XCTAssertTrue(today?.isActive ?? false)
+    }
 }
