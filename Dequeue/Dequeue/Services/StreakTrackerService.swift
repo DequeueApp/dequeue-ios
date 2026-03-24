@@ -407,4 +407,19 @@ final class StreakTrackerService: ObservableObject {
         guard let data = try? JSONEncoder().encode(records) else { return }
         userDefaults.set(data, forKey: storageKey)
     }
+
+    // MARK: - Testing Support
+
+    /// Reloads records from persistent storage and recalculates state.
+    ///
+    /// This method is internal (not private) so that unit tests can seed
+    /// `UserDefaults` with historical records and then call this to reload
+    /// without recreating the service instance.  Recreating a `@MainActor`
+    /// service inside a test body triggers a Swift 6 deinit crash
+    /// (rdar://FB15432891), so reloading the existing instance is the
+    /// preferred pattern.
+    func reloadFromStorage() {
+        loadRecords()
+        recalculate()
+    }
 }
