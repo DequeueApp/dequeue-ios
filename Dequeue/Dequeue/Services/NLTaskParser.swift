@@ -273,7 +273,8 @@ struct NLTaskParser: Sendable {
         var result = text
 
         // "at noon" / "at midnight"
-        let specialTimePattern = #"\bat\s+(noon|midnight)\b"#
+        // Optional "by"/"due" prefix is consumed so "due at noon" → title clean
+        let specialTimePattern = #"\b(?:(?:by|due)\s+)?at\s+(noon|midnight)\b"#
         if let match = result.range(of: specialTimePattern, options: [.regularExpression, .caseInsensitive]) {
             let matched = String(result[match]).lowercased()
             let time: (Int, Int) = matched.contains("noon") ? (12, 0) : (0, 0)
@@ -282,7 +283,8 @@ struct NLTaskParser: Sendable {
         }
 
         // "at 3:30pm" / "at 3:30 pm" / "at 15:30"
-        let timeWithMinPattern = #"\bat\s+(\d{1,2}):(\d{2})\s*([aApP][mM])?\b"#
+        // Optional "by"/"due" prefix consumed so "due at 3:30pm" → title clean
+        let timeWithMinPattern = #"\b(?:(?:by|due)\s+)?at\s+(\d{1,2}):(\d{2})\s*([aApP][mM])?\b"#
         if let regex = try? NSRegularExpression(pattern: timeWithMinPattern),
            let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)) {
             if let hourRange = Range(match.range(at: 1), in: result),
@@ -303,7 +305,8 @@ struct NLTaskParser: Sendable {
         }
 
         // "at 3pm" / "at 3 pm" / "at 15"
-        let timePattern = #"\bat\s+(\d{1,2})\s*([aApP][mM])?\b"#
+        // Optional "by"/"due" prefix consumed so "due at 5pm" → title clean
+        let timePattern = #"\b(?:(?:by|due)\s+)?at\s+(\d{1,2})\s*([aApP][mM])?\b"#
         if let regex = try? NSRegularExpression(pattern: timePattern),
            let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)) {
             if let hourRange = Range(match.range(at: 1), in: result) {
@@ -1022,6 +1025,11 @@ private extension NLTaskParser {
         // Remove leading "by" if it's left over after date extraction (e.g. "by this Friday" → "by" orphan)
         result = result.replacingOccurrences(of: #"^\s*by\s+"#, with: "", options: .regularExpression)
 
+        // Remove standalone "by" or "due" when they are the entire remaining string
+        // (e.g. "by" alone after "by <date>" extraction, or "due" alone after "due <date>")
+        result = result.replacingOccurrences(of: #"^\s*by\s*$"#, with: "", options: .regularExpression)
+        result = result.replacingOccurrences(of: #"^\s*due\s*$"#, with: "", options: .regularExpression)
+
         // Collapse multiple spaces
         result = result.replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression)
 
@@ -1158,8 +1166,9 @@ private extension NLTaskParser {
     func extractBareAMPMTime(from text: String) -> (String, (hour: Int, minute: Int)?)? {
         var result = text
 
-        // "3:30pm" / "10:00am" — hour:minute + AM/PM
-        let bareTimeWithMinPattern = #"\b(\d{1,2}):(\d{2})\s*([aApP][mM])\b"#
+        // "3:30pm" / "10:00am" / "due 3:30pm" / "by 10:00am" — hour:minute + AM/PM
+        // Optional "by"/"due" prefix consumed so "due 3:30pm" → title clean
+        let bareTimeWithMinPattern = #"\b(?:(?:by|due)\s+)?(\d{1,2}):(\d{2})\s*([aApP][mM])\b"#
         if let regex = try? NSRegularExpression(pattern: bareTimeWithMinPattern),
            let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
            let hourRange = Range(match.range(at: 1), in: result),
@@ -1175,8 +1184,9 @@ private extension NLTaskParser {
             return (result, (hour, minute))
         }
 
-        // "3pm" / "10am" — bare hour + AM/PM, no minutes
-        let bareTimePattern = #"\b(\d{1,2})\s*([aApP][mM])\b"#
+        // "3pm" / "10am" / "due 5pm" / "by 3pm" — bare hour + AM/PM, no minutes
+        // Optional "by"/"due" prefix consumed so "due 5pm" → title clean
+        let bareTimePattern = #"\b(?:(?:by|due)\s+)?(\d{1,2})\s*([aApP][mM])\b"#
         if let regex = try? NSRegularExpression(pattern: bareTimePattern),
            let match = regex.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)),
            let hourRange = Range(match.range(at: 1), in: result),

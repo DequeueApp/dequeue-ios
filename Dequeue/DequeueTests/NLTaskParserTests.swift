@@ -2583,4 +2583,82 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(result.title, "Due diligence report")
         XCTAssertNil(result.dueTime)
     }
+
+    // MARK: - "due/by at <time>" orphan cleanup
+
+    func testDueAtTimeCleanTitle() {
+        // "Task due at 5pm" — "due at 5pm" consumed together → clean title
+        let result = parser.parse("Task due at 5pm")
+        XCTAssertEqual(result.title, "Task")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(comps.hour, 17)
+        XCTAssertEqual(comps.minute, 0)
+    }
+
+    func testByAtNoonCleanTitle() {
+        // "Task by at noon" — "by at noon" consumed together → clean title
+        let result = parser.parse("Task by at noon")
+        XCTAssertEqual(result.title, "Task")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(comps.hour, 12)
+        XCTAssertEqual(comps.minute, 0)
+    }
+
+    func testDueAtTimeWithMinutesCleanTitle() {
+        // "Submit report due at 3:30pm" — "due at 3:30pm" consumed together → clean title
+        let result = parser.parse("Submit report due at 3:30pm")
+        XCTAssertEqual(result.title, "Submit report")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(comps.hour, 15)
+        XCTAssertEqual(comps.minute, 30)
+    }
+
+    func testDueAtMidnightCleanTitle() {
+        // "Call client due at midnight" — "due at midnight" consumed together → clean title
+        let result = parser.parse("Call client due at midnight")
+        XCTAssertEqual(result.title, "Call client")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(comps.hour, 0)
+        XCTAssertEqual(comps.minute, 0)
+    }
+
+    func testStandaloneDueAtTimeCleanTitle() {
+        // "due at 9pm" — only a time marker, no task text → empty title
+        let result = parser.parse("due at 9pm")
+        XCTAssertEqual(result.title, "")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.hour], from: result.dueTime!)
+        XCTAssertEqual(comps.hour, 21)
+    }
+
+    func testDueBareTimeCleanTitle() {
+        // "Task due 5pm" — bare "due 5pm" (no "at") consumed together → clean title
+        let result = parser.parse("Task due 5pm")
+        XCTAssertEqual(result.title, "Task")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(comps.hour, 17)
+        XCTAssertEqual(comps.minute, 0)
+    }
+
+    func testByBareTimeCleanTitle() {
+        // "Task by 3:30pm" — bare "by 3:30pm" (no "at") consumed together → clean title
+        let result = parser.parse("Task by 3:30pm")
+        XCTAssertEqual(result.title, "Task")
+        XCTAssertNotNil(result.dueTime)
+        let comps = calendar.dateComponents([.hour, .minute], from: result.dueTime!)
+        XCTAssertEqual(comps.hour, 15)
+        XCTAssertEqual(comps.minute, 30)
+    }
+
+    func testBillIsDueNoFalsePositive() {
+        // "Bill is due" — "due" without any time expression → title preserved as-is
+        let result = parser.parse("Bill is due")
+        XCTAssertEqual(result.title, "Bill is due")
+        XCTAssertNil(result.dueTime)
+    }
 }
