@@ -5,7 +5,6 @@
 //  Attachments section for StackEditorView
 //
 
-import PhotosUI
 import SwiftUI
 import SwiftData
 
@@ -53,17 +52,6 @@ extension StackEditorView {
         }
     }
 
-    #if os(iOS)
-    @MainActor
-    func handlePhotoSelected(_ item: PhotosPickerItem) async {
-        do {
-            handleFilesSelected([try await item.saveToTemporaryFile()])
-        } catch {
-            errorMessage = "Failed to load photo: \(error.localizedDescription)"
-            showError = true
-        }
-    }
-    #endif
 
     /// Handles files selected from the attachment picker.
     /// Creates attachment records and triggers uploads.

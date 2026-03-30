@@ -265,6 +265,62 @@ enum PhotoSaveError: LocalizedError {
     case noData
     var errorDescription: String? { "Could not load image data from photo library." }
 }
+
+// MARK: - Photo Attachment Modifier
+
+/// Adds a source-selection confirmation dialog (Photo Library / Choose File) and a PhotosPicker
+/// to any view. Use instead of directly presenting `AttachmentPicker` on iOS.
+struct PhotoAttachmentModifier: ViewModifier {
+    @Binding var showSourcePicker: Bool
+    @Binding var showFilePicker: Bool
+    @Binding var showPhotoPicker: Bool
+    @Binding var selectedPhotoItem: PhotosPickerItem?
+    let onFilesSelected: ([URL]) -> Void
+    let onError: (Error) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog("Add Attachment", isPresented: $showSourcePicker) {
+                Button("Photo Library") { showPhotoPicker = true }
+                Button("Choose File") { showFilePicker = true }
+                Button("Cancel", role: .cancel) { }
+            }
+            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                if let newItem {
+                    Task {
+                        do {
+                            onFilesSelected([try await newItem.saveToTemporaryFile()])
+                        } catch {
+                            onError(error)
+                        }
+                    }
+                    selectedPhotoItem = nil
+                }
+            }
+    }
+}
+
+extension View {
+    /// Attaches the photo-library + file-picker source dialog to a view (iOS only).
+    func photoAttachmentPicker(
+        showSourcePicker: Binding<Bool>,
+        showFilePicker: Binding<Bool>,
+        showPhotoPicker: Binding<Bool>,
+        selectedPhotoItem: Binding<PhotosPickerItem?>,
+        onFilesSelected: @escaping ([URL]) -> Void,
+        onError: @escaping (Error) -> Void
+    ) -> some View {
+        modifier(PhotoAttachmentModifier(
+            showSourcePicker: showSourcePicker,
+            showFilePicker: showFilePicker,
+            showPhotoPicker: showPhotoPicker,
+            selectedPhotoItem: selectedPhotoItem,
+            onFilesSelected: onFilesSelected,
+            onError: onError
+        ))
+    }
+}
 #endif
 
 // MARK: - Preview

@@ -290,18 +290,14 @@ struct ArcEditorView: View {
             }
             .attachmentPreview(coordinator: previewCoordinator)
             #if os(iOS)
-            .confirmationDialog("Add Attachment", isPresented: $showAttachmentSourcePicker) {
-                Button("Photo Library") { showPhotoPicker = true }
-                Button("Choose File") { showAttachmentPicker = true }
-                Button("Cancel", role: .cancel) { }
-            }
-            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
-            .onChange(of: selectedPhotoItem) { _, newItem in
-                if let newItem {
-                    Task { await handlePhotoSelected(newItem) }
-                    selectedPhotoItem = nil
-                }
-            }
+            .photoAttachmentPicker(
+                showSourcePicker: $showAttachmentSourcePicker,
+                showFilePicker: $showAttachmentPicker,
+                showPhotoPicker: $showPhotoPicker,
+                selectedPhotoItem: $selectedPhotoItem,
+                onFilesSelected: handleFilesSelected,
+                onError: { errorMessage = "Failed to load photo: \($0.localizedDescription)"; showError = true }
+            )
             #endif
             // Due date reminder prompt
             .alert("Create Reminder?", isPresented: $showDueDateReminderPrompt) {
