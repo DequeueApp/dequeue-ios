@@ -5,6 +5,7 @@
 //  View and edit an individual task
 //
 
+import PhotosUI
 import SwiftUI
 import SwiftData
 
@@ -30,6 +31,9 @@ struct TaskDetailView: View {
     @State private var showDeleteConfirmation = false
     @State var showAttachmentPicker = false
     @State private var attachmentPickerError: AttachmentPickerError?
+    @State var showAttachmentSourcePicker = false
+    @State var showPhotoPicker = false
+    @State var selectedPhotoItem: PhotosPickerItem?
     @State var showError = false
     @State var errorMessage = ""
     @State private var showAddReminder = false
@@ -181,6 +185,20 @@ struct TaskDetailView: View {
             }
         )
         .attachmentPreview(coordinator: previewCoordinator)
+        #if os(iOS)
+        .confirmationDialog("Add Attachment", isPresented: $showAttachmentSourcePicker) {
+            Button("Photo Library") { showPhotoPicker = true }
+            Button("Choose File") { showAttachmentPicker = true }
+            Button("Cancel", role: .cancel) { }
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            if let newItem {
+                Task { await handlePhotoSelected(newItem) }
+                selectedPhotoItem = nil
+            }
+        }
+        #endif
     }
 
     // MARK: - Sections

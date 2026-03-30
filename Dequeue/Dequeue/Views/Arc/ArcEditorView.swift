@@ -5,6 +5,7 @@
 //  View for creating and editing Arcs
 //
 
+import PhotosUI
 import SwiftUI
 import SwiftData
 import os
@@ -79,6 +80,9 @@ struct ArcEditorView: View {
     @State var showAttachmentPicker = false
     @State var attachmentToDelete: Attachment?
     @State var showDeleteAttachmentConfirmation = false
+    @State var showAttachmentSourcePicker = false
+    @State var showPhotoPicker = false
+    @State var selectedPhotoItem: PhotosPickerItem?
 
     /// Preset colors for arc accent
     let colorPresets: [(name: String, hex: String)] = [
@@ -285,6 +289,20 @@ struct ArcEditorView: View {
                 Text("Are you sure you want to delete this attachment?")
             }
             .attachmentPreview(coordinator: previewCoordinator)
+            #if os(iOS)
+            .confirmationDialog("Add Attachment", isPresented: $showAttachmentSourcePicker) {
+                Button("Photo Library") { showPhotoPicker = true }
+                Button("Choose File") { showAttachmentPicker = true }
+                Button("Cancel", role: .cancel) { }
+            }
+            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                if let newItem {
+                    Task { await handlePhotoSelected(newItem) }
+                    selectedPhotoItem = nil
+                }
+            }
+            #endif
             // Due date reminder prompt
             .alert("Create Reminder?", isPresented: $showDueDateReminderPrompt) {
                 Button("Yes, remind me") {

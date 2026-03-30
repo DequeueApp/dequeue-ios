@@ -5,6 +5,7 @@
 //  Attachments section for TaskDetailView
 //
 
+import PhotosUI
 import SwiftUI
 import SwiftData
 
@@ -22,10 +23,33 @@ extension TaskDetailView {
         )
     }
 
-    /// Handles the add attachment button tap - shows the file picker.
+    /// Handles the add attachment button tap.
     func handleAddAttachmentTap() {
+        #if os(iOS)
+        showAttachmentSourcePicker = true
+        #else
         showAttachmentPicker = true
+        #endif
     }
+
+    #if os(iOS)
+    /// Saves a selected PhotosPickerItem to a temporary file and passes it through the upload flow.
+    @MainActor
+    func handlePhotoSelected(_ item: PhotosPickerItem) async {
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else { return }
+            let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension(ext)
+            try data.write(to: tempURL)
+            handleFilesSelected([tempURL])
+        } catch {
+            errorMessage = "Failed to load photo: \(error.localizedDescription)"
+            showError = true
+        }
+    }
+    #endif
 
     /// Handles files selected from the attachment picker.
     /// Creates attachment records and triggers uploads.

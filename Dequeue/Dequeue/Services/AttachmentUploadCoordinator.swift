@@ -75,7 +75,8 @@ final class AttachmentUploadCoordinator {
         logger.info("Starting upload for attachment: \(attachmentId)")
 
         // Step 1: Validate local file exists
-        guard let localPath = attachment.localPath else {
+        // Use resolvedLocalPath (absolute) — localPath stores a relative path
+        guard let localPath = attachment.resolvedLocalPath else {
             logger.error("Attachment \(attachmentId) has no local path")
             throw AttachmentUploadError.noLocalFile
         }

@@ -5,6 +5,7 @@
 //  Unified view for creating and editing stacks (DEQ-99)
 //
 
+import PhotosUI
 import SwiftUI
 import SwiftData
 import os
@@ -114,6 +115,9 @@ struct StackEditorView: View {
     @State var errorMessage = ""
     @State var showAttachmentPicker = false
     @State private var attachmentPickerError: AttachmentPickerError?
+    @State var showAttachmentSourcePicker = false
+    @State var showPhotoPicker = false
+    @State var selectedPhotoItem: PhotosPickerItem?
     @State var showAddTask = false
     @State var newTaskTitle = ""
     @State var newTaskDescription = ""
@@ -171,6 +175,20 @@ struct StackEditorView: View {
                 .modifier(alertsModifier)
                 .modifier(sheetsModifier)
                 .modifier(lifecycleModifier)
+                #if os(iOS)
+                .confirmationDialog("Add Attachment", isPresented: $showAttachmentSourcePicker) {
+                    Button("Photo Library") { showPhotoPicker = true }
+                    Button("Choose File") { showAttachmentPicker = true }
+                    Button("Cancel", role: .cancel) { }
+                }
+                .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+                .onChange(of: selectedPhotoItem) { _, newItem in
+                    if let newItem {
+                        Task { await handlePhotoSelected(newItem) }
+                        selectedPhotoItem = nil
+                    }
+                }
+                #endif
                 #if os(macOS)
                 .focusedValue(\.newTaskAction) {
                     // DEQ-50: ⌘T creates new task (when in stack editor)

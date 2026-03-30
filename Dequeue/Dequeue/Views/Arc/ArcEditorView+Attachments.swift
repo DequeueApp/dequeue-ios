@@ -5,6 +5,7 @@
 //  Attachments section for ArcEditorView
 //
 
+import PhotosUI
 import SwiftUI
 
 // MARK: - Attachments Section
@@ -16,7 +17,13 @@ extension ArcEditorView {
         AttachmentsSectionView(
             stackId: editingArc?.id,
             isReadOnly: false,
-            onAddTap: { showAttachmentPicker = true },
+            onAddTap: {
+                #if os(iOS)
+                showAttachmentSourcePicker = true
+                #else
+                showAttachmentPicker = true
+                #endif
+            },
             onAttachmentTap: handleAttachmentTap,
             onDelete: handleDeleteAttachment
         )
@@ -79,4 +86,23 @@ extension ArcEditorView {
         attachmentToDelete = attachment
         showDeleteAttachmentConfirmation = true
     }
+
+    #if os(iOS)
+    /// Saves a selected PhotosPickerItem to a temporary file and passes it through the upload flow.
+    @MainActor
+    func handlePhotoSelected(_ item: PhotosPickerItem) async {
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else { return }
+            let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension(ext)
+            try data.write(to: tempURL)
+            handleFilesSelected([tempURL])
+        } catch {
+            errorMessage = "Failed to load photo: \(error.localizedDescription)"
+            showError = true
+        }
+    }
+    #endif
 }
