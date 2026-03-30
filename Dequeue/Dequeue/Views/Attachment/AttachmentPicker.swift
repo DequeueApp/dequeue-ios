@@ -5,6 +5,7 @@
 //  Cross-platform file picker for adding attachments
 //
 
+import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -240,6 +241,31 @@ extension View {
         #endif
     }
 }
+
+// MARK: - Photo Picker Support (iOS)
+
+#if os(iOS)
+extension PhotosPickerItem {
+    /// Loads the item's image data and writes it to a uniquely named temporary file.
+    /// - Returns: A URL pointing to the written temp file.
+    func saveToTemporaryFile() async throws -> URL {
+        guard let data = try await loadTransferable(type: Data.self) else {
+            throw PhotoSaveError.noData
+        }
+        let ext = supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(ext)
+        try data.write(to: tempURL)
+        return tempURL
+    }
+}
+
+enum PhotoSaveError: LocalizedError {
+    case noData
+    var errorDescription: String? { "Could not load image data from photo library." }
+}
+#endif
 
 // MARK: - Preview
 
