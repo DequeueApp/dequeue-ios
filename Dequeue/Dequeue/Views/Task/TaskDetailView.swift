@@ -32,8 +32,8 @@ struct TaskDetailView: View {
     @State var showAttachmentPicker = false
     @State private var attachmentPickerError: AttachmentPickerError?
     @State var showAttachmentSourcePicker = false
-    @State var showPhotoPicker = false
-    @State var selectedPhotoItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
     @State var showError = false
     @State var errorMessage = ""
     @State private var showAddReminder = false

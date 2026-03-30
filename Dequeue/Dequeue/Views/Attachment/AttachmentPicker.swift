@@ -246,15 +246,16 @@ extension View {
 
 #if os(iOS)
 extension PhotosPickerItem {
-    /// Loads the item's image data and writes it to a uniquely named temporary file.
+    /// Loads the item's image data and writes it to a descriptively named temporary file.
     /// - Returns: A URL pointing to the written temp file.
     func saveToTemporaryFile() async throws -> URL {
         guard let data = try await loadTransferable(type: Data.self) else {
             throw PhotoSaveError.noData
         }
         let ext = supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+        let timestamp = Int64(Date().timeIntervalSince1970 * 1_000)
         let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
+            .appendingPathComponent("Photo_\(timestamp)")
             .appendingPathExtension(ext)
         try data.write(to: tempURL)
         return tempURL
@@ -290,7 +291,20 @@ struct PhotoAttachmentModifier: ViewModifier {
                 if let newItem {
                     Task {
                         do {
-                            onFilesSelected([try await newItem.saveToTemporaryFile()])
+                            let tempURL = try await newItem.saveToTemporaryFile()
+                            // Enforce the same 50 MB limit as the document file picker
+                            let resources = try tempURL.resourceValues(forKeys: [.fileSizeKey])
+                            if let fileSize = resources.fileSize,
+                               Int64(fileSize) > AttachmentPickerConstants.maxFileSizeBytes {
+                                try? FileManager.default.removeItem(at: tempURL)
+                                onError(AttachmentPickerError.fileTooLarge(
+                                    filename: tempURL.lastPathComponent,
+                                    size: Int64(fileSize),
+                                    maxSize: AttachmentPickerConstants.maxFileSizeBytes
+                                ))
+                                return
+                            }
+                            onFilesSelected([tempURL])
                         } catch {
                             onError(error)
                         }

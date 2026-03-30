@@ -116,8 +116,8 @@ struct StackEditorView: View {
     @State var showAttachmentPicker = false
     @State private var attachmentPickerError: AttachmentPickerError?
     @State var showAttachmentSourcePicker = false
-    @State var showPhotoPicker = false
-    @State var selectedPhotoItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
     @State var showAddTask = false
     @State var newTaskTitle = ""
     @State var newTaskDescription = ""

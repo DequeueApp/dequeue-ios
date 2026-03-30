@@ -81,8 +81,8 @@ struct ArcEditorView: View {
     @State var attachmentToDelete: Attachment?
     @State var showDeleteAttachmentConfirmation = false
     @State var showAttachmentSourcePicker = false
-    @State var showPhotoPicker = false
-    @State var selectedPhotoItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
 
     /// Preset colors for arc accent
     let colorPresets: [(name: String, hex: String)] = [
