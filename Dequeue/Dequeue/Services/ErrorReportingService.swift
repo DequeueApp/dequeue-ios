@@ -303,6 +303,26 @@ enum ErrorReportingService {
                 ]
                 SentrySDK.addBreadcrumb(breadcrumb)
             }
+
+            // ============================================
+            // EVENT FILTERING (suppress known non-actionable errors)
+            // ============================================
+            options.beforeSend = { event in
+                // NSCocoaErrorDomain Code 260 = NSFileReadNoSuchFileError.
+                // When raised from UIDocumentPickerViewController._didTapCancel,
+                // it means the user cancelled the file picker — not a real error.
+                // Filter it to prevent Sentry noise.
+                if let exceptions = event.exceptions {
+                    let isDocPickerCancel = exceptions.contains { exc in
+                        exc.type == "NSCocoaErrorDomain" &&
+                        exc.value?.contains("Code: 260") == true
+                    }
+                    if isDocPickerCancel {
+                        return nil  // Drop the event
+                    }
+                }
+                return event
+            }
         }
 
         // Mark this launch in UserDefaults AFTER Sentry is active.
