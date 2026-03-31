@@ -22,10 +22,15 @@ extension TaskDetailView {
         )
     }
 
-    /// Handles the add attachment button tap - shows the file picker.
+    /// Handles the add attachment button tap.
     func handleAddAttachmentTap() {
+        #if os(iOS)
+        showAttachmentSourcePicker = true
+        #else
         showAttachmentPicker = true
+        #endif
     }
+
 
     /// Handles files selected from the attachment picker.
     /// Creates attachment records and triggers uploads.

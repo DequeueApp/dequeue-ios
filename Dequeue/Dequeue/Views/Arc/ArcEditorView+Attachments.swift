@@ -16,7 +16,13 @@ extension ArcEditorView {
         AttachmentsSectionView(
             stackId: editingArc?.id,
             isReadOnly: false,
-            onAddTap: { showAttachmentPicker = true },
+            onAddTap: {
+                #if os(iOS)
+                showAttachmentSourcePicker = true
+                #else
+                showAttachmentPicker = true
+                #endif
+            },
             onAttachmentTap: handleAttachmentTap,
             onDelete: handleDeleteAttachment
         )
@@ -79,4 +85,5 @@ extension ArcEditorView {
         attachmentToDelete = attachment
         showDeleteAttachmentConfirmation = true
     }
+
 }

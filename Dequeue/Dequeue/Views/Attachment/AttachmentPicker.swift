@@ -5,6 +5,7 @@
 //  Cross-platform file picker for adding attachments
 //
 
+import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -240,6 +241,101 @@ extension View {
         #endif
     }
 }
+
+// MARK: - Photo Picker Support (iOS)
+
+#if os(iOS)
+extension PhotosPickerItem {
+    /// Loads the item's image data and writes it to a descriptively named temporary file.
+    /// - Returns: A URL pointing to the written temp file.
+    func saveToTemporaryFile() async throws -> URL {
+        guard let data = try await loadTransferable(type: Data.self) else {
+            throw PhotoSaveError.noData
+        }
+        let ext = supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+        let timestamp = Int64(Date().timeIntervalSince1970 * 1_000)
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Photo_\(timestamp)")
+            .appendingPathExtension(ext)
+        try data.write(to: tempURL)
+        return tempURL
+    }
+}
+
+enum PhotoSaveError: LocalizedError {
+    case noData
+    var errorDescription: String? { "Could not load image data from photo library." }
+}
+
+// MARK: - Photo Attachment Modifier
+
+/// Adds a source-selection confirmation dialog (Photo Library / Choose File) and a PhotosPicker
+/// to any view. Use instead of directly presenting `AttachmentPicker` on iOS.
+struct PhotoAttachmentModifier: ViewModifier {
+    @Binding var showSourcePicker: Bool
+    @Binding var showFilePicker: Bool
+    @Binding var showPhotoPicker: Bool
+    @Binding var selectedPhotoItem: PhotosPickerItem?
+    let onFilesSelected: ([URL]) -> Void
+    let onError: (Error) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog("Add Attachment", isPresented: $showSourcePicker) {
+                Button("Photo Library") { showPhotoPicker = true }
+                Button("Choose File") { showFilePicker = true }
+                Button("Cancel", role: .cancel) { }
+            }
+            .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                if let newItem {
+                    Task {
+                        do {
+                            let tempURL = try await newItem.saveToTemporaryFile()
+                            // Enforce the same 50 MB limit as the document file picker
+                            let resources = try tempURL.resourceValues(forKeys: [.fileSizeKey])
+                            if let fileSize = resources.fileSize,
+                               Int64(fileSize) > AttachmentPickerConstants.maxFileSizeBytes {
+                                try? FileManager.default.removeItem(at: tempURL)
+                                onError(AttachmentPickerError.fileTooLarge(
+                                    filename: tempURL.lastPathComponent,
+                                    size: Int64(fileSize),
+                                    maxSize: AttachmentPickerConstants.maxFileSizeBytes
+                                ))
+                                return
+                            }
+                            onFilesSelected([tempURL])
+                        } catch {
+                            onError(error)
+                        }
+                    }
+                    selectedPhotoItem = nil
+                }
+            }
+    }
+}
+
+extension View {
+    /// Attaches the photo-library + file-picker source dialog to a view (iOS only).
+    func photoAttachmentPicker(
+        showSourcePicker: Binding<Bool>,
+        showFilePicker: Binding<Bool>,
+        showPhotoPicker: Binding<Bool>,
+        selectedPhotoItem: Binding<PhotosPickerItem?>,
+        onFilesSelected: @escaping ([URL]) -> Void,
+        onError: @escaping (Error) -> Void
+    ) -> some View {
+        modifier(PhotoAttachmentModifier(
+            showSourcePicker: showSourcePicker,
+            showFilePicker: showFilePicker,
+            showPhotoPicker: showPhotoPicker,
+            selectedPhotoItem: selectedPhotoItem,
+            onFilesSelected: onFilesSelected,
+            onError: onError
+        ))
+    }
+}
+#endif
 
 // MARK: - Preview
 

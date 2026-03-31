@@ -26,9 +26,13 @@ extension StackEditorView {
     /// Handles the add attachment button tap.
     /// In create mode without a draft, auto-creates a draft first so attachments can be attached.
     func handleAddAttachmentTap() {
-        // If we already have a stack, proceed to file picker
+        // If we already have a stack, proceed to attachment source selection
         if currentStack != nil {
+            #if os(iOS)
+            showAttachmentSourcePicker = true
+            #else
             showAttachmentPicker = true
+            #endif
             return
         }
 
@@ -37,12 +41,17 @@ extension StackEditorView {
             let draftTitle = title.isEmpty ? "Untitled" : title
             createDraft(title: draftTitle)
 
-            // Show the file picker - draftStack is now set
+            // Show the attachment source picker - draftStack is now set
             if draftStack != nil {
+                #if os(iOS)
+                showAttachmentSourcePicker = true
+                #else
                 showAttachmentPicker = true
+                #endif
             }
         }
     }
+
 
     /// Handles files selected from the attachment picker.
     /// Creates attachment records and triggers uploads.

@@ -5,6 +5,7 @@
 //  View and edit an individual task
 //
 
+import PhotosUI
 import SwiftUI
 import SwiftData
 
@@ -30,6 +31,9 @@ struct TaskDetailView: View {
     @State private var showDeleteConfirmation = false
     @State var showAttachmentPicker = false
     @State private var attachmentPickerError: AttachmentPickerError?
+    @State var showAttachmentSourcePicker = false
+    @State private var showPhotoPicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
     @State var showError = false
     @State var errorMessage = ""
     @State private var showAddReminder = false
@@ -181,6 +185,16 @@ struct TaskDetailView: View {
             }
         )
         .attachmentPreview(coordinator: previewCoordinator)
+        #if os(iOS)
+        .photoAttachmentPicker(
+            showSourcePicker: $showAttachmentSourcePicker,
+            showFilePicker: $showAttachmentPicker,
+            showPhotoPicker: $showPhotoPicker,
+            selectedPhotoItem: $selectedPhotoItem,
+            onFilesSelected: handleFilesSelected,
+            onError: { errorMessage = "Failed to load photo: \($0.localizedDescription)"; showError = true }
+        )
+        #endif
     }
 
     // MARK: - Sections
