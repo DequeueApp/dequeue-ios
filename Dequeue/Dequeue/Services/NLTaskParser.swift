@@ -450,7 +450,8 @@ struct NLTaskParser: Sendable {
         var result = text
 
         // "today"
-        if let match = result.range(of: #"\b(?:(?:by|due)\s+)?today\b"#, options: [.regularExpression, .caseInsensitive]) {
+        let todayPattern = #"\b(?:(?:by|due)\s+)?today\b"#
+        if let match = result.range(of: todayPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             return (result, dateWithTime(referenceDate, hour: resolvedTime.hour, minute: resolvedTime.minute))
         }
@@ -465,7 +466,8 @@ struct NLTaskParser: Sendable {
         }
 
         // "tomorrow"
-        if let match = result.range(of: #"\b(?:(?:by|due)\s+)?tomorrow\b"#, options: [.regularExpression, .caseInsensitive]) {
+        let tomorrowPattern = #"\b(?:(?:by|due)\s+)?tomorrow\b"#
+        if let match = result.range(of: tomorrowPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let tomorrow = calendar.date(byAdding: .day, value: 1, to: referenceDate) {
                 return (result, dateWithTime(tomorrow, hour: resolvedTime.hour, minute: resolvedTime.minute))
@@ -473,7 +475,8 @@ struct NLTaskParser: Sendable {
         }
 
         // "next month" (first day of next calendar month)
-        if let match = result.range(of: #"\b(?:(?:by|due)\s+)?next month\b"#, options: [.regularExpression, .caseInsensitive]) {
+        let nextMonthPattern = #"\b(?:(?:by|due)\s+)?next month\b"#
+        if let match = result.range(of: nextMonthPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = nextFirstOfMonth() {
                 return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
@@ -481,7 +484,8 @@ struct NLTaskParser: Sendable {
         }
 
         // "next year" (January 1 of next calendar year)
-        if let match = result.range(of: #"\b(?:(?:by|due)\s+)?next year\b"#, options: [.regularExpression, .caseInsensitive]) {
+        let nextYearPattern = #"\b(?:(?:by|due)\s+)?next year\b"#
+        if let match = result.range(of: nextYearPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = firstDayOfNextYear() {
                 return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
@@ -489,7 +493,8 @@ struct NLTaskParser: Sendable {
         }
 
         // "next week" (next Monday)
-        if let match = result.range(of: #"\b(?:(?:by|due)\s+)?next week\b"#, options: [.regularExpression, .caseInsensitive]) {
+        let nextWeekPattern = #"\b(?:(?:by|due)\s+)?next week\b"#
+        if let match = result.range(of: nextWeekPattern, options: [.regularExpression, .caseInsensitive]) {
             result = result.replacingCharacters(in: match, with: "")
             if let date = nextWeekday(.monday) {
                 return (result, dateWithTime(date, hour: resolvedTime.hour, minute: resolvedTime.minute))
