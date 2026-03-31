@@ -85,5 +85,4 @@ extension ArcEditorView {
         attachmentToDelete = attachment
         showDeleteAttachmentConfirmation = true
     }
-
 }

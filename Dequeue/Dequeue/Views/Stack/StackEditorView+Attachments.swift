@@ -52,7 +52,6 @@ extension StackEditorView {
         }
     }
 
-
     /// Handles files selected from the attachment picker.
     /// Creates attachment records and triggers uploads.
     func handleFilesSelected(_ urls: [URL]) {
