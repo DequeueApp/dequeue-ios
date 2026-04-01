@@ -7,6 +7,7 @@
 //
 
 import XCTest
+import Sentry
 @testable import Dequeue
 
 @MainActor
@@ -332,5 +333,79 @@ final class ErrorReportingServiceTests: XCTestCase {
         XCTAssertTrue(targets.contains("sync.ardonos.com"))
         XCTAssertTrue(targets.contains("localhost"))
         XCTAssertTrue(targets.contains("127.0.0.1"))
+    }
+
+    // MARK: - shouldDropEvent (event filtering)
+
+    func testShouldDropEvent_dropsNSCocoaErrorDomainCode260() {
+        // NSCocoaErrorDomain Code 260 is raised by UIDocumentPickerViewController
+        // when the user cancels the file picker. It should be silently dropped.
+        let exception = Exception(value: "The file \u{201C}Document\u{201D} couldn\u{2019}t be opened because there is no such file. (Code: 260)", type: "NSCocoaErrorDomain")
+        let event = Event()
+        event.exceptions = [exception]
+
+        XCTAssertTrue(
+            ErrorReportingService.shouldDropEvent(event),
+            "Should drop NSCocoaErrorDomain Code 260 (document picker cancel noise)"
+        )
+    }
+
+    func testShouldDropEvent_keepsRealNSCocoaErrors() {
+        // A real NSCocoaErrorDomain error with a different code must NOT be dropped.
+        let exception = Exception(value: "The operation couldn't be completed. (Code: 512)", type: "NSCocoaErrorDomain")
+        let event = Event()
+        event.exceptions = [exception]
+
+        XCTAssertFalse(
+            ErrorReportingService.shouldDropEvent(event),
+            "Should NOT drop NSCocoaErrorDomain errors with codes other than 260"
+        )
+    }
+
+    func testShouldDropEvent_keepsDifferentDomainErrors() {
+        // Errors from other domains must not be suppressed.
+        let exception = Exception(value: "Something went wrong (Code: 260)", type: "NSPOSIXErrorDomain")
+        let event = Event()
+        event.exceptions = [exception]
+
+        XCTAssertFalse(
+            ErrorReportingService.shouldDropEvent(event),
+            "Should NOT drop non-NSCocoaErrorDomain exceptions even if value contains 'Code: 260'"
+        )
+    }
+
+    func testShouldDropEvent_keepsEventWithNoExceptions() {
+        // Events with no exception list (e.g. message-only events) must pass through.
+        let event = Event()
+        event.exceptions = nil
+
+        XCTAssertFalse(
+            ErrorReportingService.shouldDropEvent(event),
+            "Should NOT drop events with no exceptions"
+        )
+    }
+
+    func testShouldDropEvent_keepsEventWithEmptyExceptions() {
+        // An empty exceptions array should not trigger any filter.
+        let event = Event()
+        event.exceptions = []
+
+        XCTAssertFalse(
+            ErrorReportingService.shouldDropEvent(event),
+            "Should NOT drop events with an empty exceptions list"
+        )
+    }
+
+    func testShouldDropEvent_dropsWhenCode260IsMixedWithOtherExceptions() {
+        // Even when mixed with other exceptions, if one is a doc-picker cancel it should be dropped.
+        let realException = Exception(value: "Network timeout", type: "NSURLErrorDomain")
+        let noiseException = Exception(value: "Couldn't open file (Code: 260)", type: "NSCocoaErrorDomain")
+        let event = Event()
+        event.exceptions = [realException, noiseException]
+
+        XCTAssertTrue(
+            ErrorReportingService.shouldDropEvent(event),
+            "Should drop event when any exception matches the NSCocoaErrorDomain Code 260 filter"
+        )
     }
 }

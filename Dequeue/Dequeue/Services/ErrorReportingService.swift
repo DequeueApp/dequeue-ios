@@ -59,6 +59,29 @@ enum ErrorReportingService {
         return String(message.prefix(truncatedLength)) + truncationIndicator
     }
 
+    // MARK: - Event Filtering
+
+    /// Returns `true` when Sentry should silently drop the event rather than record it.
+    ///
+    /// Centralises all beforeSend suppression rules in one testable place.
+    /// Add new rules here whenever a known-noisy, non-actionable error is identified.
+    ///
+    /// Current rules:
+    /// - **NSCocoaErrorDomain Code 260**: Raised by `UIDocumentPickerViewController._didTapCancel`
+    ///   when the user cancels the file picker. This is not a real error.
+    static func shouldDropEvent(_ event: Sentry.Event) -> Bool {
+        guard let exceptions = event.exceptions else { return false }
+
+        // NSCocoaErrorDomain Code 260 = NSFileReadNoSuchFileError (document picker cancel).
+        let isDocPickerCancel = exceptions.contains { exc in
+            exc.type == "NSCocoaErrorDomain" &&
+            exc.value?.contains("Code: 260") == true
+        }
+        if isDocPickerCancel { return true }
+
+        return false
+    }
+
     /// Returns true if Sentry should be skipped (test/CI environments)
     private static var shouldSkipConfiguration: Bool {
         if isConfigured {
@@ -308,20 +331,7 @@ enum ErrorReportingService {
             // EVENT FILTERING (suppress known non-actionable errors)
             // ============================================
             options.beforeSend = { event in
-                // NSCocoaErrorDomain Code 260 = NSFileReadNoSuchFileError.
-                // When raised from UIDocumentPickerViewController._didTapCancel,
-                // it means the user cancelled the file picker — not a real error.
-                // Filter it to prevent Sentry noise.
-                if let exceptions = event.exceptions {
-                    let isDocPickerCancel = exceptions.contains { exc in
-                        exc.type == "NSCocoaErrorDomain" &&
-                        exc.value?.contains("Code: 260") == true
-                    }
-                    if isDocPickerCancel {
-                        return nil  // Drop the event
-                    }
-                }
-                return event
+                ErrorReportingService.shouldDropEvent(event) ? nil : event
             }
         }
 
