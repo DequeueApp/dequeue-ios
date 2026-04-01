@@ -46,15 +46,12 @@ struct ReminderRowView: View {
                 }
                 .tint(.green)
             }
-            // Go to parent item (Stack or Task)
+            // Go to parent item (Stack, Task, or Arc)
             if let onGoToItem {
                 Button {
                     onGoToItem()
                 } label: {
-                    Label(
-                        reminder.parentType == .task ? "Go to Task" : "Go to Stack",
-                        systemImage: reminder.parentType == .task ? "doc.text" : "square.stack.3d.up"
-                    )
+                    Label(goToLabel, systemImage: goToIconName)
                 }
                 .tint(.blue)
             }
@@ -74,10 +71,7 @@ struct ReminderRowView: View {
                 Button {
                     onGoToItem()
                 } label: {
-                    Label(
-                        reminder.parentType == .task ? "Go to Task" : "Go to Stack",
-                        systemImage: reminder.parentType == .task ? "doc.text" : "square.stack.3d.up"
-                    )
+                    Label(goToLabel, systemImage: goToIconName)
                 }
             }
             if let onSnooze, reminder.status != .snoozed {
@@ -179,13 +173,42 @@ struct ReminderRowView: View {
 
     private func parentDisplay(title: String) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: reminder.parentType == .task ? "doc.text" : "square.stack.3d.up")
+            Image(systemName: parentIconName)
                 .font(.caption2)
             Text(title)
                 .lineLimit(1)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
+    }
+
+    // MARK: - Parent Type Helpers
+
+    /// Navigation label for swipe/context menu actions (e.g. "Go to Task", "Go to Arc")
+    private var goToLabel: String {
+        switch reminder.parentType {
+        case .task: return "Go to Task"
+        case .stack: return "Go to Stack"
+        case .arc: return "Go to Arc"
+        }
+    }
+
+    /// SF Symbol name for the parent navigation action
+    private var goToIconName: String {
+        switch reminder.parentType {
+        case .task: return "doc.text"
+        case .stack: return "square.stack.3d.up"
+        case .arc: return "rays"
+        }
+    }
+
+    /// SF Symbol name for inline parent-type badge in the row
+    private var parentIconName: String {
+        switch reminder.parentType {
+        case .task: return "doc.text"
+        case .stack: return "square.stack.3d.up"
+        case .arc: return "rays"
+        }
     }
 
     // MARK: - Status Badge
@@ -236,7 +259,12 @@ struct ReminderRowView: View {
 
         // Parent
         if let parentTitle, !parentTitle.isEmpty {
-            let typeLabel = reminder.parentType == .task ? "task" : "stack"
+            let typeLabel: String
+            switch reminder.parentType {
+            case .task: typeLabel = "task"
+            case .stack: typeLabel = "stack"
+            case .arc: typeLabel = "arc"
+            }
             parts.append("for \(typeLabel) \(parentTitle)")
         }
 
@@ -253,7 +281,12 @@ struct ReminderRowView: View {
             hints.append("Swipe right to dismiss")
         }
         if onGoToItem != nil {
-            let itemType = reminder.parentType == .task ? "task" : "stack"
+            let itemType: String
+            switch reminder.parentType {
+            case .task: itemType = "task"
+            case .stack: itemType = "stack"
+            case .arc: itemType = "arc"
+            }
             hints.append("Swipe right to go to \(itemType)")
         }
         if onSnooze != nil && reminder.status != .snoozed {
