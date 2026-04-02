@@ -13,17 +13,20 @@ private let logger = Logger(subsystem: "com.dequeue", category: "SearchService")
 
 // MARK: - Search Models
 
-/// A single search result that can be either a task or a stack
+/// A single search result that can be a task, stack, or arc
 struct SearchResultItem: Identifiable, Codable, Sendable {
-    let type: String // "task" or "stack"
+    let type: String // "task", "stack", or "arc"
     let task: SearchTask?
     let stack: SearchStack?
+    let arc: SearchArc?
 
     var id: String {
         if let task {
             return "task-\(task.id)"
         } else if let stack {
             return "stack-\(stack.id)"
+        } else if let arc {
+            return "arc-\(arc.id)"
         }
         return UUID().uuidString
     }
@@ -87,6 +90,44 @@ struct SearchStack: Codable, Sendable, Identifiable {
         guard taskCount > 0 else { return 0 }
         return Double(completedTaskCount) / Double(taskCount)
     }
+}
+
+/// Arc data returned from search
+struct SearchArc: Codable, Sendable, Identifiable {
+    let id: String
+    let title: String
+    let description: String?
+    let status: String
+    let colorHex: String?
+    let sortOrder: Int
+    let stackCount: Int
+    let completedStackCount: Int
+    let startAt: Int64?
+    let dueAt: Int64?
+    let createdAt: Int64
+    let updatedAt: Int64
+    let completedAt: Int64?
+
+    var dueAtDate: Date? {
+        guard let dueAt else { return nil }
+        return Date(timeIntervalSince1970: Double(dueAt) / 1_000.0)
+    }
+
+    var createdAtDate: Date {
+        Date(timeIntervalSince1970: Double(createdAt) / 1_000.0)
+    }
+
+    var updatedAtDate: Date {
+        Date(timeIntervalSince1970: Double(updatedAt) / 1_000.0)
+    }
+
+    /// Progress as a fraction (0.0 to 1.0)
+    var progress: Double {
+        guard stackCount > 0 else { return 0 }
+        return Double(completedStackCount) / Double(stackCount)
+    }
+
+    var isCompleted: Bool { status == "completed" }
 }
 
 /// The complete search response from the API

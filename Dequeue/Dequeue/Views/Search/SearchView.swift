@@ -35,7 +35,7 @@ struct SearchView: View {
                 }
             }
             .navigationTitle("Search")
-            .searchable(text: $searchText, prompt: "Search tasks and stacks...")
+            .searchable(text: $searchText, prompt: "Search tasks, stacks, and arcs...")
             .onChange(of: searchText) { _, newValue in
                 performDebouncedSearch(query: newValue)
             }
@@ -63,7 +63,7 @@ struct SearchView: View {
         ContentUnavailableView {
             Label("Search Dequeue", systemImage: "magnifyingglass")
         } description: {
-            Text("Find tasks and stacks by name, notes, or content.")
+            Text("Find tasks, stacks, and arcs by name, notes, or content.")
         }
     }
 
@@ -91,12 +91,13 @@ struct SearchView: View {
 
             let taskResults = results.filter { $0.type == "task" }
             let stackResults = results.filter { $0.type == "stack" }
+            let arcResults = results.filter { $0.type == "arc" }
 
-            if !taskResults.isEmpty {
-                Section("Tasks (\(taskResults.count))") {
-                    ForEach(taskResults) { result in
-                        if let task = result.task {
-                            TaskSearchRow(task: task)
+            if !arcResults.isEmpty {
+                Section("Arcs (\(arcResults.count))") {
+                    ForEach(arcResults) { result in
+                        if let arc = result.arc {
+                            ArcSearchRow(arc: arc)
                         }
                     }
                 }
@@ -107,6 +108,16 @@ struct SearchView: View {
                     ForEach(stackResults) { result in
                         if let stack = result.stack {
                             StackSearchRow(stack: stack)
+                        }
+                    }
+                }
+            }
+
+            if !taskResults.isEmpty {
+                Section("Tasks (\(taskResults.count))") {
+                    ForEach(taskResults) { result in
+                        if let task = result.task {
+                            TaskSearchRow(task: task)
                         }
                     }
                 }
@@ -303,6 +314,69 @@ struct StackSearchRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Arc Search Row
+
+struct ArcSearchRow: View {
+    let arc: SearchArc
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                arcIcon
+                Text(arc.title)
+                    .font(.body)
+                    .strikethrough(arc.isCompleted)
+                    .foregroundStyle(arc.isCompleted ? .secondary : .primary)
+                Spacer()
+                if arc.isCompleted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
+            }
+
+            HStack {
+                Label(
+                    "\(arc.completedStackCount)/\(arc.stackCount) stacks",
+                    systemImage: "square.stack"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                if arc.stackCount > 0 {
+                    ProgressView(value: arc.progress)
+                        .frame(maxWidth: 60)
+                }
+
+                Spacer()
+
+                if let dueDate = arc.dueAtDate {
+                    Label(dueDate.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
+                        .font(.caption2)
+                        .foregroundStyle(dueDate < Date() && !arc.isCompleted ? .red : .secondary)
+                } else {
+                    Text(arc.updatedAtDate.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private var arcIcon: some View {
+        if let colorHex = arc.colorHex, let color = Color(hex: colorHex) {
+            Circle()
+                .fill(color)
+                .frame(width: 10, height: 10)
+        } else {
+            Image(systemName: "archivebox")
+                .foregroundStyle(.purple)
+                .font(.caption)
+        }
     }
 }
 
