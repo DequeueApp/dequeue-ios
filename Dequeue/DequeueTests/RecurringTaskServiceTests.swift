@@ -45,38 +45,38 @@ final class RecurringTaskServiceTests: XCTestCase {
 
     func testDailyNextDate() {
         let rule = RecurrenceRule.daily
-        let startDate = makeDate(2026, 2, 21, 9, 0)
+        let startDate = makeDate(2_026, 2, 21, 9, 0)
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
-        XCTAssertEqual(nextDate, makeDate(2026, 2, 22, 9, 0))
+        XCTAssertEqual(nextDate, makeDate(2_026, 2, 22, 9, 0))
     }
 
     func testDailyEvery3Days() {
         let rule = RecurrenceRule(frequency: .daily, interval: 3)
-        let startDate = makeDate(2026, 2, 21, 9, 0)
+        let startDate = makeDate(2_026, 2, 21, 9, 0)
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
-        XCTAssertEqual(nextDate, makeDate(2026, 2, 24, 9, 0))
+        XCTAssertEqual(nextDate, makeDate(2_026, 2, 24, 9, 0))
     }
 
     func testWeeklyNextDate() {
         let rule = RecurrenceRule.weekly
-        let startDate = makeDate(2026, 2, 21, 9, 0) // Saturday
+        let startDate = makeDate(2_026, 2, 21, 9, 0) // Saturday
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
-        XCTAssertEqual(nextDate, makeDate(2026, 2, 28, 9, 0))
+        XCTAssertEqual(nextDate, makeDate(2_026, 2, 28, 9, 0))
     }
 
     func testBiweeklyNextDate() {
         let rule = RecurrenceRule.biweekly
-        let startDate = makeDate(2026, 2, 21, 9, 0) // Saturday
+        let startDate = makeDate(2_026, 2, 21, 9, 0) // Saturday
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
-        XCTAssertEqual(nextDate, makeDate(2026, 3, 7, 9, 0))
+        XCTAssertEqual(nextDate, makeDate(2_026, 3, 7, 9, 0))
     }
 
     func testWeeklyWithSpecificDays() {
@@ -85,7 +85,7 @@ final class RecurringTaskServiceTests: XCTestCase {
             frequency: .weekly,
             daysOfWeek: [.monday, .friday]
         )
-        let monday = makeDate(2026, 2, 23, 9, 0) // Monday
+        let monday = makeDate(2_026, 2, 23, 9, 0) // Monday
         let nextDate = service.calculateNextDate(from: monday, rule: rule)
 
         XCTAssertNotNil(nextDate)
@@ -101,7 +101,7 @@ final class RecurringTaskServiceTests: XCTestCase {
             frequency: .weekly,
             daysOfWeek: [.monday]
         )
-        let friday = makeDate(2026, 2, 27, 9, 0) // Friday
+        let friday = makeDate(2_026, 2, 27, 9, 0) // Friday
         let nextDate = service.calculateNextDate(from: friday, rule: rule)
 
         XCTAssertNotNil(nextDate)
@@ -112,16 +112,16 @@ final class RecurringTaskServiceTests: XCTestCase {
 
     func testMonthlyNextDate() {
         let rule = RecurrenceRule.monthly
-        let startDate = makeDate(2026, 2, 21, 9, 0)
+        let startDate = makeDate(2_026, 2, 21, 9, 0)
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
-        XCTAssertEqual(nextDate, makeDate(2026, 3, 21, 9, 0))
+        XCTAssertEqual(nextDate, makeDate(2_026, 3, 21, 9, 0))
     }
 
     func testMonthlyWithDayOfMonth() {
         let rule = RecurrenceRule(frequency: .monthly, dayOfMonth: 15)
-        let startDate = makeDate(2026, 2, 21, 9, 0)
+        let startDate = makeDate(2_026, 2, 21, 9, 0)
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
@@ -133,7 +133,7 @@ final class RecurringTaskServiceTests: XCTestCase {
     func testMonthlyDay31ClampsToFeb() {
         // Day 31 in February should clamp to Feb 28
         let rule = RecurrenceRule(frequency: .monthly, dayOfMonth: 31)
-        let startDate = makeDate(2026, 1, 31, 9, 0) // Jan 31
+        let startDate = makeDate(2_026, 1, 31, 9, 0) // Jan 31
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
@@ -145,50 +145,50 @@ final class RecurringTaskServiceTests: XCTestCase {
 
     func testYearlyNextDate() {
         let rule = RecurrenceRule.yearly
-        let startDate = makeDate(2026, 2, 21, 9, 0)
+        let startDate = makeDate(2_026, 2, 21, 9, 0)
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
-        XCTAssertEqual(nextDate, makeDate(2027, 2, 21, 9, 0))
+        XCTAssertEqual(nextDate, makeDate(2_027, 2, 21, 9, 0))
     }
 
     func testMonthlyEvery2Months() {
         let rule = RecurrenceRule(frequency: .monthly, interval: 2)
-        let startDate = makeDate(2026, 1, 15, 9, 0)
+        let startDate = makeDate(2_026, 1, 15, 9, 0)
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
-        XCTAssertEqual(nextDate, makeDate(2026, 3, 15, 9, 0))
+        XCTAssertEqual(nextDate, makeDate(2_026, 3, 15, 9, 0))
     }
 
     func testDailyCrossesMonthBoundary() {
         let rule = RecurrenceRule.daily
-        let startDate = makeDate(2026, 2, 28, 9, 0)
+        let startDate = makeDate(2_026, 2, 28, 9, 0)
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
-        XCTAssertEqual(nextDate, makeDate(2026, 3, 1, 9, 0))
+        XCTAssertEqual(nextDate, makeDate(2_026, 3, 1, 9, 0))
     }
 
     func testDailyCrossesYearBoundary() {
         let rule = RecurrenceRule.daily
-        let startDate = makeDate(2026, 12, 31, 9, 0)
+        let startDate = makeDate(2_026, 12, 31, 9, 0)
         let nextDate = service.calculateNextDate(from: startDate, rule: rule)
 
         XCTAssertNotNil(nextDate)
-        XCTAssertEqual(nextDate, makeDate(2027, 1, 1, 9, 0))
+        XCTAssertEqual(nextDate, makeDate(2_027, 1, 1, 9, 0))
     }
 
     // MARK: - Next Occurrence Creation Tests
 
     func testCreateNextOccurrenceForDailyTask() async throws {
-        let task = createRecurringTask(rule: .daily, dueTime: makeDate(2026, 2, 21, 9, 0))
+        let task = createRecurringTask(rule: .daily, dueTime: makeDate(2_026, 2, 21, 9, 0))
 
         let nextTask = try await service.createNextOccurrence(for: task)
 
         XCTAssertNotNil(nextTask)
         XCTAssertEqual(nextTask?.title, "Test Recurring Task")
-        XCTAssertEqual(nextTask?.dueTime, makeDate(2026, 2, 22, 9, 0))
+        XCTAssertEqual(nextTask?.dueTime, makeDate(2_026, 2, 22, 9, 0))
         XCTAssertEqual(nextTask?.status, .pending)
         XCTAssertNotNil(nextTask?.recurrenceRuleData)
         XCTAssertEqual(nextTask?.recurrenceParentId, task.id)
@@ -196,7 +196,7 @@ final class RecurringTaskServiceTests: XCTestCase {
     }
 
     func testCreateNextOccurrencePreservesProperties() async throws {
-        let task = createRecurringTask(rule: .weekly, dueTime: makeDate(2026, 2, 21, 9, 0))
+        let task = createRecurringTask(rule: .weekly, dueTime: makeDate(2_026, 2, 21, 9, 0))
         task.taskDescription = "Weekly review"
         task.tags = ["work", "review"]
         task.priority = 2
@@ -212,15 +212,15 @@ final class RecurringTaskServiceTests: XCTestCase {
 
     func testCreateNextOccurrencePreservesStartTimeLead() async throws {
         // Task starts 1 hour before due
-        let task = createRecurringTask(rule: .daily, dueTime: makeDate(2026, 2, 21, 10, 0))
-        task.startTime = makeDate(2026, 2, 21, 9, 0) // 1 hour before due
+        let task = createRecurringTask(rule: .daily, dueTime: makeDate(2_026, 2, 21, 10, 0))
+        task.startTime = makeDate(2_026, 2, 21, 9, 0) // 1 hour before due
         try context.save()
 
         let nextTask = try await service.createNextOccurrence(for: task)
 
         XCTAssertNotNil(nextTask)
-        XCTAssertEqual(nextTask?.dueTime, makeDate(2026, 2, 22, 10, 0))
-        XCTAssertEqual(nextTask?.startTime, makeDate(2026, 2, 22, 9, 0)) // Still 1 hour before
+        XCTAssertEqual(nextTask?.dueTime, makeDate(2_026, 2, 22, 10, 0))
+        XCTAssertEqual(nextTask?.startTime, makeDate(2_026, 2, 22, 9, 0)) // Still 1 hour before
     }
 
     func testNoOccurrenceForNonRecurring() async throws {
@@ -234,7 +234,7 @@ final class RecurringTaskServiceTests: XCTestCase {
 
     func testStopsAfterMaxOccurrences() async throws {
         let rule = RecurrenceRule(frequency: .daily, end: .afterOccurrences(3))
-        let task = createRecurringTask(rule: rule, dueTime: makeDate(2026, 2, 21, 9, 0))
+        let task = createRecurringTask(rule: rule, dueTime: makeDate(2_026, 2, 21, 9, 0))
         task.completedOccurrences = 3 // Already at max
         try context.save()
 
@@ -244,7 +244,7 @@ final class RecurringTaskServiceTests: XCTestCase {
 
     func testContinuesBeforeMaxOccurrences() async throws {
         let rule = RecurrenceRule(frequency: .daily, end: .afterOccurrences(5))
-        let task = createRecurringTask(rule: rule, dueTime: makeDate(2026, 2, 21, 9, 0))
+        let task = createRecurringTask(rule: rule, dueTime: makeDate(2_026, 2, 21, 9, 0))
         task.completedOccurrences = 2 // Below max
         try context.save()
 
@@ -254,9 +254,9 @@ final class RecurringTaskServiceTests: XCTestCase {
     }
 
     func testStopsAfterEndDate() async throws {
-        let endDate = makeDate(2026, 2, 20, 0, 0) // Yesterday
+        let endDate = makeDate(2_026, 2, 20, 0, 0) // Yesterday
         let rule = RecurrenceRule(frequency: .daily, end: .onDate(endDate))
-        let task = createRecurringTask(rule: rule, dueTime: makeDate(2026, 2, 21, 9, 0))
+        let task = createRecurringTask(rule: rule, dueTime: makeDate(2_026, 2, 21, 9, 0))
 
         let nextTask = try await service.createNextOccurrence(for: task)
         XCTAssertNil(nextTask)
@@ -264,16 +264,16 @@ final class RecurringTaskServiceTests: XCTestCase {
 
     func testStopsWhenNextDateExceedsEndDate() async throws {
         // End date is tomorrow, but next occurrence would be day after
-        let endDate = makeDate(2026, 2, 22, 0, 0)
+        let endDate = makeDate(2_026, 2, 22, 0, 0)
         let rule = RecurrenceRule(frequency: .weekly, end: .onDate(endDate))
-        let task = createRecurringTask(rule: rule, dueTime: makeDate(2026, 2, 21, 9, 0))
+        let task = createRecurringTask(rule: rule, dueTime: makeDate(2_026, 2, 21, 9, 0))
 
         let nextTask = try await service.createNextOccurrence(for: task)
         XCTAssertNil(nextTask) // Feb 28 > Feb 22
     }
 
     func testOccurrenceCountIncrementsOnCompletedTask() async throws {
-        let task = createRecurringTask(rule: .daily, dueTime: makeDate(2026, 2, 21, 9, 0))
+        let task = createRecurringTask(rule: .daily, dueTime: makeDate(2_026, 2, 21, 9, 0))
         XCTAssertEqual(task.completedOccurrences, 0)
 
         _ = try await service.createNextOccurrence(for: task)
@@ -287,7 +287,7 @@ final class RecurringTaskServiceTests: XCTestCase {
     }
 
     func testRecurrenceParentIdChains() async throws {
-        let task = createRecurringTask(rule: .daily, dueTime: makeDate(2026, 2, 21, 9, 0))
+        let task = createRecurringTask(rule: .daily, dueTime: makeDate(2_026, 2, 21, 9, 0))
         let originalId = task.id
 
         let second = try await service.createNextOccurrence(for: task)
@@ -302,7 +302,7 @@ final class RecurringTaskServiceTests: XCTestCase {
 
     func testCreateNextOccurrenceAddsToStack() async throws {
         let initialCount = stack.tasks.count
-        let task = createRecurringTask(rule: .daily, dueTime: makeDate(2026, 2, 21, 9, 0))
+        let task = createRecurringTask(rule: .daily, dueTime: makeDate(2_026, 2, 21, 9, 0))
 
         _ = try await service.createNextOccurrence(for: task)
 
@@ -316,7 +316,7 @@ final class RecurringTaskServiceTests: XCTestCase {
             title: "No Due Date Recurring",
             status: .completed,
             sortOrder: 0,
-            createdAt: makeDate(2026, 2, 21, 9, 0),
+            createdAt: makeDate(2_026, 2, 21, 9, 0),
             stack: stack,
             recurrenceRuleData: rule.toData()
         )
@@ -331,7 +331,7 @@ final class RecurringTaskServiceTests: XCTestCase {
     // MARK: - Query Helper Tests
 
     func testRecurringTasksInStack() {
-        _ = createRecurringTask(rule: .daily, dueTime: makeDate(2026, 2, 21, 9, 0))
+        _ = createRecurringTask(rule: .daily, dueTime: makeDate(2_026, 2, 21, 9, 0))
         let nonRecurring = QueueTask(title: "Non-recurring", status: .pending, sortOrder: 1, stack: stack)
         context.insert(nonRecurring)
         try? context.save()
@@ -372,4 +372,3 @@ final class RecurringTaskServiceTests: XCTestCase {
         return Calendar.current.date(from: components)!
     }
 }
-

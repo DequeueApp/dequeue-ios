@@ -34,7 +34,6 @@ private func makeTestContainer() throws -> ModelContainer {
 @Suite("CSV Parser Edge Cases")
 @MainActor
 struct CSVParserEdgeCaseTests {
-
     @Test("Parse CSV with 'task' column alias")
     func taskColumnAlias() throws {
         let csv = """
@@ -137,7 +136,6 @@ struct CSVParserEdgeCaseTests {
 @Suite("JSON Parser Edge Cases")
 @MainActor
 struct JSONParserEdgeCaseTests {
-
     @Test("Parse with 'task' field alias")
     func taskAlias() throws {
         let json = """
@@ -237,7 +235,6 @@ struct JSONParserEdgeCaseTests {
 @Suite("Plain Text Parser Edge Cases")
 @MainActor
 struct PlainTextParserEdgeCaseTests {
-
     @Test("Strip unicode checkbox prefixes")
     func unicodeCheckboxes() {
         let text = """
@@ -282,7 +279,6 @@ struct PlainTextParserEdgeCaseTests {
 @Suite("Priority Parser Edge Cases")
 @MainActor
 struct PriorityParserEdgeCaseTests {
-
     @Test("'med' alias")
     func medAlias() {
         #expect(parsePriority("med") == 2)
@@ -318,7 +314,6 @@ struct PriorityParserEdgeCaseTests {
 @Suite("Date Parser Edge Cases")
 @MainActor
 struct DateParserEdgeCaseTests {
-
     @Test("ISO 8601 with timezone")
     func iso8601() {
         #expect(parseDate("2026-03-15T10:30:00Z") != nil)
@@ -356,7 +351,6 @@ struct DateParserEdgeCaseTests {
 @Suite("DataImportService", .serialized)
 @MainActor
 struct DataImportServiceIntegrationTests {
-
     @Test("Import CSV tasks into stack")
     func importCSV() async throws {
         let container = try makeTestContainer()

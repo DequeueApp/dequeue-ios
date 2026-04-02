@@ -17,7 +17,6 @@ import Foundation
 @Suite("ErrorReportingService Logging Smoke Tests")
 @MainActor
 struct ErrorReportingServiceLoggingTests {
-
     // MARK: - logSyncStart
 
     @Test("logSyncStart does not crash")
@@ -144,7 +143,7 @@ struct ErrorReportingServiceLoggingTests {
 
     @Test("logAPIResponse 429 with long error string truncates and does not crash")
     func testLogAPIResponse429LongError() {
-        let longError = String(repeating: "x", count: 1000)
+        let longError = String(repeating: "x", count: 1_000)
         ErrorReportingService.logAPIResponse(
             endpoint: "/api/rate-limited",
             statusCode: 429,

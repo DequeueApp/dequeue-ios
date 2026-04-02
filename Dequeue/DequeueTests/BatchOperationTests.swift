@@ -14,7 +14,6 @@ import Foundation
 @Suite("BatchOperation Model")
 @MainActor
 struct BatchOperationModelTests {
-
     @Test("All operations have system images")
     func allOperationsHaveImages() {
         for operation in BatchOperation.allCases {
@@ -60,7 +59,6 @@ struct BatchOperationModelTests {
 @Suite("BatchOperationResult")
 @MainActor
 struct BatchOperationResultTests {
-
     @Test("Full success result")
     func fullSuccess() {
         let result = BatchOperationResult(
@@ -120,7 +118,6 @@ struct BatchOperationResultTests {
 @Suite("BatchSelectionManager")
 @MainActor
 struct BatchSelectionManagerTests {
-
     @Test("Initial state")
     func initialState() {
         let manager = BatchSelectionManager()
@@ -260,7 +257,6 @@ struct BatchSelectionManagerTests {
 @Suite("Available Operations Logic")
 @MainActor
 struct AvailableOperationsTests {
-
     @Test("Pending tasks have complete option")
     func pendingTasksCanComplete() {
         let tasks = [

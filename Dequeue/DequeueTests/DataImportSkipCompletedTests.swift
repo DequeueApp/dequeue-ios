@@ -34,7 +34,6 @@ private func makeTestContainer() throws -> ModelContainer {
 @Suite("DataImportService skipCompleted", .serialized)
 @MainActor
 struct DataImportSkipCompletedTests {
-
     @Test("skipCompleted skips 'completed', 'done', 'finished' statuses")
     func skipCompletedVariants() async throws {
         let container = try makeTestContainer()

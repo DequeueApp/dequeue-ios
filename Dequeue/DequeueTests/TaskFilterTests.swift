@@ -206,7 +206,7 @@ struct DateRangeFilterTests {
         // Should be exactly 24 hours
         if let end = range.end {
             let diff = end.timeIntervalSince(startOfToday)
-            #expect(abs(diff - 86400) < 1)
+            #expect(abs(diff - 86_400) < 1)
         }
     }
 
@@ -216,7 +216,7 @@ struct DateRangeFilterTests {
         let range = DateRangeFilter.thisWeek.dateRange(from: now)
         if let start = range.start, let end = range.end {
             let diff = end.timeIntervalSince(start)
-            #expect(abs(diff - 7 * 86400) < 1)
+            #expect(abs(diff - 7 * 86_400) < 1)
         }
     }
 
@@ -243,7 +243,7 @@ struct DateRangeFilterTests {
         // Exactly 24 hours
         if let start = range.start, let end = range.end {
             let diff = end.timeIntervalSince(start)
-            #expect(abs(diff - 86400) < 1)
+            #expect(abs(diff - 86_400) < 1)
         }
     }
 
@@ -263,7 +263,7 @@ struct DateRangeFilterTests {
         // Exactly 7 days span
         if let start = range.start, let end = range.end {
             let diff = end.timeIntervalSince(start)
-            #expect(abs(diff - 7 * 86400) < 1)
+            #expect(abs(diff - 7 * 86_400) < 1)
         }
     }
 
@@ -624,7 +624,6 @@ struct FilterPresetTests {
 @Suite("TaskFilterService — Extended Coverage", .serialized)
 @MainActor
 struct TaskFilterServiceExtendedTests {
-
     // MARK: - Search by description and tags
 
     @Test("Search matches task description")
@@ -925,7 +924,7 @@ struct DateRangeFilterExtendedTests {
 
     @Test("dateRange(from:) uses reference date correctly")
     func referenceDate() throws {
-        let refDate = try #require(Calendar.current.date(from: DateComponents(year: 2026, month: 6, day: 15)))
+        let refDate = try #require(Calendar.current.date(from: DateComponents(year: 2_026, month: 6, day: 15)))
         let range = DateRangeFilter.today.dateRange(from: refDate)
         let startOfRef = Calendar.current.startOfDay(for: refDate)
         let expectedEnd = Calendar.current.date(byAdding: .day, value: 1, to: startOfRef)

@@ -83,7 +83,6 @@ private func makeServiceTask(
 @Suite("TaskFilterService — Priority Variants", .serialized)
 @MainActor
 struct TaskFilterServicePriorityTests {
-
     @Test("Priority filter .low returns only low-priority tasks")
     func priorityLow() throws {
         let service = try makeFilterService()
@@ -158,7 +157,6 @@ struct TaskFilterServicePriorityTests {
 @Suite("TaskFilterService — Sort Coverage", .serialized)
 @MainActor
 struct TaskFilterServiceSortTests {
-
     @Test("Sort by sortOrder descending")
     func sortBySortOrderDesc() throws {
         let service = try makeFilterService()
@@ -317,7 +315,6 @@ struct TaskFilterServiceSortTests {
 @Suite("TaskFilterService — Tag Filter Edge Cases", .serialized)
 @MainActor
 struct TaskFilterServiceTagEdgeCaseTests {
-
     @Test("Tag filter with no tasks having the selected tag returns empty")
     func tagFilterNoMatchReturnsEmpty() throws {
         let service = try makeFilterService()

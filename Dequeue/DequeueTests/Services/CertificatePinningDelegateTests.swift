@@ -16,7 +16,6 @@ import Security
 @Suite("CertificatePinningConfiguration")
 @MainActor
 struct CertificatePinningConfigurationTests {
-
     @Test("Production configuration has expected domains")
     func productionDomains() {
         let config = CertificatePinningConfiguration.production
@@ -94,7 +93,6 @@ struct CertificatePinningConfigurationTests {
 @Suite("PinningFailureInfo")
 @MainActor
 struct PinningFailureInfoTests {
-
     @Test("Failure info stores all properties")
     func failureInfoProperties() {
         let now = Date()
@@ -132,7 +130,6 @@ struct PinningFailureInfoTests {
 @Suite("CertificatePinningError")
 @MainActor
 struct CertificatePinningErrorTests {
-
     @Test("Pin validation failed error description includes domain")
     func pinValidationFailedDescription() {
         let error = CertificatePinningError.pinValidationFailed(domain: "api.dequeue.app")
@@ -161,7 +158,6 @@ struct CertificatePinningErrorTests {
 @Suite("CertificatePinningDelegate")
 @MainActor
 struct CertificatePinningDelegateTests {
-
     @Test("Delegate initializes with configuration")
     func delegateInit() {
         let delegate = CertificatePinningDelegate(
@@ -266,7 +262,6 @@ struct CertificatePinningDelegateTests {
 @Suite("CertificatePinningValidator")
 @MainActor
 struct CertificatePinningValidatorTests {
-
     @Test("Non-server-trust challenges return false")
     func nonServerTrustReturnsFalse() {
         let protectionSpace = URLProtectionSpace(
@@ -325,7 +320,6 @@ struct CertificatePinningValidatorTests {
 @Suite("PinnedURLSession")
 @MainActor
 struct PinnedURLSessionTests {
-
     @Test("Shared session is not nil")
     func sharedSessionExists() {
         let session = PinnedURLSession.shared
@@ -370,7 +364,6 @@ struct PinnedURLSessionTests {
 @Suite("Certificate Pinning Integration")
 @MainActor
 struct CertificatePinningIntegrationTests {
-
     @Test("Real connection to api.dequeue.app succeeds with pinning")
     func realConnectionWithPinning() async throws {
         let session = PinnedURLSession.shared

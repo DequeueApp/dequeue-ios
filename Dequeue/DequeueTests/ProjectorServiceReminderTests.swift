@@ -14,7 +14,6 @@ import Foundation
 @Suite("ProjectorService Reminder Events", .serialized)
 @MainActor
 struct ProjectorServiceReminderTests {
-
     // MARK: - Helpers
 
     private func makeContainer() throws -> ModelContainer {

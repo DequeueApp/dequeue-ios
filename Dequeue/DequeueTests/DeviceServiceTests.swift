@@ -120,7 +120,7 @@ final class DeviceServiceTests: XCTestCase {
         let existingDevice = Device.createCurrentDevice()
         existingDevice.deviceId = deviceId
         existingDevice.userId = userId
-        existingDevice.lastSeenAt = Date().addingTimeInterval(-3600) // 1 hour ago
+        existingDevice.lastSeenAt = Date().addingTimeInterval(-3_600) // 1 hour ago
         context.insert(existingDevice)
         try context.save()
 
@@ -173,7 +173,7 @@ final class DeviceServiceTests: XCTestCase {
         let device1 = Device.createCurrentDevice()
         device1.deviceId = UUID().uuidString
         device1.userId = userId
-        device1.lastSeenAt = now.addingTimeInterval(-3600) // 1 hour ago
+        device1.lastSeenAt = now.addingTimeInterval(-3_600) // 1 hour ago
         context.insert(device1)
 
         let device2 = Device.createCurrentDevice()
@@ -185,7 +185,7 @@ final class DeviceServiceTests: XCTestCase {
         let device3 = Device.createCurrentDevice()
         device3.deviceId = UUID().uuidString
         device3.userId = userId
-        device3.lastSeenAt = now.addingTimeInterval(-7200) // 2 hours ago
+        device3.lastSeenAt = now.addingTimeInterval(-7_200) // 2 hours ago
         context.insert(device3)
 
         try context.save()
@@ -248,7 +248,7 @@ final class DeviceServiceTests: XCTestCase {
         let device = Device.createCurrentDevice()
         device.deviceId = deviceId
         device.userId = userId
-        device.lastSeenAt = Date().addingTimeInterval(-3600) // 1 hour ago
+        device.lastSeenAt = Date().addingTimeInterval(-3_600) // 1 hour ago
         context.insert(device)
         try context.save()
 

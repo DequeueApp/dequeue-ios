@@ -336,7 +336,7 @@ struct ExportServiceTests {
 
     @Test("ExportResponse date conversion")
     func exportResponseDate() {
-        let timestamp: Int64 = 1708000000000
+        let timestamp: Int64 = 1_708_000_000_000
         let export = ExportResponse(
             exportedAt: timestamp, version: "1.0",
             arcs: [], stacks: [], tasks: [], tags: [], reminders: []
@@ -348,8 +348,8 @@ struct ExportServiceTests {
     func reminderExportDate() {
         let reminder = ReminderExport(
             id: "r1", parentType: "stack", parentId: "s1",
-            status: "pending", remindAt: 1709000000000, snoozedFrom: nil,
-            createdAt: 1708000000000, updatedAt: 1708000000000
+            status: "pending", remindAt: 1_709_000_000_000, snoozedFrom: nil,
+            createdAt: 1_708_000_000_000, updatedAt: 1_708_000_000_000
         )
         #expect(reminder.remindAtDate.timeIntervalSince1970 == 1_709_000_000)
         #expect(reminder.snoozedFromDate == nil)
@@ -359,8 +359,8 @@ struct ExportServiceTests {
     func reminderExportSnoozedFromDate() {
         let reminder = ReminderExport(
             id: "r2", parentType: "task", parentId: "t1",
-            status: "snoozed", remindAt: 1709100000000, snoozedFrom: 1709000000000,
-            createdAt: 1708000000000, updatedAt: 1709000000000
+            status: "snoozed", remindAt: 1_709_100_000_000, snoozedFrom: 1_709_000_000_000,
+            createdAt: 1_708_000_000_000, updatedAt: 1_709_000_000_000
         )
         #expect(reminder.snoozedFromDate?.timeIntervalSince1970 == 1_709_000_000)
     }

@@ -29,13 +29,13 @@ struct QuotaCheckResultTests {
     func wouldExceedCase() {
         let result = QuotaCheckResult.wouldExceed(
             currentUsed: 500,
-            quota: 1000,
+            quota: 1_000,
             fileSize: 600
         )
 
         if case .wouldExceed(let used, let quota, let size) = result {
             #expect(used == 500)
-            #expect(quota == 1000)
+            #expect(quota == 1_000)
             #expect(size == 600)
         } else {
             Issue.record("Expected .wouldExceed")
@@ -45,13 +45,13 @@ struct QuotaCheckResultTests {
     @Test("quotaExceeded case contains correct values")
     func quotaExceededCase() {
         let result = QuotaCheckResult.quotaExceeded(
-            used: 1000,
-            quota: 1000
+            used: 1_000,
+            quota: 1_000
         )
 
         if case .quotaExceeded(let used, let quota) = result {
-            #expect(used == 1000)
-            #expect(quota == 1000)
+            #expect(used == 1_000)
+            #expect(quota == 1_000)
         } else {
             Issue.record("Expected .quotaExceeded")
         }
@@ -65,13 +65,13 @@ struct QuotaCheckResultTests {
 struct QuotaExceededErrorTests {
     @Test("errorDescription is correct")
     func errorDescription() {
-        let error = QuotaExceededError(used: 500, quota: 1000)
+        let error = QuotaExceededError(used: 500, quota: 1_000)
         #expect(error.errorDescription == "Storage quota exceeded")
     }
 
     @Test("recoverySuggestion is correct")
     func recoverySuggestion() {
-        let error = QuotaExceededError(used: 500, quota: 1000)
+        let error = QuotaExceededError(used: 500, quota: 1_000)
         #expect(
             error.recoverySuggestion ==
             "Free up space by removing attachments or increase your quota in Settings."
@@ -80,9 +80,9 @@ struct QuotaExceededErrorTests {
 
     @Test("stores used and quota values")
     func storesValues() {
-        let error = QuotaExceededError(used: 750, quota: 1000)
+        let error = QuotaExceededError(used: 750, quota: 1_000)
         #expect(error.used == 750)
-        #expect(error.quota == 1000)
+        #expect(error.quota == 1_000)
     }
 
     @Test("conforms to LocalizedError")
@@ -98,7 +98,6 @@ struct QuotaExceededErrorTests {
 @Suite("StorageQuotaHandler Tests")
 @MainActor
 struct StorageQuotaHandlerTests {
-
     // MARK: - checkQuota Tests
 
     @Test("checkQuota with unlimited quota (quota=0) returns allowed")
@@ -122,7 +121,7 @@ struct StorageQuotaHandlerTests {
         let handler = StorageQuotaHandler()
         let result = handler.checkQuota(
             currentUsed: 400,
-            quota: 1000,
+            quota: 1_000,
             fileSize: 100
         )
 
@@ -137,14 +136,14 @@ struct StorageQuotaHandlerTests {
     func checkQuotaExactlyAtQuota() {
         let handler = StorageQuotaHandler()
         let result = handler.checkQuota(
-            currentUsed: 1000,
-            quota: 1000,
+            currentUsed: 1_000,
+            quota: 1_000,
             fileSize: 1
         )
 
         if case .quotaExceeded(let used, let quota) = result {
-            #expect(used == 1000)
-            #expect(quota == 1000)
+            #expect(used == 1_000)
+            #expect(quota == 1_000)
         } else {
             Issue.record("Expected .quotaExceeded when at quota")
         }
@@ -154,14 +153,14 @@ struct StorageQuotaHandlerTests {
     func checkQuotaOverQuota() {
         let handler = StorageQuotaHandler()
         let result = handler.checkQuota(
-            currentUsed: 1500,
-            quota: 1000,
+            currentUsed: 1_500,
+            quota: 1_000,
             fileSize: 1
         )
 
         if case .quotaExceeded(let used, let quota) = result {
-            #expect(used == 1500)
-            #expect(quota == 1000)
+            #expect(used == 1_500)
+            #expect(quota == 1_000)
         } else {
             Issue.record("Expected .quotaExceeded when over quota")
         }
@@ -172,13 +171,13 @@ struct StorageQuotaHandlerTests {
         let handler = StorageQuotaHandler()
         let result = handler.checkQuota(
             currentUsed: 800,
-            quota: 1000,
+            quota: 1_000,
             fileSize: 300
         )
 
         if case .wouldExceed(let used, let quota, let size) = result {
             #expect(used == 800)
-            #expect(quota == 1000)
+            #expect(quota == 1_000)
             #expect(size == 300)
         } else {
             Issue.record("Expected .wouldExceed")
@@ -190,7 +189,7 @@ struct StorageQuotaHandlerTests {
         let handler = StorageQuotaHandler()
         let result = handler.checkQuota(
             currentUsed: 700,
-            quota: 1000,
+            quota: 1_000,
             fileSize: 300
         )
 
@@ -209,7 +208,7 @@ struct StorageQuotaHandlerTests {
         let handler = StorageQuotaHandler()
         let result = handler.checkQuota(
             currentUsed: 700,
-            quota: 1000,
+            quota: 1_000,
             fileSize: 301
         )
 

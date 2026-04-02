@@ -67,7 +67,7 @@ struct DateSmartFormatTests {
     @Test("smartFormatted uses abbreviated format for a date in a different year")
     func smartFormattedUsesAbbreviatedForDifferentYear() {
         let calendar = Calendar.current
-        let components = DateComponents(year: 2024, month: 6, day: 15, hour: 10, minute: 30)
+        let components = DateComponents(year: 2_024, month: 6, day: 15, hour: 10, minute: 30)
         let oldDate = calendar.date(from: components)!
 
         let formatted = oldDate.smartFormatted()

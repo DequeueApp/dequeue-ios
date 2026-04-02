@@ -52,7 +52,6 @@ private func isTagActive(_ tag: Dequeue.Tag, in context: ModelContext) throws ->
 @Suite("TagService mergeDuplicateTags", .serialized)
 @MainActor
 struct MergeDuplicateTagsTests {
-
     @Test("no duplicates returns zero counts")
     func noDuplicates() throws {
         let container = try makeTestContainer()
@@ -78,9 +77,9 @@ struct MergeDuplicateTagsTests {
         let container = try makeTestContainer()
         let context = container.mainContext
 
-        let oldest = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 1000))
-        let newer = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 2000))
-        let newest = Tag(name: "WORK", createdAt: Date(timeIntervalSince1970: 3000))
+        let oldest = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 1_000))
+        let newer = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 2_000))
+        let newest = Tag(name: "WORK", createdAt: Date(timeIntervalSince1970: 3_000))
         context.insert(oldest)
         context.insert(newer)
         context.insert(newest)
@@ -101,12 +100,12 @@ struct MergeDuplicateTagsTests {
         let context = container.mainContext
 
         // Group 1: "work" variants
-        let work1 = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1000))
-        let work2 = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2000))
+        let work1 = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1_000))
+        let work2 = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2_000))
         // Group 2: "urgent" variants
-        let urgent1 = Tag(name: "urgent", createdAt: Date(timeIntervalSince1970: 1500))
-        let urgent2 = Tag(name: "Urgent", createdAt: Date(timeIntervalSince1970: 2500))
-        let urgent3 = Tag(name: "URGENT", createdAt: Date(timeIntervalSince1970: 3500))
+        let urgent1 = Tag(name: "urgent", createdAt: Date(timeIntervalSince1970: 1_500))
+        let urgent2 = Tag(name: "Urgent", createdAt: Date(timeIntervalSince1970: 2_500))
+        let urgent3 = Tag(name: "URGENT", createdAt: Date(timeIntervalSince1970: 3_500))
         // Unique tag (no duplicates)
         let unique = Tag(name: "personal")
 
@@ -132,8 +131,8 @@ struct MergeDuplicateTagsTests {
         let container = try makeTestContainer()
         let context = container.mainContext
 
-        let canonical = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1000))
-        let duplicate = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2000))
+        let canonical = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1_000))
+        let duplicate = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2_000))
         context.insert(canonical)
         context.insert(duplicate)
 
@@ -156,9 +155,9 @@ struct MergeDuplicateTagsTests {
         let container = try makeTestContainer()
         let context = container.mainContext
 
-        let newest = Tag(name: "Tag", createdAt: Date(timeIntervalSince1970: 3000))
-        let oldest = Tag(name: "tag", createdAt: Date(timeIntervalSince1970: 1000))
-        let middle = Tag(name: "TAG", createdAt: Date(timeIntervalSince1970: 2000))
+        let newest = Tag(name: "Tag", createdAt: Date(timeIntervalSince1970: 3_000))
+        let oldest = Tag(name: "tag", createdAt: Date(timeIntervalSince1970: 1_000))
+        let middle = Tag(name: "TAG", createdAt: Date(timeIntervalSince1970: 2_000))
         context.insert(newest)
         context.insert(oldest)
         context.insert(middle)
@@ -176,8 +175,8 @@ struct MergeDuplicateTagsTests {
         let container = try makeTestContainer()
         let context = container.mainContext
 
-        let keep = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1000))
-        let dup = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2000), syncState: .synced)
+        let keep = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1_000))
+        let dup = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2_000), syncState: .synced)
         context.insert(keep)
         context.insert(dup)
         try context.save()
@@ -193,8 +192,8 @@ struct MergeDuplicateTagsTests {
         let container = try makeTestContainer()
         let context = container.mainContext
 
-        let tag1 = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1000))
-        let tag2 = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2000))
+        let tag1 = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1_000))
+        let tag2 = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2_000))
         context.insert(tag1)
         context.insert(tag2)
         try context.save()
@@ -213,8 +212,8 @@ struct MergeDuplicateTagsTests {
         let container = try makeTestContainer()
         let context = container.mainContext
 
-        let canonical = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1000))
-        let duplicate = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2000))
+        let canonical = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1_000))
+        let duplicate = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2_000))
         context.insert(canonical)
         context.insert(duplicate)
 
@@ -239,8 +238,8 @@ struct MergeDuplicateTagsTests {
         let context = container.mainContext
 
         // Duplicate tags with no stacks attached at all
-        let canonical = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1000))
-        let duplicate = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2000))
+        let canonical = Tag(name: "work", createdAt: Date(timeIntervalSince1970: 1_000))
+        let duplicate = Tag(name: "Work", createdAt: Date(timeIntervalSince1970: 2_000))
         context.insert(canonical)
         context.insert(duplicate)
         try context.save()
@@ -258,7 +257,6 @@ struct MergeDuplicateTagsTests {
 @Suite("TagService migrateStringTagsToTagObjects", .serialized)
 @MainActor
 struct MigrateStringTagsTests {
-
     @Test("no stacks to migrate returns zero")
     func noStacksToMigrate() throws {
         let container = try makeTestContainer()

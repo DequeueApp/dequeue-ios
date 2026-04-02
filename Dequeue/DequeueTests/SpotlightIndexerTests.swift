@@ -13,7 +13,6 @@ import CoreSpotlight
 @Suite("SpotlightIndexer")
 @MainActor
 struct SpotlightIndexerTests {
-
     // MARK: - Spotlight Activity Handling
 
     @Test("Handles Spotlight activity with valid stack identifier")

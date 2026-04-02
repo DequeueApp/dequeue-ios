@@ -31,7 +31,6 @@ private func makeTestContainer() throws -> ModelContainer {
 @Suite("Start and Due Dates Tests", .serialized)
 @MainActor
 struct StartDueDatesTests {
-
     // MARK: - Arc Model Tests
 
     @Test("Arc initializes with startTime and dueTime")

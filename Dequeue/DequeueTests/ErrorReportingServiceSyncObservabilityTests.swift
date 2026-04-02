@@ -19,7 +19,6 @@ import Foundation
 @Suite("ErrorReportingService SyncObservability Smoke Tests")
 @MainActor
 struct ErrorReportingServiceSyncObservabilityTests {
-
     // MARK: - logSyncStateTransition
 
     @Test("logSyncStateTransition without trigger does not crash")
@@ -73,12 +72,12 @@ struct ErrorReportingServiceSyncObservabilityTests {
 
     @Test("logWebSocketDisconnected with close code 1000 (normal) does not crash")
     func testLogWebSocketDisconnectedNormalClose() {
-        ErrorReportingService.logWebSocketDisconnected(reason: "normal closure", code: 1000)
+        ErrorReportingService.logWebSocketDisconnected(reason: "normal closure", code: 1_000)
     }
 
     @Test("logWebSocketDisconnected with close code 1006 (abnormal) does not crash")
     func testLogWebSocketDisconnectedAbnormalClose() {
-        ErrorReportingService.logWebSocketDisconnected(reason: "abnormal closure", code: 1006)
+        ErrorReportingService.logWebSocketDisconnected(reason: "abnormal closure", code: 1_006)
     }
 
     // MARK: - logWebSocketError
@@ -127,7 +126,7 @@ struct ErrorReportingServiceSyncObservabilityTests {
             method: "POST",
             url: "https://sync.ardonos.com/v1/events",
             statusCode: 200,
-            responseSize: 1024,
+            responseSize: 1_024,
             duration: 0.35
         )
     }
@@ -420,7 +419,7 @@ struct ErrorReportingServiceSyncObservabilityTests {
         let metrics = ErrorReportingService.EventPushMetrics(
             syncId: "push-test-002",
             pushStart: Date().addingTimeInterval(-1.0),
-            httpDurationMs: 1000,
+            httpDurationMs: 1_000,
             eventCount: 3,
             httpStatusCode: 503,
             success: false

@@ -26,14 +26,14 @@ struct AttachmentUploadServiceTests {
     func presignedResponseDecodesValidJSON() throws {
         // Unix milliseconds for 2026-01-15T12:00:00Z
         let expiresAtMs: Int64 = 1_768_478_400_000
-        let json = """
+        let json = Data("""
         {
             "uploadUrl": "https://s3.amazonaws.com/bucket/key?signature=abc",
             "downloadUrl": "https://cdn.example.com/files/123",
             "attachmentId": "att_123456",
             "expiresAt": \(expiresAtMs)
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let response = try JSONDecoder().decode(PresignedUploadResponse.self, from: json)
 
@@ -46,14 +46,14 @@ struct AttachmentUploadServiceTests {
     @Test("PresignedUploadResponse throws on invalid expiresAt type")
     func presignedResponseThrowsOnInvalidDate() {
         // expiresAt should be Int64 milliseconds, not a string
-        let json = """
+        let json = Data("""
         {
             "uploadUrl": "https://s3.amazonaws.com/bucket/key",
             "downloadUrl": "https://cdn.example.com/files/123",
             "attachmentId": "att_123456",
             "expiresAt": "not-a-number"
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         #expect(throws: DecodingError.self) {
             _ = try JSONDecoder().decode(PresignedUploadResponse.self, from: json)

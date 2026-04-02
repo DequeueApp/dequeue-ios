@@ -34,7 +34,7 @@ private final class MockUploadService: AttachmentUploadServiceProtocol, @uncheck
             uploadUrl: URL(string: "https://upload.example.com/presigned")!,
             downloadUrl: URL(string: "https://cdn.example.com/file.pdf")!,
             attachmentId: "server-attachment-id",
-            expiresAt: Date().addingTimeInterval(3600)
+            expiresAt: Date().addingTimeInterval(3_600)
         )
     }
 
@@ -94,7 +94,6 @@ private func createTempFile(named: String = "upload-test.pdf", content: String =
 @Suite("AttachmentUploadCoordinator Tests", .serialized)
 @MainActor
 struct AttachmentUploadCoordinatorTests {
-
     // MARK: - Successful Upload Tests
 
     @Test("uploadAttachment completes full upload flow")
@@ -435,7 +434,7 @@ struct AttachmentUploadCoordinatorTests {
         let fileURL = try createTempFile()
         defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
 
-        let originalDate = Date(timeIntervalSince1970: 1000)
+        let originalDate = Date(timeIntervalSince1970: 1_000)
         let attachment = Attachment(
             parentId: "stack-1",
             parentType: .stack,
@@ -468,7 +467,7 @@ struct AttachmentUploadCoordinatorTests {
         let fileURL = try createTempFile()
         defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
 
-        let originalDate = Date(timeIntervalSince1970: 1000)
+        let originalDate = Date(timeIntervalSince1970: 1_000)
         let attachment = Attachment(
             parentId: "stack-1",
             parentType: .stack,

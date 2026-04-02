@@ -14,7 +14,6 @@ import Foundation
 @Suite("ProjectorService Tag Events", .serialized)
 @MainActor
 struct ProjectorServiceTagTests {
-
     // MARK: - Helpers
 
     private func makeContainer() throws -> ModelContainer {
@@ -106,7 +105,7 @@ struct ProjectorServiceTagTests {
         let context = ModelContext(container)
 
         let tagId = CUID.generate()
-        let originalCreatedAt = Date(timeIntervalSinceNow: -3600) // 1 hour ago
+        let originalCreatedAt = Date(timeIntervalSinceNow: -3_600) // 1 hour ago
         let payload = try makeTagPayload(id: tagId, name: "Tagged", createdAt: originalCreatedAt)
 
         let event = Event(

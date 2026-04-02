@@ -10,7 +10,6 @@ import XCTest
 
 @MainActor
 final class StreakTrackerServiceTests: XCTestCase {
-
     private var service: StreakTrackerService!
     private var userDefaults: UserDefaults!
     private var suiteName: String!
@@ -105,7 +104,7 @@ final class StreakTrackerServiceTests: XCTestCase {
     // MARK: - Focus Time
 
     func testAddFocusTime() {
-        service.addFocusTime(1500) // 25 minutes
+        service.addFocusTime(1_500) // 25 minutes
         // Focus time is tracked but doesn't directly affect streak
         XCTAssertFalse(service.streakInfo.isTodayActive)
     }
@@ -210,7 +209,7 @@ final class StreakTrackerServiceTests: XCTestCase {
             tasksCompleted: 0,
             tasksCreated: 5,
             stacksCompleted: 0,
-            focusTimeSeconds: 3600
+            focusTimeSeconds: 3_600
         )
         XCTAssertFalse(inactive.isActive)
     }

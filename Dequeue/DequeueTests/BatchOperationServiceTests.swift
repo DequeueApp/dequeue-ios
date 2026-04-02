@@ -59,7 +59,6 @@ private func makeBatchTask(
 @Suite("BatchOperationService — Available Operations", .serialized)
 @MainActor
 struct BatchOpAvailableTests {
-
     @Test("Empty selection returns no operations")
     func emptySelection() throws {
         let container = try makeBatchTestContainer()
@@ -175,7 +174,6 @@ struct BatchOpAvailableTests {
 @Suite("BatchOperationService — Batch Complete", .serialized)
 @MainActor
 struct BatchOpCompleteTests {
-
     @Test("Complete pending tasks")
     func completePendingTasks() async throws {
         let container = try makeBatchTestContainer()
@@ -304,7 +302,6 @@ struct BatchOpCompleteTests {
 @Suite("BatchOperationService — Batch Close", .serialized)
 @MainActor
 struct BatchOpCloseTests {
-
     @Test("Close pending tasks")
     func closePendingTasks() async throws {
         let container = try makeBatchTestContainer()
@@ -342,7 +339,6 @@ struct BatchOpCloseTests {
 @Suite("BatchOperationService — Batch Reopen", .serialized)
 @MainActor
 struct BatchOpReopenTests {
-
     @Test("Reopen completed tasks")
     func reopenCompleted() async throws {
         let container = try makeBatchTestContainer()
@@ -411,7 +407,6 @@ struct BatchOpReopenTests {
 @Suite("BatchOperationService — Batch Delete", .serialized)
 @MainActor
 struct BatchOpDeleteTests {
-
     @Test("Delete marks tasks as deleted")
     func softDelete() async throws {
         let container = try makeBatchTestContainer()
@@ -471,7 +466,6 @@ struct BatchOpDeleteTests {
 @Suite("BatchOperationService — Batch Move", .serialized)
 @MainActor
 struct BatchOpMoveTests {
-
     @Test("Move tasks to a different stack")
     func moveToStack() async throws {
         let container = try makeBatchTestContainer()
@@ -566,7 +560,6 @@ struct BatchOpMoveTests {
 @Suite("BatchOperationService — Batch Set Priority", .serialized)
 @MainActor
 struct BatchOpSetPriorityTests {
-
     @Test("Set priority on multiple tasks")
     func setPriority() async throws {
         let container = try makeBatchTestContainer()
@@ -606,7 +599,6 @@ struct BatchOpSetPriorityTests {
 @Suite("BatchOperationService — Batch Tags", .serialized)
 @MainActor
 struct BatchOpTagTests {
-
     @Test("Add tags to tasks")
     func addTags() async throws {
         let container = try makeBatchTestContainer()
@@ -692,13 +684,12 @@ struct BatchOpTagTests {
 @Suite("BatchOperationService — Batch Due Date", .serialized)
 @MainActor
 struct BatchOpDueDateTests {
-
     @Test("Set due date on tasks")
     func setDueDate() async throws {
         let container = try makeBatchTestContainer()
         let context = container.mainContext
         let task = try makeBatchTask(title: "Task", in: context)
-        let dueDate = Date().addingTimeInterval(86400)
+        let dueDate = Date().addingTimeInterval(86_400)
         let service = BatchOperationService(
             modelContext: context, userId: "test", deviceId: "test"
         )
@@ -715,7 +706,7 @@ struct BatchOpDueDateTests {
         let container = try makeBatchTestContainer()
         let context = container.mainContext
         let oldDate = Date()
-        let newDate = Date().addingTimeInterval(86400)
+        let newDate = Date().addingTimeInterval(86_400)
         let task = try makeBatchTask(title: "Task", dueTime: oldDate, in: context)
         let service = BatchOperationService(
             modelContext: context, userId: "test", deviceId: "test"
@@ -764,7 +755,6 @@ struct BatchOpDueDateTests {
 @Suite("BatchOperationService — Edge Cases", .serialized)
 @MainActor
 struct BatchOpEdgeCaseTests {
-
     @Test("Empty task array returns zero-count result")
     func emptyArray() async throws {
         let container = try makeBatchTestContainer()

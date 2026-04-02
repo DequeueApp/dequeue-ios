@@ -13,7 +13,6 @@ import SwiftData
 @Suite("LocalStatsService", .serialized)
 @MainActor
 struct LocalStatsServiceTests {
-
     // MARK: - Helpers
 
     private func makeTestContainer() throws -> ModelContainer {
@@ -139,15 +138,15 @@ struct LocalStatsServiceTests {
         let container = try makeTestContainer()
         let ctx = container.mainContext
 
-        let overdue = QueueTask(title: "Overdue", dueTime: Date().addingTimeInterval(-3600), status: .pending)
+        let overdue = QueueTask(title: "Overdue", dueTime: Date().addingTimeInterval(-3_600), status: .pending)
         ctx.insert(overdue)
 
-        let notOverdue = QueueTask(title: "Future", dueTime: Date().addingTimeInterval(3600), status: .pending)
+        let notOverdue = QueueTask(title: "Future", dueTime: Date().addingTimeInterval(3_600), status: .pending)
         ctx.insert(notOverdue)
 
         let completedOverdue = QueueTask(
             title: "Completed Overdue",
-            dueTime: Date().addingTimeInterval(-3600),
+            dueTime: Date().addingTimeInterval(-3_600),
             status: .completed
         )
         ctx.insert(completedOverdue)
@@ -168,14 +167,14 @@ struct LocalStatsServiceTests {
 
         let blockedOverdue = QueueTask(
             title: "Blocked Overdue",
-            dueTime: Date().addingTimeInterval(-3600),
+            dueTime: Date().addingTimeInterval(-3_600),
             status: .blocked
         )
         ctx.insert(blockedOverdue)
 
         let pendingOverdue = QueueTask(
             title: "Pending Overdue",
-            dueTime: Date().addingTimeInterval(-3600),
+            dueTime: Date().addingTimeInterval(-3_600),
             status: .pending
         )
         ctx.insert(pendingOverdue)
@@ -252,7 +251,7 @@ struct LocalStatsServiceTests {
         // Fix "now" to a known Wednesday so "2 days ago" (Monday) is always same week.
         // Wednesday Feb 19, 2025 12:00 UTC
         var components = DateComponents()
-        components.year = 2025
+        components.year = 2_025
         components.month = 2
         components.day = 19
         components.hour = 12

@@ -10,7 +10,6 @@ import XCTest
 
 @MainActor
 final class RecurrenceRuleTests: XCTestCase {
-
     // MARK: - RecurrenceRule Model Tests
 
     func testDailyPreset() {

@@ -11,12 +11,11 @@ import EventKit
 
 @MainActor
 final class CalendarServiceTests: XCTestCase {
-
     // MARK: - CalendarEvent Model Tests
 
     func testCalendarEventInitialization() {
         let start = Date()
-        let end = start.addingTimeInterval(3600) // 1 hour later
+        let end = start.addingTimeInterval(3_600) // 1 hour later
 
         let event = CalendarEvent(
             title: "Team Meeting",
@@ -52,7 +51,7 @@ final class CalendarServiceTests: XCTestCase {
     func testCalendarEventEquality() {
         let id = "test-event-123"
         let start = Date()
-        let end = start.addingTimeInterval(3600)
+        let end = start.addingTimeInterval(3_600)
 
         let event1 = CalendarEvent(id: id, title: "Event", startDate: start, endDate: end)
         let event2 = CalendarEvent(id: id, title: "Event", startDate: start, endDate: end)
@@ -66,7 +65,7 @@ final class CalendarServiceTests: XCTestCase {
         let event = CalendarEvent(
             title: "Lunch",
             startDate: Date(),
-            endDate: Date().addingTimeInterval(3600),
+            endDate: Date().addingTimeInterval(3_600),
             notes: "Bring documents"
         )
 
@@ -77,7 +76,7 @@ final class CalendarServiceTests: XCTestCase {
         let event = CalendarEvent(
             title: "Sprint Review",
             startDate: Date(),
-            endDate: Date().addingTimeInterval(3600),
+            endDate: Date().addingTimeInterval(3_600),
             calendarColor: "#FF5733"
         )
 
@@ -88,7 +87,7 @@ final class CalendarServiceTests: XCTestCase {
         let event = CalendarEvent(
             title: "Quick Event",
             startDate: Date(),
-            endDate: Date().addingTimeInterval(1800)
+            endDate: Date().addingTimeInterval(1_800)
         )
 
         XCTAssertNil(event.location)
@@ -127,7 +126,7 @@ final class CalendarServiceTests: XCTestCase {
         let event = CalendarEvent(
             title: "Sprint Planning",
             startDate: Date(),
-            endDate: Date().addingTimeInterval(3600)
+            endDate: Date().addingTimeInterval(3_600)
         )
 
         let data = CalendarService.shared.taskDataFromEvent(event)
@@ -140,7 +139,7 @@ final class CalendarServiceTests: XCTestCase {
         let event = CalendarEvent(
             title: "Client Meeting",
             startDate: Date(),
-            endDate: Date().addingTimeInterval(3600),
+            endDate: Date().addingTimeInterval(3_600),
             location: "123 Main St"
         )
 
@@ -153,7 +152,7 @@ final class CalendarServiceTests: XCTestCase {
         let event = CalendarEvent(
             title: "Code Review",
             startDate: Date(),
-            endDate: Date().addingTimeInterval(1800),
+            endDate: Date().addingTimeInterval(1_800),
             notes: "Review PR #321"
         )
 
@@ -166,7 +165,7 @@ final class CalendarServiceTests: XCTestCase {
         let event = CalendarEvent(
             title: "Workshop",
             startDate: Date(),
-            endDate: Date().addingTimeInterval(7200),
+            endDate: Date().addingTimeInterval(7_200),
             location: "Room 5B",
             notes: "Bring laptop"
         )

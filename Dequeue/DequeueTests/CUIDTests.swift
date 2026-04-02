@@ -36,7 +36,7 @@ struct CUIDTests {
 
     @Test("generate produces unique values")
     func generateProducesUniqueValues() {
-        let count = 1000
+        let count = 1_000
         var ids = Set<String>()
         for _ in 0..<count {
             ids.insert(CUID.generate())
