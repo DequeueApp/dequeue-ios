@@ -79,6 +79,49 @@ struct SearchServiceTests {
 
     // MARK: - Success Cases
 
+    @Test("Search returns tasks, stacks, and arcs")
+    func searchReturnsArcResults() async throws {
+        let json = """
+        {
+            "query": "project",
+            "results": [
+                {
+                    "type": "arc",
+                    "arc": {
+                        "id": "arc-1",
+                        "title": "Big Project Arc",
+                        "status": "active",
+                        "sortOrder": 0,
+                        "stackCount": 5,
+                        "completedStackCount": 2,
+                        "isDeleted": false,
+                        "createdAt": 1708000000000,
+                        "updatedAt": 1708000000000
+                    }
+                }
+            ],
+            "total": 1
+        }
+        """
+
+        SearchMockURLProtocolStorage.shared.requestHandler = { _ in
+            self.makeResponse(statusCode: 200, json: json)
+        }
+
+        let service = makeService()
+        let response = try await service.search(query: "project")
+
+        #expect(response.total == 1)
+        #expect(response.results.count == 1)
+        #expect(response.results[0].type == "arc")
+        #expect(response.results[0].arc?.title == "Big Project Arc")
+        #expect(response.results[0].arc?.stackCount == 5)
+        #expect(response.results[0].arc?.completedStackCount == 2)
+        #expect(response.results[0].arc?.progress == 0.4)
+        #expect(response.results[0].arc?.isCompleted == false)
+        #expect(response.results[0].id == "arc-arc-1")
+    }
+
     @Test("Search returns tasks and stacks")
     func searchReturnsResults() async throws {
         let json = """
@@ -282,5 +325,28 @@ struct SearchServiceTests {
             createdAt: 1_708_000_000_000, updatedAt: 1_708_000_000_000
         )
         #expect(emptyStack.progress == 0.0)
+    }
+
+    @Test("SearchArc progress and completion")
+    func searchArcModel() {
+        let arc = SearchArc(
+            id: "a1", title: "Test Arc", description: "desc", status: "active",
+            colorHex: "#FF5733", sortOrder: 0, stackCount: 4, completedStackCount: 2,
+            startAt: nil, dueAt: 1_708_000_000_000,
+            createdAt: 1_708_000_000_000, updatedAt: 1_708_000_000_000, completedAt: nil
+        )
+        #expect(arc.progress == 0.5)
+        #expect(arc.isCompleted == false)
+        #expect(arc.dueAtDate != nil)
+
+        let completedArc = SearchArc(
+            id: "a2", title: "Done Arc", description: nil, status: "completed",
+            colorHex: nil, sortOrder: 1, stackCount: 0, completedStackCount: 0,
+            startAt: nil, dueAt: nil,
+            createdAt: 1_708_000_000_000, updatedAt: 1_708_000_000_000, completedAt: 1_708_000_000_000
+        )
+        #expect(completedArc.progress == 0.0)
+        #expect(completedArc.isCompleted == true)
+        #expect(completedArc.dueAtDate == nil)
     }
 }
