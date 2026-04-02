@@ -10,25 +10,40 @@ import Foundation
 @testable import Dequeue
 
 // MARK: - Mock URL Protocol for Export Tests
+// Uses a per-session UUID key to avoid shared-state races when tests run in parallel.
 
-private final class ExportMockURLProtocolStorage: @unchecked Sendable {
-    static let shared = ExportMockURLProtocolStorage()
+private final class ExportMockRegistry: @unchecked Sendable {
+    static let shared = ExportMockRegistry()
     private let lock = NSLock()
-    private var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    private var handlers: [String: (URLRequest) throws -> (HTTPURLResponse, Data)] = [:]
 
-    var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))? {
-        get { lock.lock(); defer { lock.unlock() }; return handler }
-        set { lock.lock(); defer { lock.unlock() }; handler = newValue }
+    func set(_ handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data), forKey key: String) {
+        lock.lock(); defer { lock.unlock() }
+        handlers[key] = handler
+    }
+
+    func get(forKey key: String) -> ((URLRequest) throws -> (HTTPURLResponse, Data))? {
+        lock.lock(); defer { lock.unlock() }
+        return handlers[key]
+    }
+
+    func remove(forKey key: String) {
+        lock.lock(); defer { lock.unlock() }
+        handlers.removeValue(forKey: key)
     }
 }
+
+private let exportMockSessionKey = "X-Export-Mock-Session-ID"
 
 private final class ExportMockURLProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        guard let handler = ExportMockURLProtocolStorage.shared.requestHandler else {
-            client?.urlProtocol(self, didFailWithError: NSError(domain: "ExportMock", code: -1))
+        let sessionID = request.value(forHTTPHeaderField: exportMockSessionKey) ?? ""
+        guard let handler = ExportMockRegistry.shared.get(forKey: sessionID) else {
+            client?.urlProtocol(self, didFailWithError: NSError(domain: "ExportMock", code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "No handler for session \(sessionID)"]))
             return
         }
         do {
@@ -44,9 +59,10 @@ private final class ExportMockURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
-private func makeMockSession() -> URLSession {
+private func makeMockSession(id: String) -> URLSession {
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [ExportMockURLProtocol.self]
+    config.httpAdditionalHeaders = [exportMockSessionKey: id]
     return URLSession(configuration: config)
 }
 
@@ -57,10 +73,12 @@ private func makeMockSession() -> URLSession {
 struct ExportServiceTests {
     let mockAuth = MockAuthService()
     let session: URLSession
+    let sessionID: String
 
     init() {
         mockAuth.mockSignIn()
-        session = makeMockSession()
+        sessionID = UUID().uuidString
+        session = makeMockSession(id: sessionID)
     }
 
     private func makeService() -> ExportService {
@@ -138,6 +156,7 @@ struct ExportServiceTests {
                     "id": "rem-1",
                     "parentType": "stack",
                     "parentId": "stack-1",
+                    "status": "pending",
                     "remindAt": 1709000000000,
                     "createdAt": 1708000000000,
                     "updatedAt": 1708000000000
@@ -146,12 +165,13 @@ struct ExportServiceTests {
         }
         """
 
-        ExportMockURLProtocolStorage.shared.requestHandler = { request in
+        ExportMockRegistry.shared.set({ request in
             #expect(request.url?.absoluteString.contains("export") == true)
             #expect(request.httpMethod == "GET")
             #expect(request.value(forHTTPHeaderField: "Authorization")?.hasPrefix("Bearer ") == true)
             return self.makeResponse(statusCode: 200, json: json)
-        }
+        }, forKey: sessionID)
+        defer { ExportMockRegistry.shared.remove(forKey: sessionID) }
 
         let service = makeService()
         let export = try await service.exportData()
@@ -183,6 +203,47 @@ struct ExportServiceTests {
         // Verify reminder data
         #expect(export.reminders[0].parentType == "stack")
         #expect(export.reminders[0].parentId == "stack-1")
+        #expect(export.reminders[0].status == "pending")
+        #expect(export.reminders[0].snoozedFrom == nil)
+    }
+
+    @Test("ExportData decodes snoozed reminder with snoozedFrom")
+    func exportDataDecodesSnoozedReminder() async throws {
+        let json = """
+        {
+            "exportedAt": 1708000000000,
+            "version": "1.0",
+            "arcs": [],
+            "stacks": [],
+            "tasks": [],
+            "tags": [],
+            "reminders": [
+                {
+                    "id": "rem-2",
+                    "parentType": "task",
+                    "parentId": "task-1",
+                    "status": "snoozed",
+                    "remindAt": 1709100000000,
+                    "snoozedFrom": 1709000000000,
+                    "createdAt": 1708000000000,
+                    "updatedAt": 1709000000000
+                }
+            ]
+        }
+        """
+
+        ExportMockRegistry.shared.set({ _ in self.makeResponse(statusCode: 200, json: json) }, forKey: sessionID)
+        defer { ExportMockRegistry.shared.remove(forKey: sessionID) }
+
+        let service = makeService()
+        let export = try await service.exportData()
+
+        #expect(export.reminders.count == 1)
+        let reminder = export.reminders[0]
+        #expect(reminder.status == "snoozed")
+        #expect(reminder.parentType == "task")
+        #expect(reminder.snoozedFrom == 1_709_000_000_000)
+        #expect(reminder.snoozedFromDate?.timeIntervalSince1970 == 1_709_000_000)
     }
 
     @Test("ExportData handles empty export")
@@ -199,9 +260,8 @@ struct ExportServiceTests {
         }
         """
 
-        ExportMockURLProtocolStorage.shared.requestHandler = { _ in
-            self.makeResponse(statusCode: 200, json: json)
-        }
+        ExportMockRegistry.shared.set({ _ in self.makeResponse(statusCode: 200, json: json) }, forKey: sessionID)
+        defer { ExportMockRegistry.shared.remove(forKey: sessionID) }
 
         let service = makeService()
         let export = try await service.exportData()
@@ -228,9 +288,8 @@ struct ExportServiceTests {
         }
         """
 
-        ExportMockURLProtocolStorage.shared.requestHandler = { _ in
-            self.makeResponse(statusCode: 200, json: json)
-        }
+        ExportMockRegistry.shared.set({ _ in self.makeResponse(statusCode: 200, json: json) }, forKey: sessionID)
+        defer { ExportMockRegistry.shared.remove(forKey: sessionID) }
 
         let service = makeService()
         let fileURL = try await service.exportToFile()
@@ -252,9 +311,10 @@ struct ExportServiceTests {
 
     @Test("ExportData handles server error")
     func exportDataHandlesServerError() async {
-        ExportMockURLProtocolStorage.shared.requestHandler = { _ in
+        ExportMockRegistry.shared.set({ _ in
             self.makeResponse(statusCode: 500, json: "{\"error\": \"Export failed\"}")
-        }
+        }, forKey: sessionID)
+        defer { ExportMockRegistry.shared.remove(forKey: sessionID) }
 
         let service = makeService()
         do {
@@ -288,8 +348,20 @@ struct ExportServiceTests {
     func reminderExportDate() {
         let reminder = ReminderExport(
             id: "r1", parentType: "stack", parentId: "s1",
-            remindAt: 1709000000000, createdAt: 1708000000000, updatedAt: 1708000000000
+            status: "pending", remindAt: 1709000000000, snoozedFrom: nil,
+            createdAt: 1708000000000, updatedAt: 1708000000000
         )
         #expect(reminder.remindAtDate.timeIntervalSince1970 == 1_709_000_000)
+        #expect(reminder.snoozedFromDate == nil)
+    }
+
+    @Test("ReminderExport snoozedFrom date conversion")
+    func reminderExportSnoozedFromDate() {
+        let reminder = ReminderExport(
+            id: "r2", parentType: "task", parentId: "t1",
+            status: "snoozed", remindAt: 1709100000000, snoozedFrom: 1709000000000,
+            createdAt: 1708000000000, updatedAt: 1709000000000
+        )
+        #expect(reminder.snoozedFromDate?.timeIntervalSince1970 == 1_709_000_000)
     }
 }

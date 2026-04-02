@@ -94,14 +94,21 @@ struct TagExport: Codable, Sendable, Identifiable {
 /// Reminder data in the export
 struct ReminderExport: Codable, Sendable, Identifiable {
     let id: String
-    let parentType: String // "stack" or "arc"
+    let parentType: String // "stack", "arc", or "task"
     let parentId: String
+    let status: String     // "pending", "snoozed", "dismissed", "fired"
     let remindAt: Int64
+    let snoozedFrom: Int64?
     let createdAt: Int64
     let updatedAt: Int64
 
     var remindAtDate: Date {
         Date(timeIntervalSince1970: Double(remindAt) / 1_000.0)
+    }
+
+    var snoozedFromDate: Date? {
+        guard let snoozedFrom else { return nil }
+        return Date(timeIntervalSince1970: Double(snoozedFrom) / 1_000.0)
     }
 }
 
