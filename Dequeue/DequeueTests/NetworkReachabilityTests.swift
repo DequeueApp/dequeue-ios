@@ -12,7 +12,6 @@ import Foundation
 @Suite("SyncFailureReason Properties", .serialized)
 @MainActor
 struct SyncFailureReasonTests {
-
     // MARK: - isServerProblem Tests
 
     @Test("offline is not a server problem")

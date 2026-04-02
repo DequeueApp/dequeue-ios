@@ -148,7 +148,7 @@ struct TaskServiceCreateTests {
         let stack = makeStack(in: context)
 
         let startTime = Date()
-        let dueTime = Date().addingTimeInterval(86400) // +1 day
+        let dueTime = Date().addingTimeInterval(86_400) // +1 day
 
         let service = makeService(context: context)
         let task = try await service.createTask(
@@ -204,7 +204,7 @@ struct TaskServiceUpdateTests {
         let task = stack.pendingTasks.first!
 
         let newStartTime = Date()
-        let newDueTime = Date().addingTimeInterval(3600)
+        let newDueTime = Date().addingTimeInterval(3_600)
 
         let service = makeService(context: context)
         try await service.updateTaskDates(task, startTime: newStartTime, dueTime: newDueTime)
@@ -224,7 +224,7 @@ struct TaskServiceUpdateTests {
         let task = try await service.createTask(
             title: "Dated Task",
             startTime: Date(),
-            dueTime: Date().addingTimeInterval(86400),
+            dueTime: Date().addingTimeInterval(86_400),
             stack: stack
         )
 

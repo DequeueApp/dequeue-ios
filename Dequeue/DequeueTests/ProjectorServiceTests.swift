@@ -716,7 +716,7 @@ struct ProjectorServiceTests {
         let context = ModelContext(container)
 
         let deviceId = "other-device-123"
-        let oldLastSeen = Date(timeIntervalSinceNow: -86400 * 7) // 7 days ago
+        let oldLastSeen = Date(timeIntervalSinceNow: -86_400 * 7) // 7 days ago
 
         // Create a known device with an old lastSeenAt
         let device = Device(
@@ -775,13 +775,13 @@ struct ProjectorServiceTests {
             osVersion: "17.0",
             isCurrentDevice: false,
             lastSeenAt: recentLastSeen,
-            firstSeenAt: Date(timeIntervalSinceNow: -86400)
+            firstSeenAt: Date(timeIntervalSinceNow: -86_400)
         )
         context.insert(device)
         try context.save()
 
         // Create an OLD event from that device (older than current lastSeenAt)
-        let oldEventTimestamp = Date(timeIntervalSinceNow: -3600) // 1 hour ago
+        let oldEventTimestamp = Date(timeIntervalSinceNow: -3_600) // 1 hour ago
         let payload = try createStackPayload(id: CUID.generate(), title: "Old Stack", isActive: false)
         let event = Event(
             eventType: .stackCreated,

@@ -122,7 +122,7 @@ struct PullResultTests {
 struct ProjectionResponseTests {
     @Test("ProjectionResponse decodes with pagination")
     func decodesWithPagination() throws {
-        let json = """
+        let json = Data("""
         {
             "data": [
                 {
@@ -142,7 +142,7 @@ struct ProjectionResponseTests {
                 "limit": 50
             }
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let response = try JSONDecoder().decode(
             ProjectionResponse<StackProjection>.self,
@@ -159,11 +159,11 @@ struct ProjectionResponseTests {
 
     @Test("ProjectionResponse decodes without pagination")
     func decodesWithoutPagination() throws {
-        let json = """
+        let json = Data("""
         {
             "data": []
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let response = try JSONDecoder().decode(
             ProjectionResponse<TaskProjection>.self,
@@ -182,7 +182,7 @@ struct ProjectionResponseTests {
 struct StackProjectionTests {
     @Test("StackProjection decodes with all fields using API field names")
     func decodesWithAllFields() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "stack-abc",
             "title": "Groceries",
@@ -199,7 +199,7 @@ struct StackProjectionTests {
             "createdAt": 1707900000,
             "updatedAt": 1708000000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let stack = try JSONDecoder().decode(
             StackProjection.self, from: json
@@ -225,7 +225,7 @@ struct StackProjectionTests {
     @Test("StackProjection decodes without isDeleted (API omits it)")
     func decodesWithoutIsDeleted() throws {
         // API list endpoints filter WHERE is_deleted = false and don't include the field
-        let json = """
+        let json = Data("""
         {
             "id": "stack-api",
             "title": "From API",
@@ -238,7 +238,7 @@ struct StackProjectionTests {
             "createdAt": 1707900000,
             "updatedAt": 1707900000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let stack = try JSONDecoder().decode(
             StackProjection.self, from: json
@@ -254,7 +254,7 @@ struct StackProjectionTests {
 
     @Test("StackProjection decodes with minimal fields")
     func decodesWithMinimalFields() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "stack-min",
             "title": "Minimal",
@@ -263,7 +263,7 @@ struct StackProjectionTests {
             "createdAt": 1707900000,
             "updatedAt": 1707900000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let stack = try JSONDecoder().decode(
             StackProjection.self, from: json
@@ -288,7 +288,7 @@ struct StackProjectionTests {
 struct TaskProjectionTests {
     @Test("TaskProjection decodes correctly")
     func decodesCorrectly() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "task-001",
             "stackId": "stack-abc",
@@ -306,7 +306,7 @@ struct TaskProjectionTests {
             "createdAt": 1707900000,
             "updatedAt": 1708000000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let task = try JSONDecoder().decode(
             TaskProjection.self, from: json
@@ -327,7 +327,7 @@ struct TaskProjectionTests {
 
     @Test("TaskProjection decodes with nil optional fields")
     func decodesWithNilOptionals() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "task-002",
             "stackId": "stack-abc",
@@ -338,7 +338,7 @@ struct TaskProjectionTests {
             "createdAt": 1707900000,
             "updatedAt": 1707900000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let task = try JSONDecoder().decode(
             TaskProjection.self, from: json
@@ -357,7 +357,7 @@ struct TaskProjectionTests {
 struct ArcProjectionTests {
     @Test("ArcProjection decodes correctly with API field names")
     func decodesCorrectly() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "arc-100",
             "title": "Q1 Sprint",
@@ -371,7 +371,7 @@ struct ArcProjectionTests {
             "createdAt": 1707000000,
             "updatedAt": 1708000000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let arc = try JSONDecoder().decode(
             ArcProjection.self, from: json
@@ -393,7 +393,7 @@ struct ArcProjectionTests {
     @Test("ArcProjection decodes without isDeleted (API omits it)")
     func decodesWithoutIsDeleted() throws {
         // API list endpoints filter WHERE is_deleted = false and don't include the field
-        let json = """
+        let json = Data("""
         {
             "id": "arc-api",
             "title": "From API",
@@ -405,7 +405,7 @@ struct ArcProjectionTests {
             "createdAt": 1707000000,
             "updatedAt": 1707000000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let arc = try JSONDecoder().decode(
             ArcProjection.self, from: json
@@ -421,14 +421,14 @@ struct ArcProjectionTests {
 
     @Test("ArcProjection decodes with nil optionals")
     func decodesWithNilOptionals() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "arc-101",
             "title": "No extras",
             "createdAt": 1707000000,
             "updatedAt": 1707000000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let arc = try JSONDecoder().decode(
             ArcProjection.self, from: json
@@ -451,7 +451,7 @@ struct ArcProjectionTests {
 struct TagProjectionTests {
     @Test("TagProjection decodes correctly with colorHex mapping")
     func decodesCorrectly() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "tag-50",
             "name": "urgent",
@@ -459,7 +459,7 @@ struct TagProjectionTests {
             "createdAt": 1707500000,
             "updatedAt": 1707600000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let tag = try JSONDecoder().decode(
             TagProjection.self, from: json
@@ -474,14 +474,14 @@ struct TagProjectionTests {
 
     @Test("TagProjection decodes with nil color")
     func decodesWithNilColor() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "tag-51",
             "name": "misc",
             "createdAt": 1707500000,
             "updatedAt": 1707500000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let tag = try JSONDecoder().decode(
             TagProjection.self, from: json
@@ -499,7 +499,7 @@ struct TagProjectionTests {
 struct ReminderProjectionTests {
     @Test("ReminderProjection decodes with stack parent")
     func decodesWithStackParent() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "rem-10",
             "parentType": "stack",
@@ -509,7 +509,7 @@ struct ReminderProjectionTests {
             "createdAt": 1708000000,
             "updatedAt": 1708000000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let reminder = try JSONDecoder().decode(
             ReminderProjection.self, from: json
@@ -526,7 +526,7 @@ struct ReminderProjectionTests {
 
     @Test("ReminderProjection decodes with task parent")
     func decodesWithTaskParent() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "rem-11",
             "parentType": "task",
@@ -536,7 +536,7 @@ struct ReminderProjectionTests {
             "createdAt": 1708000000,
             "updatedAt": 1708000000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let reminder = try JSONDecoder().decode(
             ReminderProjection.self, from: json
@@ -551,7 +551,7 @@ struct ReminderProjectionTests {
 
     @Test("ReminderProjection decodes with arc parent")
     func decodesWithArcParent() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "rem-12",
             "parentType": "arc",
@@ -561,7 +561,7 @@ struct ReminderProjectionTests {
             "createdAt": 1708000000,
             "updatedAt": 1708000000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let reminder = try JSONDecoder().decode(
             ReminderProjection.self, from: json
@@ -576,7 +576,7 @@ struct ReminderProjectionTests {
 
     @Test("ReminderProjection decodes snoozed reminder with snoozedFrom")
     func decodesSnoozedReminder() throws {
-        let json = """
+        let json = Data("""
         {
             "id": "rem-13",
             "parentType": "stack",
@@ -587,7 +587,7 @@ struct ReminderProjectionTests {
             "createdAt": 1708000000,
             "updatedAt": 1708300000
         }
-        """.data(using: .utf8)!
+        """.utf8)
 
         let reminder = try JSONDecoder().decode(
             ReminderProjection.self, from: json

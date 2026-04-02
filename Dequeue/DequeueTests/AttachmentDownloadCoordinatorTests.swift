@@ -16,7 +16,6 @@ private typealias Attachment = Dequeue.Attachment
 @Suite("AttachmentDownloadCoordinator Tests")
 @MainActor
 struct AttachmentDownloadCoordinatorTests {
-
     // MARK: - Helpers
 
     private func makeCoordinator(
@@ -37,7 +36,7 @@ struct AttachmentDownloadCoordinatorTests {
             parentType: .stack,
             filename: filename,
             mimeType: "application/pdf",
-            sizeBytes: 1024
+            sizeBytes: 1_024
         )
     }
 

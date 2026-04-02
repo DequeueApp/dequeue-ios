@@ -31,7 +31,6 @@ private func makeTestContainer() throws -> ModelContainer {
 @Suite("ArcService Sync Operations", .serialized)
 @MainActor
 struct ArcServiceSyncTests {
-
     // MARK: - upsertFromSync Tests
 
     @Test("upsertFromSync creates new arc when none exists")
@@ -108,7 +107,7 @@ struct ArcServiceSyncTests {
             startTime: now,
             dueTime: now.addingTimeInterval(86_400 * 7),
             createdAt: now,
-            updatedAt: now.addingTimeInterval(3600),
+            updatedAt: now.addingTimeInterval(3_600),
             isDeleted: false,
             userId: "user-1",
             revision: 2,

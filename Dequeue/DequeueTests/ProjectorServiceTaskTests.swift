@@ -15,7 +15,6 @@ import Foundation
 @Suite("ProjectorService Task Events", .serialized)
 @MainActor
 struct ProjectorServiceTaskTests {
-
     // MARK: - Helpers
 
     private func makeContainer() throws -> ModelContainer {

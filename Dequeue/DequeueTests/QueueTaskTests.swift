@@ -22,7 +22,6 @@ private func makeTaskTestContainer() throws -> ModelContainer {
 @Suite("QueueTask Model Tests", .serialized)
 @MainActor
 struct QueueTaskTests {
-
     // MARK: - Default Init Tests
 
     @Test("QueueTask initializes with default values")
@@ -64,8 +63,8 @@ struct QueueTaskTests {
     func customInit() {
         let id = "task-custom-123"
         let now = Date()
-        let startTime = now.addingTimeInterval(3600)
-        let dueTime = now.addingTimeInterval(7200)
+        let startTime = now.addingTimeInterval(3_600)
+        let dueTime = now.addingTimeInterval(7_200)
         let delegatedAt = now.addingTimeInterval(-300)
 
         let task = QueueTask(
@@ -305,7 +304,7 @@ struct QueueTaskTests {
     @Test("activeReminders returns only active non-deleted reminders")
     func activeRemindersFiltersCorrectly() {
         let task = QueueTask(title: "Task with reminders")
-        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate = Date().addingTimeInterval(3_600)
 
         // Active, non-deleted — should appear
         let active = Reminder(
@@ -342,7 +341,7 @@ struct QueueTaskTests {
     @Test("activeReminders returns empty when all reminders are fired or deleted")
     func activeRemindersEmptyWhenAllInactive() {
         let task = QueueTask(title: "Task inactive reminders")
-        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate = Date().addingTimeInterval(3_600)
 
         let fired = Reminder(
             parentId: task.id,
@@ -367,8 +366,8 @@ struct QueueTaskTests {
     @Test("activeReminders returns multiple active reminders")
     func activeRemindersMultiple() {
         let task = QueueTask(title: "Task multi reminders")
-        let futureDate = Date().addingTimeInterval(3600)
-        let futureDate2 = Date().addingTimeInterval(7200)
+        let futureDate = Date().addingTimeInterval(3_600)
+        let futureDate2 = Date().addingTimeInterval(7_200)
 
         let first = Reminder(
             parentId: task.id,

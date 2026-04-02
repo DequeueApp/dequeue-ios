@@ -22,7 +22,6 @@ import Foundation
 
 @Suite("SyncManager Clerk Cooldown — Backoff Schedule")
 struct SyncManagerClerkCooldownBackoffTests {
-
     /// The backoff schedule (seconds) for consecutive Clerk infra errors.
     /// Matches the `delays` array in `recordClerkInfraFailure()`.
     private let backoffSchedule: [TimeInterval] = [15, 30, 60, 120, 300]
@@ -106,7 +105,6 @@ struct SyncManagerClerkCooldownBackoffTests {
 
 @Suite("SyncManager Clerk Cooldown — SyncError case")
 struct SyncManagerClerkCooldownErrorTests {
-
     @Test("SyncError.clerkInCooldown has a non-empty error description")
     func testClerkInCooldownDescription() {
         let error = SyncError.clerkInCooldown
@@ -164,7 +162,6 @@ struct SyncManagerClerkCooldownErrorTests {
 
 @Suite("SyncManager Clerk Cooldown — State Logic")
 struct SyncManagerClerkCooldownStateTests {
-
     @Test("isClerkInCooldown is false when cooldownUntil is in the past")
     func testCooldownExpired() {
         let pastDate = Date().addingTimeInterval(-1) // 1 second ago

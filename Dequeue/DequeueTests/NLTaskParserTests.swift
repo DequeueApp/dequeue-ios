@@ -10,7 +10,6 @@ import XCTest
 
 @MainActor
 final class NLTaskParserTests: XCTestCase {
-
     // Fixed reference date: Wednesday, Feb 19, 2026 at 10:00 AM EST
     private var referenceDate: Date!
     private var calendar: Calendar!
@@ -22,7 +21,7 @@ final class NLTaskParserTests: XCTestCase {
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
 
         var components = DateComponents()
-        components.year = 2026
+        components.year = 2_026
         components.month = 2
         components.day = 19
         components.hour = 10
@@ -177,7 +176,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 19)
         XCTAssertEqual(components.hour, 9) // default time
@@ -190,7 +189,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 20)
         XCTAssertEqual(components.hour, 9)
@@ -212,7 +211,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 19)
     }
@@ -282,7 +281,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 5)
         XCTAssertEqual(components.day, 19)
     }
@@ -305,7 +304,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.year, 2_027)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 19)
     }
@@ -319,7 +318,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 19)
         XCTAssertEqual(components.hour, 11) // 10 AM + 1 hr
@@ -332,7 +331,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 20)
     }
@@ -344,7 +343,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 26)
     }
@@ -356,7 +355,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 3)
         XCTAssertEqual(components.day, 19)
     }
@@ -368,7 +367,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.year, 2_027)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 19)
     }
@@ -391,7 +390,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 3)
         XCTAssertEqual(components.day, 1)
         XCTAssertEqual(components.hour, 9) // defaultTime
@@ -404,7 +403,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 28)
         XCTAssertEqual(components.hour, 17)
@@ -431,7 +430,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 3)
         XCTAssertEqual(components.day, 31)
         XCTAssertEqual(components.hour, 17)
@@ -456,7 +455,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 12)
         XCTAssertEqual(components.day, 31)
         XCTAssertEqual(components.hour, 17)
@@ -481,7 +480,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.year, 2_027)
         XCTAssertEqual(components.month, 1)
         XCTAssertEqual(components.day, 1)
     }
@@ -493,7 +492,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.year, 2_027)
         XCTAssertEqual(components.month, 1)
         XCTAssertEqual(components.day, 1)
     }
@@ -518,7 +517,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 3)
         XCTAssertEqual(components.day, 1)
     }
@@ -574,7 +573,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 28)
         XCTAssertEqual(components.hour, 17)
@@ -587,7 +586,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 3)
         XCTAssertEqual(components.day, 31)
         XCTAssertEqual(components.hour, 17)
@@ -600,7 +599,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day, .hour], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 12)
         XCTAssertEqual(components.day, 31)
         XCTAssertEqual(components.hour, 17)
@@ -704,7 +703,7 @@ final class NLTaskParserTests: XCTestCase {
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
         // Jan 10 is in the past (ref is Feb 19), so should be next year
-        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.year, 2_027)
         XCTAssertEqual(components.month, 1)
         XCTAssertEqual(components.day, 10)
     }
@@ -738,7 +737,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 10)
         XCTAssertEqual(components.day, 1)
     }
@@ -750,7 +749,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.year, 2_027)
         XCTAssertEqual(components.month, 1)
         XCTAssertEqual(components.day, 1)
     }
@@ -762,7 +761,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 3)
         XCTAssertEqual(components.day, 1)
     }
@@ -774,7 +773,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 7)
         XCTAssertEqual(components.day, 1)
     }
@@ -786,7 +785,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 9)
         XCTAssertEqual(components.day, 1)
     }
@@ -800,7 +799,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 25)
     }
@@ -812,7 +811,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 3)
         XCTAssertEqual(components.day, 5)
     }
@@ -824,7 +823,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 22)
     }
@@ -836,7 +835,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
 
         let components = calendar.dateComponents([.year, .month, .day], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 3)
         XCTAssertEqual(components.day, 1)
     }
@@ -950,7 +949,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.startTime)
 
         let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
-        XCTAssertEqual(comps.year, 2026)
+        XCTAssertEqual(comps.year, 2_026)
         XCTAssertEqual(comps.month, 3)
         XCTAssertEqual(comps.day, 1)
     }
@@ -973,7 +972,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.startTime)
 
         let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
-        XCTAssertEqual(comps.year, 2027)
+        XCTAssertEqual(comps.year, 2_027)
         XCTAssertEqual(comps.month, 1)
         XCTAssertEqual(comps.day, 15)
     }
@@ -1099,7 +1098,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.startTime)
 
         let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
-        XCTAssertEqual(comps.year, 2026)
+        XCTAssertEqual(comps.year, 2_026)
         XCTAssertEqual(comps.month, 3)
         XCTAssertEqual(comps.day, 1)
     }
@@ -1122,7 +1121,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.startTime)
 
         let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
-        XCTAssertEqual(comps.year, 2027)
+        XCTAssertEqual(comps.year, 2_027)
         XCTAssertEqual(comps.month, 1)
         XCTAssertEqual(comps.day, 1)
     }
@@ -1134,7 +1133,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.startTime)
 
         let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
-        XCTAssertEqual(comps.year, 2027)
+        XCTAssertEqual(comps.year, 2_027)
         XCTAssertEqual(comps.month, 1)
         XCTAssertEqual(comps.day, 1)
     }
@@ -1168,7 +1167,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.startTime)
 
         let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
-        XCTAssertEqual(comps.year, 2026)
+        XCTAssertEqual(comps.year, 2_026)
         XCTAssertEqual(comps.month, 3)
         XCTAssertEqual(comps.day, 19)
     }
@@ -1303,7 +1302,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.startTime)
 
         let comps = calendar.dateComponents([.year, .month, .day], from: result.startTime!)
-        XCTAssertEqual(comps.year, 2027)
+        XCTAssertEqual(comps.year, 2_027)
         XCTAssertEqual(comps.month, 1)
         XCTAssertEqual(comps.day, 1)
     }
@@ -1481,7 +1480,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertEqual(result.title, "Submit report")
         XCTAssertNotNil(result.dueTime)
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: result.dueTime!)
-        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.year, 2_026)
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 19) // today
         XCTAssertEqual(components.hour, 9)
@@ -1841,7 +1840,7 @@ final class NLTaskParserTests: XCTestCase {
         XCTAssertNotNil(result.dueTime)
         let components = calendar.dateComponents([.month, .year], from: result.dueTime!)
         XCTAssertEqual(components.month, 2)
-        XCTAssertEqual(components.year, 2027)
+        XCTAssertEqual(components.year, 2_027)
     }
 
     func testInTenMinutes() {
@@ -2522,7 +2521,7 @@ final class NLTaskParserTests: XCTestCase {
         let comps = calendar.dateComponents([.day, .month, .year], from: result.dueTime!)
         XCTAssertEqual(comps.day, 1)
         XCTAssertEqual(comps.month, 3)
-        XCTAssertEqual(comps.year, 2026)
+        XCTAssertEqual(comps.year, 2_026)
     }
 
     func testDueSlashDate() {

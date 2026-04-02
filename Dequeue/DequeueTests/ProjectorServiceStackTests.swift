@@ -15,7 +15,6 @@ import Foundation
 @Suite("ProjectorService Stack Events", .serialized)
 @MainActor
 struct ProjectorServiceStackTests {
-
     // MARK: - Helpers
 
     private func makeContainer() throws -> ModelContainer {
@@ -580,7 +579,7 @@ struct ProjectorServiceStackTests {
         let context = ModelContext(container)
 
         let stackId = CUID.generate()
-        let originalCreatedAt = Date(timeIntervalSinceNow: -3600)  // 1 hour ago
+        let originalCreatedAt = Date(timeIntervalSinceNow: -3_600)  // 1 hour ago
         let createdAtMs = Int64(originalCreatedAt.timeIntervalSince1970 * 1_000)
         let payloadDict: [String: Any] = [
             "id": stackId,
@@ -914,7 +913,7 @@ struct ProjectorServiceStackTests {
         let otherId1 = CUID.generate()
         let otherId2 = CUID.generate()
 
-        let target = Stack(id: targetId, title: "Target",   updatedAt: Date(timeIntervalSinceNow: -100), isActive: false)
+        let target = Stack(id: targetId, title: "Target", updatedAt: Date(timeIntervalSinceNow: -100), isActive: false)
         let other1 = Stack(id: otherId1, title: "Other 1", updatedAt: Date(timeIntervalSinceNow: -200), isActive: true)
         let other2 = Stack(id: otherId2, title: "Other 2", updatedAt: Date(timeIntervalSinceNow: -200), isActive: true)
         context.insert(target)

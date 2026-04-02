@@ -36,7 +36,6 @@ private struct ClerkLikeError: LocalizedError {
 
 @Suite("SyncManager.isAuthenticationError")
 struct SyncManagerIsAuthenticationErrorTests {
-
     // MARK: - Direct pattern matches (SyncError / AuthError)
 
     @Test("SyncError.notAuthenticated is an auth error")
@@ -145,7 +144,6 @@ struct SyncManagerIsAuthenticationErrorTests {
 
 @Suite("SyncManager.isClerkInfrastructureError")
 struct SyncManagerIsClerkInfrastructureErrorTests {
-
     // MARK: - HTTP 530 (Cloudflare origin unreachable)
 
     @Test("'status code: 530' triggers Clerk infra error")

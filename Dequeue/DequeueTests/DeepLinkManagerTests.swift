@@ -10,7 +10,6 @@ import XCTest
 
 @MainActor
 final class DeepLinkManagerTests: XCTestCase {
-
     // MARK: - DeepLinkDestination Init - Happy Path
 
     func testInitWithValidStackDestination() {
@@ -106,7 +105,7 @@ final class DeepLinkManagerTests: XCTestCase {
 
     func testInitWithWrongTypeForParentId() {
         let userInfo: [AnyHashable: Any] = [
-            NotificationConstants.UserInfoKey.parentId: 12345,  // Int instead of String
+            NotificationConstants.UserInfoKey.parentId: 12_345,  // Int instead of String
             NotificationConstants.UserInfoKey.parentType: "stack"
         ]
 

@@ -10,7 +10,6 @@ import XCTest
 
 @MainActor
 final class FocusFilterConfigTests: XCTestCase {
-
     override func setUp() {
         super.setUp()
         // Clean up UserDefaults before each test

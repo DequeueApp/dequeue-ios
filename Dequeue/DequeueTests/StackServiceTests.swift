@@ -273,10 +273,10 @@ struct StackServiceTests {
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let stack = try await stackService.createStack(title: "Stack with dates")
-        
+
         // Set dates
-        let startDate = Date().addingTimeInterval(3600) // 1 hour from now
-        let dueDate = Date().addingTimeInterval(86400) // 1 day from now
+        let startDate = Date().addingTimeInterval(3_600) // 1 hour from now
+        let dueDate = Date().addingTimeInterval(86_400) // 1 day from now
         try await stackService.updateStackDates(stack, startTime: startDate, dueTime: dueDate)
 
         #expect(stack.startTime != nil)
@@ -292,10 +292,10 @@ struct StackServiceTests {
         let stackService = StackService(modelContext: context, userId: "test-user", deviceId: "test-device")
 
         let stack = try await stackService.createStack(title: "Stack with dates")
-        
+
         // Set dates first
-        let startDate = Date().addingTimeInterval(3600)
-        let dueDate = Date().addingTimeInterval(86400)
+        let startDate = Date().addingTimeInterval(3_600)
+        let dueDate = Date().addingTimeInterval(86_400)
         try await stackService.updateStackDates(stack, startTime: startDate, dueTime: dueDate)
         #expect(stack.startTime != nil)
         #expect(stack.dueTime != nil)

@@ -15,7 +15,6 @@ import Foundation
 @Suite("ProjectorService Arc Events", .serialized)
 @MainActor
 struct ProjectorServiceArcTests {
-
     // MARK: - Helpers
 
     private func makeContainer() throws -> ModelContainer {

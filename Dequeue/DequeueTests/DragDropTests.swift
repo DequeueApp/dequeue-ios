@@ -11,7 +11,6 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class DragDropTests: XCTestCase {
-
     // MARK: - TaskTransferItem Tests
 
     func testTaskTransferItemEncoding() throws {

@@ -31,7 +31,6 @@ private func makeTestContainer() throws -> ModelContainer {
 @Suite("StackService Tag Operations", .serialized)
 @MainActor
 struct StackServiceTagTests {
-
     // MARK: - Add Tag
 
     @Test("addTag adds a tag to a stack")
@@ -159,7 +158,7 @@ struct StackServiceTagTests {
         #expect(stack.tagObjects.count == 1)
 
         try await stackService.removeTag(tag, from: stack)
-        #expect(stack.tagObjects.count == 0)
+        #expect(stack.tagObjects.isEmpty)
     }
 
     @Test("removeTag updates stack updatedAt timestamp")
@@ -196,7 +195,7 @@ struct StackServiceTagTests {
 
         // Removing a tag that was never added should be a no-op
         try await stackService.removeTag(tag, from: stack)
-        #expect(stack.tagObjects.count == 0)
+        #expect(stack.tagObjects.isEmpty)
     }
 
     @Test("removeTag removes only the specified tag, leaving others")

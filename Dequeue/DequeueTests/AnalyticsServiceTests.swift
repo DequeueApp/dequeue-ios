@@ -121,8 +121,8 @@ struct AnalyticsServiceTests {
     @Test("Overdue tasks detected correctly")
     @MainActor func overdueDetection() throws {
         let context = try makeAnalyticsContext()
-        let pastDate = Date().addingTimeInterval(-86400) // Yesterday
-        let futureDate = Date().addingTimeInterval(86400) // Tomorrow
+        let pastDate = Date().addingTimeInterval(-86_400) // Yesterday
+        let futureDate = Date().addingTimeInterval(86_400) // Tomorrow
 
         _ = makeAnalyticsTask(title: "Overdue", dueTime: pastDate, in: context)
         _ = makeAnalyticsTask(title: "Future", dueTime: futureDate, in: context)
@@ -235,7 +235,7 @@ struct AnalyticsServiceTests {
     @Test("Average time to complete works")
     @MainActor func avgTimeToComplete() throws {
         let context = try makeAnalyticsContext()
-        let twoDaysAgo = Date().addingTimeInterval(-2 * 86400)
+        let twoDaysAgo = Date().addingTimeInterval(-2 * 86_400)
         _ = makeAnalyticsTask(
             title: "Done",
             status: .completed,
@@ -310,7 +310,7 @@ struct AnalyticsServiceTests {
 struct AnalyticsModelTests {
     @Test("DailyCompletionData has correct dayLabel")
     func dailyDataLabel() {
-        let monday = Calendar.current.date(from: DateComponents(year: 2026, month: 2, day: 16))!
+        let monday = Calendar.current.date(from: DateComponents(year: 2_026, month: 2, day: 16))!
         let data = DailyCompletionData(date: monday, completed: 5, created: 3)
         #expect(!data.dayLabel.isEmpty)
     }

@@ -14,7 +14,6 @@ import Foundation
 @Suite("ProjectorService Attachment Events", .serialized)
 @MainActor
 struct ProjectorServiceAttachmentTests {
-
     // MARK: - Helpers
 
     private func makeContainer() throws -> ModelContainer {
@@ -178,7 +177,7 @@ struct ProjectorServiceAttachmentTests {
         let context = ModelContext(container)
 
         let attachmentId = CUID.generate()
-        let originalCreatedAt = Date(timeIntervalSinceNow: -7200) // 2 hours ago
+        let originalCreatedAt = Date(timeIntervalSinceNow: -7_200) // 2 hours ago
         let payload = try makeAttachmentPayload(
             id: attachmentId,
             createdAt: originalCreatedAt

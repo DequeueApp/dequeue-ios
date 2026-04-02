@@ -258,8 +258,8 @@ struct SearchServiceTests {
         let task = SearchTask(
             id: "t1", stackId: "s1", title: "Test", notes: nil,
             status: "active", priority: 0, sortOrder: 0, isActive: true,
-            dueAt: 1708000000000, blockedReason: nil, parentTaskId: nil,
-            createdAt: 1708000000000, updatedAt: 1708000000000, completedAt: nil
+            dueAt: 1_708_000_000_000, blockedReason: nil, parentTaskId: nil,
+            createdAt: 1_708_000_000_000, updatedAt: 1_708_000_000_000, completedAt: nil
         )
         #expect(task.dueAtDate != nil)
         #expect(task.createdAtDate.timeIntervalSince1970 == 1_708_000_000)
@@ -271,7 +271,7 @@ struct SearchServiceTests {
             id: "s1", arcId: nil, title: "Test", status: "active",
             sortOrder: 0, taskCount: 10, completedTaskCount: 7,
             isActive: true, activeTaskId: nil,
-            createdAt: 1708000000000, updatedAt: 1708000000000
+            createdAt: 1_708_000_000_000, updatedAt: 1_708_000_000_000
         )
         #expect(stack.progress == 0.7)
 
@@ -279,7 +279,7 @@ struct SearchServiceTests {
             id: "s2", arcId: nil, title: "Empty", status: "active",
             sortOrder: 0, taskCount: 0, completedTaskCount: 0,
             isActive: false, activeTaskId: nil,
-            createdAt: 1708000000000, updatedAt: 1708000000000
+            createdAt: 1_708_000_000_000, updatedAt: 1_708_000_000_000
         )
         #expect(emptyStack.progress == 0.0)
     }

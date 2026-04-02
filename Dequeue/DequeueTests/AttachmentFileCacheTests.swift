@@ -123,7 +123,7 @@ struct AttachmentFileCacheTests {
     func cacheCachesData() async throws {
         let cache = AttachmentFileCache()
         let attachmentId = "test-\(UUID().uuidString)"
-        let testData = try #require("Hello, World!".data(using: .utf8))
+        let testData = Data("Hello, World!".utf8)
 
         defer {
             Task { try? await cache.removeCachedFile(for: attachmentId) }

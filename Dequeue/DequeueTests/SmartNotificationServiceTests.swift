@@ -214,7 +214,7 @@ struct DueDateTests {
             userDefaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         )
 
-        let futureDate = Date().addingTimeInterval(3600) // 1 hour from now
+        let futureDate = Date().addingTimeInterval(3_600) // 1 hour from now
         let task = makeTask(title: "Future Task", dueTime: futureDate, in: context)
 
         await service.handleTaskDueDateChanged(task)
@@ -236,7 +236,7 @@ struct DueDateTests {
             userDefaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         )
 
-        let pastDate = Date().addingTimeInterval(-3600) // 1 hour ago
+        let pastDate = Date().addingTimeInterval(-3_600) // 1 hour ago
         let task = makeTask(title: "Past Task", dueTime: pastDate, in: context)
 
         await service.handleTaskDueDateChanged(task)
@@ -254,7 +254,7 @@ struct DueDateTests {
             userDefaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         )
 
-        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate = Date().addingTimeInterval(3_600)
         let task = makeTask(title: "Done Task", dueTime: futureDate, status: .completed, in: context)
 
         await service.handleTaskDueDateChanged(task)
@@ -272,7 +272,7 @@ struct DueDateTests {
             userDefaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         )
 
-        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate = Date().addingTimeInterval(3_600)
         let task = makeTask(title: "Deleted Task", dueTime: futureDate, isDeleted: true, in: context)
 
         await service.handleTaskDueDateChanged(task)
@@ -295,7 +295,7 @@ struct DueDateTests {
         settings.autoDueDateNotifications = false
         service.updateSettings(settings)
 
-        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate = Date().addingTimeInterval(3_600)
         let task = makeTask(title: "Task", dueTime: futureDate, in: context)
 
         await service.handleTaskDueDateChanged(task)
@@ -313,7 +313,7 @@ struct DueDateTests {
             userDefaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         )
 
-        let futureDate = Date().addingTimeInterval(7200) // 2 hours from now
+        let futureDate = Date().addingTimeInterval(7_200) // 2 hours from now
         let task = makeTask(title: "Task", dueTime: futureDate, in: context)
 
         await service.handleTaskDueDateChanged(task)
@@ -352,7 +352,7 @@ struct DueDateTests {
         let stack = Stack(title: "My Stack")
         context.insert(stack)
 
-        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate = Date().addingTimeInterval(3_600)
         let task = makeTask(title: "Task", dueTime: futureDate, stack: stack, in: context)
 
         await service.handleTaskDueDateChanged(task)
@@ -450,7 +450,7 @@ struct OverdueAlertTests {
             userDefaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         )
 
-        let pastDate = Date().addingTimeInterval(-7200) // 2 hours ago
+        let pastDate = Date().addingTimeInterval(-7_200) // 2 hours ago
         _ = makeTask(title: "Overdue Task", dueTime: pastDate, in: context)
 
         await service.scheduleOverdueAlerts()
@@ -472,7 +472,7 @@ struct OverdueAlertTests {
             userDefaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         )
 
-        let pastDate = Date().addingTimeInterval(-7200)
+        let pastDate = Date().addingTimeInterval(-7_200)
         _ = makeTask(title: "Done Task", dueTime: pastDate, status: .completed, in: context)
 
         await service.scheduleOverdueAlerts()
@@ -495,7 +495,7 @@ struct OverdueAlertTests {
         settings.maxDailyNotifications = 3
         service.updateSettings(settings)
 
-        let pastDate = Date().addingTimeInterval(-3600)
+        let pastDate = Date().addingTimeInterval(-3_600)
         for i in 1...10 {
             _ = makeTask(title: "Overdue \(i)", dueTime: pastDate, in: context)
         }
@@ -520,7 +520,7 @@ struct OverdueAlertTests {
         settings.overdueAlertsEnabled = false
         service.updateSettings(settings)
 
-        let pastDate = Date().addingTimeInterval(-3600)
+        let pastDate = Date().addingTimeInterval(-3_600)
         _ = makeTask(title: "Overdue", dueTime: pastDate, in: context)
 
         await service.scheduleOverdueAlerts()
@@ -565,8 +565,8 @@ struct QueryHelperTests {
             userDefaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         )
 
-        let pastDate = Date().addingTimeInterval(-86400) // Yesterday
-        let futureDate = Date().addingTimeInterval(86400) // Tomorrow
+        let pastDate = Date().addingTimeInterval(-86_400) // Yesterday
+        let futureDate = Date().addingTimeInterval(86_400) // Tomorrow
 
         _ = makeTask(title: "Overdue", dueTime: pastDate, in: context)
         _ = makeTask(title: "Future", dueTime: futureDate, in: context)
@@ -586,9 +586,9 @@ struct QueryHelperTests {
             userDefaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         )
 
-        let twoDays = Date().addingTimeInterval(2 * 86400)
-        let tenDays = Date().addingTimeInterval(10 * 86400)
-        let pastDate = Date().addingTimeInterval(-86400)
+        let twoDays = Date().addingTimeInterval(2 * 86_400)
+        let tenDays = Date().addingTimeInterval(10 * 86_400)
+        let pastDate = Date().addingTimeInterval(-86_400)
 
         _ = makeTask(title: "Upcoming", dueTime: twoDays, in: context)
         _ = makeTask(title: "Far Out", dueTime: tenDays, in: context)
@@ -616,7 +616,7 @@ struct FullRefreshTests {
         )
 
         // Create a task due in 2 hours
-        let futureDate = Date().addingTimeInterval(7200)
+        let futureDate = Date().addingTimeInterval(7_200)
         _ = makeTask(title: "Soon Task", dueTime: futureDate, in: context)
 
         // Pre-populate with stale notifications

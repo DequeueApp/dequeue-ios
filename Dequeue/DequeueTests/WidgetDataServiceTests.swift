@@ -189,7 +189,7 @@ struct WidgetDataServiceUpNextTests {
         let stack = Stack(id: "stack-upnext", title: "Up Next Stack")
         context.insert(stack)
 
-        let futureDue = Date(timeIntervalSinceNow: 3600)
+        let futureDue = Date(timeIntervalSinceNow: 3_600)
         let task = QueueTask(
             id: "task-due-1", title: "Due Soon",
             dueTime: futureDue, status: .pending, sortOrder: 0, stack: stack
@@ -218,12 +218,12 @@ struct WidgetDataServiceUpNextTests {
 
         context.insert(QueueTask(
             id: "task-overdue-1", title: "Overdue Task",
-            dueTime: Date(timeIntervalSinceNow: -3600),
+            dueTime: Date(timeIntervalSinceNow: -3_600),
             status: .pending, sortOrder: 0, stack: stack
         ))
         context.insert(QueueTask(
             id: "task-future-1", title: "Future Task",
-            dueTime: Date(timeIntervalSinceNow: 7200),
+            dueTime: Date(timeIntervalSinceNow: 7_200),
             status: .pending, sortOrder: 1, stack: stack
         ))
         try context.save()
@@ -251,7 +251,7 @@ struct WidgetDataServiceUpNextTests {
         for i in 0..<15 {
             context.insert(QueueTask(
                 id: "task-limit-\(i)", title: "Task \(i)",
-                dueTime: Date(timeIntervalSinceNow: Double(i + 1) * 3600),
+                dueTime: Date(timeIntervalSinceNow: Double(i + 1) * 3_600),
                 status: .pending, sortOrder: i, stack: stack
             ))
         }
@@ -280,7 +280,7 @@ struct WidgetDataServiceUpNextTests {
         ))
         context.insert(QueueTask(
             id: "task-withdue", title: "Has Due Date",
-            dueTime: Date(timeIntervalSinceNow: 3600),
+            dueTime: Date(timeIntervalSinceNow: 3_600),
             status: .pending, sortOrder: 1, stack: stack
         ))
         try context.save()
@@ -302,7 +302,7 @@ struct WidgetDataServiceUpNextTests {
         context.insert(stack)
         context.insert(QueueTask(
             id: "task-completed", title: "Already Done",
-            dueTime: Date(timeIntervalSinceNow: 3600),
+            dueTime: Date(timeIntervalSinceNow: 3_600),
             status: .completed, sortOrder: 0, stack: stack
         ))
         try context.save()
@@ -323,7 +323,7 @@ struct WidgetDataServiceUpNextTests {
         context.insert(stack)
         context.insert(QueueTask(
             id: "task-info", title: "Task With Stack Info",
-            dueTime: Date(timeIntervalSinceNow: 3600),
+            dueTime: Date(timeIntervalSinceNow: 3_600),
             status: .pending, priority: 3, sortOrder: 0, stack: stack
         ))
         try context.save()
@@ -441,18 +441,18 @@ struct WidgetDataServiceStatsTests {
         // 2 overdue
         context.insert(QueueTask(
             id: "task-od-1", title: "Overdue 1",
-            dueTime: Date(timeIntervalSinceNow: -7200),
+            dueTime: Date(timeIntervalSinceNow: -7_200),
             status: .pending, sortOrder: 0, stack: stack
         ))
         context.insert(QueueTask(
             id: "task-od-2", title: "Overdue 2",
-            dueTime: Date(timeIntervalSinceNow: -3600),
+            dueTime: Date(timeIntervalSinceNow: -3_600),
             status: .pending, sortOrder: 1, stack: stack
         ))
         // 1 future
         context.insert(QueueTask(
             id: "task-future", title: "Future",
-            dueTime: Date(timeIntervalSinceNow: 86400),
+            dueTime: Date(timeIntervalSinceNow: 86_400),
             status: .pending, sortOrder: 2, stack: stack
         ))
         try context.save()
@@ -549,7 +549,7 @@ struct WidgetDataServiceIntegrationTests {
         context.insert(stack)
         context.insert(QueueTask(
             id: "task-int-1", title: "First Task",
-            dueTime: Date(timeIntervalSinceNow: 3600),
+            dueTime: Date(timeIntervalSinceNow: 3_600),
             status: .pending, priority: 3, sortOrder: 0, stack: stack
         ))
         context.insert(QueueTask(

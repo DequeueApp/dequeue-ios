@@ -16,7 +16,6 @@ import SwiftData
 
 @Suite("SyncManager Projection Parser Tests")
 struct SyncManagerProjectionParserTests {
-
     // MARK: - parseArcStatus
 
     @Suite("parseArcStatus")
@@ -156,7 +155,6 @@ struct SyncManagerProjectionParserTests {
 
 @Suite("SyncManager Date Parsers")
 struct SyncManagerDateParsersTests {
-
     // MARK: - Helpers
 
     private static func makeSyncManager() throws -> SyncManager {
@@ -169,7 +167,6 @@ struct SyncManagerDateParsersTests {
 
     @Suite("parseISO8601")
     struct ParseISO8601Tests {
-
         @Test("returns nil for nil input")
         func returnsNilForNilInput() throws {
             let sm = try SyncManagerDateParsersTests.makeSyncManager()
@@ -194,7 +191,7 @@ struct SyncManagerDateParsersTests {
             // Build the expected date from components to avoid hardcoding a timestamp.
             var cal = Calendar(identifier: .gregorian)
             cal.timeZone = try #require(TimeZone(identifier: "UTC"))
-            let comps = DateComponents(year: 2024, month: 1, day: 15, hour: 10, minute: 30, second: 45)
+            let comps = DateComponents(year: 2_024, month: 1, day: 15, hour: 10, minute: 30, second: 45)
             let expected = try #require(cal.date(from: comps))
             let result = sm.parseISO8601("2024-01-15T10:30:45Z")
             #expect(result != nil)
@@ -231,7 +228,6 @@ struct SyncManagerDateParsersTests {
 
     @Suite("dateFromUnixMs — non-optional")
     struct DateFromUnixMsTests {
-
         @Test("epoch ms 0 returns Unix epoch")
         func epochZeroIsUnixEpoch() throws {
             let sm = try SyncManagerDateParsersTests.makeSyncManager()
@@ -269,7 +265,6 @@ struct SyncManagerDateParsersTests {
 
     @Suite("dateFromUnixMs — optional")
     struct DateFromUnixMsOptionalTests {
-
         @Test("nil input returns nil")
         func nilInputReturnsNil() throws {
             let sm = try SyncManagerDateParsersTests.makeSyncManager()

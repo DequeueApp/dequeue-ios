@@ -22,12 +22,11 @@ private func makeReminderTestContainer() throws -> ModelContainer {
 @Suite("Reminder Model Tests", .serialized)
 @MainActor
 struct ReminderTests {
-
     // MARK: - Default Init Tests
 
     @Test("Reminder initializes with default values")
     func defaultInit() {
-        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate = Date().addingTimeInterval(3_600)
         let reminder = Reminder(
             parentId: "parent-1",
             parentType: .stack,
@@ -57,7 +56,7 @@ struct ReminderTests {
     func customInit() {
         let id = "rem-custom-1"
         let now = Date()
-        let remindAt = now.addingTimeInterval(7200)
+        let remindAt = now.addingTimeInterval(7_200)
         let snoozedFrom = now.addingTimeInterval(-600)
 
         let reminder = Reminder(
@@ -97,7 +96,7 @@ struct ReminderTests {
 
     @Test("isPastDue is true when remindAt is in the past")
     func isPastDueTrue() {
-        let pastDate = Date().addingTimeInterval(-3600) // 1 hour ago
+        let pastDate = Date().addingTimeInterval(-3_600) // 1 hour ago
         let reminder = Reminder(
             parentId: "parent-1",
             parentType: .stack,
@@ -109,7 +108,7 @@ struct ReminderTests {
 
     @Test("isPastDue is false when remindAt is in the future")
     func isPastDueFalse() {
-        let futureDate = Date().addingTimeInterval(3600) // 1 hour from now
+        let futureDate = Date().addingTimeInterval(3_600) // 1 hour from now
         let reminder = Reminder(
             parentId: "parent-1",
             parentType: .stack,
@@ -123,7 +122,7 @@ struct ReminderTests {
 
     @Test("isUpcoming is true when active and in the future")
     func isUpcomingTrue() {
-        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate = Date().addingTimeInterval(3_600)
         let reminder = Reminder(
             parentId: "parent-1",
             parentType: .task,
@@ -136,7 +135,7 @@ struct ReminderTests {
 
     @Test("isUpcoming is false when active but in the past")
     func isUpcomingFalseWhenPast() {
-        let pastDate = Date().addingTimeInterval(-3600)
+        let pastDate = Date().addingTimeInterval(-3_600)
         let reminder = Reminder(
             parentId: "parent-1",
             parentType: .task,
@@ -149,7 +148,7 @@ struct ReminderTests {
 
     @Test("isUpcoming is false when snoozed even if in the future")
     func isUpcomingFalseWhenSnoozed() {
-        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate = Date().addingTimeInterval(3_600)
         let reminder = Reminder(
             parentId: "parent-1",
             parentType: .task,
@@ -162,7 +161,7 @@ struct ReminderTests {
 
     @Test("isUpcoming is false when fired")
     func isUpcomingFalseWhenFired() {
-        let futureDate = Date().addingTimeInterval(3600)
+        let futureDate = Date().addingTimeInterval(3_600)
         let reminder = Reminder(
             parentId: "parent-1",
             parentType: .task,
@@ -243,7 +242,7 @@ struct ReminderTests {
         let container = try makeReminderTestContainer()
         let context = container.mainContext
 
-        let remindAt = Date().addingTimeInterval(3600)
+        let remindAt = Date().addingTimeInterval(3_600)
         let reminder = Reminder(
             parentId: "stack-abc",
             parentType: .stack,
@@ -276,7 +275,7 @@ struct ReminderTests {
         let reminder = Reminder(
             parentId: task.id,
             parentType: .task,
-            remindAt: Date().addingTimeInterval(3600)
+            remindAt: Date().addingTimeInterval(3_600)
         )
         context.insert(reminder)
         task.reminders.append(reminder)

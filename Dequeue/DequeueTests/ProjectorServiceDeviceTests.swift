@@ -15,7 +15,6 @@ import Foundation
 @Suite("ProjectorService Device Events", .serialized)
 @MainActor
 struct ProjectorServiceDeviceTests {
-
     // MARK: - Helpers
 
     private func makeContainer() throws -> ModelContainer {
@@ -44,8 +43,8 @@ struct ProjectorServiceDeviceTests {
             "osName": osName,
             "isDevice": isDevice,
             "isCurrentDevice": isCurrentDevice,
-            "lastSeenAt": Int64(Date().timeIntervalSince1970 * 1000),
-            "firstSeenAt": Int64(Date().timeIntervalSince1970 * 1000)
+            "lastSeenAt": Int64(Date().timeIntervalSince1970 * 1_000),
+            "firstSeenAt": Int64(Date().timeIntervalSince1970 * 1_000)
         ]
         if let model { dict["model"] = model }
         if let osVersion { dict["osVersion"] = osVersion }

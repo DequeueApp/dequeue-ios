@@ -12,7 +12,6 @@ import Sentry
 
 @MainActor
 final class ErrorReportingServiceTests: XCTestCase {
-
     // MARK: - truncateErrorMessage - Under Limit
 
     func testTruncateShortMessage() {
@@ -49,7 +48,7 @@ final class ErrorReportingServiceTests: XCTestCase {
     }
 
     func testTruncateLongMessage() {
-        let message = String(repeating: "x", count: 2000)
+        let message = String(repeating: "x", count: 2_000)
         let result = ErrorReportingService.truncateErrorMessage(message)
         XCTAssertTrue(result.hasSuffix("...[truncated]"))
         XCTAssertEqual(result.count, 500)
@@ -163,7 +162,7 @@ final class ErrorReportingServiceTests: XCTestCase {
         ErrorReportingService.logAPIResponse(
             endpoint: "/api/v1/stacks",
             statusCode: 200,
-            responseSize: 1024
+            responseSize: 1_024
         )
     }
 

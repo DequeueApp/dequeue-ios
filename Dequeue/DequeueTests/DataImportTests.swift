@@ -14,7 +14,6 @@ import Foundation
 @Suite("ImportFormat")
 @MainActor
 struct ImportFormatTests {
-
     @Test("All formats have extensions")
     func formatsHaveExtensions() {
         for format in ImportFormat.allCases {
@@ -40,7 +39,6 @@ struct ImportFormatTests {
 @Suite("CSV Parser")
 @MainActor
 struct CSVParserTests {
-
     @Test("Basic CSV with title column")
     func basicCSV() throws {
         let csv = """
@@ -170,7 +168,6 @@ struct CSVParserTests {
 @Suite("JSON Parser")
 @MainActor
 struct JSONParserTests {
-
     @Test("Parse JSON array of tasks")
     func parseJSONArray() throws {
         let json = """
@@ -257,7 +254,6 @@ struct JSONParserTests {
 @Suite("Plain Text Parser")
 @MainActor
 struct PlainTextParserTests {
-
     @Test("Parse simple lines")
     func parseSimpleLines() {
         let text = """
@@ -348,7 +344,6 @@ struct PlainTextParserTests {
 @Suite("Import Helpers")
 @MainActor
 struct ImportHelperTests {
-
     @Test("Parse priority strings")
     func parsePriorityStrings() {
         #expect(parsePriority("high") == 3)
@@ -384,7 +379,6 @@ struct ImportHelperTests {
 @Suite("ImportResult")
 @MainActor
 struct ImportResultTests {
-
     @Test("Success result")
     func successResult() {
         let result = ImportResult(
@@ -442,7 +436,6 @@ struct ImportResultTests {
 @Suite("ImportError")
 @MainActor
 struct ImportErrorTests {
-
     @Test("All errors have descriptions")
     func errorsHaveDescriptions() {
         let errors: [ImportError] = [

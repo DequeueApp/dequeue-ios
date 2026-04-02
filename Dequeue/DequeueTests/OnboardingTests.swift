@@ -14,7 +14,6 @@ import Foundation
 @Suite("OnboardingPage Model")
 @MainActor
 struct OnboardingPageTests {
-
     @Test("Pages are defined")
     func pagesExist() {
         #expect(!OnboardingPage.pages.isEmpty)
@@ -57,7 +56,6 @@ struct OnboardingPageTests {
 @Suite("OnboardingService")
 @MainActor
 struct OnboardingServiceTests {
-
     @Test("Initial state for incomplete onboarding")
     func initialStateIncomplete() {
         let service = OnboardingService(isComplete: false)

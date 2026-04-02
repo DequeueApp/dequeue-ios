@@ -35,7 +35,6 @@ private func makeTestContainer(name: String = #function) throws -> ModelContaine
 @Suite("StackService Migration Tests", .serialized)
 @MainActor
 struct StackServiceMigrationTests {
-
     // MARK: - migrateActiveStackState
 
     @Test("migrateActiveStackState does nothing with no stacks")

@@ -60,7 +60,7 @@ private func readBodyData(from request: URLRequest) -> Data? {
     stream.open()
     defer { stream.close() }
     var data = Data()
-    let bufferSize = 4096
+    let bufferSize = 4_096
     let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
     defer { buffer.deallocate() }
     while stream.hasBytesAvailable {
@@ -119,7 +119,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 200,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         let result = try await service.listWebhooks()
@@ -146,7 +146,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 200,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         let result = try await service.listWebhooks()
@@ -169,7 +169,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 200,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         _ = try await service.listWebhooks(limit: 20, cursor: "abc123")
@@ -201,7 +201,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 201,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         let result = try await service.createWebhook(
@@ -233,7 +233,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 200,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         let result = try await service.getWebhook(id: "wh_get123")
@@ -264,7 +264,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 404,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, "{}".data(using: .utf8)!)
+            return (response, Data("{}".utf8))
         }
 
         await #expect(throws: WebhookError.self) {
@@ -291,7 +291,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 200,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         let result = try await service.rotateSecret(id: "wh_rot123")
@@ -348,7 +348,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 200,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         let result = try await service.listDeliveries(webhookId: "wh_abc123", limit: 20)
@@ -379,7 +379,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 200,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         let result = try await service.listDeliveries(webhookId: "wh_abc123")
@@ -393,7 +393,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 404,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, "{}".data(using: .utf8)!)
+            return (response, Data("{}".utf8))
         }
 
         await #expect(throws: WebhookError.self) {
@@ -422,7 +422,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 200,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         let result = try await service.testDelivery(webhookId: "wh_abc123")
@@ -448,7 +448,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 200,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         let result = try await service.testDelivery(webhookId: "wh_abc123")
@@ -470,7 +470,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 429,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, json.data(using: .utf8)!)
+            return (response, Data(json.utf8))
         }
 
         await #expect(throws: WebhookError.self) {
@@ -485,7 +485,7 @@ struct WebhookServiceTests {
                 url: request.url!, statusCode: 401,
                 httpVersion: nil, headerFields: nil
             )!
-            return (response, "{}".data(using: .utf8)!)
+            return (response, Data("{}".utf8))
         }
 
         await #expect(throws: WebhookError.self) {
@@ -504,8 +504,8 @@ struct WebhookServiceTests {
             secret: nil,
             secretPrefix: "whsec_",
             status: "active",
-            createdAt: 1708300000000,
-            lastDeliveryAt: 1708310000000,
+            createdAt: 1_708_300_000_000,
+            lastDeliveryAt: 1_708_310_000_000,
             lastDeliveryStatus: "delivered"
         )
         #expect(webhook.isActive == true)
@@ -519,8 +519,8 @@ struct WebhookServiceTests {
             id: "del_1", webhookId: "wh_1", eventType: "task.created",
             eventId: "evt_1", status: "delivered", attempts: 1,
             lastResponseStatus: 200, lastResponseBody: "OK", lastError: nil,
-            createdAt: 1708300000000, completedAt: 1708300001000,
-            nextRetryAt: nil, lastAttemptAt: 1708300001000
+            createdAt: 1_708_300_000_000, completedAt: 1_708_300_001_000,
+            nextRetryAt: nil, lastAttemptAt: 1_708_300_001_000
         )
         #expect(delivered.isSuccess == true)
         #expect(delivered.isPending == false)
@@ -530,8 +530,8 @@ struct WebhookServiceTests {
             id: "del_2", webhookId: "wh_1", eventType: "task.updated",
             eventId: "evt_2", status: "pending", attempts: 0,
             lastResponseStatus: nil, lastResponseBody: nil, lastError: nil,
-            createdAt: 1708300000000, completedAt: nil,
-            nextRetryAt: 1708300060000, lastAttemptAt: nil
+            createdAt: 1_708_300_000_000, completedAt: nil,
+            nextRetryAt: 1_708_300_060_000, lastAttemptAt: nil
         )
         #expect(pending.isSuccess == false)
         #expect(pending.isPending == true)
@@ -543,8 +543,8 @@ struct WebhookServiceTests {
             eventId: "evt_3", status: "failed", attempts: 5,
             lastResponseStatus: 500, lastResponseBody: nil,
             lastError: "Internal Server Error",
-            createdAt: 1708300000000, completedAt: 1708300300000,
-            nextRetryAt: nil, lastAttemptAt: 1708300300000
+            createdAt: 1_708_300_000_000, completedAt: 1_708_300_300_000,
+            nextRetryAt: nil, lastAttemptAt: 1_708_300_300_000
         )
         #expect(failed.isSuccess == false)
         #expect(failed.isPending == false)

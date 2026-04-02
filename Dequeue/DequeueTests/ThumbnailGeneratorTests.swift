@@ -61,7 +61,7 @@ struct ThumbnailGeneratorTests {
         )
 
         // Verify thumbnail was generated
-        #expect(thumbnailData.count > 0)
+        #expect(!thumbnailData.isEmpty)
 
         // Verify it's valid image data
         #if canImport(UIKit)
@@ -89,7 +89,7 @@ struct ThumbnailGeneratorTests {
             mimeType: "image/png"
         )
 
-        #expect(thumbnailData.count > 0)
+        #expect(!thumbnailData.isEmpty)
     }
 
     // MARK: - Size & Quality
@@ -97,7 +97,7 @@ struct ThumbnailGeneratorTests {
     @Test("Thumbnail respects max dimension")
     func thumbnailSizeLimit() async throws {
         // Create a large test image (1000x1000)
-        let testImage = createTestImage(size: CGSize(width: 1000, height: 1000))
+        let testImage = createTestImage(size: CGSize(width: 1_000, height: 1_000))
         #if canImport(UIKit)
         let imageData = testImage.jpegData(compressionQuality: 1.0)!
         #elseif canImport(AppKit)

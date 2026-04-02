@@ -12,7 +12,6 @@ import Foundation
 @Suite("FileTypeIcon.symbolName")
 @MainActor
 struct FileTypeIconSymbolTests {
-
     // MARK: - Prefix-based rules
 
     @Test("audio/* maps to waveform")
@@ -234,7 +233,6 @@ struct FileTypeIconSymbolTests {
 @Suite("FileTypeIcon.color")
 @MainActor
 struct FileTypeIconColorTests {
-
     @Test("audio/* returns purple")
     func audioColor() {
         // Color equality in SwiftUI is not directly testable in unit tests,

@@ -10,7 +10,6 @@ import XCTest
 
 @MainActor
 final class QuickActionTypeTests: XCTestCase {
-
     // MARK: - Raw Values
 
     func testRawValues() {

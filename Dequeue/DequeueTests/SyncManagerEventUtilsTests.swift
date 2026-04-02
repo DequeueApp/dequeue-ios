@@ -19,7 +19,6 @@ import Foundation
 
 @Suite("SyncManager extractEntityId Tests")
 struct SyncManagerExtractEntityIdTests {
-
     // MARK: - stack.* events
 
     @Test("stack.* event returns stackId from payload")
@@ -168,7 +167,6 @@ struct SyncManagerExtractEntityIdTests {
 
 @Suite("SyncManager addActorMetadata Tests")
 struct SyncManagerAddActorMetadataTests {
-
     private func makeMetadataData(actorType: String, actorId: String? = nil) -> Data {
         var dict: [String: Any] = ["actorType": actorType]
         if let actorId { dict["actorId"] = actorId }
@@ -253,7 +251,6 @@ struct SyncManagerAddActorMetadataTests {
 
 @Suite("SyncManager generateSyncId Tests")
 struct SyncManagerGenerateSyncIdTests {
-
     @Test("generateSyncId returns exactly 8 characters")
     func generateSyncIdHasLength8() {
         let id = SyncManager.generateSyncId()

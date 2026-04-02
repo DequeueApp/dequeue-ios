@@ -12,7 +12,6 @@ import SwiftData
 
 @MainActor
 final class AccessibilityTests: XCTestCase {
-
     var container: ModelContainer!
     var context: ModelContext!
     var stack: Stack!

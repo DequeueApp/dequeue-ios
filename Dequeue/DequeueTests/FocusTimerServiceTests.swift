@@ -10,7 +10,6 @@ import XCTest
 
 @MainActor
 final class FocusTimerServiceTests: XCTestCase {
-
     private var service: FocusTimerService!
     private var userDefaults: UserDefaults!
     private var suiteName: String!

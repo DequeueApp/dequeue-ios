@@ -10,7 +10,6 @@ import XCTest
 
 @MainActor
 final class TaskTemplateServiceTests: XCTestCase {
-
     private var service: TaskTemplateService!
     private var userDefaults: UserDefaults!
     private var suiteName: String!
@@ -148,7 +147,7 @@ final class TaskTemplateServiceTests: XCTestCase {
             title: "Test task",
             priority: 2,
             tags: ["work"],
-            dueDateOffset: 86400 // 1 day
+            dueDateOffset: 86_400 // 1 day
         )
 
         let result = service.apply(template, at: now)
@@ -160,7 +159,7 @@ final class TaskTemplateServiceTests: XCTestCase {
 
         // Should be approximately 1 day in the future
         let interval = result.dueTime!.timeIntervalSince(now)
-        XCTAssertEqual(interval, 86400, accuracy: 1)
+        XCTAssertEqual(interval, 86_400, accuracy: 1)
     }
 
     func testApplyTemplateWithoutDueDate() {
@@ -182,14 +181,14 @@ final class TaskTemplateServiceTests: XCTestCase {
         let template = TaskTemplate(
             name: "Start Date",
             title: "With start",
-            startDateOffset: 172800 // 2 days
+            startDateOffset: 172_800 // 2 days
         )
 
         let result = service.apply(template, at: now)
 
         XCTAssertNotNil(result.startTime)
         let interval = result.startTime!.timeIntervalSince(now)
-        XCTAssertEqual(interval, 172800, accuracy: 1)
+        XCTAssertEqual(interval, 172_800, accuracy: 1)
     }
 
     func testApplyTemplateWithBothDates() {
@@ -197,8 +196,8 @@ final class TaskTemplateServiceTests: XCTestCase {
         let template = TaskTemplate(
             name: "Both Dates",
             title: "Full date task",
-            dueDateOffset: 604800, // 1 week
-            startDateOffset: 86400 // 1 day
+            dueDateOffset: 604_800, // 1 week
+            startDateOffset: 86_400 // 1 day
         )
 
         let result = service.apply(template, at: now)
@@ -284,7 +283,7 @@ final class TaskTemplateServiceTests: XCTestCase {
             title: "Test",
             priority: 2,
             tags: ["a", "b"],
-            dueDateOffset: 3600
+            dueDateOffset: 3_600
         )
 
         let data = try JSONEncoder().encode(template)
