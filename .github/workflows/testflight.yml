@@ -211,9 +211,15 @@ jobs:
             exit 1
           fi
 
+          # Mac App Store exports should always produce a signed .pkg via
+          # ExportOptions-macOS.plist (method=app-store-connect, signingStyle=automatic).
+          # If we got an unsigned .app instead, wrapping it with productbuild here
+          # would produce an unsigned .pkg which altool will reject anyway, so fail
+          # loudly with a clear actionable message instead of attempting a salvage.
           if [[ "$EXPORT_FILE" == *.app ]]; then
-            productbuild --component "$EXPORT_FILE" /Applications "$RUNNER_TEMP/export-macos/Dequeue.pkg"
-            EXPORT_FILE="$RUNNER_TEMP/export-macos/Dequeue.pkg"
+            echo "::error::Unexpected .app output — Mac App Store export should produce a signed .pkg. Check ci/ExportOptions-macOS.plist (method must be 'app-store-connect')."
+            ls -la "$RUNNER_TEMP/export-macos" || true
+            exit 1
           fi
 
           xcrun altool --upload-app \
