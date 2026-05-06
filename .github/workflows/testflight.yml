@@ -105,7 +105,9 @@ jobs:
   deploy-macos:
     name: Build and Deploy macOS to TestFlight
     runs-on: macos-26
-    timeout-minutes: 60
+    # macOS builds tend to be slower than iOS (no Simulator shortcuts, larger
+    # binaries post-codesign). Give headroom over the iOS lane's 60m budget.
+    timeout-minutes: 90
 
     steps:
       - name: Checkout code
@@ -155,18 +157,21 @@ jobs:
           ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           ASC_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
-        run: bundle exec fastlane bump_build_macos
+        run: bundle exec fastlane macos bump_build
 
       - name: Build Archive
         run: |
           # Archive without code signing - export step will handle signing via the
           # App Store Connect API key (-allowProvisioningUpdates).
+          # resultBundlePath lets us upload a .xcresult artifact for post-mortem
+          # debugging when the archive step fails.
           xcodebuild archive \
             -project Dequeue/Dequeue.xcodeproj \
             -scheme Dequeue \
             -configuration Release \
             -archivePath $RUNNER_TEMP/Dequeue-macOS.xcarchive \
             -destination 'generic/platform=macOS' \
+            -resultBundlePath $RUNNER_TEMP/Dequeue-macOS-archive.xcresult \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
@@ -192,7 +197,13 @@ jobs:
           # Find the .pkg or .app produced by exportArchive. The Mac App Store
           # export usually produces a .pkg directly, but if Xcode emits a .app we
           # wrap it with productbuild before uploading.
-          EXPORT_FILE=$(find $RUNNER_TEMP/export-macos -name "*.pkg" -o -name "*.app" | head -1)
+          # Prefer .pkg if present (avoids re-wrapping via productbuild);
+          # fall back to .app. Using two separate searches keeps selection
+          # deterministic regardless of filesystem enumeration order.
+          EXPORT_FILE=$(find "$RUNNER_TEMP/export-macos" -maxdepth 2 -name "*.pkg" | head -1)
+          if [[ -z "$EXPORT_FILE" ]]; then
+            EXPORT_FILE=$(find "$RUNNER_TEMP/export-macos" -maxdepth 2 -name "*.app" | head -1)
+          fi
 
           if [[ -z "$EXPORT_FILE" ]]; then
             echo "::error::No .pkg or .app produced by xcodebuild -exportArchive"
@@ -239,6 +250,15 @@ jobs:
           name: dSYMs-macOS
           path: ${{ runner.temp }}/Dequeue-macOS.xcarchive/dSYMs
           retention-days: 30
+
+      - name: Upload xcodebuild result bundle
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: build-result-macos
+          path: ${{ runner.temp }}/Dequeue-macOS-archive.xcresult
+          retention-days: 30
+          if-no-files-found: warn
 
   notify-failure:
     name: Notify on TestFlight Failure
