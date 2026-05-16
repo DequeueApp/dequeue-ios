@@ -256,6 +256,9 @@ jobs:
           name: dSYMs-macOS
           path: ${{ runner.temp }}/Dequeue-macOS.xcarchive/dSYMs
           retention-days: 30
+          # If Archive step fails, no xcarchive exists — warn instead of erroring so the
+          # real archive failure isn't obscured by an artifact-upload error.
+          if-no-files-found: warn
 
       - name: Upload xcodebuild result bundle
         if: always()
