@@ -37,6 +37,12 @@ enum NotificationConstants: Sendable {
         nonisolated static let fifteenMinutes: TimeInterval = 15 * 60
         nonisolated static let oneHour: TimeInterval = 60 * 60
     }
+
+    /// Maximum number of pending `UNNotificationRequest` entries we'll register
+    /// at once. iOS enforces a hard limit of 64 across all trigger types per
+    /// app; we leave a few slots for system overhead and any future non-reminder
+    /// notifications the app may schedule.
+    nonisolated static let maxPendingNotifications: Int = 60
 }
 
 // MARK: - Notification Center Protocol
@@ -181,6 +187,14 @@ final class NotificationService: NSObject {
         let content = UNMutableNotificationContent()
         content.sound = .default
         content.categoryIdentifier = NotificationConstants.categoryIdentifier
+        // Time Sensitive ensures the notification breaks through Focus modes
+        // (Work, Personal, Sleep, custom) and scheduled notification summary.
+        // For reminder-app semantics this is required: if Victor has any Focus
+        // mode active, a default (.active) reminder gets routed to the summary
+        // and may not display until the next summary delivery (hours later).
+        // Requires the com.apple.developer.usernotifications.time-sensitive
+        // entitlement, which is set in Dequeue.entitlements.
+        content.interruptionLevel = .timeSensitive
 
         // Get parent title for notification content
         let parentTitle = try fetchParentTitle(for: reminder)
@@ -240,6 +254,13 @@ final class NotificationService: NSObject {
 
     /// Reschedules all notifications to match current reminder state
     /// Call this on app launch or when reminders are synced
+    ///
+    /// iOS imposes a hard limit of 64 pending UNNotificationRequest entries per
+    /// app across all trigger types (including one-shot `UNCalendarNotificationTrigger`).
+    /// If we exceed it, additional `add(_:)` calls silently fail. We sort by
+    /// soonest-first and cap at `maxPendingNotifications` to leave headroom for
+    /// system-managed notifications and any non-reminder notifications the app
+    /// may schedule in the future (smart digests, focus timer, etc.).
     func rescheduleAllNotifications() async {
         // Remove all existing notifications first
         notificationCenter.removeAllPendingNotificationRequests()
@@ -247,7 +268,21 @@ final class NotificationService: NSObject {
         // Fetch all active, upcoming reminders
         do {
             let reminders = try fetchActiveUpcomingReminders()
-            for reminder in reminders {
+                .sorted { $0.remindAt < $1.remindAt }
+            let capped = Array(reminders.prefix(NotificationConstants.maxPendingNotifications))
+            if reminders.count > capped.count {
+                // Log so we can detect users hitting the cap in Sentry.
+                ErrorReportingService.addBreadcrumb(
+                    category: "notifications",
+                    message: "Reminder count exceeds pending-notification cap; dropping farthest-future entries.",
+                    data: [
+                        "total": reminders.count,
+                        "scheduled": capped.count,
+                        "cap": NotificationConstants.maxPendingNotifications
+                    ]
+                )
+            }
+            for reminder in capped {
                 try? await scheduleNotification(for: reminder)
             }
         } catch {
