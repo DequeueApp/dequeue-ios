@@ -18,8 +18,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Build and Deploy to TestFlight
+  deploy-ios:
+    name: Build and Deploy iOS to TestFlight
     runs-on: macos-26
     timeout-minutes: 60
     defaults:
@@ -95,18 +95,197 @@ jobs:
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: build-logs
+          name: build-logs-ios
           path: |
             Dequeue/build
             Dequeue/fastlane/report.xml
             Dequeue/fastlane/test_output
           retention-days: 30
 
-      - name: Notify on failure
-        if: failure()
+  deploy-macos:
+    name: Build and Deploy macOS to TestFlight
+    runs-on: macos-26
+    # macOS builds tend to be slower than iOS (no Simulator shortcuts, larger
+    # binaries post-codesign). Give headroom over the iOS lane's 60m budget.
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@09a7688d3b55cf0e976497ff046b70949eeaccfd # v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: Dequeue
+
+      - name: Install Fastlane
+        working-directory: Dequeue
+        run: bundle install
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1
+        with:
+          xcode-version: '26.2'
+
+      - name: Cache Swift packages
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            Dequeue/Dequeue.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          key: ${{ runner.os }}-spm-macos-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-macos-
+            ${{ runner.os }}-spm-
+
+      - name: Setup App Store Connect API Key file
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo -n "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode \
+            > ~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8
+
+      - name: Bump macOS build number from TestFlight
+        working-directory: Dequeue
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: bundle exec fastlane macos bump_build
+
+      - name: Build Archive
+        run: |
+          # Archive without code signing - export step will handle signing via the
+          # App Store Connect API key (-allowProvisioningUpdates).
+          # resultBundlePath lets us upload a .xcresult artifact for post-mortem
+          # debugging when the archive step fails.
+          xcodebuild archive \
+            -project Dequeue/Dequeue.xcodeproj \
+            -scheme Dequeue \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/Dequeue-macOS.xcarchive \
+            -destination 'generic/platform=macOS' \
+            -resultBundlePath $RUNNER_TEMP/Dequeue-macOS-archive.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Export App
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath $RUNNER_TEMP/Dequeue-macOS.xcarchive \
+            -exportPath $RUNNER_TEMP/export-macos \
+            -exportOptionsPlist ci/ExportOptions-macOS.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8 \
+            -authenticationKeyID $APP_STORE_CONNECT_API_KEY_ID \
+            -authenticationKeyIssuerID $APP_STORE_CONNECT_API_ISSUER_ID
+
+      - name: Upload to TestFlight
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        run: |
+          # Find the .pkg or .app produced by exportArchive. The Mac App Store
+          # export usually produces a .pkg directly, but if Xcode emits a .app we
+          # wrap it with productbuild before uploading.
+          # Prefer .pkg if present (avoids re-wrapping via productbuild);
+          # fall back to .app. Using two separate searches keeps selection
+          # deterministic regardless of filesystem enumeration order.
+          EXPORT_FILE=$(find "$RUNNER_TEMP/export-macos" -maxdepth 2 -name "*.pkg" | head -1)
+          if [[ -z "$EXPORT_FILE" ]]; then
+            EXPORT_FILE=$(find "$RUNNER_TEMP/export-macos" -maxdepth 2 -name "*.app" | head -1)
+          fi
+
+          if [[ -z "$EXPORT_FILE" ]]; then
+            echo "::error::No .pkg or .app produced by xcodebuild -exportArchive"
+            ls -la "$RUNNER_TEMP/export-macos" || true
+            exit 1
+          fi
+
+          # Mac App Store exports should always produce a signed .pkg via
+          # ExportOptions-macOS.plist (method=app-store-connect, signingStyle=automatic).
+          # If we got an unsigned .app instead, wrapping it with productbuild here
+          # would produce an unsigned .pkg which altool will reject anyway, so fail
+          # loudly with a clear actionable message instead of attempting a salvage.
+          if [[ "$EXPORT_FILE" == *.app ]]; then
+            echo "::error::Unexpected .app output — Mac App Store export should produce a signed .pkg. Check ci/ExportOptions-macOS.plist (method must be 'app-store-connect')."
+            ls -la "$RUNNER_TEMP/export-macos" || true
+            exit 1
+          fi
+
+          xcrun altool --upload-app \
+            --type macos \
+            --file "$EXPORT_FILE" \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
+
+      - name: Upload dSYMs to Sentry
+        if: success()
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+        run: |
+          curl -sL https://sentry.io/get-cli/ | bash
+          sentry-cli debug-files upload --org "$SENTRY_ORG" --project dequeue-app \
+            "$RUNNER_TEMP/Dequeue-macOS.xcarchive/dSYMs" || true
+
+      - name: Upload macOS package artifact
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: dequeue-macos-pkg
+          path: |
+            ${{ runner.temp }}/export-macos/*.pkg
+            ${{ runner.temp }}/export-macos/*.app
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload dSYMs artifact
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: dSYMs-macOS
+          path: ${{ runner.temp }}/Dequeue-macOS.xcarchive/dSYMs
+          retention-days: 30
+          # If Archive step fails, no xcarchive exists — warn instead of erroring so the
+          # real archive failure isn't obscured by an artifact-upload error.
+          if-no-files-found: warn
+
+      - name: Upload xcodebuild result bundle
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: build-result-macos
+          path: ${{ runner.temp }}/Dequeue-macOS-archive.xcresult
+          retention-days: 30
+          if-no-files-found: warn
+
+  notify-failure:
+    name: Notify on TestFlight Failure
+    runs-on: ubuntu-latest
+    needs: [deploy-ios, deploy-macos]
+    if: failure()
+    steps:
+      - name: Open or update tracking issue
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
+            const iosResult = '${{ needs.deploy-ios.result }}';
+            const macosResult = '${{ needs.deploy-macos.result }}';
+            const failedPlatforms = [];
+            if (iosResult !== 'success') failedPlatforms.push(`iOS (${iosResult})`);
+            if (macosResult !== 'success') failedPlatforms.push(`macOS (${macosResult})`);
+            const summary = failedPlatforms.join(', ') || 'unknown';
+
             // Check for existing open TestFlight issues before creating a new one
             const { data: existingIssues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
@@ -119,20 +298,18 @@ jobs:
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
             if (existingIssues.length > 0) {
-              // Add a comment to the most recent existing issue instead of creating a duplicate
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: existingIssues[0].number,
-                body: `TestFlight deployment failed again for commit ${context.sha}.\n\nWorkflow run: ${runUrl}`
+                body: `TestFlight deployment failed again for commit ${context.sha}.\n\nFailed platforms: ${summary}\nWorkflow run: ${runUrl}`
               });
             } else {
-              // No existing issue — create one
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title: `TestFlight Deploy Failed - ${new Date().toISOString().split('T')[0]}`,
-                body: `TestFlight deployment failed for commit ${context.sha}.\n\nSee workflow run: ${runUrl}`,
+                body: `TestFlight deployment failed for commit ${context.sha}.\n\nFailed platforms: ${summary}\nSee workflow run: ${runUrl}`,
                 labels: ['ci', 'testflight', 'bug']
               });
             }
