@@ -402,7 +402,52 @@ struct NotificationServiceTests {
         #expect(ctx.mockCenter.addedRequests.isEmpty)
     }
 
+    @Test("rescheduleAllNotifications sorts by soonest-first and caps at maxPendingNotifications")
+    @MainActor
+    func rescheduleAllSortsAndCaps() async throws {
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+
+        // Create more reminders than the cap, in reverse chronological order so
+        // we can verify the implementation sorts correctly (not just truncates
+        // in insertion order).
+        let cap = NotificationConstants.maxPendingNotifications
+        let total = cap + 5
+        var expectedSoonestIds: [String] = []
+        for i in 0..<total {
+            // i=0 -> farthest in future, i=total-1 -> soonest
+            let secondsAhead = TimeInterval((total - i) * 60)
+            let reminder = ctx.createStackReminder(
+                stack: stack,
+                remindAt: Date().addingTimeInterval(secondsAhead)
+            )
+            if (total - i) <= cap {
+                expectedSoonestIds.append(reminder.id)
+            }
+        }
+        try ctx.save()
+
+        await ctx.service.rescheduleAllNotifications()
+
+        #expect(ctx.mockCenter.addedRequests.count == cap)
+        let scheduledIds = Set(ctx.mockCenter.addedRequests.map(\.identifier))
+        #expect(scheduledIds == Set(expectedSoonestIds))
+    }
+
     // MARK: - Notification Content Tests
+
+    @Test("notification uses time-sensitive interruption level so Focus modes don't swallow it")
+    @MainActor
+    func notificationIsTimeSensitive() async throws {
+        let ctx = try TestContext()
+        let stack = ctx.createStack()
+        let reminder = ctx.createStackReminder(stack: stack)
+        try ctx.save()
+
+        try await ctx.service.scheduleNotification(for: reminder)
+
+        #expect(ctx.mockCenter.addedRequests.first?.content.interruptionLevel == .timeSensitive)
+    }
 
     @Test("notification content has sound enabled")
     @MainActor

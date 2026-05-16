@@ -205,6 +205,8 @@ final class SmartNotificationService {
         content.body = formatDueDateBody(task: task, dueTime: dueTime)
         content.sound = .default
         content.categoryIdentifier = SmartNotificationCategory.dueDateCategory
+        // Due-date alerts are time-critical: break through Focus / Summary.
+        content.interruptionLevel = .timeSensitive
         content.userInfo = [
             "type": "smart-due-date",
             "taskId": task.id
@@ -371,6 +373,8 @@ final class SmartNotificationService {
             content.body = "\"\(task.title)\" was due \(formatRelativeTime(task.dueTime ?? Date()))"
             content.sound = .default
             content.categoryIdentifier = SmartNotificationCategory.overdueCategory
+            // Overdue is by definition time-sensitive; bypass Focus / Summary.
+            content.interruptionLevel = .timeSensitive
             content.userInfo = [
                 "type": "smart-overdue",
                 "taskId": task.id
