@@ -128,7 +128,7 @@ struct AuthServiceClerk422Tests {
 
     /// Scenario: A background refresh (BG fetch, silent push, app-launch
     /// pre-foreground validation) sees Clerk 422 twice. The auth layer must
-    /// NOT call signOut() \u2014 instead, set `needsReauthentication` so the next
+    /// NOT call signOut() — instead, set `needsReauthentication` so the next
     /// foreground entry handles re-auth gracefully.
     @Test("Background 422 simulation: needsReauthentication is set without signing out")
     func testBackground422DoesNotSignOut() async {
@@ -212,7 +212,7 @@ struct AuthServiceClerk422Tests {
     func testHandleDeferredSignOutIdempotent() async {
         let mockAuth = MockAuthService()
         mockAuth.mockSignIn(userId: "user-1")
-        // needsReauthentication is false by default \u2014 the user is just
+        // needsReauthentication is false by default — the user is just
         // foregrounding normally.
 
         await mockAuth.handleDeferredSignOut()
@@ -222,6 +222,31 @@ struct AuthServiceClerk422Tests {
                 "handleDeferredSignOut must not sign out a healthy session")
         #expect(mockAuth.needsReauthentication == false)
         #expect(mockAuth.deferredSignOutInvocations == 1)
+    }
+
+    /// Regression test for the reviewer-flagged sequencing bug: after a
+    /// deferred sign-out runs, even if a stray `refreshSessionIfNeeded` slips
+    /// past `RootView`'s early-return guard the state must remain consistent.
+    /// (`RootView` short-circuits with `return` after `handleDeferredSignOut`
+    /// to avoid kicking a refresh against a now-nil Clerk session, but we
+    /// double-check the invariant here.)
+    @Test("Deferred sign-out + subsequent refresh stays consistent")
+    func testDeferredSignOutFollowedByRefreshIsConsistent() async {
+        let mockAuth = MockAuthService()
+        mockAuth.mockSignIn(userId: "user-1")
+        mockAuth.mockNeedsReauthentication()
+
+        await mockAuth.handleDeferredSignOut()
+
+        #expect(mockAuth.isAuthenticated == false)
+        #expect(mockAuth.needsReauthentication == false)
+
+        // Stray refresh after sign-out: must not regress state.
+        await mockAuth.refreshSessionIfNeeded(context: .foreground)
+
+        #expect(mockAuth.isAuthenticated == false,
+                "Refresh after deferred sign-out must not re-authenticate the user")
+        #expect(mockAuth.needsReauthentication == false)
     }
 
     // MARK: - SessionInvalidationReason carries .clerk422Confirmed

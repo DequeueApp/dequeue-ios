@@ -198,17 +198,22 @@ final class ClerkAuthService: AuthServiceProtocol {
         let wasAuthenticated = isAuthenticated
         let previousUserId = currentUserId
 
-        // Attempt to load/refresh session from Clerk servers
+        // Attempt to load/refresh session from Clerk servers.
         // This validates the session is still valid and refreshes tokens.
         // For 422 specifically (Clerk's token endpoint occasionally flakes during
         // token rotation), we retry once with a fresh refresh before declaring the
         // session dead — but only in foreground. See refreshClientWithRetry below.
+        //
+        // The typed `RefreshClientOutcome` lets the catch-block path distinguish
+        // the "422 → retry → second 422" foreground case from a plain failure,
+        // without needing an `inout` flag the caller has to remember to read.
+        let outcome = await refreshClientWithRetry(context: context)
         var refreshError: Error?
-        var saw422After422 = false
-        do {
-            try await refreshClientWithRetry(context: context, status: &saw422After422)
-        } catch {
-            refreshError = error
+        var consecutiveClerk422 = false
+        if let outcomeError = outcome.error {
+            refreshError = outcomeError
+            consecutiveClerk422 = outcome == .consecutiveClerk422(outcomeError)
+            let error = outcomeError
             // Only report unexpected errors to Sentry — not 401s, 422s, or Clerk internal errors.
             //
             // 401 Unauthorized: When a Clerk session is revoked server-side,
@@ -240,23 +245,21 @@ final class ClerkAuthService: AuthServiceProtocol {
             }
             // 422 handling — see file-level docs at AuthContext.
             //
-            // Foreground + saw422After422 (i.e. retry also returned 422):
+            // Foreground + consecutiveClerk422 (retry path returned 422 twice):
             //   The session is genuinely unrecoverable. Force sign-out so the
-            //   existing AuthView shows. This matches prior behaviour, just
-            //   gated on the *retry* also failing.
+            //   existing AuthView shows. This matches the prior behaviour,
+            //   just gated on the *retry* also failing.
             //
-            // Foreground + single 422 not yet retried:
-            //   Should not reach here — refreshClientWithRetry would have either
-            //   recovered (no throw) or thrown the *second* error (saw422After422 = true).
-            //
-            // Background + 422 (any count):
-            //   Never sign out. Surface `needsReauthentication` instead so the
-            //   UI re-prompts on next foreground entry. This is the core fix
-            //   for DEQ-282: prevents silent push / BG fetch / WebSocket
-            //   reconnect from logging users out.
+            // Any other 422 (background, or foreground non-retry path):
+            //   Never sign out. Surface `needsReauthentication` so the UI
+            //   re-prompts on next foreground entry. Background is the main
+            //   target (silent push / BG fetch / WebSocket reconnect); the
+            //   foreground non-retry path is a defensive fallback — a
+            //   deferred sign-out on next foreground entry is recoverable
+            //   while a spurious sign-out on a single 422 is the exact bug
+            //   this PR fixes, so we refuse to re-introduce it.
             if isExpected422 {
-                switch context {
-                case .foreground where saw422After422:
+                if context == .foreground && consecutiveClerk422 {
                     ErrorReportingService.addBreadcrumb(
                         category: "auth",
                         message: "Session permanently invalidated (422 twice) — forcing sign-out",
@@ -264,28 +267,15 @@ final class ClerkAuthService: AuthServiceProtocol {
                     )
                     try? await Clerk.shared.auth.signOut()
                     needsReauthentication = false
-                case .background, .foreground:
-                    // Background: always defer.
-                    // Foreground single-422: should not reach here (retry path
-                    // returns retry-error and sets saw422After422). If it does
-                    // — e.g. retry helper short-circuited unexpectedly — defer
-                    // rather than sign out. This is the conservative fallback:
-                    // a deferred sign-out on next foreground entry is
-                    // recoverable; a spurious sign-out on a single 422 is the
-                    // exact bug this PR fixes, so we refuse to re-introduce it.
-                    let contextLabel = context == .foreground
-                        ? "foreground-single-422" : "background"
+                } else {
                     ErrorReportingService.addBreadcrumb(
                         category: "auth",
                         message: "Session refresh 422 — deferring sign-out",
-                        data: ["source": "refreshSessionInBackground", "context": contextLabel]
+                        data: [
+                            "source": "refreshSessionInBackground",
+                            "context": context == .foreground ? "foreground-single-422" : "background"
+                        ]
                     )
-                    if context == .foreground {
-                        // Defensive log: this branch implies the retry helper
-                        // didn't run a retry, which would be a regression in
-                        // refreshClientWithRetry. Capture so we can find it.
-                        assertionFailure("foreground refresh saw 422 without going through retry path")
-                    }
                     needsReauthentication = true
                 }
             }
@@ -298,7 +288,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         if wasAuthenticated && !isAuthenticated {
             // Session was invalidated - determine reason
             let reason: SessionInvalidationReason
-            if saw422After422 {
+            if consecutiveClerk422 {
                 reason = .clerk422Confirmed
             } else if refreshError != nil {
                 reason = .networkError
@@ -359,28 +349,67 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     // MARK: - 422 retry helpers
 
+    /// Outcome of an attempted `Clerk.shared.refreshClient()` call, including
+    /// the foreground 422-retry path. Used by `refreshSessionInBackground` to
+    /// distinguish the three meaningful states without an `inout` flag.
+    enum RefreshClientOutcome: Equatable {
+        /// `refreshClient()` returned without error (possibly after one retry).
+        case success
+        /// Original call returned 422, the foreground retry was attempted, and
+        /// the retry *also* returned 422. The session is unrecoverable.
+        case consecutiveClerk422(Error)
+        /// Any other failure — may or may not be a single 422 (background
+        /// 422 lands here because we don't retry).
+        case failed(Error)
+
+        var error: Error? {
+            switch self {
+            case .success: return nil
+            case .consecutiveClerk422(let error), .failed(let error): return error
+            }
+        }
+
+        // Equatable: errors aren't Equatable so we compare by case only. This is
+        // fine for the one usage site that just checks `outcome == .consecutiveClerk422(...)`.
+        static func == (lhs: RefreshClientOutcome, rhs: RefreshClientOutcome) -> Bool {
+            switch (lhs, rhs) {
+            case (.success, .success):
+                return true
+            case (.consecutiveClerk422, .consecutiveClerk422):
+                return true
+            case (.failed, .failed):
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
     /// Calls `Clerk.shared.refreshClient()` and, in foreground context, retries
     /// once on 422 with a fresh token before giving up. Clerk's token endpoint
     /// occasionally returns 422 during token rotation; retrying with
     /// `skipCache: true` recovers in the common flake case.
     ///
-    /// On the rare second-422 path, sets `saw422After422 = true` and rethrows
-    /// the second error so the caller can decide how to react (sign out for
-    /// foreground, defer for background — see `refreshSessionInBackground`).
+    /// Returns a `RefreshClientOutcome` describing what happened. Background
+    /// context never retries — a 422 there returns `.failed(error)` and the
+    /// caller defers sign-out via `needsReauthentication`.
     @MainActor
-    private func refreshClientWithRetry(context: AuthContext, status: inout Bool) async throws {
+    private func refreshClientWithRetry(context: AuthContext) async -> RefreshClientOutcome {
         do {
             try await Clerk.shared.refreshClient()
+            return .success
         } catch {
-            // Only retry on 422 — other errors fall through immediately so the
-            // existing classification logic runs.
-            guard ClerkAuthService.isClerk422Error(error) else { throw error }
+            // Only retry on 422 — other errors return immediately so the
+            // existing classification logic runs unchanged.
+            guard ClerkAuthService.isClerk422Error(error) else {
+                return .failed(error)
+            }
 
             switch context {
             case .background:
-                // Never retry-and-signout in background. Rethrow so the caller
-                // sets needsReauthentication.
-                throw error
+                // Never retry-and-signout in background. Surface as `.failed`
+                // so the caller sets needsReauthentication.
+                return .failed(error)
             case .foreground:
                 ErrorReportingService.addBreadcrumb(
                     category: "auth",
@@ -394,12 +423,13 @@ final class ClerkAuthService: AuthServiceProtocol {
                 do {
                     try await Clerk.shared.refreshClient()
                     // Retry succeeded — silent recovery.
-                    return
+                    return .success
                 } catch {
                     if ClerkAuthService.isClerk422Error(error) {
-                        status = true
+                        return .consecutiveClerk422(error)
                     }
-                    throw error
+                    // Retry produced a non-422 error — treat as a plain failure.
+                    return .failed(error)
                 }
             }
         }
@@ -410,12 +440,12 @@ final class ClerkAuthService: AuthServiceProtocol {
     ///
     /// Detection strategy (most reliable → least):
     /// 1. `NSError.code == 422` scoped to a Clerk/HTTP-client domain. A bare
-    ///    `code == 422` could collide with unrelated network errors.
+    ///    `code == 422` could collide with unrelated network errors from
+    ///    other APIs, so the domain check is required.
     /// 2. `localizedDescription` matches Clerk SDK's "status code: 422"
     ///    string. Brittle but currently the only reliable signal the SDK
     ///    exposes; matches what `SyncManager+ErrorClassification` already
-    ///    uses, and `String(describing:)` for Clerk SDK errors also includes
-    ///    that substring.
+    ///    uses.
     static func isClerk422Error(_ error: Error) -> Bool {
         let nsError = error as NSError
         // Domain-scoped code check: Clerk/HTTPClient/general-Clerk domains.
@@ -428,12 +458,12 @@ final class ClerkAuthService: AuthServiceProtocol {
         }
         // String fallback — covers the case where the SDK wraps the underlying
         // HTTP error in a struct whose code isn't surfaced through NSError.
-        let desc = error.localizedDescription
-        if desc.contains("status code: 422") {
-            return true
-        }
-        let fullDesc = String(describing: error)
-        return fullDesc.contains("status code: 422")
+        // We intentionally do NOT fall back to `String(describing: error)`
+        // because it exposes internal Swift/ObjC representation that the SDK
+        // does not document as stable; if `localizedDescription` doesn't match
+        // we'd rather miss-detect and fall through than match unrelated errors
+        // that happen to mention "status code: 422" in a debug description.
+        return error.localizedDescription.contains("status code: 422")
     }
 
     @MainActor

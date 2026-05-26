@@ -453,9 +453,13 @@ struct RootView: View {
                     // session was dead (e.g. 422-twice during silent push), we
                     // deferred sign-out so we wouldn't kick the user mid-BG.
                     // Honour that now — the user is back in front of the app
-                    // and the AuthView will surface naturally.
+                    // and the AuthView will surface naturally. Skip the
+                    // refresh entirely (there's nothing left to refresh and
+                    // the `.onChange(of: isAuthenticated)` handler will tear
+                    // sync down for us).
                     if authService.needsReauthentication {
                         await authService.handleDeferredSignOut()
+                        return
                     }
 
                     // Refresh auth session when app becomes active.
