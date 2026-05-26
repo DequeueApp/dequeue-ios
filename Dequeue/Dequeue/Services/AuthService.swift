@@ -212,7 +212,12 @@ final class ClerkAuthService: AuthServiceProtocol {
         var didGetConsecutive422 = false
         if let error = outcome.error {
             refreshError = error
-            didGetConsecutive422 = outcome == .consecutiveClerk422(error)
+            // Pattern match (vs. `outcome == .consecutiveClerk422(error)`) because the
+            // custom `RefreshClientOutcome.==` only compares by case — the `error`
+            // argument would be ignored and implying structural equality is misleading.
+            if case .consecutiveClerk422 = outcome {
+                didGetConsecutive422 = true
+            }
             // Only report unexpected errors to Sentry — not 401s, 422s, or Clerk internal errors.
             //
             // 401 Unauthorized: When a Clerk session is revoked server-side,
@@ -343,7 +348,19 @@ final class ClerkAuthService: AuthServiceProtocol {
             message: "Performing deferred sign-out on foreground entry",
             data: ["trigger": "needsReauthentication"]
         )
-        try? await Clerk.shared.auth.signOut()
+        do {
+            try await Clerk.shared.auth.signOut()
+        } catch {
+            // Local teardown still has to happen — the session is confirmed
+            // dead regardless of whether the Clerk SDK call itself succeeded
+            // (e.g. transient network failure). Record a breadcrumb so the
+            // failure is visible in Sentry without bypassing local cleanup.
+            ErrorReportingService.addBreadcrumb(
+                category: "auth",
+                message: "Deferred Clerk signOut failed — tearing down locally",
+                data: ["error": error.localizedDescription]
+            )
+        }
         tearDownSignedOutState()
     }
 
@@ -419,6 +436,10 @@ final class ClerkAuthService: AuthServiceProtocol {
                 // Force a fresh JWT (skipCache: true). If the session is
                 // healthy and Clerk just flaked, this succeeds and the next
                 // refreshClient() will then succeed too.
+                // Warm the token cache; on success the next refreshClient()
+                // call sees a fresh JWT. If this fails we still try refreshClient()
+                // — a healthy session will recover, and a dead session will 422
+                // again, which we handle below by surfacing `.consecutiveClerk422`.
                 _ = try? await Clerk.shared.session?.getToken(.init(skipCache: true))
                 do {
                     try await Clerk.shared.refreshClient()
@@ -437,6 +458,12 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     /// Centralised 422 detection so both the retry helper and the catch block
     /// agree on what counts as a Clerk 422.
+    ///
+    /// **Caller contract:** only invoke with errors thrown from
+    /// `Clerk.shared.refreshClient()` or `Clerk.shared.session?.getToken()`.
+    /// The string fallback below is intentionally broad (it matches any error
+    /// whose `localizedDescription` mentions `"status code: 422"`) so it
+    /// could yield false positives if used in a wider context.
     ///
     /// Detection strategy (most reliable → least):
     /// 1. `NSError.code == 422` scoped to a Clerk/HTTP-client domain. A bare
@@ -646,7 +673,9 @@ final class MockAuthService: AuthServiceProtocol {
 
     /// Tracks invocations of `refreshSessionIfNeeded(context:)` for tests.
     private(set) var refreshContexts: [AuthContext] = []
-    /// Tracks invocations of `handleDeferredSignOut()` for tests.
+    /// Number of times `handleDeferredSignOut()` was *called* (including
+    /// early-return cases where `needsReauthentication == false`). Tests use
+    /// this as a call-counter, not an operation-counter.
     private(set) var deferredSignOutInvocations: Int = 0
 
     private let sessionStateChangesStream: AsyncStream<SessionStateChange>

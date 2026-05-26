@@ -24,7 +24,7 @@ import Testing
 import Foundation
 @testable import Dequeue
 
-@Suite("AuthService Clerk 422 retry/defer Tests")
+@Suite("AuthService Clerk 422 retry/defer Tests", .serialized)
 @MainActor
 struct AuthServiceClerk422Tests {
     // MARK: - 422 classifier (used by ClerkAuthService.refreshClientWithRetry)
