@@ -209,11 +209,10 @@ final class ClerkAuthService: AuthServiceProtocol {
         // without needing an `inout` flag the caller has to remember to read.
         let outcome = await refreshClientWithRetry(context: context)
         var refreshError: Error?
-        var consecutiveClerk422 = false
-        if let outcomeError = outcome.error {
-            refreshError = outcomeError
-            consecutiveClerk422 = outcome == .consecutiveClerk422(outcomeError)
-            let error = outcomeError
+        var didGetConsecutive422 = false
+        if let error = outcome.error {
+            refreshError = error
+            didGetConsecutive422 = outcome == .consecutiveClerk422(error)
             // Only report unexpected errors to Sentry — not 401s, 422s, or Clerk internal errors.
             //
             // 401 Unauthorized: When a Clerk session is revoked server-side,
@@ -245,7 +244,7 @@ final class ClerkAuthService: AuthServiceProtocol {
             }
             // 422 handling — see file-level docs at AuthContext.
             //
-            // Foreground + consecutiveClerk422 (retry path returned 422 twice):
+            // Foreground + didGetConsecutive422 (retry path returned 422 twice):
             //   The session is genuinely unrecoverable. Force sign-out so the
             //   existing AuthView shows. This matches the prior behaviour,
             //   just gated on the *retry* also failing.
@@ -259,7 +258,7 @@ final class ClerkAuthService: AuthServiceProtocol {
             //   while a spurious sign-out on a single 422 is the exact bug
             //   this PR fixes, so we refuse to re-introduce it.
             if isExpected422 {
-                if context == .foreground && consecutiveClerk422 {
+                if context == .foreground && didGetConsecutive422 {
                     ErrorReportingService.addBreadcrumb(
                         category: "auth",
                         message: "Session permanently invalidated (422 twice) — forcing sign-out",
@@ -288,7 +287,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         if wasAuthenticated && !isAuthenticated {
             // Session was invalidated - determine reason
             let reason: SessionInvalidationReason
-            if consecutiveClerk422 {
+            if didGetConsecutive422 {
                 reason = .clerk422Confirmed
             } else if refreshError != nil {
                 reason = .networkError
@@ -333,7 +332,9 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     /// Called by the UI on foreground entry when `needsReauthentication` is true.
     /// Performs the deferred sign-out (previously skipped to avoid kicking the
-    /// user during a background context) so the standard AuthView flow takes over.
+    /// user during a background context) so the standard AuthView flow takes
+    /// over. Mirrors the cleanup `signOut()` does — Sentry user context, the
+    /// session-state stream, and the local auth-state cache are all torn down.
     @MainActor
     func handleDeferredSignOut() async {
         guard needsReauthentication else { return }
@@ -343,8 +344,7 @@ final class ClerkAuthService: AuthServiceProtocol {
             data: ["trigger": "needsReauthentication"]
         )
         try? await Clerk.shared.auth.signOut()
-        needsReauthentication = false
-        updateAuthState()
+        tearDownSignedOutState()
     }
 
     // MARK: - 422 retry helpers
@@ -448,11 +448,14 @@ final class ClerkAuthService: AuthServiceProtocol {
     ///    uses.
     static func isClerk422Error(_ error: Error) -> Bool {
         let nsError = error as NSError
-        // Domain-scoped code check: Clerk/HTTPClient/general-Clerk domains.
-        // The Clerk SDK uses several domain strings across error layers.
+        // Domain-scoped code check. We accept domains that *start with*
+        // "Clerk" or "ClerkKit" (e.g. "Clerk.ClerkAPIError",
+        // "ClerkKit.HTTPClientError") so an unrelated SDK with "HTTPClient"
+        // somewhere in its domain string (e.g. "MyLib.HTTPClientError")
+        // doesn't get misclassified as Clerk.
         if nsError.code == 422 {
             let domain = nsError.domain
-            if domain.contains("Clerk") || domain.contains("HTTPClient") {
+            if domain.hasPrefix("Clerk") || domain.hasPrefix("ClerkKit") {
                 return true
             }
         }
@@ -482,6 +485,14 @@ final class ClerkAuthService: AuthServiceProtocol {
     @MainActor
     func signOut() async throws {
         try await Clerk.shared.auth.signOut()
+        tearDownSignedOutState()
+    }
+
+    /// Shared teardown invoked from both `signOut()` and `handleDeferredSignOut()`.
+    /// Keeps the two paths in sync so deferred sign-out doesn't leave Sentry
+    /// user context or the session-state stream dangling.
+    @MainActor
+    private func tearDownSignedOutState() {
         isAuthenticated = false
         currentUserId = nil
         needsReauthentication = false

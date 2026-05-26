@@ -82,6 +82,20 @@ struct AuthServiceClerk422Tests {
                 "HTTPClient-layer 422 from ClerkKit must match")
     }
 
+    /// Reviewer-flagged adversarial case (round 2): a third-party SDK whose
+    /// error domain happens to contain `HTTPClient` somewhere in the middle
+    /// must NOT be misclassified as Clerk. The `hasPrefix` check guards this.
+    @Test("isClerk422Error rejects third-party domain containing 'HTTPClient'")
+    func testIsClerk422ErrorRejectsThirdPartyHTTPClientDomain() {
+        let error = NSError(
+            domain: "MyLib.HTTPClientError",
+            code: 422,
+            userInfo: nil
+        )
+        #expect(ClerkAuthService.isClerk422Error(error) == false,
+                "non-Clerk HTTPClient-style domain must not match")
+    }
+
     // MARK: - AuthContext threading via the protocol
 
     @Test("MockAuthService records foreground context from no-arg refresh (protocol default)")
