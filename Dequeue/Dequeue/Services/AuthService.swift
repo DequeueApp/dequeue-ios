@@ -212,9 +212,10 @@ final class ClerkAuthService: AuthServiceProtocol {
         var didGetConsecutive422 = false
         if let error = outcome.error {
             refreshError = error
-            // Pattern match (vs. `outcome == .consecutiveClerk422(error)`) because the
-            // custom `RefreshClientOutcome.==` only compares by case — the `error`
-            // argument would be ignored and implying structural equality is misleading.
+            // Pattern match (vs. an `==` comparison). `RefreshClientOutcome`
+            // deliberately does NOT conform to `Equatable` (associated `Error`
+            // isn't equatable, and a case-only `==` would silently drop the
+            // payload). Pattern matching is the documented way to discriminate.
             if case .consecutiveClerk422 = outcome {
                 didGetConsecutive422 = true
             }
@@ -283,12 +284,19 @@ final class ClerkAuthService: AuthServiceProtocol {
                     // don't leak past a 422-confirmed sign-out.
                     tearDownSignedOutState()
                 } else {
+                    // In practice only background 422 reaches this branch —
+                    // foreground 422 either succeeds via the retry path,
+                    // yields `.consecutiveClerk422`, or yields a non-422
+                    // `.failed` which fails the `isExpected422` check above.
+                    // Log the actual context value so future regressions —
+                    // e.g. a new code path that drops a foreground 422 into
+                    // `.failed` — are visible in Sentry.
                     ErrorReportingService.addBreadcrumb(
                         category: "auth",
                         message: "Session refresh 422 — deferring sign-out",
                         data: [
                             "source": "refreshSessionInBackground",
-                            "context": context == .foreground ? "foreground-single-422" : "background"
+                            "context": String(describing: context)
                         ]
                     )
                     needsReauthentication = true
@@ -518,15 +526,34 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     @MainActor
     func signOut() async throws {
-        try await Clerk.shared.auth.signOut()
+        do {
+            try await Clerk.shared.auth.signOut()
+        } catch {
+            // Clerk's call failed (e.g. transient network) but we still want
+            // the local state to reflect signed-out. Tear down, surface a
+            // breadcrumb, then propagate so callers can react.
+            ErrorReportingService.addBreadcrumb(
+                category: "auth",
+                message: "Clerk signOut threw — tearing down locally then propagating",
+                data: ["error": error.localizedDescription]
+            )
+            tearDownSignedOutState()
+            throw error
+        }
         tearDownSignedOutState()
     }
 
-    /// Shared teardown invoked from both `signOut()` and `handleDeferredSignOut()`.
-    /// Keeps the two paths in sync so deferred sign-out doesn't leave Sentry
-    /// user context or the session-state stream dangling.
+    /// Shared teardown invoked from `signOut()`, `handleDeferredSignOut()`,
+    /// and the foreground double-422 path. Keeps the three sign-out flows in
+    /// sync so none leaves Sentry user context, the session-state stream, or
+    /// the background refresh task dangling.
     @MainActor
     private func tearDownSignedOutState() {
+        // Cancel any in-flight session refresh — belt-and-suspenders. The
+        // task's own session-nil guard would also bail, but explicit cancel
+        // avoids any chance of it touching Clerk against a nil session.
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = nil
         isAuthenticated = false
         currentUserId = nil
         needsReauthentication = false
