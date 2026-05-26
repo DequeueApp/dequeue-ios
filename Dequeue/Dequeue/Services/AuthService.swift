@@ -68,9 +68,9 @@ protocol AuthServiceProtocol {
     /// refreshed (e.g. two consecutive Clerk 422s) but we deliberately deferred
     /// signing out so the UI could surface re-auth on next foreground.
     ///
-    /// The UI should consult this on `scenePhase == .active` and present the
-    /// sign-in flow when true. The auth service clears it after a successful
-    /// sign-in or sign-out.
+    /// The UI should consult this on `scenePhase == .active` and call
+    /// `handleDeferredSignOut()` before refreshing. Cleared by `signOut()` or
+    /// `handleDeferredSignOut()`.
     @MainActor var needsReauthentication: Bool { get }
     /// Stream of session state changes for observing unexpected auth events
     var sessionStateChanges: AsyncStream<SessionStateChange> { get }
@@ -264,24 +264,29 @@ final class ClerkAuthService: AuthServiceProtocol {
                     )
                     try? await Clerk.shared.auth.signOut()
                     needsReauthentication = false
-                case .background:
+                case .background, .foreground:
+                    // Background: always defer.
+                    // Foreground single-422: should not reach here (retry path
+                    // returns retry-error and sets saw422After422). If it does
+                    // — e.g. retry helper short-circuited unexpectedly — defer
+                    // rather than sign out. This is the conservative fallback:
+                    // a deferred sign-out on next foreground entry is
+                    // recoverable; a spurious sign-out on a single 422 is the
+                    // exact bug this PR fixes, so we refuse to re-introduce it.
+                    let contextLabel = context == .foreground
+                        ? "foreground-single-422" : "background"
                     ErrorReportingService.addBreadcrumb(
                         category: "auth",
-                        message: "Session refresh returned 422 in background — deferring sign-out",
-                        data: ["source": "refreshSessionInBackground", "context": "background"]
+                        message: "Session refresh 422 — deferring sign-out",
+                        data: ["source": "refreshSessionInBackground", "context": contextLabel]
                     )
+                    if context == .foreground {
+                        // Defensive log: this branch implies the retry helper
+                        // didn't run a retry, which would be a regression in
+                        // refreshClientWithRetry. Capture so we can find it.
+                        assertionFailure("foreground refresh saw 422 without going through retry path")
+                    }
                     needsReauthentication = true
-                case .foreground:
-                    // Single 422 in foreground that somehow reached the throw
-                    // path (defensive — shouldn't happen if retry returns the
-                    // retry-error). Treat as confirmed.
-                    ErrorReportingService.addBreadcrumb(
-                        category: "auth",
-                        message: "Session refresh 422 surfaced in foreground without explicit retry — forcing sign-out",
-                        data: ["source": "refreshSessionInBackground", "context": "foreground"]
-                    )
-                    try? await Clerk.shared.auth.signOut()
-                    needsReauthentication = false
                 }
             }
         }
@@ -402,12 +407,33 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     /// Centralised 422 detection so both the retry helper and the catch block
     /// agree on what counts as a Clerk 422.
+    ///
+    /// Detection strategy (most reliable → least):
+    /// 1. `NSError.code == 422` scoped to a Clerk/HTTP-client domain. A bare
+    ///    `code == 422` could collide with unrelated network errors.
+    /// 2. `localizedDescription` matches Clerk SDK's "status code: 422"
+    ///    string. Brittle but currently the only reliable signal the SDK
+    ///    exposes; matches what `SyncManager+ErrorClassification` already
+    ///    uses, and `String(describing:)` for Clerk SDK errors also includes
+    ///    that substring.
     static func isClerk422Error(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        // Domain-scoped code check: Clerk/HTTPClient/general-Clerk domains.
+        // The Clerk SDK uses several domain strings across error layers.
+        if nsError.code == 422 {
+            let domain = nsError.domain
+            if domain.contains("Clerk") || domain.contains("HTTPClient") {
+                return true
+            }
+        }
+        // String fallback — covers the case where the SDK wraps the underlying
+        // HTTP error in a struct whose code isn't surfaced through NSError.
         let desc = error.localizedDescription
+        if desc.contains("status code: 422") {
+            return true
+        }
         let fullDesc = String(describing: error)
-        return desc.contains("status code: 422")
-            || fullDesc.contains("status code: 422")
-            || (error as NSError).code == 422
+        return fullDesc.contains("status code: 422")
     }
 
     @MainActor

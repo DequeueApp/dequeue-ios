@@ -57,6 +57,31 @@ struct AuthServiceClerk422Tests {
         #expect(ClerkAuthService.isClerk422Error(e500) == false)
     }
 
+    /// Reviewer-flagged edge case: a bare `code == 422` from an unrelated
+    /// domain (e.g. a Foundation networking error layered onto a non-Clerk
+    /// API) must not be mistaken for a Clerk 422.
+    @Test("isClerk422Error rejects code-422 NSError from unrelated domain")
+    func testIsClerk422ErrorRejectsForeignDomainWithCode422() {
+        let foreignError = NSError(
+            domain: "com.example.OtherAPI",
+            code: 422,
+            userInfo: nil
+        )
+        #expect(ClerkAuthService.isClerk422Error(foreignError) == false,
+                "bare NSError(code: 422) from non-Clerk domain must not match")
+    }
+
+    @Test("isClerk422Error matches HTTPClient-domain 422")
+    func testIsClerk422ErrorMatchesHTTPClientDomain() {
+        let error = NSError(
+            domain: "ClerkKit.HTTPClientError",
+            code: 422,
+            userInfo: nil
+        )
+        #expect(ClerkAuthService.isClerk422Error(error) == true,
+                "HTTPClient-layer 422 from ClerkKit must match")
+    }
+
     // MARK: - AuthContext threading via the protocol
 
     @Test("MockAuthService records foreground context from no-arg refresh (protocol default)")
