@@ -73,8 +73,8 @@ struct UndoCompletionManagerTests {
         #expect(manager.progress == 0.0)
     }
 
-    @Test("Starting new completion cancels previous one")
-    func startingNewCompletionCancelsPrevious() throws {
+    @Test("Starting new completion supersedes and commits previous one")
+    func startingNewCompletionSupersedesPrevious() async throws {
         let container = try makeTestContainer()
         let context = container.mainContext
         let manager = UndoCompletionManager()
@@ -89,9 +89,80 @@ struct UndoCompletionManagerTests {
         manager.startDelayedCompletion(for: stack1)
         #expect(manager.pendingStack?.id == stack1.id)
 
+        // Tapping a second stack while the first is still pending must commit
+        // the first (not silently drop it) and make the second the new pending.
         manager.startDelayedCompletion(for: stack2)
         #expect(manager.pendingStack?.id == stack2.id)
         #expect(manager.hasPendingCompletion == true)
+
+        // First stack commit is dispatched on a Task; wait for it to land.
+        try await waitUntil(timeout: 2.0) { stack1.status == .completed }
+        #expect(stack1.status == .completed)
+        #expect(stack2.status == .active) // still in grace period
+
+        // Clean up the still-pending second stack.
+        manager.undoCompletion()
+    }
+
+    @Test("Regression: rapidly completing 5 stacks commits all of them")
+    func rapidCompletionsCommitAllStacks() async throws {
+        // This is the exact bug Victor reported: tap Complete on several stacks
+        // in quick succession (faster than the 5s grace period). Before the
+        // supersede fix, only the LAST stack actually committed and the others
+        // silently reverted. All 5 must end up completed.
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let manager = UndoCompletionManager()
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
+
+        var stacks: [Stack] = []
+        for index in 0..<5 {
+            let stack = Stack(title: "Stack \(index)", status: .active, sortOrder: index)
+            context.insert(stack)
+            stacks.append(stack)
+        }
+        try context.save()
+
+        // Rapid-fire complete each stack, faster than the grace period.
+        for stack in stacks {
+            manager.startDelayedCompletion(for: stack)
+        }
+
+        // The last stack is still pending; the first 4 must already be committed.
+        try await waitUntil(timeout: 2.0) {
+            stacks.dropLast().allSatisfy { $0.status == .completed }
+        }
+        for stack in stacks.dropLast() {
+            #expect(stack.status == .completed, "\(stack.title) should be completed (was \(stack.status))")
+        }
+        #expect(stacks.last?.status == .active) // still in grace period
+
+        // Let the grace period elapse so the last one commits too.
+        try await Task.sleep(for: .seconds(UndoCompletionManager.gracePeriodDuration + 0.5))
+        #expect(stacks.last?.status == .completed)
+        #expect(manager.hasPendingCompletion == false)
+    }
+
+    @Test("Re-tapping the same pending stack resets its timer without double-commit")
+    func reTappingSameStackResetsTimer() async throws {
+        let container = try makeTestContainer()
+        let context = container.mainContext
+        let manager = UndoCompletionManager()
+        manager.configure(modelContext: context, syncManager: nil, userId: "test-user", deviceId: "test-device")
+
+        let stack = Stack(title: "Test Stack", status: .active, sortOrder: 0)
+        context.insert(stack)
+        try context.save()
+
+        manager.startDelayedCompletion(for: stack)
+        try await Task.sleep(for: .seconds(0.5))
+        manager.startDelayedCompletion(for: stack) // same stack again
+
+        #expect(manager.pendingStack?.id == stack.id)
+        #expect(stack.status == .active) // must not have been committed early
+
+        manager.undoCompletion()
+        #expect(stack.status == .active)
     }
 
     // MARK: - Undo Completion Tests
@@ -317,6 +388,23 @@ struct UndoCompletionManagerTests {
     @Test("Grace period duration is 5 seconds")
     func gracePeriodDurationIsFiveSeconds() {
         #expect(UndoCompletionManager.gracePeriodDuration == 5.0)
+    }
+}
+
+// MARK: - Helpers
+
+/// Polls `condition` every 50ms up to `timeout`, returning when it first becomes
+/// true. Used to wait for async commits dispatched by `UndoCompletionManager`
+/// without baking the grace-period duration into every test.
+@MainActor
+private func waitUntil(
+    timeout: TimeInterval,
+    _ condition: @MainActor () -> Bool
+) async throws {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if condition() { return }
+        try await Task.sleep(for: .milliseconds(50))
     }
 }
 

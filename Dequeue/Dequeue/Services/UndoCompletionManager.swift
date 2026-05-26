@@ -16,6 +16,14 @@ private let logger = Logger(subsystem: "com.dequeue", category: "UndoCompletionM
 /// When a stack with no pending tasks is completed, instead of immediately marking it
 /// as completed, this manager holds the stack and starts a countdown timer. The user
 /// can undo the completion within the grace period, or let it proceed automatically.
+///
+/// ### Supersede semantics
+/// If a *different* stack is tapped to complete while a previous stack is still in
+/// its grace period, the previous stack is **immediately committed** (not dropped)
+/// and the new stack takes over the banner with a fresh timer. This matches the
+/// "rapid-fire complete" user flow where a user completes several stacks in a row
+/// faster than the grace period elapses — without this behavior, every stack except
+/// the last would silently revert and never sync.
 @MainActor
 @Observable
 final class UndoCompletionManager {
@@ -56,9 +64,19 @@ final class UndoCompletionManager {
 
     /// Start a delayed completion for the given stack.
     /// The stack will be marked as completed after the grace period unless undone.
+    ///
+    /// If a *different* stack is already pending, that prior stack is committed
+    /// immediately (not silently dropped) before the new timer starts.
     func startDelayedCompletion(for stack: Stack) {
-        // Cancel any existing pending completion
-        cancelPendingCompletion()
+        // Supersede: if a different stack is pending, commit it now.
+        // (If the same stack is re-tapped, just reset the timer.)
+        if let existing = pendingStack, existing.id != stack.id {
+            logger.info("Superseding pending completion: committing '\(existing.title)' immediately")
+            commitCompletion(of: existing)
+        }
+
+        // Tear down any existing timers and visible state before starting fresh.
+        cancelTimers()
 
         logger.info("Starting delayed completion for stack: \(stack.title)")
 
@@ -73,11 +91,11 @@ final class UndoCompletionManager {
             do {
                 try await Task.sleep(for: .seconds(Self.gracePeriodDuration))
 
-                // If we weren't cancelled, complete the stack
+                // If we weren't cancelled (and the same stack is still pending), commit it.
                 guard let self, !Task.isCancelled, self.pendingStack?.id == stack.id else {
                     return
                 }
-                self.completeStack()
+                self.commitPendingCompletion()
             } catch {
                 // Task was cancelled - that's expected if user tapped undo
                 logger.debug("Completion timer cancelled")
@@ -85,24 +103,28 @@ final class UndoCompletionManager {
         }
     }
 
-    /// Undo the pending completion and restore the stack to active state
+    /// Undo the pending completion and restore the stack to active state.
+    /// This drops the pending stack *without* committing it (intentional — the user
+    /// is explicitly cancelling).
     func undoCompletion() {
         guard let stack = pendingStack else { return }
 
         logger.info("Undoing completion for stack: \(stack.title)")
 
-        cancelPendingCompletion()
+        cancelTimers()
+        pendingStack = nil
+        progress = 0.0
     }
 
     // MARK: - Private Methods
 
-    private func cancelPendingCompletion() {
+    /// Cancel any in-flight timers (progress + completion sleep) without touching
+    /// `pendingStack`/`progress` state. Callers decide whether to clear that state.
+    private func cancelTimers() {
         completionTask?.cancel()
         completionTask = nil
         progressTask?.cancel()
         progressTask = nil
-        pendingStack = nil
-        progress = 0.0
     }
 
     private func startProgressAnimation() {
@@ -126,14 +148,28 @@ final class UndoCompletionManager {
         }
     }
 
-    private func completeStack() {
-        guard let stack = pendingStack,
-              let modelContext = modelContext else {
-            logger.error("Cannot complete stack: missing stack or context")
+    /// Called when the grace-period timer elapses for the currently pending stack.
+    /// Clears banner state and triggers the persistence commit.
+    private func commitPendingCompletion() {
+        guard let stack = pendingStack else { return }
+
+        pendingStack = nil
+        progress = 0.0
+        completionTask = nil
+        progressTask = nil
+
+        commitCompletion(of: stack)
+    }
+
+    /// Persist the completion for the given stack and trigger sync.
+    /// Used by both the natural grace-period commit path and the supersede path.
+    private func commitCompletion(of stack: Stack) {
+        guard let modelContext = modelContext else {
+            logger.error("Cannot complete stack: missing model context")
             return
         }
 
-        logger.info("Completing stack after grace period: \(stack.title)")
+        logger.info("Committing completion for stack: \(stack.title)")
 
         let stackService = StackService(
             modelContext: modelContext,
@@ -141,22 +177,18 @@ final class UndoCompletionManager {
             deviceId: deviceId,
             syncManager: syncManager
         )
+        let sync = syncManager
 
-        Task { [weak self] in
+        Task {
             do {
                 try await stackService.markAsCompleted(stack, completeAllTasks: true)
-                self?.syncManager?.triggerImmediatePush()
+                sync?.triggerImmediatePush()
             } catch {
                 logger.error("Failed to complete stack: \(error.localizedDescription)")
-                ErrorReportingService.capture(error: error, context: ["action": "delayedStackComplete"])
-            }
-
-            // Clear the pending state AFTER the async operation completes
-            await MainActor.run {
-                self?.pendingStack = nil
-                self?.progress = 0.0
-                self?.completionTask = nil
-                self?.progressTask = nil
+                ErrorReportingService.capture(
+                    error: error,
+                    context: ["action": "delayedStackComplete"]
+                )
             }
         }
     }
