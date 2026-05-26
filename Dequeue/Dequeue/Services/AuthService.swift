@@ -269,8 +269,19 @@ final class ClerkAuthService: AuthServiceProtocol {
                         message: "Session permanently invalidated (422 twice) — forcing sign-out",
                         data: ["source": "refreshSessionInBackground", "context": "foreground"]
                     )
-                    try? await Clerk.shared.auth.signOut()
-                    needsReauthentication = false
+                    do {
+                        try await Clerk.shared.auth.signOut()
+                    } catch {
+                        ErrorReportingService.addBreadcrumb(
+                            category: "auth",
+                            message: "Clerk signOut failed during 422 cleanup — proceeding with local teardown",
+                            data: ["error": error.localizedDescription]
+                        )
+                    }
+                    // Mirror the cleanup `signOut()` / `handleDeferredSignOut()`
+                    // do so the Sentry user context and session-state stream
+                    // don't leak past a 422-confirmed sign-out.
+                    tearDownSignedOutState()
                 } else {
                     ErrorReportingService.addBreadcrumb(
                         category: "auth",
@@ -440,7 +451,15 @@ final class ClerkAuthService: AuthServiceProtocol {
                 // call sees a fresh JWT. If this fails we still try refreshClient()
                 // — a healthy session will recover, and a dead session will 422
                 // again, which we handle below by surfacing `.consecutiveClerk422`.
-                _ = try? await Clerk.shared.session?.getToken(.init(skipCache: true))
+                do {
+                    _ = try await Clerk.shared.session?.getToken(.init(skipCache: true))
+                } catch {
+                    ErrorReportingService.addBreadcrumb(
+                        category: "auth",
+                        message: "skipCache token fetch failed before 422 retry",
+                        data: ["source": "refreshClientWithRetry", "error": error.localizedDescription]
+                    )
+                }
                 do {
                     try await Clerk.shared.refreshClient()
                     // Retry succeeded — silent recovery.
