@@ -342,6 +342,7 @@ private final class DefaultAuthService: AuthServiceProtocol, @unchecked Sendable
     var isAuthenticated: Bool { false }
     var isLoading: Bool { false }
     var currentUserId: String? { nil }
+    var needsReauthentication: Bool { false }
     var sessionStateChanges: AsyncStream<SessionStateChange> {
         AsyncStream { $0.finish() }
     }
@@ -349,7 +350,8 @@ private final class DefaultAuthService: AuthServiceProtocol, @unchecked Sendable
     func signOut() async throws {}
     func getAuthToken() async throws -> String { throw AuthError.notAuthenticated }
     func forceRefreshAuthToken() async throws -> String { throw AuthError.notAuthenticated }
-    func refreshSessionIfNeeded() async {}
+    func refreshSessionIfNeeded(context: AuthContext) async {}
+    func handleDeferredSignOut() async {}
 }
 
 private struct AuthServiceKey: EnvironmentKey {
