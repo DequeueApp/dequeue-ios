@@ -131,10 +131,10 @@ struct AuthServiceClerk422Tests {
         #expect(mockAuth.needsReauthentication == false)
     }
 
-    @Test("mockNeedsReauthentication() sets the flag")
+    @Test("needsReauthentication can be set directly on the mock")
     func testMockSetsNeedsReauthentication() {
         let mockAuth = MockAuthService()
-        mockAuth.mockNeedsReauthentication()
+        mockAuth.needsReauthentication = true
         #expect(mockAuth.needsReauthentication == true)
     }
 
@@ -153,7 +153,7 @@ struct AuthServiceClerk422Tests {
         // Simulate what `refreshSessionInBackground(context: .background)` does
         // when it observes a Clerk 422 in real life: it does NOT sign the user
         // out, it sets the deferred-reauth flag.
-        mockAuth.mockNeedsReauthentication()
+        mockAuth.needsReauthentication = true
 
         // Critical invariant: still authenticated locally. Background work that
         // raced with token rotation must not kick the user.
@@ -173,7 +173,7 @@ struct AuthServiceClerk422Tests {
     func testForegroundSignOutClearsDeferredFlag() async throws {
         let mockAuth = MockAuthService()
         mockAuth.mockSignIn(userId: "user-1")
-        mockAuth.mockNeedsReauthentication()
+        mockAuth.needsReauthentication = true
         #expect(mockAuth.needsReauthentication == true)
 
         try await mockAuth.signOut()
@@ -211,7 +211,7 @@ struct AuthServiceClerk422Tests {
     func testHandleDeferredSignOutClearsState() async {
         let mockAuth = MockAuthService()
         mockAuth.mockSignIn(userId: "user-1")
-        mockAuth.mockNeedsReauthentication()
+        mockAuth.needsReauthentication = true
 
         await mockAuth.handleDeferredSignOut()
 
@@ -219,7 +219,7 @@ struct AuthServiceClerk422Tests {
                 "handleDeferredSignOut must sign the user out so AuthView appears")
         #expect(mockAuth.needsReauthentication == false,
                 "handleDeferredSignOut must clear the flag")
-        #expect(mockAuth.deferredSignOutInvocations == 1)
+        #expect(mockAuth.handleDeferredSignOutCallCount == 1)
     }
 
     @Test("handleDeferredSignOut is idempotent when flag is clear")
@@ -235,7 +235,7 @@ struct AuthServiceClerk422Tests {
         #expect(mockAuth.isAuthenticated == true,
                 "handleDeferredSignOut must not sign out a healthy session")
         #expect(mockAuth.needsReauthentication == false)
-        #expect(mockAuth.deferredSignOutInvocations == 1)
+        #expect(mockAuth.handleDeferredSignOutCallCount == 1)
     }
 
     /// Regression test for the reviewer-flagged sequencing bug: after a
@@ -248,7 +248,7 @@ struct AuthServiceClerk422Tests {
     func testDeferredSignOutFollowedByRefreshIsConsistent() async {
         let mockAuth = MockAuthService()
         mockAuth.mockSignIn(userId: "user-1")
-        mockAuth.mockNeedsReauthentication()
+        mockAuth.needsReauthentication = true
 
         await mockAuth.handleDeferredSignOut()
 

@@ -380,7 +380,10 @@ final class ClerkAuthService: AuthServiceProtocol {
     /// Outcome of an attempted `Clerk.shared.refreshClient()` call, including
     /// the foreground 422-retry path. Used by `refreshSessionInBackground` to
     /// distinguish the three meaningful states without an `inout` flag.
-    enum RefreshClientOutcome: Equatable {
+    /// Consumers should pattern-match (`if case .consecutiveClerk422 = outcome`)
+    /// rather than relying on equality — the associated `Error` does not
+    /// support `Equatable` and a synthesized one would compare by reference.
+    enum RefreshClientOutcome {
         /// `refreshClient()` returned without error (possibly after one retry).
         case success
         /// Original call returned 422, the foreground retry was attempted, and
@@ -394,21 +397,6 @@ final class ClerkAuthService: AuthServiceProtocol {
             switch self {
             case .success: return nil
             case .consecutiveClerk422(let error), .failed(let error): return error
-            }
-        }
-
-        // Equatable: errors aren't Equatable so we compare by case only. This is
-        // fine for the one usage site that just checks `outcome == .consecutiveClerk422(...)`.
-        static func == (lhs: RefreshClientOutcome, rhs: RefreshClientOutcome) -> Bool {
-            switch (lhs, rhs) {
-            case (.success, .success):
-                return true
-            case (.consecutiveClerk422, .consecutiveClerk422):
-                return true
-            case (.failed, .failed):
-                return true
-            default:
-                return false
             }
         }
     }
@@ -695,7 +683,7 @@ final class MockAuthService: AuthServiceProtocol {
     /// Number of times `handleDeferredSignOut()` was *called* (including
     /// early-return cases where `needsReauthentication == false`). Tests use
     /// this as a call-counter, not an operation-counter.
-    private(set) var deferredSignOutInvocations: Int = 0
+    private(set) var handleDeferredSignOutCallCount: Int = 0
 
     private let sessionStateChangesStream: AsyncStream<SessionStateChange>
     nonisolated(unsafe) private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
@@ -750,17 +738,11 @@ final class MockAuthService: AuthServiceProtocol {
 
     @MainActor
     func handleDeferredSignOut() async {
-        deferredSignOutInvocations += 1
+        handleDeferredSignOutCallCount += 1
         guard needsReauthentication else { return }
         isAuthenticated = false
         currentUserId = nil
         needsReauthentication = false
-    }
-
-    /// For testing: simulate a background refresh deciding the session is dead.
-    @MainActor
-    func mockNeedsReauthentication() {
-        needsReauthentication = true
     }
 
     // For testing
