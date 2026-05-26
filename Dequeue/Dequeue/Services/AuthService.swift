@@ -83,6 +83,15 @@ protocol AuthServiceProtocol {
     /// signed-out state once `signOut()` returns or throws. A thrown error
     /// indicates only that the *Clerk-side* sign-out failed (e.g. transient
     /// network) and does NOT mean local state is still authenticated.
+    ///
+    /// **Note on `sessionStateChanges`:** the explicit user-initiated
+    /// `signOut()` does not emit a `.sessionInvalidated` event — the stream
+    /// simply finishes. The deferred / 422-confirmed paths *do* emit
+    /// `.sessionInvalidated(.clerk422Confirmed)` because consumers like
+    /// `SyncManager` need to react to an unexpected involuntary sign-out.
+    /// On an explicit sign-out the consumers observe the auth state change
+    /// directly (`isAuthenticated == false`) and tear down via the normal
+    /// auth-state observer in `RootView`.
     @MainActor func signOut() async throws
     @MainActor func getAuthToken() async throws -> String
     /// Force-fetches a fresh token from Clerk, bypassing the local cache.
@@ -216,20 +225,8 @@ final class ClerkAuthService: AuthServiceProtocol {
         // without needing an `inout` flag the caller has to remember to read.
         let outcome = await refreshClientWithRetry(context: context)
         var refreshError: Error?
-        // Whether the foreground retry path produced a second consecutive 422.
-        // Only meaningful inside the 422-handling block below; the post-refresh
-        // session-state block doesn't use this because the double-422 branch
-        // emits its own event and `return`s before reaching it.
-        var didGetConsecutive422 = false
         if let error = outcome.error {
             refreshError = error
-            // Pattern match (vs. an `==` comparison). `RefreshClientOutcome`
-            // deliberately does NOT conform to `Equatable` (associated `Error`
-            // isn't equatable, and a case-only `==` would silently drop the
-            // payload). Pattern matching is the documented way to discriminate.
-            if case .consecutiveClerk422 = outcome {
-                didGetConsecutive422 = true
-            }
             // Only report unexpected errors to Sentry — not 401s, 422s, or Clerk internal errors.
             //
             // 401 Unauthorized: When a Clerk session is revoked server-side,
@@ -274,8 +271,13 @@ final class ClerkAuthService: AuthServiceProtocol {
             //   deferred sign-out on next foreground entry is recoverable
             //   while a spurious sign-out on a single 422 is the exact bug
             //   this PR fixes, so we refuse to re-introduce it.
+            // Pattern match on the outcome rather than carrying a separate
+            // boolean. `RefreshClientOutcome` deliberately does NOT conform
+            // to `Equatable` (associated `Error` isn't equatable, and a
+            // case-only `==` would silently drop the payload); pattern
+            // matching is the documented way to discriminate cases.
             if isExpected422 {
-                if context == .foreground && didGetConsecutive422 {
+                if context == .foreground, case .consecutiveClerk422 = outcome {
                     ErrorReportingService.addBreadcrumb(
                         category: "auth",
                         message: "Session permanently invalidated (422 twice) — forcing sign-out",
