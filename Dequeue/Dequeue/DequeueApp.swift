@@ -449,9 +449,19 @@ struct RootView: View {
                 // Handle pending quick actions (home screen 3D Touch shortcuts)
                 handlePendingQuickAction()
                 Task {
-                    // Refresh auth session when app becomes active
-                    // This validates the session if we're back online after being offline
-                    await authService.refreshSessionIfNeeded()
+                    // If a background refresh previously confirmed the Clerk
+                    // session was dead (e.g. 422-twice during silent push), we
+                    // deferred sign-out so we wouldn't kick the user mid-BG.
+                    // Honour that now — the user is back in front of the app
+                    // and the AuthView will surface naturally.
+                    if authService.needsReauthentication {
+                        await authService.handleDeferredSignOut()
+                    }
+
+                    // Refresh auth session when app becomes active.
+                    // This validates the session if we're back online after being offline.
+                    // Context = foreground: a 422 here gets a single retry before sign-out.
+                    await authService.refreshSessionIfNeeded(context: .foreground)
 
                     if authService.isAuthenticated {
                         // Ensure sync is connected with fresh credentials

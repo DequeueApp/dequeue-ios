@@ -30,6 +30,29 @@ enum SessionInvalidationReason: Sendable, Equatable {
     case networkError
     /// Unknown reason
     case unknown
+    /// Clerk's token endpoint returned 422 twice in a row in the foreground —
+    /// session ID is unrecoverable and the user must sign in again.
+    case clerk422Confirmed
+}
+
+// MARK: - Auth Context
+
+/// Identifies whether an auth-related operation is happening because the user
+/// is actively driving the app (foreground) or because of background work
+/// (silent push, BG fetch, WebSocket reconnect, app-launch session validation
+/// before the user has interacted).
+///
+/// The auth layer uses this to decide how aggressively to react to errors —
+/// most importantly, **never** sign the user out from a background context.
+/// Clerk's token endpoint sometimes flakes with 422 during token rotation;
+/// in the foreground we retry once with a fresh token before giving up, and
+/// in the background we never sign out — we set `needsReauthentication` and
+/// let the next foreground entry present the sign-in UI.
+enum AuthContext: Sendable, Equatable {
+    /// User is actively driving the app (scene `.active`, explicit user action).
+    case foreground
+    /// App is doing background work without active user attention.
+    case background
 }
 
 // MARK: - Auth Service Protocol
@@ -41,6 +64,14 @@ protocol AuthServiceProtocol {
     @MainActor var isLoading: Bool { get }
     /// The unique identifier of the currently authenticated user, if any
     @MainActor var currentUserId: String? { get }
+    /// True when a background refresh confirmed the session can no longer be
+    /// refreshed (e.g. two consecutive Clerk 422s) but we deliberately deferred
+    /// signing out so the UI could surface re-auth on next foreground.
+    ///
+    /// The UI should consult this on `scenePhase == .active` and present the
+    /// sign-in flow when true. The auth service clears it after a successful
+    /// sign-in or sign-out.
+    @MainActor var needsReauthentication: Bool { get }
     /// Stream of session state changes for observing unexpected auth events
     var sessionStateChanges: AsyncStream<SessionStateChange> { get }
 
@@ -50,7 +81,22 @@ protocol AuthServiceProtocol {
     /// Force-fetches a fresh token from Clerk, bypassing the local cache.
     /// Use when a request returns 401 to retry with a guaranteed-fresh token.
     @MainActor func forceRefreshAuthToken() async throws -> String
-    @MainActor func refreshSessionIfNeeded() async
+    /// Refresh the session if cooldown allows. The `context` controls error
+    /// handling: `.foreground` retries 422 once before signing out;
+    /// `.background` never signs out and sets `needsReauthentication` instead.
+    @MainActor func refreshSessionIfNeeded(context: AuthContext) async
+    /// Called by the UI when the user re-foregrounds the app and we want to
+    /// present sign-in because a prior background refresh confirmed the
+    /// session is dead. Force-signs out so the existing Auth flow takes over,
+    /// and clears `needsReauthentication`.
+    @MainActor func handleDeferredSignOut() async
+}
+
+extension AuthServiceProtocol {
+    /// Backwards-compatible default — most existing call sites are foreground.
+    @MainActor func refreshSessionIfNeeded() async {
+        await refreshSessionIfNeeded(context: .foreground)
+    }
 }
 
 // MARK: - Clerk Auth Service
@@ -68,6 +114,9 @@ final class ClerkAuthService: AuthServiceProtocol {
     private(set) var isAuthenticated: Bool = false
     private(set) var isLoading: Bool = true
     private(set) var currentUserId: String?
+    /// Set when a background refresh confirmed the session is unrecoverable
+    /// but we deferred sign-out. UI consults this on foreground entry.
+    private(set) var needsReauthentication: Bool = false
 
     // Session state change stream for multi-device session handling
     // Note: continuation is nonisolated(unsafe) to allow access from deinit
@@ -115,10 +164,12 @@ final class ClerkAuthService: AuthServiceProtocol {
 
         // Step 4: Refresh session from network in background (non-blocking)
         // This validates the session is still valid server-side and refreshes tokens
-        // Cancel any existing refresh task to prevent race conditions
+        // Cancel any existing refresh task to prevent race conditions.
+        // App-launch refresh runs in `.background` context — the user has not
+        // yet interacted, so we must not throw them to sign-in if Clerk flakes.
         backgroundRefreshTask?.cancel()
         backgroundRefreshTask = Task {
-            await refreshSessionInBackground()
+            await refreshSessionInBackground(context: .background)
         }
     }
 
@@ -131,7 +182,7 @@ final class ClerkAuthService: AuthServiceProtocol {
     /// - Emits session state changes for multi-device scenarios
     /// - Errors are logged but don't crash the app (graceful degradation)
     @MainActor
-    private func refreshSessionInBackground() async {
+    private func refreshSessionInBackground(context: AuthContext) async {
         // Check network status - don't attempt if offline
         guard NetworkMonitor.shared.isConnected else {
             return
@@ -148,10 +199,14 @@ final class ClerkAuthService: AuthServiceProtocol {
         let previousUserId = currentUserId
 
         // Attempt to load/refresh session from Clerk servers
-        // This validates the session is still valid and refreshes tokens
+        // This validates the session is still valid and refreshes tokens.
+        // For 422 specifically (Clerk's token endpoint occasionally flakes during
+        // token rotation), we retry once with a fresh refresh before declaring the
+        // session dead — but only in foreground. See refreshClientWithRetry below.
         var refreshError: Error?
+        var saw422After422 = false
         do {
-            try await Clerk.shared.refreshClient()
+            try await refreshClientWithRetry(context: context, status: &saw422After422)
         } catch {
             refreshError = error
             // Only report unexpected errors to Sentry — not 401s, 422s, or Clerk internal errors.
@@ -174,8 +229,7 @@ final class ClerkAuthService: AuthServiceProtocol {
             // control — capturing them only generates noise (DEQUEUE-APP-T, 1,900+ events).
             let isExpected401 = error.localizedDescription.contains("401")
                 || (error as NSError).code == 401
-            let isExpected422 = error.localizedDescription.contains("status code: 422")
-                || (error as NSError).code == 422
+            let isExpected422 = ClerkAuthService.isClerk422Error(error)
             let isClerkInternalError = error.localizedDescription.contains("internal_clerk_error")
                 || (error as NSError).domain == "Clerk.ClerkAPIError"
             if !isExpected401 && !isExpected422 && !isClerkInternalError {
@@ -184,16 +238,51 @@ final class ClerkAuthService: AuthServiceProtocol {
                     context: ["source": "session_refresh", "offline_mode": !NetworkMonitor.shared.isConnected]
                 )
             }
-            // Force sign-out when Clerk returns 422 so `Clerk.shared.session` becomes nil.
-            // This prevents the guard at the top of this function from ever passing again
-            // for the revoked session, stopping the indefinite retry loop.
+            // 422 handling — see file-level docs at AuthContext.
+            //
+            // Foreground + saw422After422 (i.e. retry also returned 422):
+            //   The session is genuinely unrecoverable. Force sign-out so the
+            //   existing AuthView shows. This matches prior behaviour, just
+            //   gated on the *retry* also failing.
+            //
+            // Foreground + single 422 not yet retried:
+            //   Should not reach here — refreshClientWithRetry would have either
+            //   recovered (no throw) or thrown the *second* error (saw422After422 = true).
+            //
+            // Background + 422 (any count):
+            //   Never sign out. Surface `needsReauthentication` instead so the
+            //   UI re-prompts on next foreground entry. This is the core fix
+            //   for DEQ-282: prevents silent push / BG fetch / WebSocket
+            //   reconnect from logging users out.
             if isExpected422 {
-                ErrorReportingService.addBreadcrumb(
-                    category: "auth",
-                    message: "Session permanently invalidated (422) — forcing sign-out",
-                    data: ["source": "refreshSessionInBackground"]
-                )
-                try? await Clerk.shared.auth.signOut()
+                switch context {
+                case .foreground where saw422After422:
+                    ErrorReportingService.addBreadcrumb(
+                        category: "auth",
+                        message: "Session permanently invalidated (422 twice) — forcing sign-out",
+                        data: ["source": "refreshSessionInBackground", "context": "foreground"]
+                    )
+                    try? await Clerk.shared.auth.signOut()
+                    needsReauthentication = false
+                case .background:
+                    ErrorReportingService.addBreadcrumb(
+                        category: "auth",
+                        message: "Session refresh returned 422 in background — deferring sign-out",
+                        data: ["source": "refreshSessionInBackground", "context": "background"]
+                    )
+                    needsReauthentication = true
+                case .foreground:
+                    // Single 422 in foreground that somehow reached the throw
+                    // path (defensive — shouldn't happen if retry returns the
+                    // retry-error). Treat as confirmed.
+                    ErrorReportingService.addBreadcrumb(
+                        category: "auth",
+                        message: "Session refresh 422 surfaced in foreground without explicit retry — forcing sign-out",
+                        data: ["source": "refreshSessionInBackground", "context": "foreground"]
+                    )
+                    try? await Clerk.shared.auth.signOut()
+                    needsReauthentication = false
+                }
             }
         }
 
@@ -204,7 +293,9 @@ final class ClerkAuthService: AuthServiceProtocol {
         if wasAuthenticated && !isAuthenticated {
             // Session was invalidated - determine reason
             let reason: SessionInvalidationReason
-            if refreshError != nil {
+            if saw422After422 {
+                reason = .clerk422Confirmed
+            } else if refreshError != nil {
                 reason = .networkError
             } else {
                 // Session was valid locally but invalid on server
@@ -234,7 +325,7 @@ final class ClerkAuthService: AuthServiceProtocol {
     /// becomes available, we validate the session is still valid.
     /// Throttles refreshes to avoid excessive network calls on rapid app state changes.
     @MainActor
-    func refreshSessionIfNeeded() async {
+    func refreshSessionIfNeeded(context: AuthContext) async {
         // Throttle refreshes to avoid excessive network calls
         if let lastRefresh = lastRefreshTime,
            Date().timeIntervalSince(lastRefresh) < refreshThrottleInterval {
@@ -242,7 +333,81 @@ final class ClerkAuthService: AuthServiceProtocol {
         }
 
         lastRefreshTime = Date()
-        await refreshSessionInBackground()
+        await refreshSessionInBackground(context: context)
+    }
+
+    /// Called by the UI on foreground entry when `needsReauthentication` is true.
+    /// Performs the deferred sign-out (previously skipped to avoid kicking the
+    /// user during a background context) so the standard AuthView flow takes over.
+    @MainActor
+    func handleDeferredSignOut() async {
+        guard needsReauthentication else { return }
+        ErrorReportingService.addBreadcrumb(
+            category: "auth",
+            message: "Performing deferred sign-out on foreground entry",
+            data: ["trigger": "needsReauthentication"]
+        )
+        try? await Clerk.shared.auth.signOut()
+        needsReauthentication = false
+        updateAuthState()
+    }
+
+    // MARK: - 422 retry helpers
+
+    /// Calls `Clerk.shared.refreshClient()` and, in foreground context, retries
+    /// once on 422 with a fresh token before giving up. Clerk's token endpoint
+    /// occasionally returns 422 during token rotation; retrying with
+    /// `skipCache: true` recovers in the common flake case.
+    ///
+    /// On the rare second-422 path, sets `saw422After422 = true` and rethrows
+    /// the second error so the caller can decide how to react (sign out for
+    /// foreground, defer for background — see `refreshSessionInBackground`).
+    @MainActor
+    private func refreshClientWithRetry(context: AuthContext, status: inout Bool) async throws {
+        do {
+            try await Clerk.shared.refreshClient()
+        } catch {
+            // Only retry on 422 — other errors fall through immediately so the
+            // existing classification logic runs.
+            guard ClerkAuthService.isClerk422Error(error) else { throw error }
+
+            switch context {
+            case .background:
+                // Never retry-and-signout in background. Rethrow so the caller
+                // sets needsReauthentication.
+                throw error
+            case .foreground:
+                ErrorReportingService.addBreadcrumb(
+                    category: "auth",
+                    message: "Clerk 422 on refreshClient — retrying with fresh token",
+                    data: ["source": "refreshClientWithRetry"]
+                )
+                // Force a fresh JWT (skipCache: true). If the session is
+                // healthy and Clerk just flaked, this succeeds and the next
+                // refreshClient() will then succeed too.
+                _ = try? await Clerk.shared.session?.getToken(.init(skipCache: true))
+                do {
+                    try await Clerk.shared.refreshClient()
+                    // Retry succeeded — silent recovery.
+                    return
+                } catch {
+                    if ClerkAuthService.isClerk422Error(error) {
+                        status = true
+                    }
+                    throw error
+                }
+            }
+        }
+    }
+
+    /// Centralised 422 detection so both the retry helper and the catch block
+    /// agree on what counts as a Clerk 422.
+    static func isClerk422Error(_ error: Error) -> Bool {
+        let desc = error.localizedDescription
+        let fullDesc = String(describing: error)
+        return desc.contains("status code: 422")
+            || fullDesc.contains("status code: 422")
+            || (error as NSError).code == 422
     }
 
     @MainActor
@@ -263,6 +428,7 @@ final class ClerkAuthService: AuthServiceProtocol {
         try await Clerk.shared.auth.signOut()
         isAuthenticated = false
         currentUserId = nil
+        needsReauthentication = false
         ErrorReportingService.clearUser()
         // Clean up the session state change stream
         sessionStateChangeContinuation?.finish()
@@ -409,6 +575,12 @@ final class MockAuthService: AuthServiceProtocol {
     var isAuthenticated: Bool = false
     var isLoading: Bool = false
     var currentUserId: String?
+    var needsReauthentication: Bool = false
+
+    /// Tracks invocations of `refreshSessionIfNeeded(context:)` for tests.
+    private(set) var refreshContexts: [AuthContext] = []
+    /// Tracks invocations of `handleDeferredSignOut()` for tests.
+    private(set) var deferredSignOutInvocations: Int = 0
 
     private let sessionStateChangesStream: AsyncStream<SessionStateChange>
     nonisolated(unsafe) private var sessionStateChangeContinuation: AsyncStream<SessionStateChange>.Continuation?
@@ -436,6 +608,7 @@ final class MockAuthService: AuthServiceProtocol {
     func signOut() async throws {
         isAuthenticated = false
         currentUserId = nil
+        needsReauthentication = false
         sessionStateChangeContinuation?.finish()
         sessionStateChangeContinuation = nil
     }
@@ -455,8 +628,24 @@ final class MockAuthService: AuthServiceProtocol {
     }
 
     @MainActor
-    func refreshSessionIfNeeded() async {
+    func refreshSessionIfNeeded(context: AuthContext) async {
+        refreshContexts.append(context)
         // No-op for mock
+    }
+
+    @MainActor
+    func handleDeferredSignOut() async {
+        deferredSignOutInvocations += 1
+        guard needsReauthentication else { return }
+        isAuthenticated = false
+        currentUserId = nil
+        needsReauthentication = false
+    }
+
+    /// For testing: simulate a background refresh deciding the session is dead.
+    @MainActor
+    func mockNeedsReauthentication() {
+        needsReauthentication = true
     }
 
     // For testing
@@ -471,6 +660,7 @@ final class MockAuthService: AuthServiceProtocol {
     func mockSessionInvalidated(reason: SessionInvalidationReason = .revoked) {
         isAuthenticated = false
         currentUserId = nil
+        needsReauthentication = false
         sessionStateChangeContinuation?.yield(.sessionInvalidated(reason: reason))
     }
 
