@@ -76,6 +76,13 @@ protocol AuthServiceProtocol {
     var sessionStateChanges: AsyncStream<SessionStateChange> { get }
 
     @MainActor func configure() async
+    /// Signs the user out. Local state (`isAuthenticated`, `currentUserId`,
+    /// `needsReauthentication`, Sentry user context, session-state stream)
+    /// is **always** torn down after this call — even if the Clerk SDK call
+    /// itself throws — so callers can rely on the auth service reflecting
+    /// signed-out state once `signOut()` returns or throws. A thrown error
+    /// indicates only that the *Clerk-side* sign-out failed (e.g. transient
+    /// network) and does NOT mean local state is still authenticated.
     @MainActor func signOut() async throws
     @MainActor func getAuthToken() async throws -> String
     /// Force-fetches a fresh token from Clerk, bypassing the local cache.
@@ -357,6 +364,14 @@ final class ClerkAuthService: AuthServiceProtocol {
     /// This ensures that when returning from background or when network
     /// becomes available, we validate the session is still valid.
     /// Throttles refreshes to avoid excessive network calls on rapid app state changes.
+    ///
+    /// The throttle is intentionally **shared across contexts** — a recent
+    /// background refresh suppresses a follow-up foreground refresh inside
+    /// the same window. That's safe because `RootView` checks
+    /// `needsReauthentication` *before* calling this and short-circuits via
+    /// `handleDeferredSignOut()` when a prior background pass already
+    /// confirmed the session is dead. Don't "fix" the throttle to be
+    /// per-context without first auditing that flow.
     @MainActor
     func refreshSessionIfNeeded(context: AuthContext) async {
         // Throttle refreshes to avoid excessive network calls

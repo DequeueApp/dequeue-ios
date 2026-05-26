@@ -96,6 +96,27 @@ struct AuthServiceClerk422Tests {
                 "non-Clerk HTTPClient-style domain must not match")
     }
 
+    /// Documents the known limitation of the string fallback: it matches
+    /// any error whose `localizedDescription` contains `"status code: 422"`,
+    /// regardless of domain. The caller contract scopes invocations to
+    /// errors from `Clerk.shared.refreshClient()` /
+    /// `Clerk.shared.session?.getToken()`, so this isn't a bug in current
+    /// usage. If the fallback ever fires false-positives in production, the
+    /// domain-scoped path needs to be extended.
+    @Test("isClerk422Error string-fallback known limitation: non-Clerk description match")
+    func testIsClerk422ErrorStringFallbackKnownLimitation() {
+        let error = NSError(
+            domain: "com.example.OtherLib",
+            code: 0,
+            userInfo: [NSLocalizedDescriptionKey: "Request failed with status code: 422"]
+        )
+        // Pins the current behaviour. If this expectation flips to false in
+        // the future, the test caption is your audit trail — the change is
+        // intentional only if the caller contract is also tightened.
+        #expect(ClerkAuthService.isClerk422Error(error) == true,
+                "string fallback intentionally has no domain scope — caller contract handles this")
+    }
+
     // MARK: - AuthContext threading via the protocol
 
     @Test("MockAuthService records foreground context from no-arg refresh (protocol default)")
