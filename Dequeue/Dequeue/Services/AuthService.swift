@@ -298,6 +298,15 @@ final class ClerkAuthService: AuthServiceProtocol {
                     // do so the Sentry user context and session-state stream
                     // don't leak past a 422-confirmed sign-out.
                     tearDownSignedOutState()
+                    // Force-return so we skip the post-refresh `updateAuthState()`
+                    // call below. If the Clerk `signOut()` above failed (e.g.
+                    // transient network) `Clerk.shared.session` may still be
+                    // non-nil, and `updateAuthState()` would helpfully set
+                    // `isAuthenticated = true` again, split-braining the app
+                    // (SyncManager sees `.sessionInvalidated` and disconnects
+                    // while `RootView` keeps showing the authenticated UI).
+                    // The 422 retry confirms the session is dead, full stop.
+                    return
                 } else {
                     // In practice only background 422 reaches this branch —
                     // foreground 422 either succeeds via the retry path,
@@ -325,11 +334,11 @@ final class ClerkAuthService: AuthServiceProtocol {
         // Detect and emit session state changes for multi-device handling.
         //
         // NOTE: The double-422 foreground path emits its own
-        // `.sessionInvalidated(.clerk422Confirmed)` *before* calling
-        // `tearDownSignedOutState()` (which finishes the continuation).
-        // That path therefore yields here only if it somehow left the
-        // continuation alive — the `?.yield` will silently no-op in the
-        // common case, which is correct (avoids double-emit).
+        // `.sessionInvalidated(.clerk422Confirmed)` and then `return`s above,
+        // so we never reach this block on that path. That keeps us free of
+        // any concern about `updateAuthState()` re-deriving an authenticated
+        // state from a stale `Clerk.shared.session` after a confirmed-dead
+        // 422 sign-out.
         if wasAuthenticated && !isAuthenticated {
             // Session was invalidated - determine reason
             let reason: SessionInvalidationReason
@@ -415,6 +424,14 @@ final class ClerkAuthService: AuthServiceProtocol {
                 data: ["error": error.localizedDescription]
             )
         }
+        // Emit the invalidation event BEFORE tearing down. `tearDownSignedOutState()`
+        // finishes the continuation, after which any further yields are silently
+        // dropped. SyncManager and other listeners need this event so they can
+        // disconnect cleanly on the deferred sign-out path — mirroring what the
+        // synchronous double-422 path does inside `refreshSessionInBackground`.
+        sessionStateChangeContinuation?.yield(
+            .sessionInvalidated(reason: .clerk422Confirmed)
+        )
         tearDownSignedOutState()
     }
 
