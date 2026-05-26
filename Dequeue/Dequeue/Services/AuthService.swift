@@ -216,6 +216,10 @@ final class ClerkAuthService: AuthServiceProtocol {
         // without needing an `inout` flag the caller has to remember to read.
         let outcome = await refreshClientWithRetry(context: context)
         var refreshError: Error?
+        // Whether the foreground retry path produced a second consecutive 422.
+        // Only meaningful inside the 422-handling block below; the post-refresh
+        // session-state block doesn't use this because the double-422 branch
+        // emits its own event and `return`s before reaching it.
         var didGetConsecutive422 = false
         if let error = outcome.error {
             refreshError = error
@@ -335,16 +339,12 @@ final class ClerkAuthService: AuthServiceProtocol {
         //
         // NOTE: The double-422 foreground path emits its own
         // `.sessionInvalidated(.clerk422Confirmed)` and then `return`s above,
-        // so we never reach this block on that path. That keeps us free of
-        // any concern about `updateAuthState()` re-deriving an authenticated
-        // state from a stale `Clerk.shared.session` after a confirmed-dead
-        // 422 sign-out.
+        // so we never reach this block on that path. We therefore handle only
+        // the multi-device / server-side revocation cases here.
         if wasAuthenticated && !isAuthenticated {
             // Session was invalidated - determine reason
             let reason: SessionInvalidationReason
-            if didGetConsecutive422 {
-                reason = .clerk422Confirmed
-            } else if refreshError != nil {
+            if refreshError != nil {
                 reason = .networkError
             } else {
                 // Session was valid locally but invalid on server
@@ -604,8 +604,13 @@ final class ClerkAuthService: AuthServiceProtocol {
         // Cancel any in-flight session refresh — belt-and-suspenders. The
         // task's own session-nil guard would also bail, but explicit cancel
         // avoids any chance of it touching Clerk against a nil session.
+        // Safe to cancel mid-task: cancellation is cooperative and there's no
+        // remaining suspension point in this function for Task to observe.
         backgroundRefreshTask?.cancel()
         backgroundRefreshTask = nil
+        // Clear the refresh throttle so that an immediate re-login isn't
+        // silently no-op'd by the previous user's `lastRefreshTime`.
+        lastRefreshTime = nil
         isAuthenticated = false
         currentUserId = nil
         needsReauthentication = false
