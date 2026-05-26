@@ -279,6 +279,14 @@ final class ClerkAuthService: AuthServiceProtocol {
                             data: ["error": error.localizedDescription]
                         )
                     }
+                    // Emit `.sessionInvalidated(.clerk422Confirmed)` BEFORE
+                    // tearing down — `tearDownSignedOutState()` calls
+                    // `sessionStateChangeContinuation?.finish()`, after which
+                    // any further yields are silently dropped. SyncManager
+                    // and other listeners need this event to disconnect.
+                    sessionStateChangeContinuation?.yield(
+                        .sessionInvalidated(reason: .clerk422Confirmed)
+                    )
                     // Mirror the cleanup `signOut()` / `handleDeferredSignOut()`
                     // do so the Sentry user context and session-state stream
                     // don't leak past a 422-confirmed sign-out.
@@ -307,7 +315,14 @@ final class ClerkAuthService: AuthServiceProtocol {
         // Update auth state in case session was invalidated server-side
         updateAuthState()
 
-        // Detect and emit session state changes for multi-device handling
+        // Detect and emit session state changes for multi-device handling.
+        //
+        // NOTE: The double-422 foreground path emits its own
+        // `.sessionInvalidated(.clerk422Confirmed)` *before* calling
+        // `tearDownSignedOutState()` (which finishes the continuation).
+        // That path therefore yields here only if it somehow left the
+        // continuation alive — the `?.yield` will silently no-op in the
+        // common case, which is correct (avoids double-emit).
         if wasAuthenticated && !isAuthenticated {
             // Session was invalidated - determine reason
             let reason: SessionInvalidationReason
@@ -362,6 +377,11 @@ final class ClerkAuthService: AuthServiceProtocol {
     @MainActor
     func handleDeferredSignOut() async {
         guard needsReauthentication else { return }
+        // Claim the work BEFORE the first await so a concurrent
+        // `scenePhase == .active` Task (e.g. rapid inactive→active cycles
+        // during Face ID, multitasking, notification banners) doesn't pass
+        // the guard and double-call Clerk's signOut.
+        needsReauthentication = false
         ErrorReportingService.addBreadcrumb(
             category: "auth",
             message: "Performing deferred sign-out on foreground entry",
