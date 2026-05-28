@@ -111,6 +111,8 @@ private enum PushDefaults {
     /// handler before the system kills us.
     nonisolated static let silentPushSyncTimeout: TimeInterval = 20
     nonisolated static let registerEndpointPath = "/devices/push-token"
+    /// Backoff between the original POST and its retry on transient 5xx.
+    nonisolated static let tokenRegisterRetryDelay: TimeInterval = 0.5
 }
 
 // MARK: - Wire bodies
@@ -160,6 +162,11 @@ final class PushNotificationService: PushNotificationServiceProtocol {
     /// (20s); tests inject a much smaller value to keep the timeout path fast.
     private let silentPushSyncTimeout: TimeInterval
 
+    /// Backoff between the original POST and its retry on transient 5xx.
+    /// Production uses `PushDefaults.tokenRegisterRetryDelay` (500ms); tests
+    /// inject `0` so the retry test doesn't sleep for half a second.
+    private let tokenRegisterRetryDelay: TimeInterval
+
     private(set) var cachedDeviceToken: String?
 
     /// Designated init. Defaults wire production paths; tests use this same
@@ -173,6 +180,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         isAuthenticatedProvider: (@MainActor () -> Bool)? = nil,
         silentPushSyncer: SilentPushSyncing? = nil,
         silentPushSyncTimeout: TimeInterval = PushDefaults.silentPushSyncTimeout,
+        tokenRegisterRetryDelay: TimeInterval = PushDefaults.tokenRegisterRetryDelay,
         now: (@Sendable () -> Date)? = nil
     ) {
         // Resolve defaults inside the init so the closure literals don't need
@@ -199,6 +207,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         self.isAuthenticatedProvider = resolvedIsAuthenticated
         self.silentPushSyncer = silentPushSyncer
         self.silentPushSyncTimeout = silentPushSyncTimeout
+        self.tokenRegisterRetryDelay = tokenRegisterRetryDelay
         self.now = resolvedNow
         self.cachedDeviceToken = userDefaults.string(forKey: PushDefaults.cachedToken)
         // Keep the dedup cache modest — we only need the last few seconds of
@@ -521,11 +530,17 @@ final class PushNotificationService: PushNotificationServiceProtocol {
                     // Don't swallow cancellation — if the enclosing task got
                     // cancelled (e.g. sign-out racing a pending retry), break
                     // out of the loop cleanly instead of issuing a doomed
-                    // second POST against torn-down credentials.
-                    do {
-                        try await Task.sleep(nanoseconds: 500_000_000)
-                    } catch {
-                        return
+                    // second POST against torn-down credentials. Backoff is
+                    // injectable so tests can short-circuit it (default 500ms
+                    // in production).
+                    if tokenRegisterRetryDelay > 0 {
+                        do {
+                            try await Task.sleep(
+                                nanoseconds: UInt64(tokenRegisterRetryDelay * 1_000_000_000)
+                            )
+                        } catch {
+                            return
+                        }
                     }
                     if Task.isCancelled { return }
                     continue

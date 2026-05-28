@@ -108,14 +108,7 @@ final class DequeueAppDelegate: NSObject, UIApplicationDelegate {
         // value is Unix milliseconds; coerce via `NSNumber.int64Value` so we
         // never lose precision regardless of whether iOS hands us an Int,
         // Double, or NSNumber under the hood.
-        let sentAtMs: Int64? = {
-            let key = NotificationConstants.UserInfoKey.remoteSentAtMs
-            let legacyKey = NotificationConstants.UserInfoKey.localSentAtMs
-            if let nsNumber = (userInfo[key] as? NSNumber) ?? (userInfo[legacyKey] as? NSNumber) {
-                return nsNumber.int64Value
-            }
-            return nil
-        }()
+        let sentAtMs: Int64? = (userInfo[NotificationConstants.UserInfoKey.remoteSentAtMs] as? NSNumber)?.int64Value
         let payload = SilentPushPayload(reminderId: reminderId, sentAtMs: sentAtMs)
 
         Task { @MainActor in

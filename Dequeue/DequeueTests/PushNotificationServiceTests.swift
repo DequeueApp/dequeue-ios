@@ -241,6 +241,35 @@ struct PushNotificationServiceTests {
         #expect(deletes.isEmpty)
     }
 
+    @Test("Deregister still clears local state when auth-token fetch fails")
+    @MainActor
+    func deregisterClearsLocalStateEvenWhenTokenFetchFails() async throws {
+        let env = TestEnv()
+        // Register normally first so we have local state to clear.
+        StubURLProtocol.enqueue(method: "POST", response: .init(statusCode: 200))
+        let throwOnSignOut = ThrowingTokenProvider()
+        let service = env.makeService(
+            tokenProvider: { try await throwOnSignOut.getToken() },
+            deviceIdProvider: { "device-zzz" }
+        )
+        await service.handleAPNsTokenRegistered(Data([0xfa]))
+        #expect(service.cachedDeviceToken == "fa")
+
+        // Now flip the token provider so the deregister token fetch throws.
+        // This simulates Clerk session being torn down before the deregister
+        // network call (a real race seen in production sign-out).
+        throwOnSignOut.shouldThrow = true
+
+        await service.deregisterOnSignOut()
+
+        // Local state must be cleared regardless of the token-fetch failure —
+        // server-side reconciler will reap the orphaned token via APNs 410s.
+        #expect(service.cachedDeviceToken == nil)
+        #expect(env.defaults.object(forKey: "dequeue.push.cachedToken") == nil)
+        let deletes = StubURLProtocol.requests.filter { $0.method == "DELETE" }
+        #expect(deletes.isEmpty, "DELETE skipped when token unavailable")
+    }
+
     // MARK: Stale-token refresh
 
     @Test("Fresh last_registered_at skips re-POST")
@@ -479,7 +508,32 @@ private final class TestEnv {
             isAuthenticatedProvider: isAuthenticatedProvider,
             silentPushSyncer: silentPushSyncer,
             silentPushSyncTimeout: silentPushSyncTimeout,
+            // Skip the 500ms retry backoff in tests so the retry-on-5xx
+            // test doesn't sleep for half a second.
+            tokenRegisterRetryDelay: 0,
             now: now
         )
+    }
+}
+
+// MARK: - ThrowingTokenProvider
+
+/// Toggleable token provider used by `deregisterClearsLocalStateEvenWhenTokenFetchFails`.
+/// The first call (POST-time, during register) returns a real token; once
+/// `shouldThrow` flips true, subsequent calls (DELETE-time, during sign-out)
+/// throw — simulating the Clerk session being torn down between register
+/// and deregister.
+final class ThrowingTokenProvider: @unchecked Sendable {
+    private let storage = OSAllocatedUnfairLock(initialState: false)
+    var shouldThrow: Bool {
+        get { storage.withLock { $0 } }
+        set { storage.withLock { $0 = newValue } }
+    }
+
+    func getToken() async throws -> String {
+        if shouldThrow {
+            throw URLError(.userAuthenticationRequired)
+        }
+        return "bearer-token"
     }
 }
