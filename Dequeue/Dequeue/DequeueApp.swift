@@ -165,6 +165,16 @@ struct DequeueApp: App {
         notificationService = NotificationService(modelContext: sharedModelContainer.mainContext)
         UNUserNotificationCenter.current().delegate = notificationService
         notificationService.configureNotificationCategories()
+
+        // Wire AppContext so AppDelegate / NotificationService can reach the
+        // live services from non-MainActor callbacks (DEQ-283). The auth
+        // service is captured as the protocol type so the mock substitution
+        // for tests propagates here too.
+        AppContext.shared.configure(
+            syncManager: syncManager,
+            authService: authService,
+            pushService: PushNotificationService.shared
+        )
     }
 
     // MARK: - Store Migration
@@ -475,6 +485,13 @@ struct RootView: View {
                         await handleAppBecameActive()
                         await notificationService.updateAppBadge()
 
+                        // Push-token freshness check on foreground (DEQ-283).
+                        // No-op if last_registered_at is within the 7-day
+                        // window; otherwise re-POSTs to refresh server-side
+                        // last_seen_at. Catches OS token rotation, restore-
+                        // from-backup, and reinstall edge cases.
+                        await AppContext.shared.pushService?.refreshTokenIfStale()
+
                         // Update home screen quick action shortcuts with current context
                         #if os(iOS)
                         let activeStackName = QuickActionService.fetchActiveStackName(modelContext: modelContext)
@@ -581,6 +598,12 @@ struct RootView: View {
 
             // Connect to sync with retry
             await connectSyncWithRetry(userId: userId, maxRetries: 3)
+
+            // Register for APNs now that the user is signed in (DEQ-283).
+            // Registering pre-auth is pointless — the backend can't attach
+            // the token to a user — so we always gate registration on this
+            // path. Idempotent thanks to PushNotificationService.
+            await AppContext.shared.pushService?.registerIfSignedIn()
         } else {
             os_log("[Auth] handleAuthStateChange: Not authenticated, disconnecting sync")
             await syncManager.disconnect()

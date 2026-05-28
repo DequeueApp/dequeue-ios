@@ -599,10 +599,17 @@ final class ClerkAuthService: AuthServiceProtocol {
 
     /// Shared teardown invoked from `signOut()`, `handleDeferredSignOut()`,
     /// and the foreground double-422 path. Keeps the three sign-out flows in
-    /// sync so none leaves Sentry user context, the session-state stream, or
-    /// the background refresh task dangling.
+    /// sync so none leaves Sentry user context, the session-state stream,
+    /// the background refresh task, or APNs device-token registration
+    /// dangling.
     @MainActor
     private func tearDownSignedOutState() {
+        // Best-effort APNs deregistration. Fire-and-forget so a slow network
+        // doesn't block local state cleanup. PushNotificationService swallows
+        // failures into telemetry breadcrumbs. (DEQ-283)
+        if let pushService = AppContext.shared.pushService {
+            Task { @MainActor in await pushService.deregisterOnSignOut() }
+        }
         // Cancel any in-flight session refresh — belt-and-suspenders. The
         // task's own session-nil guard would also bail, but explicit cancel
         // avoids any chance of it touching Clerk against a nil session.

@@ -26,9 +26,19 @@ enum NotificationConstants: Sendable {
     }
 
     enum UserInfoKey: Sendable {
+        /// Key under which the local-notification path stores the reminder id.
+        /// Local pending notifications were already using this camelCase key
+        /// in production prior to DEQ-283, so it must stay stable to dedup
+        /// against existing scheduled notifications across an app update.
         nonisolated static let reminderId = "reminderId"
         nonisolated static let parentType = "parentType"
         nonisolated static let parentId = "parentId"
+        /// Key under which the backend APNs sender (PR 3, dequeue-api#201)
+        /// emits the reminder id. Snake-case is the API-wide convention.
+        nonisolated static let remoteReminderId = "reminder_id"
+        /// Key under which the backend emits the dispatch timestamp.
+        /// Per CLAUDE.md the value is Unix **milliseconds**.
+        nonisolated static let remoteSentAtMs = "sent_at"
     }
 
     /// Snooze durations in seconds
@@ -369,11 +379,76 @@ final class NotificationService: NSObject {
 // MARK: - Notification Delegate Support
 
 extension NotificationService: UNUserNotificationCenterDelegate {
+    /// Foreground delegate: decides whether to present a notification and
+    /// arbitrates the local-vs-remote dedup contract (DEQ-283).
+    ///
+    /// Three paths:
+    ///  1. Remote push arrived (trigger is `UNPushNotificationTrigger`):
+    ///     cancel any pending *local* request for the same reminderId so we
+    ///     don't double-fire. Then present the remote normally.
+    ///  2. Local fire arrived but a remote for the same reminderId landed
+    ///     within the last 60s: suppress the local with `[]`.
+    ///  3. Otherwise present normally with banner/sound/badge.
+    ///
+    /// Local `UNNotificationRequest.identifier` is already the `reminder.id`
+    /// (see `scheduleNotification(for:)`); the remote push carries the same
+    /// id in `userInfo["reminder_id"]` per the APNs payload contract.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        let userInfo = notification.request.content.userInfo
+        // Two key spellings, one canonical concept. Local notifications
+        // produced by `scheduleNotification(for:)` use the camelCase key
+        // (`UserInfoKey.reminderId`). Remote APNs payloads from the backend
+        // emit the snake_case key (`UserInfoKey.remoteReminderId`). Looking
+        // up both makes the dedup contract source-agnostic.
+        let reminderId = (userInfo[NotificationConstants.UserInfoKey.reminderId] as? String)
+            ?? (userInfo[NotificationConstants.UserInfoKey.remoteReminderId] as? String)
+        let isRemote = notification.request.trigger is UNPushNotificationTrigger
+
+        if let reminderId {
+            if isRemote {
+                // Remote-first: stamp the dedup cache BEFORE cancelling the
+                // pending local twin. If the local twin fires on a parallel
+                // queue between these two operations and enters `willPresent`
+                // on a separate thread, having the cache stamp in place first
+                // lets the local-first branch suppress it. Otherwise the
+                // ordering would briefly allow a double-banner in the
+                // single-runloop-tick race window.
+                await MainActor.run {
+                    AppContext.shared.pushService?.markRemoteDelivered(reminderId: reminderId)
+                    ErrorReportingService.addBreadcrumb(
+                        category: "push",
+                        message: "reminder_push_dedup_local_canceled",
+                        data: ["reminderId": reminderId]
+                    )
+                }
+                center.removePendingNotificationRequests(withIdentifiers: [reminderId])
+            } else {
+                // Local-first: suppress if a remote landed inside the window.
+                // Single MainActor hop — we both probe the dedup cache and
+                // (if we're suppressing) emit telemetry in the same
+                // synchronous block to minimise actor-hop overhead on the
+                // foreground notification-delivery hot path.
+                let suppress: Bool = await MainActor.run {
+                    let pushService = AppContext.shared.pushService
+                    let recent = pushService?.isRemoteRecentlyDelivered(reminderId: reminderId) ?? false
+                    if recent {
+                        ErrorReportingService.addBreadcrumb(
+                            category: "push",
+                            message: "reminder_push_dedup_remote_ignored",
+                            data: ["reminderId": reminderId]
+                        )
+                    }
+                    return recent
+                }
+                if suppress {
+                    return []
+                }
+            }
+        }
+        return [.banner, .sound, .badge]
     }
 
     nonisolated func userNotificationCenter(
