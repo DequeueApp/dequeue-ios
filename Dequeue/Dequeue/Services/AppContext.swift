@@ -61,5 +61,12 @@ final class AppContext {
         authService = nil
         pushService = nil
     }
+
+    /// Test-only setter that wires just the push service without requiring a
+    /// real `SyncManager` or `AuthService`. Callers must call `resetForTesting()`
+    /// in their teardown to avoid leaking state across tests.
+    func setPushServiceForTesting(_ service: any PushNotificationServiceProtocol) {
+        pushService = service
+    }
     #endif
 }

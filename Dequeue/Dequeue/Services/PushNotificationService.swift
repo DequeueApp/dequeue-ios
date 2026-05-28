@@ -21,6 +21,9 @@ import Foundation
 #if canImport(UIKit)
 import UIKit
 #endif
+#if os(macOS)
+import AppKit
+#endif
 import os.log
 import Sentry
 
@@ -292,15 +295,22 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         // attempt.
         #if canImport(UIKit) && os(iOS)
         UIApplication.shared.registerForRemoteNotifications()
-        Self.logger.info("Requested registerForRemoteNotifications")
+        Self.logger.info("Requested registerForRemoteNotifications (iOS)")
         ErrorReportingService.addBreadcrumb(
             category: "push",
             message: "Requested registerForRemoteNotifications"
         )
+        #elseif os(macOS)
+        NSApplication.shared.registerForRemoteNotifications()
+        Self.logger.info("Requested registerForRemoteNotifications (macOS)")
+        ErrorReportingService.addBreadcrumb(
+            category: "push",
+            message: "Requested registerForRemoteNotifications (macOS)"
+        )
         #else
         ErrorReportingService.addBreadcrumb(
             category: "push",
-            message: "registerForRemoteNotifications skipped (non-iOS platform)"
+            message: "registerForRemoteNotifications skipped (unsupported platform)"
         )
         #endif
     }
