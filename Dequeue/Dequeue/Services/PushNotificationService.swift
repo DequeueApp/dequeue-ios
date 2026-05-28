@@ -136,9 +136,19 @@ private struct DeviceTokenRegistrationBody: Encodable, Sendable {
 
 // MARK: - PushNotificationService
 
+/// `@MainActor` (not `actor`) because `UIApplication.shared.registerForRemoteNotifications()`
+/// must be called on the main thread and we call it directly from
+/// `registerIfSignedIn`. Putting that single `MainActor.run` inside an `actor`
+/// would work too, but the rest of the service touches `@MainActor` services
+/// (`AppContext.shared.authService.getAuthToken`, `Configuration`) so the
+/// pragmatic choice is to keep the whole class on the main actor. All public
+/// methods are async, so callers context-switch correctly.
 @MainActor
 final class PushNotificationService: PushNotificationServiceProtocol {
     static let shared = PushNotificationService()
+
+    /// Category-scoped logger matching the pattern in other Dequeue services.
+    private static let logger = Logger(subsystem: "com.dequeue", category: "PushNotificationService")
 
     // Dependencies — overridable for tests via the designated init.
     private let urlSession: URLSession
@@ -226,6 +236,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         cachedDeviceToken = hex
         userDefaults.set(hex, forKey: PushDefaults.cachedToken)
 
+        Self.logger.info("APNs token received (prefix=\(hex.prefix(8), privacy: .public))")
         ErrorReportingService.addBreadcrumb(
             category: "push",
             message: "APNs token received",
@@ -239,6 +250,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
     }
 
     func handleAPNsRegistrationFailed(_ error: Error) {
+        Self.logger.warning("APNs registration failed: \(error.localizedDescription, privacy: .public)")
         ErrorReportingService.addBreadcrumb(
             category: "push",
             message: "APNs registration failed",
@@ -267,6 +279,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         // attempt.
         #if canImport(UIKit) && os(iOS)
         UIApplication.shared.registerForRemoteNotifications()
+        Self.logger.info("Requested registerForRemoteNotifications")
         ErrorReportingService.addBreadcrumb(
             category: "push",
             message: "Requested registerForRemoteNotifications"
@@ -286,19 +299,19 @@ final class PushNotificationService: PushNotificationServiceProtocol {
             await registerIfSignedIn()
             return
         }
-        let lastRegistered = userDefaults.object(forKey: PushDefaults.lastRegisteredAt) as? Date
+        let lastRegistered = Self.readLastRegisteredAt(from: userDefaults)
         let isStale: Bool = {
             guard let lastRegistered else { return true }
             return now().timeIntervalSince(lastRegistered) > PushDefaults.staleInterval
         }()
         guard isStale else { return }
 
+        let ageDays = Int((now().timeIntervalSince(lastRegistered ?? .distantPast)) / 86_400)
+        Self.logger.info("Device token stale (age=\(ageDays, privacy: .public)d), re-registering")
         ErrorReportingService.addBreadcrumb(
             category: "push",
             message: "Device token stale, re-registering",
-            data: [
-                "age_days": Int((now().timeIntervalSince(lastRegistered ?? .distantPast)) / 86_400)
-            ]
+            data: ["age_days": ageDays]
         )
         await postDeviceToken(token)
     }
@@ -314,6 +327,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
 
         guard token != nil else {
             // Nothing to deregister server-side.
+            Self.logger.info("Sign-out: no cached token to deregister")
             ErrorReportingService.addBreadcrumb(
                 category: "push",
                 message: "Sign-out: no cached token to deregister"
@@ -354,12 +368,16 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         do {
             let (_, response) = try await urlSession.data(for: request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            Self.logger.info("device_token_deregistered status=\(status)")
             ErrorReportingService.addBreadcrumb(
                 category: "push",
                 message: "device_token_deregistered",
                 data: ["status": status]
             )
         } catch {
+            Self.logger.warning(
+                "device_token_deregister network failure: \(error.localizedDescription, privacy: .public)"
+            )
             ErrorReportingService.addBreadcrumb(
                 category: "push",
                 message: "device_token_deregister network failure",
@@ -367,6 +385,24 @@ final class PushNotificationService: PushNotificationServiceProtocol {
                 data: ["error": error.localizedDescription]
             )
         }
+    }
+
+    /// Reads the persisted `lastRegisteredAt` timestamp. Stored as Int64
+    /// milliseconds (per CLAUDE.md), with a one-time fallback for the legacy
+    /// Date storage shape so an app update doesn't force every device through
+    /// a refresh-then-rewrite cycle. Returns nil when no value is set.
+    private static func readLastRegisteredAt(from userDefaults: UserDefaults) -> Date? {
+        // Modern: Int64 ms.
+        if let raw = userDefaults.object(forKey: PushDefaults.lastRegisteredAt) {
+            if let nsNumber = raw as? NSNumber {
+                return Date(timeIntervalSince1970: nsNumber.doubleValue / 1_000.0)
+            }
+            // Legacy fallback: previous builds wrote NSDate directly.
+            if let date = raw as? Date {
+                return date
+            }
+        }
+        return nil
     }
 
     // MARK: - Dedup bookkeeping
@@ -516,7 +552,10 @@ final class PushNotificationService: PushNotificationServiceProtocol {
             let outcome = await attemptPost(request: request)
             switch outcome {
             case .success(let status):
-                userDefaults.set(now(), forKey: PushDefaults.lastRegisteredAt)
+                // Persist as Int64 milliseconds per CLAUDE.md storage convention.
+                let nowMs = Int64(now().timeIntervalSince1970 * 1_000)
+                userDefaults.set(nowMs, forKey: PushDefaults.lastRegisteredAt)
+                Self.logger.info("device_token_registered status=\(status) attempt=\(attempt)")
                 ErrorReportingService.addBreadcrumb(
                     category: "push",
                     message: "device_token_registered",

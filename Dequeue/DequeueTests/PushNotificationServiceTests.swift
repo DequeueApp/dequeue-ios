@@ -297,9 +297,10 @@ struct PushNotificationServiceTests {
         let service = env.makeService(deviceIdProvider: { "device-stale" })
 
         await service.handleAPNsTokenRegistered(Data([0x99]))
-        // Backdate last_registered_at to 10 days ago.
-        let tenDaysAgo = Date().addingTimeInterval(-10 * 24 * 60 * 60)
-        env.defaults.set(tenDaysAgo, forKey: "dequeue.push.lastRegisteredAt")
+        // Backdate last_registered_at to 10 days ago. Stored as Int64 ms
+        // per CLAUDE.md / the production write path.
+        let tenDaysAgoMs = Int64(Date().addingTimeInterval(-10 * 24 * 60 * 60).timeIntervalSince1970 * 1_000)
+        env.defaults.set(tenDaysAgoMs, forKey: "dequeue.push.lastRegisteredAt")
         let baseline = StubURLProtocol.requests.filter { $0.method == "POST" }.count
 
         StubURLProtocol.enqueue(method: "POST", response: .init(statusCode: 200))
@@ -446,9 +447,9 @@ struct PushNotificationServiceTests {
         // `isAuthenticatedProvider: { false }` reads the cached token but
         // still bails on the auth guard. This exercises the guard at the
         // top of `refreshTokenIfStale` even when local state otherwise
-        // looks ready to refresh.
+        // looks ready to refresh. Timestamp stored as Int64 ms.
         env.defaults.set("cached-old", forKey: "dequeue.push.cachedToken")
-        env.defaults.set(Date.distantPast, forKey: "dequeue.push.lastRegisteredAt")
+        env.defaults.set(Int64(Date.distantPast.timeIntervalSince1970 * 1_000), forKey: "dequeue.push.lastRegisteredAt")
         let service = env.makeService(isAuthenticatedProvider: { false })
 
         await service.refreshTokenIfStale()
