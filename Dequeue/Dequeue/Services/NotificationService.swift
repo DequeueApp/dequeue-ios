@@ -369,11 +369,59 @@ final class NotificationService: NSObject {
 // MARK: - Notification Delegate Support
 
 extension NotificationService: UNUserNotificationCenterDelegate {
+    /// Foreground delegate: decides whether to present a notification and
+    /// arbitrates the local-vs-remote dedup contract (DEQ-283).
+    ///
+    /// Three paths:
+    ///  1. Remote push arrived (trigger is `UNPushNotificationTrigger`):
+    ///     cancel any pending *local* request for the same reminderId so we
+    ///     don't double-fire. Then present the remote normally.
+    ///  2. Local fire arrived but a remote for the same reminderId landed
+    ///     within the last 60s: suppress the local with `[]`.
+    ///  3. Otherwise present normally with banner/sound/badge.
+    ///
+    /// Local `UNNotificationRequest.identifier` is already the `reminder.id`
+    /// (see `scheduleNotification(for:)`); the remote push carries the same
+    /// id in `userInfo["reminder_id"]` per the APNs payload contract.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        let userInfo = notification.request.content.userInfo
+        let reminderId = (userInfo[NotificationConstants.UserInfoKey.reminderId] as? String)
+            ?? (userInfo["reminder_id"] as? String)
+        let isRemote = notification.request.trigger is UNPushNotificationTrigger
+
+        if let reminderId {
+            if isRemote {
+                // Remote-first: cancel the pending local twin if any.
+                center.removePendingNotificationRequests(withIdentifiers: [reminderId])
+                await MainActor.run {
+                    AppContext.shared.pushService?.markRemoteDelivered(reminderId: reminderId)
+                    ErrorReportingService.addBreadcrumb(
+                        category: "push",
+                        message: "reminder_push_dedup_local_canceled",
+                        data: ["reminderId": reminderId]
+                    )
+                }
+            } else {
+                // Local-first: suppress if a remote landed inside the window.
+                let isRecent = await MainActor.run {
+                    AppContext.shared.pushService?.isRemoteRecentlyDelivered(reminderId: reminderId) ?? false
+                }
+                if isRecent {
+                    await MainActor.run {
+                        ErrorReportingService.addBreadcrumb(
+                            category: "push",
+                            message: "reminder_push_dedup_remote_ignored",
+                            data: ["reminderId": reminderId]
+                        )
+                    }
+                    return []
+                }
+            }
+        }
+        return [.banner, .sound, .badge]
     }
 
     nonisolated func userNotificationCenter(
