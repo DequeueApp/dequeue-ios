@@ -409,8 +409,13 @@ extension NotificationService: UNUserNotificationCenterDelegate {
 
         if let reminderId {
             if isRemote {
-                // Remote-first: cancel the pending local twin if any.
-                center.removePendingNotificationRequests(withIdentifiers: [reminderId])
+                // Remote-first: stamp the dedup cache BEFORE cancelling the
+                // pending local twin. If the local twin fires on a parallel
+                // queue between these two operations and enters `willPresent`
+                // on a separate thread, having the cache stamp in place first
+                // lets the local-first branch suppress it. Otherwise the
+                // ordering would briefly allow a double-banner in the
+                // single-runloop-tick race window.
                 await MainActor.run {
                     AppContext.shared.pushService?.markRemoteDelivered(reminderId: reminderId)
                     ErrorReportingService.addBreadcrumb(
@@ -419,6 +424,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
                         data: ["reminderId": reminderId]
                     )
                 }
+                center.removePendingNotificationRequests(withIdentifiers: [reminderId])
             } else {
                 // Local-first: suppress if a remote landed inside the window.
                 // Single MainActor hop — we both probe the dedup cache and

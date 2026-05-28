@@ -150,6 +150,11 @@ final class PushNotificationService: PushNotificationServiceProtocol {
     /// Category-scoped logger matching the pattern in other Dequeue services.
     private static let logger = Logger(subsystem: "com.dequeue", category: "PushNotificationService")
 
+    /// Shared `JSONEncoder` instance. Allocating one per token-registration
+    /// attempt is harmless but wasteful; this class is `@MainActor` so
+    /// sharing a static instance is safe.
+    private static let jsonEncoder = JSONEncoder()
+
     // Dependencies — overridable for tests via the designated init.
     private let urlSession: URLSession
     private let userDefaults: UserDefaults
@@ -347,6 +352,9 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         var request = URLRequest(url: deleteURL)
         request.httpMethod = "DELETE"
         request.timeoutInterval = 10
+        // Align hygiene with the POST handler. The 204 success path has no
+        // body but a non-2xx response may include an error envelope.
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
         // Best-effort token fetch — if it fails we still emit telemetry and
         // bail. The next launch will not be able to re-target this device
         // record from the API side, but the server-side reconciler will reap
@@ -387,22 +395,14 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         }
     }
 
-    /// Reads the persisted `lastRegisteredAt` timestamp. Stored as Int64
-    /// milliseconds (per CLAUDE.md), with a one-time fallback for the legacy
-    /// Date storage shape so an app update doesn't force every device through
-    /// a refresh-then-rewrite cycle. Returns nil when no value is set.
+    /// Reads the persisted `lastRegisteredAt` timestamp. Stored as `Int64`
+    /// milliseconds per the CLAUDE.md storage convention. Returns nil when
+    /// no value is set (first launch, sign-out wipe, or wrong type).
     private static func readLastRegisteredAt(from userDefaults: UserDefaults) -> Date? {
-        // Modern: Int64 ms.
-        if let raw = userDefaults.object(forKey: PushDefaults.lastRegisteredAt) {
-            if let nsNumber = raw as? NSNumber {
-                return Date(timeIntervalSince1970: nsNumber.doubleValue / 1_000.0)
-            }
-            // Legacy fallback: previous builds wrote NSDate directly.
-            if let date = raw as? Date {
-                return date
-            }
+        guard let nsNumber = userDefaults.object(forKey: PushDefaults.lastRegisteredAt) as? NSNumber else {
+            return nil
         }
-        return nil
+        return Date(timeIntervalSince1970: nsNumber.doubleValue / 1_000.0)
     }
 
     // MARK: - Dedup bookkeeping
@@ -520,7 +520,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         // an all-`String` Encodable. We still surface a defensive telemetry
         // breadcrumb if Swift surprises us.
         do {
-            request.httpBody = try JSONEncoder().encode(body)
+            request.httpBody = try Self.jsonEncoder.encode(body)
         } catch {
             ErrorReportingService.addBreadcrumb(
                 category: "push",

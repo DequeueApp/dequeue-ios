@@ -111,18 +111,50 @@ final class DequeueAppDelegate: NSObject, UIApplicationDelegate {
         let sentAtMs: Int64? = (userInfo[NotificationConstants.UserInfoKey.remoteSentAtMs] as? NSNumber)?.int64Value
         let payload = SilentPushPayload(reminderId: reminderId, sentAtMs: sentAtMs)
 
+        // Apple terminates the app if the completion handler is never called.
+        // Wrap delivery in a one-shot guard so any path — success, early-
+        // return, or task cancellation — still fires the callback exactly
+        // once. The guard is captured by reference via a class wrapper so the
+        // defer in the Task can see mutations.
+        let completion = OneShotCompletion(handler: completionHandler)
         Task { @MainActor in
+            defer { completion.callIfNeeded(.noData) }
             guard let push = AppContext.shared.pushService else {
-                completionHandler(.noData)
+                completion.callIfNeeded(.noData)
                 return
             }
             let result = await push.handleSilentPush(payload: payload)
             switch result {
-            case .newData: completionHandler(.newData)
-            case .noData: completionHandler(.noData)
-            case .failed: completionHandler(.failed)
+            case .newData: completion.callIfNeeded(.newData)
+            case .noData: completion.callIfNeeded(.noData)
+            case .failed: completion.callIfNeeded(.failed)
             }
         }
+    }
+}
+
+/// Tiny class wrapper that ensures a `UIBackgroundFetchResult` completion
+/// handler is invoked exactly once, even if the surrounding Task is cancelled
+/// or returns via multiple paths. Apple terminates the app if the handler
+/// never fires, so this is belt-and-suspenders for the silent-push wake.
+private final class OneShotCompletion: @unchecked Sendable {
+    private let handler: (UIBackgroundFetchResult) -> Void
+    private var fired = false
+    private let lock = NSLock()
+
+    init(handler: @escaping (UIBackgroundFetchResult) -> Void) {
+        self.handler = handler
+    }
+
+    func callIfNeeded(_ result: UIBackgroundFetchResult) {
+        lock.lock()
+        if fired {
+            lock.unlock()
+            return
+        }
+        fired = true
+        lock.unlock()
+        handler(result)
     }
 }
 
