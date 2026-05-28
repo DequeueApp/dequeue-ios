@@ -437,11 +437,14 @@ struct PushNotificationServiceTests {
     @MainActor
     func refreshTokenIfStaleNoopWhenSignedOut() async throws {
         let env = TestEnv()
-        let service = env.makeService(isAuthenticatedProvider: { false })
-        // Even if we'd previously cached a token + a stale timestamp, refresh
-        // should bail when the auth provider says we're signed out.
+        // Pre-populate the suite so a service built later with
+        // `isAuthenticatedProvider: { false }` reads the cached token but
+        // still bails on the auth guard. This exercises the guard at the
+        // top of `refreshTokenIfStale` even when local state otherwise
+        // looks ready to refresh.
         env.defaults.set("cached-old", forKey: "dequeue.push.cachedToken")
         env.defaults.set(Date.distantPast, forKey: "dequeue.push.lastRegisteredAt")
+        let service = env.makeService(isAuthenticatedProvider: { false })
 
         await service.refreshTokenIfStale()
 
