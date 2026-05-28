@@ -30,6 +30,8 @@ extension EnvironmentValues {
 struct DequeueApp: App {
     #if os(iOS)
     @UIApplicationDelegateAdaptor(DequeueAppDelegate.self) var appDelegate
+    #elseif os(macOS)
+    @NSApplicationDelegateAdaptor(DequeueAppDelegate.self) var appDelegate
     #endif
 
     @State private var authService: any AuthServiceProtocol

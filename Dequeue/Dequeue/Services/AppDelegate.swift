@@ -2,9 +2,9 @@
 //  AppDelegate.swift
 //  Dequeue
 //
-//  UIKit App Delegate for handling system callbacks that require UIApplicationDelegate:
-//   • Home screen quick actions (3D Touch / Haptic Touch shortcuts).
-//   • APNs remote-notification registration and silent push delivery (DEQ-283).
+//  Platform App Delegates for handling system callbacks:
+//   • iOS (UIApplicationDelegate): quick actions, APNs registration, silent push.
+//   • macOS (NSApplicationDelegate): APNs registration, silent push (DEQ-285).
 //
 
 #if os(iOS)
@@ -170,6 +170,103 @@ final class DequeueSceneDelegate: NSObject, UIWindowSceneDelegate {
     ) {
         let handled = QuickActionService.shared.handleShortcutItem(shortcutItem)
         completionHandler(handled)
+    }
+}
+#endif
+
+// MARK: - macOS NSApplicationDelegate
+
+#if os(macOS)
+import AppKit
+import os.log
+
+/// macOS app delegate handling APNs registration and silent-push delivery
+/// (DEQ-285). Mirrors the iOS `DequeueAppDelegate` surface using the
+/// `NSApplicationDelegate` equivalents.
+///
+/// Key differences from iOS:
+///  • Uses `NSApplication` instead of `UIApplication`.
+///  • `application(_:didReceiveRemoteNotification:)` has no
+///    `fetchCompletionHandler` — macOS does not gate background execution
+///    on a completion callback. We spawn a Task so the 20s REST sync runs
+///    without blocking the delegate call.
+///  • Time-Sensitive interruption level is iOS-only; macOS does not have it.
+final class DequeueAppDelegate: NSObject, NSApplicationDelegate {
+    private let logger = Logger(subsystem: "com.dequeue", category: "AppDelegate")
+
+    /// App-level cold-launch hook. Best-effort APNs registration if the user
+    /// is already signed in.
+    ///
+    /// `@NSApplicationDelegateAdaptor` does NOT guarantee that the SwiftUI
+    /// `App.init()` (which wires `AppContext`) completes before this delegate
+    /// fires. The sign-in completion path (`handleAuthStateChange`) and the
+    /// foreground-active path (scenePhase `.active` → `refreshTokenIfStale`)
+    /// provide the authoritative registration; this call is belt-and-suspenders
+    /// for warm launches where `AppContext` is already populated.
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Task { @MainActor in
+            guard let push = AppContext.shared.pushService else { return }
+            await push.registerIfSignedIn()
+        }
+    }
+
+    // MARK: - APNs registration callbacks
+
+    /// Apple-callback: macOS successfully provisioned a device token.
+    /// Forwards to `PushNotificationService` for hex-encoding + API upload.
+    func application(
+        _ application: NSApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task { @MainActor in
+            guard let push = AppContext.shared.pushService else { return }
+            await push.handleAPNsTokenRegistered(deviceToken)
+        }
+    }
+
+    /// Apple-callback: macOS could not provision a device token.
+    /// Telemetry only — Apple will call us again the next time we register.
+    func application(
+        _ application: NSApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        Task { @MainActor in
+            guard let push = AppContext.shared.pushService else { return }
+            push.handleAPNsRegistrationFailed(error)
+        }
+    }
+
+    /// Apple-callback: silent / background push arrived on macOS.
+    ///
+    /// Unlike iOS (`fetchCompletionHandler` form), macOS delivers this
+    /// synchronously and does not require a completion callback. macOS also
+    /// does not enforce a hard execution deadline the way iOS background-fetch
+    /// does, but we preserve the same 20s timeout inside
+    /// `PushNotificationService.handleSilentPush` for hygiene and to keep
+    /// behaviour symmetric across platforms.
+    ///
+    /// `userInfo` on macOS is `[String: Any]` (not `[AnyHashable: Any]`).
+    /// We still extract the Sendable `SilentPushPayload` before the Task
+    /// boundary to satisfy Swift 6 strict concurrency.
+    func application(
+        _ application: NSApplication,
+        didReceiveRemoteNotification userInfo: [String: Any]
+    ) {
+        // Extract Sendable fields before crossing the Task / actor boundary.
+        let reminderId = (userInfo[NotificationConstants.UserInfoKey.remoteReminderId] as? String)
+            ?? (userInfo[NotificationConstants.UserInfoKey.reminderId] as? String)
+        let sentAtMs: Int64? =
+            (userInfo[NotificationConstants.UserInfoKey.remoteSentAtMs] as? NSNumber)?.int64Value
+        let payload = SilentPushPayload(reminderId: reminderId, sentAtMs: sentAtMs)
+
+        Task { @MainActor in
+            guard let push = AppContext.shared.pushService else { return }
+            // Discard result — macOS has no fetchCompletionHandler to call.
+            // The 20s timeout inside handleSilentPush still caps the sync
+            // duration. On macOS the OS won't kill the Task for exceeding it,
+            // but capping here keeps CPU and network usage predictable.
+            _ = await push.handleSilentPush(payload: payload)
+        }
     }
 }
 #endif
