@@ -588,7 +588,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
                         // sync API does not yet return a per-call fetched
                         // count. Refining this to a true fetched-count
                         // (and emitting `.noData` when zero events were
-                        // applied) is the follow-up tracked in DEQ-286
+                        // applied) is the follow-up tracked in DEQ-284
                         // (delivery-reconciliation telemetry).
                         return .success(fetchedCount: 1)
                     } catch {
