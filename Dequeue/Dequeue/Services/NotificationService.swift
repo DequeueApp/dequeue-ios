@@ -39,9 +39,13 @@ enum NotificationConstants: Sendable {
         /// Key under which the backend emits the dispatch timestamp.
         /// Per CLAUDE.md the value is Unix **milliseconds**.
         nonisolated static let remoteSentAtMs = "sent_at"
-        /// Legacy camelCase spelling of `sent_at` accepted defensively in
-        /// case a non-backend path (e.g. a future Notification Service
-        /// Extension) re-keys the payload before delegate handlers see it.
+        /// Legacy camelCase spelling of `sent_at` accepted defensively. The
+        /// dequeue-api APNs sender (PR 3, dequeue-api#201) emits the
+        /// canonical `remoteSentAtMs` (`sent_at`); this fallback is a
+        /// belt-and-suspenders for any future Notification Service Extension
+        /// that re-keys the payload before delegate handlers see it.
+        /// Tracked in DEQ-284 (delivery-reconciliation telemetry) — if NSE
+        /// is not on the roadmap we can remove this fallback then.
         nonisolated static let localSentAtMs = "sentAt"
     }
 

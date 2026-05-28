@@ -322,7 +322,7 @@ struct PushNotificationServiceTests {
         let service = env.makeService(silentPushSyncer: syncer)
 
         let result = await service.handleSilentPush(
-            userInfo: [NotificationConstants.UserInfoKey.remoteReminderId: "rem-1"]
+            payload: SilentPushPayload(reminderId: "rem-1", sentAtMs: nil)
         )
 
         #expect(result == .newData)
@@ -338,37 +338,84 @@ struct PushNotificationServiceTests {
         let service = env.makeService(silentPushSyncer: syncer)
 
         let result = await service.handleSilentPush(
-            userInfo: [NotificationConstants.UserInfoKey.remoteReminderId: "rem-1"]
+            payload: SilentPushPayload(reminderId: "rem-1", sentAtMs: nil)
         )
 
         #expect(result == .failed)
     }
 
-    @Test("Silent-push sync timeout surfaces .failure(kind: timeout)")
+    @Test("Silent-push sync timeout surfaces .failed via tiny injected timeout")
     @MainActor
     func silentPushSyncTimesOut() async throws {
         let env = TestEnv()
         let syncer = FakeSyncer(behavior: .hang)
-        let service = env.makeService(silentPushSyncer: syncer)
+        // Inject a tiny timeout via init so we exercise the timeout path
+        // through `handleSilentPush` rather than poking at internals.
+        let service = env.makeService(silentPushSyncer: syncer, silentPushSyncTimeout: 0.2)
 
-        // Use a tiny custom timeout via the underlying runSilentPushSync to
-        // keep the test fast; handleSilentPush always uses the production
-        // 20s value so we exercise runSilentPushSync directly.
-        let outcome = await service.runSilentPushSync(timeout: 0.2)
+        let result = await service.handleSilentPush(
+            payload: SilentPushPayload(reminderId: "rem-1", sentAtMs: nil)
+        )
 
-        #expect(outcome == .failure(kind: "timeout"))
+        #expect(result == .failed)
     }
 
-    @Test("Missing reminder_id in userInfo is handled gracefully")
+    @Test("Missing reminder_id in payload is handled gracefully")
     @MainActor
-    func missingReminderIdInUserInfoIsHandledGracefully() async throws {
+    func missingReminderIdIsHandledGracefully() async throws {
         let env = TestEnv()
         // No silentPushSyncer + AppContext unconfigured → handleSilentPush
         // surfaces .failed (kind: "unavailable") without crashing on the
         // missing reminder_id.
         let service = env.makeService()
-        let result = await service.handleSilentPush(userInfo: ["other": "junk"])
+        let result = await service.handleSilentPush(
+            payload: SilentPushPayload(reminderId: nil, sentAtMs: nil)
+        )
         #expect(result == .failed)
+    }
+
+    // MARK: Coverage gap fills
+
+    @Test("handleAPNsRegistrationFailed emits telemetry without throwing")
+    @MainActor
+    func handleAPNsRegistrationFailedDoesNotThrow() async throws {
+        let env = TestEnv()
+        let service = env.makeService()
+        // Should not crash, should not change cached state.
+        service.handleAPNsRegistrationFailed(URLError(.notConnectedToInternet))
+        #expect(service.cachedDeviceToken == nil)
+    }
+
+    @Test("refreshTokenIfStale is a no-op when not authenticated")
+    @MainActor
+    func refreshTokenIfStaleNoopWhenSignedOut() async throws {
+        let env = TestEnv()
+        let service = env.makeService(isAuthenticatedProvider: { false })
+        // Even if we'd previously cached a token + a stale timestamp, refresh
+        // should bail when the auth provider says we're signed out.
+        env.defaults.set("cached-old", forKey: "dequeue.push.cachedToken")
+        env.defaults.set(Date.distantPast, forKey: "dequeue.push.lastRegisteredAt")
+
+        await service.refreshTokenIfStale()
+
+        let posts = StubURLProtocol.requests.filter { $0.method == "POST" }
+        #expect(posts.isEmpty)
+    }
+
+    @Test("refreshTokenIfStale falls through to registerIfSignedIn when no cached token")
+    @MainActor
+    func refreshTokenIfStaleFallsThroughToRegister() async throws {
+        let env = TestEnv()
+        // Authenticated but no token cached locally yet. Should hit the
+        // `registerIfSignedIn` path (which on non-iOS test runners is a
+        // breadcrumb-only no-op — the OS callback path isn't reachable from
+        // unit tests). Critically: should not POST anything yet.
+        let service = env.makeService()
+        await service.refreshTokenIfStale()
+
+        let posts = StubURLProtocol.requests.filter { $0.method == "POST" }
+        #expect(posts.isEmpty)
+        #expect(service.cachedDeviceToken == nil)
     }
 }
 
@@ -400,7 +447,9 @@ private final class TestEnv {
     func makeService(
         tokenProvider: @MainActor @escaping () async throws -> String = { "test-token" },
         deviceIdProvider: @Sendable @escaping () async -> String = { "test-device" },
+        isAuthenticatedProvider: @MainActor @escaping () -> Bool = { true },
         silentPushSyncer: SilentPushSyncing? = nil,
+        silentPushSyncTimeout: TimeInterval = 1.0,
         now: @Sendable @escaping () -> Date = { Date() }
     ) -> PushNotificationService {
         PushNotificationService(
@@ -409,8 +458,9 @@ private final class TestEnv {
             baseURLProvider: { URL(string: "https://api.test.dequeue.app/v1")! },
             tokenProvider: tokenProvider,
             deviceIdProvider: deviceIdProvider,
-            isAuthenticatedProvider: { true },
+            isAuthenticatedProvider: isAuthenticatedProvider,
             silentPushSyncer: silentPushSyncer,
+            silentPushSyncTimeout: silentPushSyncTimeout,
             now: now
         )
     }

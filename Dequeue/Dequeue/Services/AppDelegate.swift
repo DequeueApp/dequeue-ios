@@ -95,12 +95,22 @@ final class DequeueAppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
+        // `userInfo` is `[AnyHashable: Any]` which is not Sendable. Extract
+        // the Sendable values we need (reminder_id, sent_at) before the
+        // `Task { @MainActor }` boundary so we satisfy Swift 6 strict
+        // concurrency cleanly without leaking Any across actors.
+        let reminderId = (userInfo[NotificationConstants.UserInfoKey.remoteReminderId] as? String)
+            ?? (userInfo[NotificationConstants.UserInfoKey.reminderId] as? String)
+        let sentAtMs = userInfo[NotificationConstants.UserInfoKey.remoteSentAtMs] as? Double
+            ?? userInfo[NotificationConstants.UserInfoKey.localSentAtMs] as? Double
+        let payload = SilentPushPayload(reminderId: reminderId, sentAtMs: sentAtMs)
+
         Task { @MainActor in
             guard let push = AppContext.shared.pushService else {
                 completionHandler(.noData)
                 return
             }
-            let result = await push.handleSilentPush(userInfo: userInfo)
+            let result = await push.handleSilentPush(payload: payload)
             switch result {
             case .newData: completionHandler(.newData)
             case .noData: completionHandler(.noData)

@@ -70,7 +70,20 @@ protocol PushNotificationServiceProtocol: AnyObject, Sendable {
     /// Called by `application:didReceiveRemoteNotification:fetchCompletionHandler:`.
     /// Kicks off REST-only sync with a 20s hard deadline. Returns the appropriate
     /// `UIBackgroundFetchResult` for the silent-push completion handler.
-    func handleSilentPush(userInfo: [AnyHashable: Any]) async -> SilentPushResult
+    ///
+    /// `SilentPushPayload` is Sendable; the AppDelegate extracts it from the
+    /// non-Sendable `[AnyHashable: Any]` userInfo dictionary before crossing
+    /// the actor boundary.
+    func handleSilentPush(payload: SilentPushPayload) async -> SilentPushResult
+}
+
+/// Sendable extract of the fields we care about from an APNs userInfo
+/// dictionary. AppDelegate extracts these before crossing the Task boundary
+/// so we don't carry `Any` across actors (Swift 6 strict concurrency).
+struct SilentPushPayload: Sendable, Equatable {
+    let reminderId: String?
+    /// Backend-provided dispatch timestamp in Unix **milliseconds**.
+    let sentAtMs: Double?
 }
 
 /// Mirror of `UIBackgroundFetchResult` so cross-platform code can model the
@@ -95,6 +108,21 @@ private enum PushDefaults {
     /// handler before the system kills us.
     nonisolated static let silentPushSyncTimeout: TimeInterval = 20
     nonisolated static let registerEndpointPath = "/devices/push-token"
+}
+
+// MARK: - Wire bodies
+
+/// Wire shape for `POST /v1/devices/push-token`. Mirrors the request struct
+/// shipped in dequeue-api#200 (`DeviceTokenRequest`). Encodable so the body
+/// stays type-safe end-to-end — per CLAUDE.md no `[String: Any]` in service
+/// code.
+private struct DeviceTokenRegistrationBody: Encodable, Sendable {
+    let deviceId: String
+    let token: String
+    let platform: String
+    let environment: String
+    let bundleId: String
+    let appVersion: String
 }
 
 // MARK: - PushNotificationService
@@ -125,6 +153,10 @@ final class PushNotificationService: PushNotificationServiceProtocol {
     /// `SilentPushSyncing` without dragging in the full SyncManager surface.
     private let silentPushSyncer: SilentPushSyncing?
 
+    /// Silent-push REST sync timeout. Production uses `PushDefaults.silentPushSyncTimeout`
+    /// (20s); tests inject a much smaller value to keep the timeout path fast.
+    private let silentPushSyncTimeout: TimeInterval
+
     private(set) var cachedDeviceToken: String?
 
     /// Designated init. Defaults wire production paths; tests use this same
@@ -137,6 +169,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         deviceIdProvider: (@Sendable () async -> String)? = nil,
         isAuthenticatedProvider: (@MainActor () -> Bool)? = nil,
         silentPushSyncer: SilentPushSyncing? = nil,
+        silentPushSyncTimeout: TimeInterval = PushDefaults.silentPushSyncTimeout,
         now: (@Sendable () -> Date)? = nil
     ) {
         // Resolve defaults inside the init so the closure literals don't need
@@ -144,12 +177,16 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         // (Swift 6 doesn't allow actor-isolated default values for non-isolated
         // parameters and is unhappy with mixed isolation defaults).
         let resolvedBaseURL: @MainActor () -> URL = baseURLProvider ?? { Configuration.dequeueAPIBaseURL }
-        let resolvedTokenProvider: @MainActor () async throws -> String =
-            tokenProvider ?? { try await ClerkAuthTokenProvider.shared.getToken() }
+        let resolvedTokenProvider: @MainActor () async throws -> String = tokenProvider ?? {
+            guard let authService = AppContext.shared.authService else {
+                throw AuthError.notAuthenticated
+            }
+            return try await authService.getAuthToken()
+        }
         let resolvedDeviceIdProvider: @Sendable () async -> String =
             deviceIdProvider ?? { await DeviceService.shared.getDeviceId() }
         let resolvedIsAuthenticated: @MainActor () -> Bool =
-            isAuthenticatedProvider ?? { ClerkAuthTokenProvider.shared.isAuthenticated() }
+            isAuthenticatedProvider ?? { AppContext.shared.authService?.isAuthenticated ?? false }
         let resolvedNow: @Sendable () -> Date = now ?? { Date() }
         self.urlSession = urlSession
         self.userDefaults = userDefaults
@@ -158,6 +195,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         self.deviceIdProvider = resolvedDeviceIdProvider
         self.isAuthenticatedProvider = resolvedIsAuthenticated
         self.silentPushSyncer = silentPushSyncer
+        self.silentPushSyncTimeout = silentPushSyncTimeout
         self.now = resolvedNow
         self.cachedDeviceToken = userDefaults.string(forKey: PushDefaults.cachedToken)
         // Keep the dedup cache modest — we only need the last few seconds of
@@ -337,20 +375,13 @@ final class PushNotificationService: PushNotificationServiceProtocol {
 
     // MARK: - Silent push handler
 
-    func handleSilentPush(userInfo: [AnyHashable: Any]) async -> SilentPushResult {
-        // Extract telemetry props before we kick the sync — Sendable types only.
-        // Backend (PR 3, dequeue-api#201) emits snake_case keys; we also accept
-        // the local camelCase spelling for symmetry with the local-notification
-        // userInfo dictionaries we control on this side.
-        let reminderId = (userInfo[NotificationConstants.UserInfoKey.remoteReminderId] as? String)
-            ?? (userInfo[NotificationConstants.UserInfoKey.reminderId] as? String)
+    func handleSilentPush(payload: SilentPushPayload) async -> SilentPushResult {
+        let reminderId = payload.reminderId
         // `sent_at` is Unix **milliseconds** per the project-wide CLAUDE.md
         // convention (matches the dequeue-api wire format). Parsing this as
         // seconds would yield a Date ~50,000 years in the future and a
         // wildly negative ageMs.
-        let sentAtRawMs = userInfo[NotificationConstants.UserInfoKey.remoteSentAtMs] as? Double
-            ?? userInfo[NotificationConstants.UserInfoKey.localSentAtMs] as? Double
-        let sentAt = sentAtRawMs.map { Date(timeIntervalSince1970: $0 / 1_000.0) }
+        let sentAt = payload.sentAtMs.map { Date(timeIntervalSince1970: $0 / 1_000.0) }
         let ageMs: Int? = sentAt.map { Int(now().timeIntervalSince($0) * 1_000) }
 
         // Mark this reminder as remote-delivered so the foreground willPresent
@@ -369,7 +400,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         )
 
         let syncStart = now()
-        let result = await runSilentPushSync(timeout: PushDefaults.silentPushSyncTimeout)
+        let result = await runSilentPushSync(timeout: silentPushSyncTimeout)
         let durationMs = Int(now().timeIntervalSince(syncStart) * 1_000)
 
         switch result {
@@ -627,30 +658,6 @@ struct SyncManagerSilentPushAdapter: SilentPushSyncing {
     let syncManager: SyncManager
     func runRESTProjectionSync() async throws {
         try await syncManager.syncViaProjections()
-    }
-}
-
-// MARK: - ClerkAuthTokenProvider
-
-/// Thin static accessor over `ClerkKit` for use from non-MainActor contexts
-/// where we don't have an injected AuthServiceProtocol. We use the bound
-/// reference from `AppContext` first; on first launch (before AppContext is
-/// configured) we surface a soft failure that callers swallow as telemetry.
-@MainActor
-final class ClerkAuthTokenProvider {
-    static let shared = ClerkAuthTokenProvider()
-
-    private init() {}
-
-    func getToken() async throws -> String {
-        if let authService = AppContext.shared.authService {
-            return try await authService.getAuthToken()
-        }
-        throw AuthError.notAuthenticated
-    }
-
-    func isAuthenticated() -> Bool {
-        AppContext.shared.authService?.isAuthenticated ?? false
     }
 }
 
