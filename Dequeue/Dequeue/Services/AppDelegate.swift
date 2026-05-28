@@ -101,8 +101,18 @@ final class DequeueAppDelegate: NSObject, UIApplicationDelegate {
         // concurrency cleanly without leaking Any across actors.
         let reminderId = (userInfo[NotificationConstants.UserInfoKey.remoteReminderId] as? String)
             ?? (userInfo[NotificationConstants.UserInfoKey.reminderId] as? String)
-        let sentAtMs = userInfo[NotificationConstants.UserInfoKey.remoteSentAtMs] as? Double
-            ?? userInfo[NotificationConstants.UserInfoKey.localSentAtMs] as? Double
+        // APNs serialises JSON numbers as `NSNumber`. Per CLAUDE.md the wire
+        // value is Unix milliseconds; coerce via `NSNumber.int64Value` so we
+        // never lose precision regardless of whether iOS hands us an Int,
+        // Double, or NSNumber under the hood.
+        let sentAtMs: Int64? = {
+            let key = NotificationConstants.UserInfoKey.remoteSentAtMs
+            let legacyKey = NotificationConstants.UserInfoKey.localSentAtMs
+            if let nsNumber = (userInfo[key] as? NSNumber) ?? (userInfo[legacyKey] as? NSNumber) {
+                return nsNumber.int64Value
+            }
+            return nil
+        }()
         let payload = SilentPushPayload(reminderId: reminderId, sentAtMs: sentAtMs)
 
         Task { @MainActor in

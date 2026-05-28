@@ -82,8 +82,11 @@ protocol PushNotificationServiceProtocol: AnyObject, Sendable {
 /// so we don't carry `Any` across actors (Swift 6 strict concurrency).
 struct SilentPushPayload: Sendable, Equatable {
     let reminderId: String?
-    /// Backend-provided dispatch timestamp in Unix **milliseconds**.
-    let sentAtMs: Double?
+    /// Backend-provided dispatch timestamp in Unix **milliseconds**. Modelled
+    /// as `Int64` to match the project-wide CLAUDE.md timestamp convention.
+    /// Conversion to `Date` happens internally inside `handleSilentPush` by
+    /// dividing by 1_000.0 to land on a Double for `TimeInterval`.
+    let sentAtMs: Int64?
 }
 
 /// Mirror of `UIBackgroundFetchResult` so cross-platform code can model the
@@ -321,7 +324,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         // bail. The next launch will not be able to re-target this device
         // record from the API side, but the server-side reconciler will reap
         // stale tokens via APNs 410s.
-        let authToken: String?
+        let authToken: String
         do {
             authToken = try await tokenProvider()
         } catch {
@@ -333,9 +336,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
             )
             return
         }
-        if let authToken {
-            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
-        }
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
 
         do {
             let (_, response) = try await urlSession.data(for: request)
@@ -377,11 +378,12 @@ final class PushNotificationService: PushNotificationServiceProtocol {
 
     func handleSilentPush(payload: SilentPushPayload) async -> SilentPushResult {
         let reminderId = payload.reminderId
-        // `sent_at` is Unix **milliseconds** per the project-wide CLAUDE.md
-        // convention (matches the dequeue-api wire format). Parsing this as
-        // seconds would yield a Date ~50,000 years in the future and a
-        // wildly negative ageMs.
-        let sentAt = payload.sentAtMs.map { Date(timeIntervalSince1970: $0 / 1_000.0) }
+        // `sentAtMs` carries Unix **milliseconds** per the project-wide
+        // CLAUDE.md convention (matches the dequeue-api wire format). Convert
+        // to a Date by dividing into seconds-since-epoch; parsing it as
+        // seconds directly would yield a Date ~50,000 years in the future
+        // and a wildly negative ageMs.
+        let sentAt = payload.sentAtMs.map { Date(timeIntervalSince1970: Double($0) / 1_000.0) }
         let ageMs: Int? = sentAt.map { Int(now().timeIntervalSince($0) * 1_000) }
 
         // Mark this reminder as remote-delivered so the foreground willPresent
@@ -448,21 +450,24 @@ final class PushNotificationService: PushNotificationServiceProtocol {
             #endif
         }()
 
-        let body: [String: Any] = [
-            "deviceId": deviceId,
-            "token": token,
-            "platform": platform,
-            "environment": environment,
-            "bundleId": Configuration.bundleIdentifier,
-            "appVersion": Configuration.appVersion
-        ]
+        let body = DeviceTokenRegistrationBody(
+            deviceId: deviceId,
+            token: token,
+            platform: platform,
+            environment: environment,
+            bundleId: Configuration.bundleIdentifier,
+            appVersion: Configuration.appVersion
+        )
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // JSONEncoder can only throw `EncodingError`, which is unreachable for
+        // an all-`String` Encodable. We still surface a defensive telemetry
+        // breadcrumb if Swift surprises us.
         do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            request.httpBody = try JSONEncoder().encode(body)
         } catch {
             ErrorReportingService.addBreadcrumb(
                 category: "push",
@@ -473,7 +478,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
             return
         }
 
-        let authToken: String?
+        let authToken: String
         do {
             authToken = try await tokenProvider()
         } catch {
@@ -485,9 +490,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
             )
             return
         }
-        if let authToken {
-            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
-        }
+        request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
 
         // One retry on transient 5xx.
         for attempt in 1...2 {
@@ -578,12 +581,10 @@ final class PushNotificationService: PushNotificationServiceProtocol {
 
     // MARK: - Internal: silent-push REST sync
 
-    /// Internal outcome enum for the silent-push REST sync. Exposed at
-    /// `internal` visibility (not `private`) only because the test target uses
-    /// `@testable import Dequeue` to assert on it directly in
-    /// `testSilentPushSyncTimesOut`. Kept inside the type so callers must go
-    /// through `runSilentPushSync` rather than constructing it themselves.
-    enum SilentSyncOutcome: Sendable, Equatable {
+    /// Internal outcome enum for the silent-push REST sync. Callers go
+    /// through `handleSilentPush` (which maps to `SilentPushResult`); tests
+    /// assert on `SilentPushResult` only.
+    private enum SilentSyncOutcome: Sendable, Equatable {
         case success(fetchedCount: Int)
         case failure(kind: String)
     }
@@ -598,7 +599,11 @@ final class PushNotificationService: PushNotificationServiceProtocol {
     /// Returns `.failure(kind: "timeout")` if the sync exceeds the supplied
     /// deadline; `.failure(kind: "unavailable")` if the app context hasn't
     /// been wired yet (e.g. very early launch race).
-    func runSilentPushSync(timeout: TimeInterval) async -> SilentSyncOutcome {
+    ///
+    /// Private — callers should go through `handleSilentPush` which uses the
+    /// `silentPushSyncTimeout` injected at init. Tests inject a tiny timeout
+    /// via that init parameter rather than reaching in here directly.
+    private func runSilentPushSync(timeout: TimeInterval) async -> SilentSyncOutcome {
         let syncer: SilentPushSyncing? = silentPushSyncer
             ?? AppContext.shared.syncManager.map(SyncManagerSilentPushAdapter.init)
         guard let syncer else {
@@ -659,41 +664,4 @@ struct SyncManagerSilentPushAdapter: SilentPushSyncing {
     func runRESTProjectionSync() async throws {
         try await syncManager.syncViaProjections()
     }
-}
-
-// MARK: - AppContext
-
-/// Minimal global registry so background callbacks (AppDelegate, push
-/// handlers) can reach the live `SyncManager` and `AuthService` without
-/// threading them through every UIKit shim.
-///
-/// Set during `DequeueApp.init()` after services are constructed.
-@MainActor
-final class AppContext {
-    static let shared = AppContext()
-
-    private(set) var syncManager: SyncManager?
-    private(set) var authService: (any AuthServiceProtocol)?
-    private(set) var pushService: (any PushNotificationServiceProtocol)?
-
-    private init() {}
-
-    func configure(
-        syncManager: SyncManager,
-        authService: any AuthServiceProtocol,
-        pushService: any PushNotificationServiceProtocol
-    ) {
-        self.syncManager = syncManager
-        self.authService = authService
-        self.pushService = pushService
-    }
-
-    /// Test-only reset hook.
-    #if DEBUG
-    func resetForTesting() {
-        syncManager = nil
-        authService = nil
-        pushService = nil
-    }
-    #endif
 }
