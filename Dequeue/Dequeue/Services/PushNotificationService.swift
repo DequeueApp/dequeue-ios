@@ -169,6 +169,14 @@ final class PushNotificationService: PushNotificationServiceProtocol {
     /// because UNUserNotificationCenter delegate callbacks are
     /// `nonisolated async` and need a way to read this state without an
     /// actor hop (NSCache is documented thread-safe).
+    ///
+    /// **Lifetime caveat:** This cache is process-local. If the app is killed
+    /// and relaunched in the ~30s window between the silent push (remindAt−30s)
+    /// and the alert push (remindAt), the cache resets and the dedup contract
+    /// misses for that one reminder — worst-case a single double-banner. The
+    /// race is extremely unlikely (would require a crash or memory eviction
+    /// inside a 30s window for the *one* reminder being delivered) and the
+    /// failure mode is benign enough that we don't persist the cache.
     nonisolated(unsafe) private let recentRemotes = NSCache<NSString, NSDate>()
 
     /// Optional override for the live SyncManager. When nil we resolve via
@@ -562,6 +570,39 @@ final class PushNotificationService: PushNotificationServiceProtocol {
                     data: ["status": status, "attempt": attempt]
                 )
                 return
+            case let .transport(error):
+                if attempt < maxAttempts {
+                    ErrorReportingService.addBreadcrumb(
+                        category: "push",
+                        message: "device_token_register transport failure, retrying",
+                        level: .warning,
+                        data: ["error": error.localizedDescription, "attempt": attempt]
+                    )
+                    if tokenRegisterRetryDelay > 0 {
+                        do {
+                            try await Task.sleep(
+                                nanoseconds: UInt64(tokenRegisterRetryDelay * 1_000_000_000)
+                            )
+                        } catch {
+                            return
+                        }
+                    }
+                    if Task.isCancelled { return }
+                    continue
+                }
+                Self.logger.warning(
+                    "device_token_register transport failure exhausted: \(error.localizedDescription, privacy: .public)"
+                )
+                ErrorReportingService.addBreadcrumb(
+                    category: "push",
+                    message: "device_token_register_failed",
+                    level: .warning,
+                    data: [
+                        "errorKind": "transport",
+                        "error": error.localizedDescription,
+                        "attempt": attempt
+                    ]
+                )
             case let .retryable(status, error):
                 if attempt < maxAttempts {
                     ErrorReportingService.addBreadcrumb(
@@ -621,8 +662,15 @@ final class PushNotificationService: PushNotificationServiceProtocol {
 
     private enum PostOutcome {
         case success(status: Int)
+        /// HTTP 5xx — retryable; `status` is the actual code.
         case retryable(status: Int, error: Error?)
+        /// HTTP 4xx / unexpected status — don't retry.
         case permanent(status: Int, error: Error?)
+        /// Network transport failure (no response received) — retryable on
+        /// first attempt; surfaced as a distinct telemetry kind so the
+        /// `status: -1` breadcrumb on the final attempt isn't misclassified
+        /// as a 5xx.
+        case transport(error: Error)
     }
 
     private func attemptPost(request: URLRequest) async -> PostOutcome {
@@ -638,8 +686,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
                 return .permanent(status: status, error: nil)
             }
         } catch {
-            // URLSession transport error — treat as retryable on first attempt.
-            return .retryable(status: -1, error: error)
+            return .transport(error: error)
         }
     }
 

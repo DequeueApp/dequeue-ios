@@ -118,11 +118,13 @@ final class DequeueAppDelegate: NSObject, UIApplicationDelegate {
         // defer in the Task can see mutations.
         let completion = OneShotCompletion(handler: completionHandler)
         Task { @MainActor in
+            // Single-style approach: `defer` handles all exit paths (including
+            // task cancellation between the `guard` and the result switch).
+            // Each `callIfNeeded` below is idempotent thanks to
+            // `OneShotCompletion`, so the defer's `.noData` fallback only
+            // fires when no explicit result was recorded.
             defer { completion.callIfNeeded(.noData) }
-            guard let push = AppContext.shared.pushService else {
-                completion.callIfNeeded(.noData)
-                return
-            }
+            guard let push = AppContext.shared.pushService else { return }
             let result = await push.handleSilentPush(payload: payload)
             switch result {
             case .newData: completion.callIfNeeded(.newData)
