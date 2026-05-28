@@ -356,7 +356,11 @@ struct PushNotificationServiceTests {
 
         #expect(result == .newData)
         #expect(syncer.callCount == 1)
-        #expect(service.isRemoteRecentlyDelivered(reminderId: "rem-1"))
+        // The dedup cache is intentionally NOT stamped on silent-push
+        // receipt — only on alert-push *presentation* via
+        // `NotificationService.willPresent` path 1. This avoids missing the
+        // local fallback if APNs fails to deliver the alert push at remindAt.
+        #expect(!service.isRemoteRecentlyDelivered(reminderId: "rem-1"))
     }
 
     @Test("Silent-push sync throwing returns .failed")
@@ -403,8 +407,9 @@ struct PushNotificationServiceTests {
         // Sync still ran (the silent push wakes us regardless of payload).
         #expect(result == .newData)
         #expect(syncer.callCount == 1)
-        // No reminderId was supplied, so nothing should have been stamped
-        // into the dedup cache.
+        // The dedup cache is intentionally NOT stamped on silent-push
+        // receipt (see comment in handleSilentPush). Asserting the obvious
+        // empty-string lookup here just confirms no accidental stamp.
         #expect(!service.isRemoteRecentlyDelivered(reminderId: ""))
     }
 

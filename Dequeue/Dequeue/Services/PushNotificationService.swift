@@ -399,17 +399,15 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         let sentAt = payload.sentAtMs.map { Date(timeIntervalSince1970: Double($0) / 1_000.0) }
         let ageMs: Int? = sentAt.map { Int(now().timeIntervalSince($0) * 1_000) }
 
-        // Mark this reminder as remote-delivered up front — BEFORE we know
-        // the sync outcome. The dedup cache only gates the *local-first*
-        // branch of `NotificationService.willPresent`; remote notifications
-        // (including the alert push that follows this silent push at
-        // remindAt) always display via the remote-first branch regardless
-        // of cache contents. So this early stamp can only ever suppress a
-        // duplicate local twin, never the alert push itself, even if the
-        // sync below fails or times out.
-        if let reminderId {
-            markRemoteDelivered(reminderId: reminderId)
-        }
+        // Intentionally do NOT stamp the dedup cache here. The silent push
+        // arrives at remindAt-30s but the *alert* push at remindAt is the
+        // event that should suppress a local twin. If APNs fails to deliver
+        // the alert push (transient outage), stamping the cache on silent-push
+        // receipt would still suppress the local fallback and the user would
+        // miss the reminder entirely. `NotificationService.willPresent`
+        // already calls `markRemoteDelivered` from path 1 (remote-first)
+        // when the alert push is actually being presented, which is the
+        // correct moment to start the 60s suppression window.
 
         ErrorReportingService.addBreadcrumb(
             category: "push",
