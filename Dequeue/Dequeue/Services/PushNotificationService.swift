@@ -349,7 +349,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         // seconds would yield a Date ~50,000 years in the future and a
         // wildly negative ageMs.
         let sentAtRawMs = userInfo[NotificationConstants.UserInfoKey.remoteSentAtMs] as? Double
-            ?? userInfo["sentAt"] as? Double
+            ?? userInfo[NotificationConstants.UserInfoKey.localSentAtMs] as? Double
         let sentAt = sentAtRawMs.map { Date(timeIntervalSince1970: $0 / 1_000.0) }
         let ageMs: Int? = sentAt.map { Int(now().timeIntervalSince($0) * 1_000) }
 
@@ -482,7 +482,16 @@ final class PushNotificationService: PushNotificationServiceProtocol {
                             "attempt": attempt
                         ]
                     )
-                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    // Don't swallow cancellation — if the enclosing task got
+                    // cancelled (e.g. sign-out racing a pending retry), break
+                    // out of the loop cleanly instead of issuing a doomed
+                    // second POST against torn-down credentials.
+                    do {
+                        try await Task.sleep(nanoseconds: 500_000_000)
+                    } catch {
+                        return
+                    }
+                    if Task.isCancelled { return }
                     continue
                 }
                 ErrorReportingService.addBreadcrumb(
@@ -538,6 +547,11 @@ final class PushNotificationService: PushNotificationServiceProtocol {
 
     // MARK: - Internal: silent-push REST sync
 
+    /// Internal outcome enum for the silent-push REST sync. Exposed at
+    /// `internal` visibility (not `private`) only because the test target uses
+    /// `@testable import Dequeue` to assert on it directly in
+    /// `testSilentPushSyncTimesOut`. Kept inside the type so callers must go
+    /// through `runSilentPushSync` rather than constructing it themselves.
     enum SilentSyncOutcome: Sendable, Equatable {
         case success(fetchedCount: Int)
         case failure(kind: String)
@@ -567,10 +581,15 @@ final class PushNotificationService: PushNotificationServiceProtocol {
                 group.addTask {
                     do {
                         try await syncer.runRESTProjectionSync()
-                        // We don't have a per-call fetched-count yet; surface
-                        // 1 so the OS treats it as fresh data. The detailed
-                        // delivery-reconciliation telemetry lives in
-                        // ErrorReportingService breadcrumbs.
+                        // We surface `fetchedCount: 1` so `handleSilentPush`
+                        // maps to `UIBackgroundFetchResult.newData`. Returning
+                        // `.noData` here would over time deprioritise the
+                        // app's silent-push wake budget, and the projection
+                        // sync API does not yet return a per-call fetched
+                        // count. Refining this to a true fetched-count
+                        // (and emitting `.noData` when zero events were
+                        // applied) is the follow-up tracked in DEQ-286
+                        // (delivery-reconciliation telemetry).
                         return .success(fetchedCount: 1)
                     } catch {
                         return .failure(kind: "sync_error")

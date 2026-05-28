@@ -39,6 +39,10 @@ enum NotificationConstants: Sendable {
         /// Key under which the backend emits the dispatch timestamp.
         /// Per CLAUDE.md the value is Unix **milliseconds**.
         nonisolated static let remoteSentAtMs = "sent_at"
+        /// Legacy camelCase spelling of `sent_at` accepted defensively in
+        /// case a non-backend path (e.g. a future Notification Service
+        /// Extension) re-keys the payload before delegate handlers see it.
+        nonisolated static let localSentAtMs = "sentAt"
     }
 
     /// Snooze durations in seconds
@@ -421,17 +425,23 @@ extension NotificationService: UNUserNotificationCenterDelegate {
                 }
             } else {
                 // Local-first: suppress if a remote landed inside the window.
-                let isRecent = await MainActor.run {
-                    AppContext.shared.pushService?.isRemoteRecentlyDelivered(reminderId: reminderId) ?? false
-                }
-                if isRecent {
-                    await MainActor.run {
+                // Single MainActor hop — we both probe the dedup cache and
+                // (if we're suppressing) emit telemetry in the same
+                // synchronous block to minimise actor-hop overhead on the
+                // foreground notification-delivery hot path.
+                let suppress: Bool = await MainActor.run {
+                    let pushService = AppContext.shared.pushService
+                    let recent = pushService?.isRemoteRecentlyDelivered(reminderId: reminderId) ?? false
+                    if recent {
                         ErrorReportingService.addBreadcrumb(
                             category: "push",
                             message: "reminder_push_dedup_remote_ignored",
                             data: ["reminderId": reminderId]
                         )
                     }
+                    return recent
+                }
+                if suppress {
                     return []
                 }
             }
