@@ -492,8 +492,10 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         }
         request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
 
-        // One retry on transient 5xx.
-        for attempt in 1...2 {
+        // One retry on transient 5xx. Named constant keeps the range and
+        // retry-bound check coupled in one place.
+        let maxAttempts = 2
+        for attempt in 1...maxAttempts {
             let outcome = await attemptPost(request: request)
             switch outcome {
             case .success(let status):
@@ -505,7 +507,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
                 )
                 return
             case let .retryable(status, error):
-                if attempt < 2 {
+                if attempt < maxAttempts {
                     ErrorReportingService.addBreadcrumb(
                         category: "push",
                         message: "device_token_register transient failure, retrying",

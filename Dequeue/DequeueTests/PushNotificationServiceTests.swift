@@ -360,16 +360,34 @@ struct PushNotificationServiceTests {
         #expect(result == .failed)
     }
 
-    @Test("Missing reminder_id in payload is handled gracefully")
+    @Test("nil reminderId leaves no side-effects in the dedup cache")
     @MainActor
-    func missingReminderIdIsHandledGracefully() async throws {
+    func nilReminderIdNoDedupCacheSideEffects() async throws {
         let env = TestEnv()
-        // No silentPushSyncer + AppContext unconfigured → handleSilentPush
-        // surfaces .failed (kind: "unavailable") without crashing on the
-        // missing reminder_id.
-        let service = env.makeService()
+        let syncer = FakeSyncer(behavior: .success)
+        let service = env.makeService(silentPushSyncer: syncer)
+
         let result = await service.handleSilentPush(
             payload: SilentPushPayload(reminderId: nil, sentAtMs: nil)
+        )
+
+        // Sync still ran (the silent push wakes us regardless of payload).
+        #expect(result == .newData)
+        #expect(syncer.callCount == 1)
+        // No reminderId was supplied, so nothing should have been stamped
+        // into the dedup cache.
+        #expect(!service.isRemoteRecentlyDelivered(reminderId: ""))
+    }
+
+    @Test("Unavailable syncer surfaces .failed cleanly")
+    @MainActor
+    func unavailableSyncerReturnsFailed() async throws {
+        let env = TestEnv()
+        // No injected syncer + AppContext not wired in tests → service falls
+        // through to .failure(kind: "unavailable") which maps to .failed.
+        let service = env.makeService()
+        let result = await service.handleSilentPush(
+            payload: SilentPushPayload(reminderId: "rem-1", sentAtMs: nil)
         )
         #expect(result == .failed)
     }

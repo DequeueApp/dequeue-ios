@@ -34,20 +34,23 @@ final class DequeueAppDelegate: NSObject, UIApplicationDelegate {
         return config
     }
 
-    /// App-level cold-launch hook. We register for remote notifications only
-    /// when the user is already signed in — registering at launch when not
-    /// signed in is a UX antipattern (prompts the user for push perms before
-    /// they've even seen the app) and the device token would be useless to the
-    /// backend without a Clerk user to attach it to. The sign-in completion
-    /// path handles first-time registration via `PushNotificationService`.
+    /// App-level cold-launch hook. Best-effort attempt to register for
+    /// remote notifications when the user is already signed in.
+    ///
+    /// `@UIApplicationDelegateAdaptor` does NOT guarantee that the SwiftUI
+    /// `App.init()` (which wires `AppContext`) completes before this delegate
+    /// callback fires. In practice the guard often hits a nil `pushService`
+    /// and silently no-ops on cold launch. That's intentional and harmless:
+    /// both the sign-in completion path (`handleAuthStateChange`) and the
+    /// foreground-active path (`refreshTokenIfStale`) call
+    /// `registerIfSignedIn` again, covering the registration regardless of
+    /// init ordering. We keep the call here as belt-and-suspenders for warm
+    /// launches where `AppContext` is already wired.
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         Task { @MainActor in
-            // AppContext is wired during DequeueApp.init() which runs before
-            // this delegate method. The guard is defensive: if a future change
-            // moves wiring later, we'd rather skip than crash.
             guard let push = AppContext.shared.pushService else { return }
             await push.registerIfSignedIn()
         }
