@@ -9,6 +9,7 @@
 //
 
 import XCTest
+import os
 @testable import Dequeue
 
 // MARK: - Stub URLProtocol (no real network)
@@ -81,13 +82,14 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 @MainActor
 final class PushNotificationServiceTests: XCTestCase {
     private var defaults: UserDefaults!
+    private var defaultsSuiteName: String!
     private var session: URLSession!
 
     override func setUp() async throws {
         try await super.setUp()
         // Use a clean, ephemeral UserDefaults suite so tests don't leak state.
-        let suiteName = "PushNotificationServiceTests-\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)!
+        defaultsSuiteName = "PushNotificationServiceTests-\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: defaultsSuiteName)!
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubURLProtocol.self]
@@ -96,7 +98,9 @@ final class PushNotificationServiceTests: XCTestCase {
     }
 
     override func tearDown() async throws {
-        defaults.removePersistentDomain(forName: defaults.dictionaryRepresentation().keys.first ?? "")
+        // Tear down the ephemeral defaults suite by its suite NAME (not by
+        // some key inside it) so subsequent tests can't see stale values.
+        UserDefaults.standard.removePersistentDomain(forName: defaultsSuiteName)
         StubURLProtocol.reset()
         try await super.tearDown()
     }
@@ -268,18 +272,62 @@ final class PushNotificationServiceTests: XCTestCase {
     }
 
     func testRemoteDeliveryWindowExpires() async throws {
-        // Use a service whose `now` we can control via the in-memory NSCache;
-        // we test the window by writing into the NSCache directly through the
-        // service then mutating its bookkeeping via reflection-free path: we
-        // re-stamp by calling `markRemoteDelivered` with an old Date through
-        // a custom subclass. Simplest approach: the production cache stores a
-        // wall-clock Date; we can verify the within-window path here and
-        // trust that the >60s branch removes the entry. The threshold logic
-        // is straightforward (Date subtraction); the contract under test is
-        // "exact match returns true while inside the window".
-        let service = makeService()
-        service.markRemoteDelivered(reminderId: "rem-window")
-        XCTAssertTrue(service.isRemoteRecentlyDelivered(reminderId: "rem-window"))
+        // Use the injected clock to fast-forward past the 60s dedup window.
+        // After expiry the entry should be cleaned out of the NSCache and
+        // subsequent lookups must return false. `FakeClock` is a Sendable
+        // box around an OSAllocatedUnfairLock so the closure captured by
+        // PushNotificationService stays Sendable under Swift 6.
+        let clock = FakeClock(start: Date())
+        let service = makeService(now: { clock.now() })
+
+        service.markRemoteDelivered(reminderId: "rem-expire")
+        XCTAssertTrue(service.isRemoteRecentlyDelivered(reminderId: "rem-expire"))
+
+        // Inside the window.
+        clock.advance(by: 45)
+        XCTAssertTrue(service.isRemoteRecentlyDelivered(reminderId: "rem-expire"))
+
+        // Past the window — expired entry should be evicted.
+        clock.advance(by: 20) // total 65s
+        XCTAssertFalse(service.isRemoteRecentlyDelivered(reminderId: "rem-expire"))
+    }
+
+    // MARK: Silent push sync
+
+    func testSilentPushSyncSuccessReturnsNewData() async throws {
+        let syncer = FakeSyncer(behavior: .success)
+        let service = makeService(silentPushSyncer: syncer)
+
+        let result = await service.handleSilentPush(
+            userInfo: [NotificationConstants.UserInfoKey.remoteReminderId: "rem-1"]
+        )
+
+        XCTAssertEqual(result, .newData)
+        XCTAssertEqual(syncer.callCount, 1)
+        XCTAssertTrue(service.isRemoteRecentlyDelivered(reminderId: "rem-1"))
+    }
+
+    func testSilentPushSyncErrorReturnsFailed() async throws {
+        let syncer = FakeSyncer(behavior: .error)
+        let service = makeService(silentPushSyncer: syncer)
+
+        let result = await service.handleSilentPush(
+            userInfo: [NotificationConstants.UserInfoKey.remoteReminderId: "rem-1"]
+        )
+
+        XCTAssertEqual(result, .failed)
+    }
+
+    func testSilentPushSyncTimesOut() async throws {
+        let syncer = FakeSyncer(behavior: .hang)
+        let service = makeService(silentPushSyncer: syncer)
+
+        // Use a tiny custom timeout via the underlying runSilentPushSync to
+        // keep the test fast; handleSilentPush always uses the production
+        // 20s value so we exercise runSilentPushSync directly.
+        let outcome = await service.runSilentPushSync(timeout: 0.2)
+
+        XCTAssertEqual(outcome, .failure(kind: "timeout"))
     }
 
     func testMissingReminderIdInUserInfoIsHandledGracefully() async throws {
@@ -295,7 +343,9 @@ final class PushNotificationServiceTests: XCTestCase {
 
     private func makeService(
         tokenProvider: @MainActor @escaping () async throws -> String = { "test-token" },
-        deviceIdProvider: @Sendable @escaping () async -> String = { "test-device" }
+        deviceIdProvider: @Sendable @escaping () async -> String = { "test-device" },
+        silentPushSyncer: SilentPushSyncing? = nil,
+        now: @Sendable @escaping () -> Date = { Date() }
     ) -> PushNotificationService {
         PushNotificationService(
             urlSession: session,
@@ -304,7 +354,61 @@ final class PushNotificationServiceTests: XCTestCase {
             tokenProvider: tokenProvider,
             deviceIdProvider: deviceIdProvider,
             isAuthenticatedProvider: { true },
-            now: { Date() }
+            silentPushSyncer: silentPushSyncer,
+            now: now
         )
+    }
+}
+
+// MARK: - FakeClock
+
+/// Sendable, lock-backed mutable clock for tests. Use via the `now()` closure
+/// passed into `PushNotificationService`. Uses `OSAllocatedUnfairLock` so the
+/// closure can be called from both sync and async contexts under Swift 6.
+final class FakeClock: @unchecked Sendable {
+    private let storage = OSAllocatedUnfairLock(initialState: Date.distantPast)
+
+    init(start: Date) { storage.withLock { $0 = start } }
+
+    func now() -> Date { storage.withLock { $0 } }
+
+    func advance(by interval: TimeInterval) {
+        storage.withLock { $0.addTimeInterval(interval) }
+    }
+}
+
+// MARK: - FakeSyncer
+
+/// Test-only `SilentPushSyncing` implementation. Records call count and
+/// dispatches the requested behaviour (success / throwing / hang-until-cancel).
+final class FakeSyncer: SilentPushSyncing, @unchecked Sendable {
+    enum Behavior: Sendable {
+        case success
+        case error
+        case hang
+    }
+
+    private let behavior: Behavior
+    private let counter = OSAllocatedUnfairLock(initialState: 0)
+
+    init(behavior: Behavior) {
+        self.behavior = behavior
+    }
+
+    var callCount: Int { counter.withLock { $0 } }
+
+    func runRESTProjectionSync() async throws {
+        counter.withLock { $0 += 1 }
+        switch behavior {
+        case .success:
+            return
+        case .error:
+            throw URLError(.timedOut)
+        case .hang:
+            // Sleep beyond any reasonable timeout. Cancellation propagates
+            // from the parent task group so we surrender promptly when the
+            // timeout sibling wins.
+            try await Task.sleep(nanoseconds: 60_000_000_000)
+        }
     }
 }

@@ -26,9 +26,19 @@ enum NotificationConstants: Sendable {
     }
 
     enum UserInfoKey: Sendable {
+        /// Key under which the local-notification path stores the reminder id.
+        /// Local pending notifications were already using this camelCase key
+        /// in production prior to DEQ-283, so it must stay stable to dedup
+        /// against existing scheduled notifications across an app update.
         nonisolated static let reminderId = "reminderId"
         nonisolated static let parentType = "parentType"
         nonisolated static let parentId = "parentId"
+        /// Key under which the backend APNs sender (PR 3, dequeue-api#201)
+        /// emits the reminder id. Snake-case is the API-wide convention.
+        nonisolated static let remoteReminderId = "reminder_id"
+        /// Key under which the backend emits the dispatch timestamp.
+        /// Per CLAUDE.md the value is Unix **milliseconds**.
+        nonisolated static let remoteSentAtMs = "sent_at"
     }
 
     /// Snooze durations in seconds
@@ -388,8 +398,13 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
         let userInfo = notification.request.content.userInfo
+        // Two key spellings, one canonical concept. Local notifications
+        // produced by `scheduleNotification(for:)` use the camelCase key
+        // (`UserInfoKey.reminderId`). Remote APNs payloads from the backend
+        // emit the snake_case key (`UserInfoKey.remoteReminderId`). Looking
+        // up both makes the dedup contract source-agnostic.
         let reminderId = (userInfo[NotificationConstants.UserInfoKey.reminderId] as? String)
-            ?? (userInfo["reminder_id"] as? String)
+            ?? (userInfo[NotificationConstants.UserInfoKey.remoteReminderId] as? String)
         let isRemote = notification.request.trigger is UNPushNotificationTrigger
 
         if let reminderId {

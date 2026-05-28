@@ -32,9 +32,6 @@ protocol PushNotificationServiceProtocol: AnyObject, Sendable {
     /// Cached device token (hex string), if registered with APNs.
     var cachedDeviceToken: String? { get }
 
-    /// Whether registration is currently pending the OS callback.
-    var isRegistering: Bool { get }
-
     /// Apple-callback entry: stash the raw token, then POST to the API.
     /// Idempotent — subsequent calls with the same token re-POST to refresh
     /// `last_seen_at` on the server.
@@ -122,8 +119,13 @@ final class PushNotificationService: PushNotificationServiceProtocol {
     /// actor hop (NSCache is documented thread-safe).
     nonisolated(unsafe) private let recentRemotes = NSCache<NSString, NSDate>()
 
+    /// Optional override for the live SyncManager. When nil we resolve via
+    /// `AppContext.shared.syncManager` at call time. The protocol-level type
+    /// erasure is intentional — tests inject a stub conforming to
+    /// `SilentPushSyncing` without dragging in the full SyncManager surface.
+    private let silentPushSyncer: SilentPushSyncing?
+
     private(set) var cachedDeviceToken: String?
-    private(set) var isRegistering: Bool = false
 
     /// Designated init. Defaults wire production paths; tests use this same
     /// init with their own URLSession / providers.
@@ -134,6 +136,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         tokenProvider: (@MainActor () async throws -> String)? = nil,
         deviceIdProvider: (@Sendable () async -> String)? = nil,
         isAuthenticatedProvider: (@MainActor () -> Bool)? = nil,
+        silentPushSyncer: SilentPushSyncing? = nil,
         now: (@Sendable () -> Date)? = nil
     ) {
         // Resolve defaults inside the init so the closure literals don't need
@@ -154,6 +157,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         self.tokenProvider = resolvedTokenProvider
         self.deviceIdProvider = resolvedDeviceIdProvider
         self.isAuthenticatedProvider = resolvedIsAuthenticated
+        self.silentPushSyncer = silentPushSyncer
         self.now = resolvedNow
         self.cachedDeviceToken = userDefaults.string(forKey: PushDefaults.cachedToken)
         // Keep the dedup cache modest — we only need the last few seconds of
@@ -201,10 +205,12 @@ final class PushNotificationService: PushNotificationServiceProtocol {
             )
             return
         }
-        guard !isRegistering else { return }
-        isRegistering = true
-        defer { isRegistering = false }
 
+        // Apple's `registerForRemoteNotifications` is itself idempotent and
+        // it's intended to be called freely on launch / re-auth / etc., so we
+        // don't need a local re-entrancy guard here. The OS will only emit
+        // one `didRegisterForRemoteNotifications...` callback per provisioning
+        // attempt.
         #if canImport(UIKit) && os(iOS)
         UIApplication.shared.registerForRemoteNotifications()
         ErrorReportingService.addBreadcrumb(
@@ -315,13 +321,13 @@ final class PushNotificationService: PushNotificationServiceProtocol {
 
     nonisolated func markRemoteDelivered(reminderId: String) {
         let key = reminderId as NSString
-        recentRemotes.setObject(Date() as NSDate, forKey: key)
+        recentRemotes.setObject(now() as NSDate, forKey: key)
     }
 
     nonisolated func isRemoteRecentlyDelivered(reminderId: String) -> Bool {
         let key = reminderId as NSString
         guard let date = recentRemotes.object(forKey: key) as Date? else { return false }
-        let elapsed = Date().timeIntervalSince(date)
+        let elapsed = now().timeIntervalSince(date)
         if elapsed > PushDefaults.dedupWindow {
             recentRemotes.removeObject(forKey: key)
             return false
@@ -333,9 +339,18 @@ final class PushNotificationService: PushNotificationServiceProtocol {
 
     func handleSilentPush(userInfo: [AnyHashable: Any]) async -> SilentPushResult {
         // Extract telemetry props before we kick the sync — Sendable types only.
-        let reminderId = userInfo["reminder_id"] as? String ?? userInfo["reminderId"] as? String
-        let sentAtRaw = userInfo["sentAt"] as? Double ?? userInfo["sent_at"] as? Double
-        let sentAt = sentAtRaw.map { Date(timeIntervalSince1970: $0) }
+        // Backend (PR 3, dequeue-api#201) emits snake_case keys; we also accept
+        // the local camelCase spelling for symmetry with the local-notification
+        // userInfo dictionaries we control on this side.
+        let reminderId = (userInfo[NotificationConstants.UserInfoKey.remoteReminderId] as? String)
+            ?? (userInfo[NotificationConstants.UserInfoKey.reminderId] as? String)
+        // `sent_at` is Unix **milliseconds** per the project-wide CLAUDE.md
+        // convention (matches the dequeue-api wire format). Parsing this as
+        // seconds would yield a Date ~50,000 years in the future and a
+        // wildly negative ageMs.
+        let sentAtRawMs = userInfo[NotificationConstants.UserInfoKey.remoteSentAtMs] as? Double
+            ?? userInfo["sentAt"] as? Double
+        let sentAt = sentAtRawMs.map { Date(timeIntervalSince1970: $0 / 1_000.0) }
         let ageMs: Int? = sentAt.map { Int(now().timeIntervalSince($0) * 1_000) }
 
         // Mark this reminder as remote-delivered so the foreground willPresent
@@ -354,9 +369,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         )
 
         let syncStart = now()
-        let result = await Self.runSilentPushSync(
-            timeout: PushDefaults.silentPushSyncTimeout
-        )
+        let result = await runSilentPushSync(timeout: PushDefaults.silentPushSyncTimeout)
         let durationMs = Int(now().timeIntervalSince(syncStart) * 1_000)
 
         switch result {
@@ -530,17 +543,20 @@ final class PushNotificationService: PushNotificationServiceProtocol {
         case failure(kind: String)
     }
 
-    /// Kicks off a single REST-only projection sync via the live `SyncManager`
-    /// resolved through the app environment. We intentionally do NOT establish
-    /// a WebSocket — TCP handshake + WebSocket upgrade is slower than the 20s
-    /// silent-push budget, and Apple kills the process if we miss it.
+    /// Kicks off a single REST-only projection sync via the injected
+    /// `silentPushSyncer` (or the live `SyncManager` resolved through the app
+    /// environment when no override is provided). We intentionally do NOT
+    /// establish a WebSocket — TCP handshake + WebSocket upgrade is slower
+    /// than the 20s silent-push budget, and Apple kills the process if we
+    /// miss it.
     ///
-    /// Falls back to `.failure(kind: "timeout")` if the sync exceeds the
-    /// supplied deadline. Falls back to `.failure(kind: "unavailable")` if the
-    /// app context hasn't been wired yet (e.g. very early launch race).
-    static func runSilentPushSync(timeout: TimeInterval) async -> SilentSyncOutcome {
-        let syncManager = await MainActor.run { AppContext.shared.syncManager }
-        guard let syncManager else {
+    /// Returns `.failure(kind: "timeout")` if the sync exceeds the supplied
+    /// deadline; `.failure(kind: "unavailable")` if the app context hasn't
+    /// been wired yet (e.g. very early launch race).
+    func runSilentPushSync(timeout: TimeInterval) async -> SilentSyncOutcome {
+        let syncer: SilentPushSyncing? = silentPushSyncer
+            ?? AppContext.shared.syncManager.map(SyncManagerSilentPushAdapter.init)
+        guard let syncer else {
             return .failure(kind: "unavailable")
         }
 
@@ -550,7 +566,7 @@ final class PushNotificationService: PushNotificationServiceProtocol {
             result = try await withThrowingTaskGroup(of: SilentSyncOutcome.self) { group in
                 group.addTask {
                     do {
-                        try await syncManager.syncViaProjections()
+                        try await syncer.runRESTProjectionSync()
                         // We don't have a per-call fetched-count yet; surface
                         // 1 so the OS treats it as fresh data. The detailed
                         // delivery-reconciliation telemetry lives in
@@ -574,6 +590,24 @@ final class PushNotificationService: PushNotificationServiceProtocol {
             return .failure(kind: "task_group_error")
         }
         return result
+    }
+}
+
+// MARK: - Silent-push sync abstraction
+
+/// Minimal protocol the silent-push handler relies on. Decouples
+/// `PushNotificationService` from the full `SyncManager` surface so tests
+/// can supply a fake without staging the entire sync stack.
+protocol SilentPushSyncing: Sendable {
+    func runRESTProjectionSync() async throws
+}
+
+/// Production adapter that bridges `SyncManager.syncViaProjections()` to the
+/// silent-push protocol. Sendable because `SyncManager` is itself an actor.
+struct SyncManagerSilentPushAdapter: SilentPushSyncing {
+    let syncManager: SyncManager
+    func runRESTProjectionSync() async throws {
+        try await syncManager.syncViaProjections()
     }
 }
 
