@@ -215,7 +215,7 @@ extension StackEditorView {
         #if os(macOS)
         .frame(minWidth: 500, minHeight: 400)
         #endif
-        .navigationTitle(displayedTitle)
+        .navigationTitle(navigationTitle)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -500,15 +500,14 @@ private extension StackEditorView {
         switch mode {
         case .create:
             return draftStack != nil ? "Edit Draft" : "New Stack"
-        case .edit:
-            // Title is shown inline in edit mode content; keep nav bar empty
+        case .edit(let stack):
+            if stack.isDraft {
+                // Draft stacks use createModeContent which has no inline title section
+                return stack.title
+            }
+            // Non-draft edit mode shows title inline in editModeContent
             return ""
         }
-    }
-
-    /// The title to display in the navigation bar
-    var displayedTitle: String {
-        navigationTitle
     }
 
     /// Whether there's unsaved content that should prevent accidental dismissal
