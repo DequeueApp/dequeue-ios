@@ -15,6 +15,7 @@ private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView
 extension StackEditorView {
     var editModeContent: some View {
         List {
+            titleSection
             completionStatusBanner
             activeStatusBanner
             descriptionSection
@@ -33,6 +34,73 @@ extension StackEditorView {
             detailsSection
             eventHistorySection
         }
+    }
+
+    // MARK: - Inline Title Section
+
+    @ViewBuilder
+    var titleSection: some View {
+        if case .edit(let stack) = mode {
+            Section {
+                if isReadOnly {
+                    Text(stack.title)
+                        .font(.largeTitle.bold())
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityLabel(stack.title)
+                } else {
+                    TextField(
+                        "Stack title",
+                        text: Binding(
+                            get: { isEditingTitle ? editedTitle : stack.title },
+                            set: { editedTitle = $0 }
+                        ),
+                        axis: .vertical
+                    )
+                    .font(.largeTitle.bold())
+                    .lineLimit(1...10)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isEditingTitle ? Color(.systemFill) : Color.clear)
+                            .padding(.horizontal, -8)
+                    )
+                    .focused($titleFocused)
+                    .onTapGesture {
+                        if !isEditingTitle {
+                            editedTitle = stack.title
+                            isEditingTitle = true
+                            titleFocused = true
+                        }
+                    }
+                    .onChange(of: titleFocused) { _, focused in
+                        if !focused && isEditingTitle {
+                            commitTitleEdit()
+                        }
+                    }
+                    .accessibilityLabel("Stack title")
+                    .accessibilityHint("Double tap to edit the title")
+                    .accessibilityValue(stack.title)
+                }
+            }
+        }
+    }
+
+    /// Commit the in-progress title edit, saving if valid or reverting if empty.
+    private func commitTitleEdit() {
+        let trimmed = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        isEditingTitle = false
+        guard !trimmed.isEmpty else {
+            // Revert — don't allow blank title
+            editedTitle = ""
+            return
+        }
+        guard case .edit(let stack) = mode, trimmed != stack.title else {
+            editedTitle = ""
+            return
+        }
+        // Persist via the existing saveStackTitle path
+        editedTitle = trimmed
+        saveStackTitle()
     }
 
     // MARK: - Completion Status Banner

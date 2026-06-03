@@ -99,6 +99,8 @@ struct StackEditorView: View {
     // Edit mode state
     @State var showEditTitleAlert = false
     @State var editedTitle = ""
+    @State var isEditingTitle = false
+    @FocusState var titleFocused: Bool
     @State var isEditingDescription = false
     @State var editedDescription = ""
     @State var showCompletedTasks = false
@@ -511,19 +513,15 @@ private extension StackEditorView {
         switch mode {
         case .create:
             return draftStack != nil ? "Edit Draft" : "New Stack"
-        case .edit(let stack):
-            return stack.title
+        case .edit:
+            // Title is shown inline in edit mode content; keep nav bar empty
+            return ""
         }
     }
 
-    /// Whether to show a custom title view with edit button (for edit mode, non-read-only)
-    var showsCustomTitle: Bool {
-        !isCreateMode && !isReadOnly
-    }
-
-    /// The title to display in the navigation bar (empty when using custom editable title)
+    /// The title to display in the navigation bar
     var displayedTitle: String {
-        showsCustomTitle ? "" : navigationTitle
+        navigationTitle
     }
 
     /// Whether there's unsaved content that should prevent accidental dismissal
@@ -562,12 +560,6 @@ extension StackEditorView {
                 Button("Close") { dismiss() }
                     .accessibilityIdentifier("closeButton")
             }
-            // Custom title with inline edit button for editable stacks
-            if showsCustomTitle {
-                ToolbarItem(placement: .principal) {
-                    editableTitleView
-                }
-            }
             if !isReadOnly {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Complete") { handleCompleteButtonTapped() }
@@ -575,29 +567,6 @@ extension StackEditorView {
                         .accessibilityIdentifier("completeButton")
                 }
             }
-        }
-    }
-
-    /// Custom title view with inline pencil button for editing
-    @ViewBuilder
-    private var editableTitleView: some View {
-        if case .edit(let stack) = mode {
-            Button {
-                editedTitle = stack.title
-                showEditTitleAlert = true
-            } label: {
-                HStack(spacing: 4) {
-                    Text(stack.title)
-                        .font(.headline)
-                        .lineLimit(1)
-                    Image(systemName: "pencil")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Edit title: \(stack.title)")
-            .accessibilityHint("Double tap to edit the stack title")
         }
     }
 
