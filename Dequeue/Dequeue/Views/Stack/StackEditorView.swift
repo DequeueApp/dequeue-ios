@@ -97,8 +97,9 @@ struct StackEditorView: View {
     }
 
     // Edit mode state
-    @State var showEditTitleAlert = false
     @State var editedTitle = ""
+    @State var isEditingTitle = false
+    @FocusState var titleFocused: Bool
     @State var isEditingDescription = false
     @State var editedDescription = ""
     @State var showCompletedTasks = false
@@ -214,7 +215,7 @@ extension StackEditorView {
         #if os(macOS)
         .frame(minWidth: 500, minHeight: 400)
         #endif
-        .navigationTitle(displayedTitle)
+        .navigationTitle(navigationTitle)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -275,8 +276,6 @@ extension StackEditorView {
             errorMessage: errorMessage,
             showDiscardAlert: $showDiscardAlert,
             showSaveDraftPrompt: $showSaveDraftPrompt,
-            showEditTitleAlert: $showEditTitleAlert,
-            editedTitle: $editedTitle,
             showCompleteConfirmation: $showCompleteConfirmation,
             showCloseConfirmation: $showCloseConfirmation,
             showDeleteConfirmation: $showDeleteConfirmation,
@@ -287,7 +286,6 @@ extension StackEditorView {
             onDismiss: { dismiss() },
             onDiscardDraft: discardDraftAndDismiss,
             onCreateDraft: createDraftAndDismiss,
-            onSaveTitle: saveStackTitle,
             onCompleteStack: completeStack,
             onCloseStack: closeStack,
             onDeleteStack: deleteStack
@@ -300,8 +298,6 @@ private struct StackEditorAlertsModifier: ViewModifier {
     let errorMessage: String
     @Binding var showDiscardAlert: Bool
     @Binding var showSaveDraftPrompt: Bool
-    @Binding var showEditTitleAlert: Bool
-    @Binding var editedTitle: String
     @Binding var showCompleteConfirmation: Bool
     @Binding var showCloseConfirmation: Bool
     @Binding var showDeleteConfirmation: Bool
@@ -312,7 +308,6 @@ private struct StackEditorAlertsModifier: ViewModifier {
     let onDismiss: () -> Void
     let onDiscardDraft: () -> Void
     let onCreateDraft: () -> Void
-    let onSaveTitle: () -> Void
     let onCompleteStack: (Bool) -> Void
     let onCloseStack: () -> Void
     let onDeleteStack: () -> Void
@@ -332,12 +327,6 @@ private struct StackEditorAlertsModifier: ViewModifier {
                 Button("Discard", role: .destructive) { onDismiss() }
                 Button("Cancel", role: .cancel) { }
             } message: { Text("You have unsaved content. Would you like to save it as a draft?") }
-            .alert("Edit Title", isPresented: $showEditTitleAlert) {
-                TextField("Title", text: $editedTitle)
-                Button("Save") { onSaveTitle() }
-                    .disabled(editedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button("Cancel", role: .cancel) { editedTitle = "" }
-            } message: { Text("Enter a new title for this stack") }
             .confirmationDialog("Complete Stack", isPresented: $showCompleteConfirmation, titleVisibility: .visible) {
                 Button("Complete All Tasks & Stack") { onCompleteStack(true) }
                 Button("Complete Stack Only") { onCompleteStack(false) }
@@ -512,18 +501,13 @@ private extension StackEditorView {
         case .create:
             return draftStack != nil ? "Edit Draft" : "New Stack"
         case .edit(let stack):
-            return stack.title
+            if stack.isDraft {
+                // Draft stacks use createModeContent which has no inline title section
+                return stack.title
+            }
+            // Non-draft edit mode shows title inline in editModeContent
+            return ""
         }
-    }
-
-    /// Whether to show a custom title view with edit button (for edit mode, non-read-only)
-    var showsCustomTitle: Bool {
-        !isCreateMode && !isReadOnly
-    }
-
-    /// The title to display in the navigation bar (empty when using custom editable title)
-    var displayedTitle: String {
-        showsCustomTitle ? "" : navigationTitle
     }
 
     /// Whether there's unsaved content that should prevent accidental dismissal
@@ -562,12 +546,6 @@ extension StackEditorView {
                 Button("Close") { dismiss() }
                     .accessibilityIdentifier("closeButton")
             }
-            // Custom title with inline edit button for editable stacks
-            if showsCustomTitle {
-                ToolbarItem(placement: .principal) {
-                    editableTitleView
-                }
-            }
             if !isReadOnly {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Complete") { handleCompleteButtonTapped() }
@@ -575,29 +553,6 @@ extension StackEditorView {
                         .accessibilityIdentifier("completeButton")
                 }
             }
-        }
-    }
-
-    /// Custom title view with inline pencil button for editing
-    @ViewBuilder
-    private var editableTitleView: some View {
-        if case .edit(let stack) = mode {
-            Button {
-                editedTitle = stack.title
-                showEditTitleAlert = true
-            } label: {
-                HStack(spacing: 4) {
-                    Text(stack.title)
-                        .font(.headline)
-                        .lineLimit(1)
-                    Image(systemName: "pencil")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Edit title: \(stack.title)")
-            .accessibilityHint("Double tap to edit the stack title")
         }
     }
 

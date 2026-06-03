@@ -15,6 +15,7 @@ private let logger = Logger(subsystem: "com.dequeue", category: "StackEditorView
 extension StackEditorView {
     var editModeContent: some View {
         List {
+            titleSection
             completionStatusBanner
             activeStatusBanner
             descriptionSection
@@ -33,6 +34,75 @@ extension StackEditorView {
             detailsSection
             eventHistorySection
         }
+    }
+
+    // MARK: - Inline Title Section
+
+    @ViewBuilder
+    var titleSection: some View {
+        // Only show inline title for non-draft stacks in edit mode.
+        // Draft stacks use createModeContent (routed via isCreateMode) which has its own title field.
+        if case .edit(let stack) = mode, !stack.isDraft {
+            Section {
+                if isReadOnly {
+                    Text(stack.title)
+                        .font(.largeTitle.bold())
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityLabel(stack.title)
+                } else {
+                    TextField(
+                        "Stack title",
+                        text: Binding(
+                            get: { isEditingTitle ? editedTitle : stack.title },
+                            set: { editedTitle = $0 }
+                        ),
+                        axis: .vertical
+                    )
+                    .font(.largeTitle.bold())
+                    .lineLimit(1...10)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isEditingTitle ? Color(.systemFill) : Color.clear)
+                            .padding(.horizontal, -8)
+                    )
+                    .focused($titleFocused)
+                    .onChange(of: titleFocused) { _, focused in
+                        if focused && !isEditingTitle {
+                            editedTitle = stack.title
+                            isEditingTitle = true
+                        } else if !focused && isEditingTitle {
+                            commitTitleEdit()
+                        }
+                    }
+                    .accessibilityLabel("Stack title")
+                    .accessibilityHint("Double tap to edit the title")
+                    .accessibilityValue(isEditingTitle ? editedTitle : stack.title)
+                }
+            }
+        }
+    }
+
+    /// Commit the in-progress title edit, saving if valid or reverting if empty.
+    private func commitTitleEdit() {
+        let trimmed = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            // Revert — don't allow blank title
+            isEditingTitle = false
+            editedTitle = ""
+            return
+        }
+        guard case .edit(let stack) = mode, trimmed != stack.title else {
+            // Title unchanged — just exit editing
+            isEditingTitle = false
+            editedTitle = ""
+            return
+        }
+        // Persist via the existing saveStackTitle path.
+        // Keep isEditingTitle = true so the TextField continues showing editedTitle
+        // until the model update lands; saveStackTitle() flips it on completion.
+        editedTitle = trimmed
+        saveStackTitle()
     }
 
     // MARK: - Completion Status Banner
