@@ -65,21 +65,17 @@ extension StackEditorView {
                             .padding(.horizontal, -8)
                     )
                     .focused($titleFocused)
-                    .onTapGesture {
-                        if !isEditingTitle {
+                    .onChange(of: titleFocused) { _, focused in
+                        if focused && !isEditingTitle {
                             editedTitle = stack.title
                             isEditingTitle = true
-                            titleFocused = true
-                        }
-                    }
-                    .onChange(of: titleFocused) { _, focused in
-                        if !focused && isEditingTitle {
+                        } else if !focused && isEditingTitle {
                             commitTitleEdit()
                         }
                     }
                     .accessibilityLabel("Stack title")
                     .accessibilityHint("Double tap to edit the title")
-                    .accessibilityValue(stack.title)
+                    .accessibilityValue(isEditingTitle ? editedTitle : stack.title)
                 }
             }
         }

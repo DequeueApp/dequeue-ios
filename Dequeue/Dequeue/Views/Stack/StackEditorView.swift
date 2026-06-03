@@ -97,7 +97,6 @@ struct StackEditorView: View {
     }
 
     // Edit mode state
-    @State var showEditTitleAlert = false
     @State var editedTitle = ""
     @State var isEditingTitle = false
     @FocusState var titleFocused: Bool
@@ -277,8 +276,6 @@ extension StackEditorView {
             errorMessage: errorMessage,
             showDiscardAlert: $showDiscardAlert,
             showSaveDraftPrompt: $showSaveDraftPrompt,
-            showEditTitleAlert: $showEditTitleAlert,
-            editedTitle: $editedTitle,
             showCompleteConfirmation: $showCompleteConfirmation,
             showCloseConfirmation: $showCloseConfirmation,
             showDeleteConfirmation: $showDeleteConfirmation,
@@ -289,7 +286,6 @@ extension StackEditorView {
             onDismiss: { dismiss() },
             onDiscardDraft: discardDraftAndDismiss,
             onCreateDraft: createDraftAndDismiss,
-            onSaveTitle: saveStackTitle,
             onCompleteStack: completeStack,
             onCloseStack: closeStack,
             onDeleteStack: deleteStack
@@ -302,8 +298,6 @@ private struct StackEditorAlertsModifier: ViewModifier {
     let errorMessage: String
     @Binding var showDiscardAlert: Bool
     @Binding var showSaveDraftPrompt: Bool
-    @Binding var showEditTitleAlert: Bool
-    @Binding var editedTitle: String
     @Binding var showCompleteConfirmation: Bool
     @Binding var showCloseConfirmation: Bool
     @Binding var showDeleteConfirmation: Bool
@@ -314,7 +308,6 @@ private struct StackEditorAlertsModifier: ViewModifier {
     let onDismiss: () -> Void
     let onDiscardDraft: () -> Void
     let onCreateDraft: () -> Void
-    let onSaveTitle: () -> Void
     let onCompleteStack: (Bool) -> Void
     let onCloseStack: () -> Void
     let onDeleteStack: () -> Void
@@ -334,12 +327,6 @@ private struct StackEditorAlertsModifier: ViewModifier {
                 Button("Discard", role: .destructive) { onDismiss() }
                 Button("Cancel", role: .cancel) { }
             } message: { Text("You have unsaved content. Would you like to save it as a draft?") }
-            .alert("Edit Title", isPresented: $showEditTitleAlert) {
-                TextField("Title", text: $editedTitle)
-                Button("Save") { onSaveTitle() }
-                    .disabled(editedTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button("Cancel", role: .cancel) { editedTitle = "" }
-            } message: { Text("Enter a new title for this stack") }
             .confirmationDialog("Complete Stack", isPresented: $showCompleteConfirmation, titleVisibility: .visible) {
                 Button("Complete All Tasks & Stack") { onCompleteStack(true) }
                 Button("Complete Stack Only") { onCompleteStack(false) }
