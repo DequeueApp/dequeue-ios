@@ -102,7 +102,9 @@ extension StackEditorView {
             do {
                 try await service.updateStack(stack, title: trimmedTitle, description: stack.stackDescription)
                 editedTitle = ""
+                isEditingTitle = false
             } catch {
+                isEditingTitle = false
                 handleError(error)
             }
         }

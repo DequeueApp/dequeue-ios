@@ -40,7 +40,9 @@ extension StackEditorView {
 
     @ViewBuilder
     var titleSection: some View {
-        if case .edit(let stack) = mode {
+        // Only show inline title for non-draft stacks in edit mode.
+        // Draft stacks use createModeContent (routed via isCreateMode) which has its own title field.
+        if case .edit(let stack) = mode, !stack.isDraft {
             Section {
                 if isReadOnly {
                     Text(stack.title)
@@ -84,17 +86,21 @@ extension StackEditorView {
     /// Commit the in-progress title edit, saving if valid or reverting if empty.
     private func commitTitleEdit() {
         let trimmed = editedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        isEditingTitle = false
         guard !trimmed.isEmpty else {
             // Revert — don't allow blank title
+            isEditingTitle = false
             editedTitle = ""
             return
         }
         guard case .edit(let stack) = mode, trimmed != stack.title else {
+            // Title unchanged — just exit editing
+            isEditingTitle = false
             editedTitle = ""
             return
         }
-        // Persist via the existing saveStackTitle path
+        // Persist via the existing saveStackTitle path.
+        // Keep isEditingTitle = true so the TextField continues showing editedTitle
+        // until the model update lands; saveStackTitle() flips it on completion.
         editedTitle = trimmed
         saveStackTitle()
     }
